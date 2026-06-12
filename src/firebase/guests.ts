@@ -9,16 +9,18 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  updateDoc,
   where,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './config'
-import type { GuestData } from '../types'
+import type { GuestData, RsvpStatus } from '../types'
 
 export interface NewGuestInput {
   name: string
   email?: string
   phone?: string
+  companions?: number
 }
 
 function generateQrToken(): string {
@@ -32,10 +34,15 @@ export async function addGuest(eventId: string, input: NewGuestInput) {
     name: input.name,
     email: input.email || '',
     phone: input.phone || '',
+    companions: input.companions || 0,
+    rsvpStatus: 'pending',
     qrToken: generateQrToken(),
     status: 'invited',
     checkedInAt: null,
     checkedInBy: null,
+    checkedInByEmail: null,
+    checkedOutAt: null,
+    checkedOutByEmail: null,
     createdAt: serverTimestamp(),
   })
   batch.update(doc(db, 'events', eventId), { guestCount: increment(1) })
@@ -51,14 +58,41 @@ export async function addGuestsBulk(eventId: string, names: string[]) {
       name,
       email: '',
       phone: '',
+      companions: 0,
+      rsvpStatus: 'pending',
       qrToken: generateQrToken(),
       status: 'invited',
       checkedInAt: null,
       checkedInBy: null,
+      checkedInByEmail: null,
+      checkedOutAt: null,
+      checkedOutByEmail: null,
       createdAt: serverTimestamp(),
     })
   }
   batch.update(doc(db, 'events', eventId), { guestCount: increment(names.length) })
+  await batch.commit()
+}
+
+export interface UpdateGuestInput {
+  name?: string
+  email?: string
+  phone?: string
+  companions?: number
+}
+
+export async function updateGuest(eventId: string, guestId: string, input: UpdateGuestInput) {
+  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { ...input })
+}
+
+export async function deleteGuest(eventId: string, guestId: string, wasCheckedIn: boolean) {
+  const batch = writeBatch(db)
+  batch.delete(doc(db, 'events', eventId, 'guests', guestId))
+  const updates: Record<string, unknown> = { guestCount: increment(-1) }
+  if (wasCheckedIn) {
+    updates.checkedInCount = increment(-1)
+  }
+  batch.update(doc(db, 'events', eventId), updates)
   await batch.commit()
 }
 
@@ -85,6 +119,12 @@ export async function findGuestByToken(
   return mapGuest(d.id, d.data())
 }
 
+export async function setGuestRsvp(eventId: string, qrToken: string, rsvpStatus: RsvpStatus) {
+  const guest = await findGuestByToken(eventId, qrToken)
+  if (!guest) return
+  await updateDoc(doc(db, 'events', eventId, 'guests', guest.id), { rsvpStatus })
+}
+
 export type CheckInResult =
   | { status: 'success'; guest: GuestData }
   | { status: 'already_checked_in'; guest: GuestData }
@@ -94,6 +134,7 @@ export async function checkInGuest(
   eventId: string,
   qrToken: string,
   scannedBy: string,
+  scannedByEmail: string | null,
 ): Promise<CheckInResult> {
   const guests = collection(db, 'events', eventId, 'guests')
   const q = query(guests, where('qrToken', '==', qrToken), limit(1))
@@ -121,6 +162,9 @@ export async function checkInGuest(
       status: 'checked_in',
       checkedInAt: serverTimestamp(),
       checkedInBy: scannedBy,
+      checkedInByEmail: scannedByEmail,
+      checkedOutAt: null,
+      checkedOutByEmail: null,
     })
     transaction.update(eventRef, { checkedInCount: increment(1) })
 
@@ -128,14 +172,74 @@ export async function checkInGuest(
     transaction.set(checkinRef, {
       guestId: guest.id,
       guestName: guest.name,
+      type: 'check_in',
       timestamp: serverTimestamp(),
       scannedBy,
+      scannedByEmail,
     })
 
     return {
       status: 'success',
       guest: { ...guest, status: 'checked_in' },
     } as CheckInResult
+  })
+}
+
+export type CheckOutResult =
+  | { status: 'success'; guest: GuestData }
+  | { status: 'not_checked_in' }
+  | { status: 'already_checked_out'; guest: GuestData }
+  | { status: 'not_found' }
+
+export async function checkOutGuest(
+  eventId: string,
+  qrToken: string,
+  scannedBy: string,
+  scannedByEmail: string | null,
+): Promise<CheckOutResult> {
+  const guests = collection(db, 'events', eventId, 'guests')
+  const q = query(guests, where('qrToken', '==', qrToken), limit(1))
+  const queryResult = await getDocs(q)
+  const snapshot = queryResult.empty ? null : mapGuest(queryResult.docs[0].id, queryResult.docs[0].data())
+
+  if (!snapshot) {
+    return { status: 'not_found' }
+  }
+
+  const guestRef = doc(db, 'events', eventId, 'guests', snapshot.id)
+
+  return runTransaction(db, async (transaction) => {
+    const guestSnap = await transaction.get(guestRef)
+    if (!guestSnap.exists()) {
+      return { status: 'not_found' } as CheckOutResult
+    }
+    const guest = mapGuest(guestSnap.id, guestSnap.data())
+    if (guest.status !== 'checked_in') {
+      return { status: 'not_checked_in' } as CheckOutResult
+    }
+    if (guest.checkedOutAt) {
+      return { status: 'already_checked_out', guest } as CheckOutResult
+    }
+
+    transaction.update(guestRef, {
+      checkedOutAt: serverTimestamp(),
+      checkedOutByEmail: scannedByEmail,
+    })
+
+    const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
+    transaction.set(checkinRef, {
+      guestId: guest.id,
+      guestName: guest.name,
+      type: 'check_out',
+      timestamp: serverTimestamp(),
+      scannedBy,
+      scannedByEmail,
+    })
+
+    return {
+      status: 'success',
+      guest: { ...guest, checkedOutAt: Date.now() },
+    } as CheckOutResult
   })
 }
 
@@ -147,8 +251,13 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     phone: (data.phone as string) || '',
     qrToken: data.qrToken as string,
     status: data.status as GuestData['status'],
+    companions: (data.companions as number) || 0,
+    rsvpStatus: (data.rsvpStatus as GuestData['rsvpStatus']) || 'pending',
     checkedInAt: toMillisOrNull(data.checkedInAt),
     checkedInBy: (data.checkedInBy as string) || null,
+    checkedInByEmail: (data.checkedInByEmail as string) || null,
+    checkedOutAt: toMillisOrNull(data.checkedOutAt),
+    checkedOutByEmail: (data.checkedOutByEmail as string) || null,
     createdAt: toMillisOrNull(data.createdAt) || 0,
   }
 }

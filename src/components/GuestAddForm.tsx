@@ -6,6 +6,7 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [companions, setCompanions] = useState(0)
   const [bulkNames, setBulkNames] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -14,10 +15,11 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
     if (!name.trim()) return
     setLoading(true)
     try {
-      await addGuest(eventId, { name: name.trim(), email: email.trim(), phone: phone.trim() })
+      await addGuest(eventId, { name: name.trim(), email: email.trim(), phone: phone.trim(), companions })
       setName('')
       setEmail('')
       setPhone('')
+      setCompanions(0)
     } finally {
       setLoading(false)
     }
@@ -84,6 +86,16 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
             onChange={(e) => setPhone(e.target.value)}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 whitespace-nowrap">Acompañantes</label>
+            <input
+              type="number"
+              min={0}
+              value={companions}
+              onChange={(e) => setCompanions(Math.max(0, Number(e.target.value)))}
+              className="w-20 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
           <button
             type="submit"
             disabled={loading}

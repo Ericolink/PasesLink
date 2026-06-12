@@ -15,6 +15,7 @@ export function EventDetail() {
   const { event, guests, loading } = useEvent(eventId)
   const [exporting, setExporting] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [search, setSearch] = useState('')
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
   if (!event) return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
@@ -43,6 +44,18 @@ export function EventDetail() {
       setUpdatingStatus(false)
     }
   }
+
+  const totalPeople = guests.reduce((sum, g) => sum + 1 + g.companions, 0)
+  const insideGuests = guests.filter((g) => g.status === 'checked_in' && !g.checkedOutAt)
+  const peopleInside = insideGuests.reduce((sum, g) => sum + 1 + g.companions, 0)
+  const rsvpYes = guests.filter((g) => g.rsvpStatus === 'yes').length
+  const rsvpNo = guests.filter((g) => g.rsvpStatus === 'no').length
+
+  const filteredGuests = guests.filter((g) => {
+    const term = search.trim().toLowerCase()
+    if (!term) return true
+    return g.name.toLowerCase().includes(term) || (g.email || '').toLowerCase().includes(term)
+  })
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -80,7 +93,7 @@ export function EventDetail() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-6">
         <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
           <p className="text-2xl font-semibold text-gray-900">{event.guestCount}</p>
-          <p className="text-xs text-gray-500">Invitados</p>
+          <p className="text-xs text-gray-500">Invitados ({totalPeople} personas)</p>
         </div>
         <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
           <p className="text-2xl font-semibold text-green-600">{event.checkedInCount}</p>
@@ -89,6 +102,18 @@ export function EventDetail() {
         <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
           <p className="text-2xl font-semibold text-gray-400">{event.guestCount - event.checkedInCount}</p>
           <p className="text-xs text-gray-500">Pendientes</p>
+        </div>
+        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <p className="text-2xl font-semibold text-primary">{peopleInside}</p>
+          <p className="text-xs text-gray-500">Personas dentro ahora</p>
+        </div>
+        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <p className="text-2xl font-semibold text-gray-900">{rsvpYes}</p>
+          <p className="text-xs text-gray-500">RSVP: asistirán</p>
+        </div>
+        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <p className="text-2xl font-semibold text-gray-400">{rsvpNo}</p>
+          <p className="text-xs text-gray-500">RSVP: no asistirán</p>
         </div>
       </div>
 
@@ -101,7 +126,7 @@ export function EventDetail() {
       )}
 
       <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
           <h2 className="font-medium text-gray-900">Invitados</h2>
           <button
             onClick={handleExport}
@@ -111,7 +136,16 @@ export function EventDetail() {
             {exporting ? 'Generando PDF...' : 'Exportar pases a PDF'}
           </button>
         </div>
-        <GuestList eventId={event.id} guests={guests} />
+        {guests.length > 0 && (
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre o email..."
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        )}
+        <GuestList eventId={event.id} guests={filteredGuests} />
       </div>
 
       <div className="border border-gray-200 rounded-lg bg-white p-4">

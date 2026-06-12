@@ -28,10 +28,10 @@ service cloud.firestore {
         allow list: if request.query.limit <= 1;
         allow get: if true;
 
-        // El check-in lo realiza el organizador autenticado desde el escáner.
-        allow update: if isOwner(eventId) &&
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'checkedInAt', 'checkedInBy']);
+        // El organizador puede editar cualquier campo (datos del invitado, check-in/out).
+        // Los invitados (sin auth) solo pueden actualizar su propio RSVP.
+        allow update: if isOwner(eventId) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus']);
       }
 
       match /checkins/{checkinId} {

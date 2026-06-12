@@ -5,6 +5,7 @@ import { db } from '../firebase/config'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import type { CheckinLog } from '../types'
+import { RSVP_LABELS } from '../types'
 
 export function Reports() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -23,7 +24,9 @@ export function Reports() {
             id: d.id,
             guestId: data.guestId,
             guestName: data.guestName,
+            type: (data.type as CheckinLog['type']) || 'check_in',
             scannedBy: data.scannedBy,
+            scannedByEmail: data.scannedByEmail || null,
             timestamp: data.timestamp?.toMillis ? data.timestamp.toMillis() : 0,
           }
         }),
@@ -42,6 +45,19 @@ export function Reports() {
 
   const attendanceRate = event.guestCount > 0 ? Math.round((event.checkedInCount / event.guestCount) * 100) : 0
   const pending = guests.filter((g) => g.status === 'invited')
+  const rsvpYes = guests.filter((g) => g.rsvpStatus === 'yes').length
+  const rsvpNo = guests.filter((g) => g.rsvpStatus === 'no').length
+  const rsvpPending = guests.filter((g) => g.rsvpStatus === 'pending').length
+
+  const checkIns = checkins.filter((c) => c.type === 'check_in')
+  const hourCounts = new Map<string, number>()
+  for (const c of checkIns) {
+    const hour = new Date(c.timestamp).getHours()
+    const label = `${hour.toString().padStart(2, '0')}:00`
+    hourCounts.set(label, (hourCounts.get(label) || 0) + 1)
+  }
+  const hourEntries = Array.from(hourCounts.entries()).sort(([a], [b]) => a.localeCompare(b))
+  const maxHourCount = Math.max(1, ...hourEntries.map(([, count]) => count))
 
   function exportCsv() {
     const rows = [['Invitado', 'Email', 'Estado', 'Hora de ingreso']]
@@ -75,11 +91,39 @@ export function Reports() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <Stat label="Invitados" value={event.guestCount} />
         <Stat label="Confirmados" value={event.checkedInCount} color="text-green-600" />
         <Stat label="Pendientes" value={pending.length} color="text-gray-400" />
         <Stat label="Asistencia" value={`${attendanceRate}%`} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <Stat label="RSVP: asistirán" value={rsvpYes} color="text-primary" />
+        <Stat label="RSVP: no asistirán" value={rsvpNo} color="text-gray-400" />
+        <Stat label="RSVP: sin responder" value={rsvpPending} color="text-gray-400" />
+      </div>
+
+      <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
+        <h2 className="font-medium text-gray-900 mb-3">Llegadas por hora</h2>
+        {hourEntries.length === 0 ? (
+          <p className="text-sm text-gray-500">Aún no hay check-ins registrados.</p>
+        ) : (
+          <div className="space-y-2">
+            {hourEntries.map(([hour, count]) => (
+              <div key={hour} className="flex items-center gap-2 text-sm">
+                <span className="w-12 text-gray-500">{hour}</span>
+                <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full"
+                    style={{ width: `${(count / maxHourCount) * 100}%` }}
+                  />
+                </div>
+                <span className="w-8 text-right text-gray-700">{count}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
@@ -91,12 +135,21 @@ export function Reports() {
         </div>
         <div className="divide-y divide-gray-100">
           {guests.map((guest) => (
-            <div key={guest.id} className="flex items-center justify-between py-2 text-sm">
-              <span className="text-gray-900">{guest.name}</span>
-              <span className="text-gray-500">
-                {guest.status === 'checked_in' && guest.checkedInAt
-                  ? new Date(guest.checkedInAt).toLocaleTimeString()
-                  : 'Pendiente'}
+            <div key={guest.id} className="flex items-center justify-between py-2 text-sm gap-2">
+              <span className="text-gray-900">
+                {guest.name}
+                {guest.companions > 0 && <span className="text-gray-400"> +{guest.companions}</span>}
+              </span>
+              <span className="text-gray-400 text-xs">{RSVP_LABELS[guest.rsvpStatus]}</span>
+              <span className="text-gray-500 text-right">
+                {guest.status === 'checked_in' && guest.checkedInAt ? (
+                  <>
+                    Entró {new Date(guest.checkedInAt).toLocaleTimeString()}
+                    {guest.checkedOutAt && <> · Salió {new Date(guest.checkedOutAt).toLocaleTimeString()}</>}
+                  </>
+                ) : (
+                  'Pendiente'
+                )}
               </span>
             </div>
           ))}
@@ -104,14 +157,17 @@ export function Reports() {
       </div>
 
       <div className="border border-gray-200 rounded-lg bg-white p-4">
-        <h2 className="font-medium text-gray-900 mb-3">Línea de tiempo de llegadas</h2>
+        <h2 className="font-medium text-gray-900 mb-3">Línea de tiempo</h2>
         {checkins.length === 0 ? (
           <p className="text-sm text-gray-500">Aún no hay check-ins registrados.</p>
         ) : (
           <ul className="text-sm space-y-1">
             {checkins.map((c) => (
               <li key={c.id} className="flex justify-between text-gray-700">
-                <span>{c.guestName}</span>
+                <span>
+                  {c.type === 'check_out' ? '↩' : '✓'} {c.guestName}
+                  {c.scannedByEmail && <span className="text-gray-400"> · {c.scannedByEmail}</span>}
+                </span>
                 <span className="text-gray-400">{new Date(c.timestamp).toLocaleTimeString()}</span>
               </li>
             ))}

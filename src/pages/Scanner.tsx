@@ -3,28 +3,33 @@ import { Link, useParams } from 'react-router-dom'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useAuth } from '../hooks/useAuth'
 import { useEvent } from '../hooks/useEvent'
-import { checkInGuest } from '../firebase/guests'
+import { checkInGuest, checkOutGuest } from '../firebase/guests'
 import { ScanResultModal } from '../components/ScanResultModal'
 
 const SCANNER_ELEMENT_ID = 'qr-scanner'
 const AUTO_CLOSE_MS = 3000
 
 export type ScanFeedback = {
-  type: 'success' | 'already' | 'invalid'
+  type: 'success' | 'already' | 'invalid' | 'checkout' | 'not_checked_in' | 'already_out'
   guestName?: string
   detail?: string
 }
+
+type ScanMode = 'in' | 'out'
 
 export function Scanner() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
   const { event } = useEvent(eventId)
+  const [mode, setMode] = useState<ScanMode>('in')
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
   const [cameraError, setCameraError] = useState('')
   const [manualValue, setManualValue] = useState('')
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const processingRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const modeRef = useRef(mode)
+  modeRef.current = mode
 
   function showFeedback(value: ScanFeedback) {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
@@ -86,14 +91,32 @@ export function Scanner() {
 
     processingRef.current = true
     try {
-      const result = await checkInGuest(eventId, qrToken, user.uid)
-      if (result.status === 'success') {
-        const welcome = event?.plan === 'premium' && event.welcomeMessage ? event.welcomeMessage : undefined
-        showFeedback({ type: 'success', guestName: result.guest.name, detail: welcome })
-      } else if (result.status === 'already_checked_in') {
-        showFeedback({ type: 'already', guestName: result.guest.name })
+      if (modeRef.current === 'in') {
+        const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
+        if (result.status === 'success') {
+          const welcome = event?.plan === 'premium' && event.welcomeMessage ? event.welcomeMessage : undefined
+          const companions = result.guest.companions > 0 ? `+${result.guest.companions} acompañante(s)` : undefined
+          showFeedback({
+            type: 'success',
+            guestName: result.guest.name,
+            detail: [companions, welcome].filter(Boolean).join(' · ') || undefined,
+          })
+        } else if (result.status === 'already_checked_in') {
+          showFeedback({ type: 'already', guestName: result.guest.name })
+        } else {
+          showFeedback({ type: 'invalid', detail: 'Invitado no encontrado.' })
+        }
       } else {
-        showFeedback({ type: 'invalid', detail: 'Invitado no encontrado.' })
+        const result = await checkOutGuest(eventId, qrToken, user.uid, user.email)
+        if (result.status === 'success') {
+          showFeedback({ type: 'checkout', guestName: result.guest.name })
+        } else if (result.status === 'already_checked_out') {
+          showFeedback({ type: 'already_out', guestName: result.guest.name })
+        } else if (result.status === 'not_checked_in') {
+          showFeedback({ type: 'not_checked_in', detail: 'Este invitado no había hecho check-in.' })
+        } else {
+          showFeedback({ type: 'invalid', detail: 'Invitado no encontrado.' })
+        }
       }
     } catch {
       showFeedback({ type: 'invalid', detail: 'Ocurrió un error al confirmar la asistencia.' })
@@ -112,28 +135,47 @@ export function Scanner() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-6">
+    <div className="max-w-md mx-auto px-4 py-6 min-h-[calc(100vh-3.5rem)] bg-gray-900 text-white -mt-px">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-gray-900">Escanear pases</h1>
+        <h1 className="text-xl font-semibold text-white">Escanear pases</h1>
         <Link to={`/events/${eventId}`} className="text-sm text-primary font-medium">
           Volver
         </Link>
       </div>
 
-      {event && <p className="text-sm text-gray-500 mb-3">{event.name}</p>}
+      {event && <p className="text-sm text-gray-400 mb-3">{event.name}</p>}
 
-      <div id={SCANNER_ELEMENT_ID} className="rounded-lg overflow-hidden border border-gray-200 bg-black" />
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <button
+          onClick={() => setMode('in')}
+          className={`rounded-md py-2 text-sm font-medium transition-colors ${
+            mode === 'in' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-300'
+          }`}
+        >
+          Entrada
+        </button>
+        <button
+          onClick={() => setMode('out')}
+          className={`rounded-md py-2 text-sm font-medium transition-colors ${
+            mode === 'out' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-300'
+          }`}
+        >
+          Salida
+        </button>
+      </div>
 
-      {cameraError && <p className="text-sm text-red-600 mt-3">{cameraError}</p>}
+      <div id={SCANNER_ELEMENT_ID} className="rounded-lg overflow-hidden border border-gray-700 bg-black" />
+
+      {cameraError && <p className="text-sm text-red-400 mt-3">{cameraError}</p>}
 
       {feedback && <ScanResultModal feedback={feedback} onClose={() => setFeedback(null)} />}
 
       {event && (
         <div className="mt-4">
-          <p className="text-center text-sm text-gray-500 mb-1">
+          <p className="text-center text-sm text-gray-400 mb-1">
             {event.checkedInCount} / {event.guestCount} confirmados
           </p>
-          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden">
             <div
               className="h-full bg-primary rounded-full"
               style={{
@@ -144,7 +186,7 @@ export function Scanner() {
         </div>
       )}
 
-      <details className="mt-6 text-sm text-gray-500">
+      <details className="mt-6 text-sm text-gray-400">
         <summary className="cursor-pointer">¿Problemas con la cámara? Confirmar manualmente</summary>
         <form onSubmit={handleManualSubmit} className="mt-2 flex gap-2">
           <input
@@ -152,7 +194,7 @@ export function Scanner() {
             value={manualValue}
             onChange={(e) => setManualValue(e.target.value)}
             placeholder="Pega aquí el link del pase"
-            className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="flex-1 border border-gray-700 bg-gray-800 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <button
             type="submit"

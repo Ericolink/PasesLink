@@ -5,6 +5,9 @@ export function ScanResultModal({ feedback, onClose }: { feedback: ScanFeedback;
     success: { bg: 'bg-green-600', icon: '✅', title: 'Bienvenido/a' },
     already: { bg: 'bg-amber-500', icon: '⚠️', title: 'QR ya registrado' },
     invalid: { bg: 'bg-red-600', icon: '❌', title: 'No válido' },
+    checkout: { bg: 'bg-blue-600', icon: '👋', title: 'Hasta luego' },
+    already_out: { bg: 'bg-amber-500', icon: '⚠️', title: 'Ya había salido' },
+    not_checked_in: { bg: 'bg-amber-500', icon: '⚠️', title: 'Sin check-in' },
   }[feedback.type]
 
   return (
