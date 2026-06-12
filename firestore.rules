@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(eventId) {
+      return request.auth != null &&
+        request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.ownerId;
+    }
+
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /events/{eventId} {
+      // Lectura pública: necesaria para mostrar nombre/fecha/lugar en la página del pase.
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
+      allow update: if isOwner(eventId);
+      allow delete: if false;
+
+      match /guests/{guestId} {
+        // El organizador puede leer/escribir todo.
+        allow read, create, delete: if isOwner(eventId);
+
+        // Lectura pública limitada: solo consultas de un único documento (por qrToken),
+        // usadas por la página del pase y el escáner.
+        allow list: if request.query.limit <= 1;
+        allow get: if true;
+
+        // El check-in lo realiza el organizador autenticado desde el escáner.
+        allow update: if isOwner(eventId) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'checkedInAt', 'checkedInBy']);
+      }
+
+      match /checkins/{checkinId} {
+        allow read: if isOwner(eventId);
+        allow create: if isOwner(eventId);
+        allow update, delete: if false;
+      }
+    }
+  }
+}

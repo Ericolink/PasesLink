@@ -1,0 +1,166 @@
+import { useState } from 'react'
+import { Link, Navigate, useParams } from 'react-router-dom'
+import { useEvent } from '../hooks/useEvent'
+import { useAuth } from '../hooks/useAuth'
+import { setEventStatus } from '../firebase/events'
+import { exportGuestPassesPdf } from '../utils/exportPdf'
+import { PlanBadge } from '../components/PlanBadge'
+import { GuestAddForm } from '../components/GuestAddForm'
+import { GuestList } from '../components/GuestList'
+import { WelcomeMessageEditor } from '../components/WelcomeMessageEditor'
+
+export function EventDetail() {
+  const { eventId } = useParams<{ eventId: string }>()
+  const { user } = useAuth()
+  const { event, guests, loading } = useEvent(eventId)
+  const [exporting, setExporting] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+
+  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
+  if (!event) return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
+  if (user && event.ownerId !== user.uid) {
+    return <p className="text-center text-gray-500 mt-16">No tienes acceso a este evento.</p>
+  }
+  if (event.paymentStatus !== 'paid') {
+    return <Navigate to={`/events/${event.id}/checkout`} replace />
+  }
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      await exportGuestPassesPdf(event!, guests)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function handleStatusChange(status: 'cancelled' | 'archived' | 'active') {
+    if (!eventId) return
+    setUpdatingStatus(true)
+    try {
+      await setEventStatus(eventId, status)
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <Link to="/dashboard" className="text-sm text-gray-500 hover:text-primary transition-colors inline-block mb-3">
+        ← Mis eventos
+      </Link>
+      <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-semibold text-gray-900">{event.name}</h1>
+            <PlanBadge plan={event.plan} />
+          </div>
+          <p className="text-sm text-gray-500">
+            {event.date} · {event.location}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link
+            to={`/events/${event.id}/scan`}
+            className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
+          >
+            Escanear QR
+          </Link>
+          {event.plan === 'premium' && (
+            <Link
+              to={`/events/${event.id}/reports`}
+              className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              Reportes
+            </Link>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-6">
+        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <p className="text-2xl font-semibold text-gray-900">{event.guestCount}</p>
+          <p className="text-xs text-gray-500">Invitados</p>
+        </div>
+        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <p className="text-2xl font-semibold text-green-600">{event.checkedInCount}</p>
+          <p className="text-xs text-gray-500">Confirmados</p>
+        </div>
+        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <p className="text-2xl font-semibold text-gray-400">{event.guestCount - event.checkedInCount}</p>
+          <p className="text-xs text-gray-500">Pendientes</p>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <GuestAddForm eventId={event.id} />
+      </div>
+
+      {event.plan === 'premium' && (
+        <WelcomeMessageEditor eventId={event.id} welcomeMessage={event.welcomeMessage || ''} />
+      )}
+
+      <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-medium text-gray-900">Invitados</h2>
+          <button
+            onClick={handleExport}
+            disabled={exporting || guests.length === 0}
+            className="text-sm text-primary font-medium disabled:opacity-50"
+          >
+            {exporting ? 'Generando PDF...' : 'Exportar pases a PDF'}
+          </button>
+        </div>
+        <GuestList eventId={event.id} guests={guests} />
+      </div>
+
+      <div className="border border-gray-200 rounded-lg bg-white p-4">
+        <h2 className="font-medium text-gray-900 mb-2">Estado del evento</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Estado actual: <span className="font-medium">{statusLabel(event.status)}</span>
+        </p>
+        <div className="flex gap-2 flex-wrap">
+          {event.status === 'active' && (
+            <button
+              onClick={() => handleStatusChange('cancelled')}
+              disabled={updatingStatus}
+              className="text-sm border border-red-300 text-red-600 rounded-md px-3 py-1.5 font-medium hover:bg-red-50 disabled:opacity-50"
+            >
+              Cancelar evento
+            </button>
+          )}
+          {event.status === 'active' && (
+            <button
+              onClick={() => handleStatusChange('archived')}
+              disabled={updatingStatus}
+              className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50 disabled:opacity-50"
+            >
+              Archivar evento
+            </button>
+          )}
+          {event.status !== 'active' && (
+            <button
+              onClick={() => handleStatusChange('active')}
+              disabled={updatingStatus}
+              className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50 disabled:opacity-50"
+            >
+              Reactivar evento
+            </button>
+          )}
+          <Link
+            to="/events/new"
+            className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50"
+          >
+            Crear nuevo evento
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function statusLabel(status: string) {
+  if (status === 'active') return 'Activo'
+  if (status === 'cancelled') return 'Cancelado'
+  return 'Archivado'
+}
