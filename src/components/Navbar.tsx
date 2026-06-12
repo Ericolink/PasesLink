@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { logout } from '../firebase/auth'
 import { useAuth } from '../hooks/useAuth'
+import { isAdminEmail } from '../config/admin'
 import { Logo } from './Logo'
 
 export function Navbar() {
@@ -20,6 +21,11 @@ export function Navbar() {
         </Link>
         {user ? (
           <div className="flex items-center gap-4 text-sm">
+            {isAdminEmail(user.email) && (
+              <Link to="/admin" className="text-gray-600 hover:text-primary transition-colors">
+                Admin
+              </Link>
+            )}
             <span className="text-gray-500 hidden sm:inline">{user.email}</span>
             <button
               onClick={handleLogout}

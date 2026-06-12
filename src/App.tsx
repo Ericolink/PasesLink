@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Navbar } from './components/Navbar'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { AdminRoute } from './components/AdminRoute'
 import { Landing } from './pages/Landing'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
@@ -11,6 +12,7 @@ import { EventDetail } from './pages/EventDetail'
 import { Scanner } from './pages/Scanner'
 import { Reports } from './pages/Reports'
 import { GuestPass } from './pages/GuestPass'
+import { AdminDashboard } from './pages/AdminDashboard'
 
 function App() {
   return (
@@ -68,6 +70,14 @@ function App() {
             <ProtectedRoute>
               <Reports />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
           }
         />
 

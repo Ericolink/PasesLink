@@ -11,7 +11,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from './config'
-import type { EventData, EventStatus, Plan } from '../types'
+import type { EventData, EventStatus, PaymentStatus, Plan } from '../types'
 
 export interface NewEventInput {
   name: string
@@ -78,6 +78,13 @@ export async function markEventPaid(eventId: string) {
   })
 }
 
+export async function setEventPaymentStatus(eventId: string, paymentStatus: PaymentStatus) {
+  await updateDoc(doc(db, 'events', eventId), {
+    paymentStatus,
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export async function setEventStatus(eventId: string, status: EventStatus) {
   await updateDoc(doc(db, 'events', eventId), {
     status,
@@ -92,7 +99,7 @@ export async function updateEventWelcomeMessage(eventId: string, welcomeMessage:
   })
 }
 
-function mapEvent(id: string, data: Record<string, unknown>): EventData {
+export function mapEvent(id: string, data: Record<string, unknown>): EventData {
   return {
     id,
     ownerId: data.ownerId as string,
