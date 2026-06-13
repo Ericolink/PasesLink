@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
 import { isAdminEmail } from '../config/admin'
 import { Logo } from './Logo'
+import { IconMoon, IconSun } from './Icons'
 
 export function Navbar() {
   const { user } = useAuth()
@@ -32,9 +33,9 @@ export function Navbar() {
             <button
               onClick={toggleTheme}
               aria-label="Cambiar tema"
-              className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors text-base"
+              className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors"
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <IconSun className="w-5 h-5" /> : <IconMoon className="w-5 h-5" />}
             </button>
             <button
               onClick={handleLogout}
@@ -48,9 +49,9 @@ export function Navbar() {
             <button
               onClick={toggleTheme}
               aria-label="Cambiar tema"
-              className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors text-base"
+              className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors"
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <IconSun className="w-5 h-5" /> : <IconMoon className="w-5 h-5" />}
             </button>
             <Link to="/login" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors">
               Iniciar sesión

@@ -3,13 +3,19 @@ import { Link } from 'react-router-dom'
 import { deleteGuest, updateGuest } from '../firebase/guests'
 import type { GuestData } from '../types'
 import { RSVP_LABELS } from '../types'
+import { IconInbox } from './Icons'
 
 export function GuestList({ eventId, guests }: { eventId: string; guests: GuestData[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   if (guests.length === 0) {
-    return <p className="text-sm text-gray-500 py-6 text-center">Todavía no agregaste invitados.</p>
+    return (
+      <div className="text-center py-8 animate-fade-in">
+        <IconInbox className="w-8 h-8 mb-2 mx-auto text-gray-300" />
+        <p className="text-sm text-gray-500">Todavía no agregaste invitados.</p>
+      </div>
+    )
   }
 
   async function handleDelete(guest: GuestData) {
@@ -34,7 +40,7 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
         editingId === guest.id ? (
           <EditGuestRow key={guest.id} eventId={eventId} guest={guest} onDone={() => setEditingId(null)} />
         ) : (
-          <div key={guest.id} className="flex items-center justify-between py-2.5 gap-2">
+          <div key={guest.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-2.5 gap-2">
             <div className="min-w-0">
               <p className="font-medium text-gray-900 text-sm truncate">
                 {guest.name}
@@ -44,7 +50,7 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
               </p>
               {guest.email && <p className="text-xs text-gray-500 truncate">{guest.email}</p>}
             </div>
-            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <div className="flex items-center gap-2 flex-wrap sm:shrink-0 sm:justify-end">
               {guest.rsvpStatus !== 'pending' && (
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full font-medium ${

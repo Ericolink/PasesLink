@@ -6,6 +6,7 @@ import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import type { CheckinLog } from '../types'
 import { RSVP_LABELS } from '../types'
+import { IconCheck, IconCornerUpLeft } from '../components/Icons'
 
 export function Reports() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -80,7 +81,7 @@ export function Reports() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Reportes</h1>
@@ -164,8 +165,13 @@ export function Reports() {
           <ul className="text-sm space-y-1">
             {checkins.map((c) => (
               <li key={c.id} className="flex justify-between text-gray-700">
-                <span>
-                  {c.type === 'check_out' ? '↩' : '✓'} {c.guestName}
+                <span className="inline-flex items-center gap-1.5">
+                  {c.type === 'check_out' ? (
+                    <IconCornerUpLeft className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  ) : (
+                    <IconCheck className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                  )}
+                  {c.guestName}
                   {c.scannedByEmail && <span className="text-gray-400"> · {c.scannedByEmail}</span>}
                 </span>
                 <span className="text-gray-400">{new Date(c.timestamp).toLocaleTimeString()}</span>

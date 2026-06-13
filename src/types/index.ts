@@ -70,7 +70,6 @@ export const RSVP_LABELS: Record<RsvpStatus, string> = {
 export interface EventTemplate {
   id: string
   label: string
-  icon: string
   description: string
   welcomeMessage: string
 }
@@ -79,28 +78,24 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
   {
     id: 'birthday',
     label: 'Cumpleaños',
-    icon: '🎂',
     description: 'Celebración de cumpleaños con familiares y amigos.',
-    welcomeMessage: '¡Bienvenido/a a la fiesta! Que disfrutes mucho 🎉',
+    welcomeMessage: '¡Bienvenido/a a la fiesta! Que disfrutes mucho.',
   },
   {
     id: 'wedding',
     label: 'Boda',
-    icon: '💍',
     description: 'Celebración de boda. Por favor presenta tu pase en la entrada.',
-    welcomeMessage: '¡Gracias por acompañarnos en este día tan especial! 💕',
+    welcomeMessage: '¡Gracias por acompañarnos en este día tan especial!',
   },
   {
     id: 'corporate',
     label: 'Evento corporativo',
-    icon: '🏢',
     description: 'Evento corporativo. El acceso es exclusivo para invitados con pase.',
     welcomeMessage: 'Bienvenido/a, esperamos que disfrutes del evento.',
   },
   {
     id: 'other',
     label: 'Otro',
-    icon: '🎈',
     description: '',
     welcomeMessage: '¡Bienvenido/a al evento!',
   },

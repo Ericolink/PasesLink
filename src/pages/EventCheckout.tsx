@@ -40,7 +40,7 @@ export function EventCheckout() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-12">
+    <div className="max-w-md mx-auto px-4 py-12 animate-fade-in">
       <h1 className="text-2xl font-semibold text-gray-900 mb-6 text-center">Confirmar pago</h1>
       <div className="border border-gray-200 rounded-lg p-5 bg-white space-y-3">
         <div className="flex items-center justify-between">

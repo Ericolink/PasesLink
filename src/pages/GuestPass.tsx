@@ -5,6 +5,7 @@ import { getEvent } from '../firebase/events'
 import { findGuestByToken, setGuestRsvp } from '../firebase/guests'
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { Logo } from '../components/Logo'
+import { IconCheckCircle } from '../components/Icons'
 
 export function GuestPass() {
   const { eventId, qrToken } = useParams<{ eventId: string; qrToken: string }>()
@@ -49,7 +50,7 @@ export function GuestPass() {
   }
 
   return (
-    <div className="max-w-sm mx-auto px-4 py-12 text-center">
+    <div className="max-w-sm mx-auto px-4 py-12 text-center animate-fade-in">
       <div className="flex justify-center mb-6">
         {event.logoUrl ? (
           <img src={event.logoUrl} alt={event.name} className="h-12 object-contain" />
@@ -78,8 +79,8 @@ export function GuestPass() {
         )}
 
         {guest.status === 'checked_in' ? (
-          <p className="mt-2 inline-block text-sm px-3 py-1 rounded-full font-medium bg-green-100 text-green-700">
-            ✓ Asistencia confirmada
+          <p className="mt-2 inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-green-100 text-green-700">
+            <IconCheckCircle className="w-4 h-4" /> Asistencia confirmada
           </p>
         ) : (
           <p className="mt-2 text-sm text-gray-500">Presenta este código QR en la entrada</p>
@@ -109,7 +110,7 @@ export function GuestPass() {
             </>
           ) : (
             <p className="text-sm text-gray-500">
-              {guest.rsvpStatus === 'yes' ? '✓ Confirmaste tu asistencia.' : 'Indicaste que no podrás asistir.'}{' '}
+              {guest.rsvpStatus === 'yes' ? 'Confirmaste tu asistencia.' : 'Indicaste que no podrás asistir.'}{' '}
               <button onClick={() => handleRsvp('pending')} className="text-primary font-medium">
                 Cambiar respuesta
               </button>

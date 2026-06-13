@@ -1,19 +1,22 @@
 import type { ScanFeedback } from '../pages/Scanner'
+import { IconAlertTriangle, IconCheckCircle, IconLogOut, IconXCircle } from './Icons'
 
 export function ScanResultModal({ feedback, onClose }: { feedback: ScanFeedback; onClose: () => void }) {
   const styles = {
-    success: { bg: 'bg-green-600', icon: '✅', title: 'Bienvenido/a' },
-    already: { bg: 'bg-amber-500', icon: '⚠️', title: 'QR ya registrado' },
-    invalid: { bg: 'bg-red-600', icon: '❌', title: 'No válido' },
-    checkout: { bg: 'bg-blue-600', icon: '👋', title: 'Hasta luego' },
-    already_out: { bg: 'bg-amber-500', icon: '⚠️', title: 'Ya había salido' },
-    not_checked_in: { bg: 'bg-amber-500', icon: '⚠️', title: 'Sin check-in' },
+    success: { bg: 'bg-green-600', icon: IconCheckCircle, title: 'Bienvenido/a' },
+    already: { bg: 'bg-amber-500', icon: IconAlertTriangle, title: 'QR ya registrado' },
+    invalid: { bg: 'bg-red-600', icon: IconXCircle, title: 'No válido' },
+    checkout: { bg: 'bg-blue-600', icon: IconLogOut, title: 'Hasta luego' },
+    already_out: { bg: 'bg-amber-500', icon: IconAlertTriangle, title: 'Ya había salido' },
+    not_checked_in: { bg: 'bg-amber-500', icon: IconAlertTriangle, title: 'Sin check-in' },
   }[feedback.type]
+
+  const Icon = styles.icon
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
       <div className={`${styles.bg} text-white rounded-2xl shadow-xl max-w-sm w-full p-8 text-center`}>
-        <div className="text-5xl mb-3">{styles.icon}</div>
+        <Icon className="w-14 h-14 mb-3 mx-auto" />
         <h2 className="text-2xl font-semibold mb-2">{styles.title}</h2>
         {feedback.guestName && <p className="text-lg mb-1">{feedback.guestName}</p>}
         {feedback.detail && <p className="text-sm opacity-90">{feedback.detail}</p>}

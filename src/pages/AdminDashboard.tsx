@@ -78,7 +78,7 @@ export function AdminDashboard() {
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto px-4 py-8 animate-fade-in">
       <h1 className="text-2xl font-semibold text-gray-900 mb-6">Panel de administración</h1>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">

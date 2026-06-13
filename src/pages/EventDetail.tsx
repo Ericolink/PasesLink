@@ -10,6 +10,15 @@ import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
 import { WelcomeMessageEditor } from '../components/WelcomeMessageEditor'
 import { BrandingEditor } from '../components/BrandingEditor'
+import {
+  IconArrowLeft,
+  IconCheckCircle,
+  IconClock,
+  IconHome,
+  IconThumbsDown,
+  IconThumbsUp,
+  IconUsers,
+} from '../components/Icons'
 
 export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -90,14 +99,17 @@ export function EventDetail() {
   })
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
       {checkinToast && (
-        <div className="fixed top-16 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse">
-          ✓ {checkinToast}
+        <div className="fixed top-16 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse flex items-center gap-2">
+          <IconCheckCircle className="w-4 h-4" /> {checkinToast}
         </div>
       )}
-      <Link to="/dashboard" className="text-sm text-gray-500 hover:text-primary transition-colors inline-block mb-3">
-        ← Mis eventos
+      <Link
+        to="/dashboard"
+        className="text-sm text-gray-500 hover:text-primary transition-colors inline-flex items-center gap-1 mb-3"
+      >
+        <IconArrowLeft className="w-4 h-4" /> Mis eventos
       </Link>
       <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
         <div>
@@ -128,27 +140,33 @@ export function EventDetail() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-6">
-        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+        <div className="card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <IconUsers className="w-5 h-5 mb-1 mx-auto text-gray-400" />
           <p className="text-2xl font-semibold text-gray-900">{event.guestCount}</p>
           <p className="text-xs text-gray-500">Invitados ({totalPeople} personas)</p>
         </div>
-        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+        <div className="card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <IconCheckCircle className="w-5 h-5 mb-1 mx-auto text-green-600" />
           <p className="text-2xl font-semibold text-green-600">{event.checkedInCount}</p>
           <p className="text-xs text-gray-500">Confirmados</p>
         </div>
-        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+        <div className="card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <IconClock className="w-5 h-5 mb-1 mx-auto text-gray-400" />
           <p className="text-2xl font-semibold text-gray-400">{event.guestCount - event.checkedInCount}</p>
           <p className="text-xs text-gray-500">Pendientes</p>
         </div>
-        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+        <div className="card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <IconHome className="w-5 h-5 mb-1 mx-auto text-primary" />
           <p className="text-2xl font-semibold text-primary">{peopleInside}</p>
           <p className="text-xs text-gray-500">Personas dentro ahora</p>
         </div>
-        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+        <div className="card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <IconThumbsUp className="w-5 h-5 mb-1 mx-auto text-gray-400" />
           <p className="text-2xl font-semibold text-gray-900">{rsvpYes}</p>
           <p className="text-xs text-gray-500">RSVP: asistirán</p>
         </div>
-        <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+        <div className="card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
+          <IconThumbsDown className="w-5 h-5 mb-1 mx-auto text-gray-400" />
           <p className="text-2xl font-semibold text-gray-400">{rsvpNo}</p>
           <p className="text-xs text-gray-500">RSVP: no asistirán</p>
         </div>

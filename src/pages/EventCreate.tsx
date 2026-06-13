@@ -4,6 +4,14 @@ import { useAuth } from '../hooks/useAuth'
 import { createEvent, updateEventWelcomeMessage } from '../firebase/events'
 import type { Plan } from '../types'
 import { EVENT_TEMPLATES } from '../types'
+import { IconBuilding, IconCake, IconGift, IconHeart } from '../components/Icons'
+
+const TEMPLATE_ICONS: Record<string, typeof IconCake> = {
+  birthday: IconCake,
+  wedding: IconHeart,
+  corporate: IconBuilding,
+  other: IconGift,
+}
 
 const PLANS: { id: Plan; title: string; price: string; features: string[] }[] = [
   {
@@ -67,25 +75,28 @@ export function EventCreate() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-2xl mx-auto px-4 py-8 animate-fade-in">
       <h1 className="text-2xl font-semibold text-gray-900 mb-6">Crear evento</h1>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de evento</label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {EVENT_TEMPLATES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => handleTemplateSelect(t.id)}
-                className={`text-center border rounded-lg p-3 transition-colors ${
-                  templateId === t.id ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="text-2xl mb-1">{t.icon}</div>
-                <div className="text-sm font-medium text-gray-900">{t.label}</div>
-              </button>
-            ))}
+            {EVENT_TEMPLATES.map((t) => {
+              const Icon = TEMPLATE_ICONS[t.id]
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handleTemplateSelect(t.id)}
+                  className={`text-center border rounded-lg p-3 transition-colors ${
+                    templateId === t.id ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon className="w-6 h-6 mb-1 mx-auto text-primary" />
+                  <div className="text-sm font-medium text-gray-900">{t.label}</div>
+                </button>
+              )
+            })}
           </div>
         </div>
         <div>

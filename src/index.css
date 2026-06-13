@@ -12,10 +12,69 @@ body {
   margin: 0;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   background-color: #f7f9fc;
+  color: var(--color-gray-900);
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#root > main {
+  flex: 1;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out both;
+}
+
+.animate-delay-1 {
+  animation-delay: 0.08s;
+}
+
+.animate-delay-2 {
+  animation-delay: 0.16s;
+}
+
+.animate-delay-3 {
+  animation-delay: 0.24s;
+}
+
+.card-hover {
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -8px rgb(0 0 0 / 0.15);
 }
 
 .dark {
-  --color-white: #1e293b;
   --color-gray-50: #0f172a;
   --color-gray-100: #1e293b;
   --color-gray-200: #334155;
@@ -31,4 +90,52 @@ body {
 
 .dark body {
   background-color: #0f172a;
+}
+
+/* Las tarjetas usan bg-white; en modo oscuro las pasamos a un gris oscuro
+   sin tocar --color-white (que también usan los botones con text-white). */
+.dark .bg-white {
+  background-color: #1e293b;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #1e293b;
+  color: var(--color-gray-900);
+  border-color: var(--color-gray-300);
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--color-gray-500);
+}
+
+.dark input[type='color'] {
+  background-color: transparent;
+}
+
+/* Secciones que mantienen su propio tema oscuro fijo (ej. escáner QR):
+   restablecen la paleta para no heredar la inversión del modo oscuro global. */
+.theme-reset {
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-primary-light: #eff6ff;
+  color: var(--color-gray-900);
+}
+
+.dark .theme-reset input,
+.dark .theme-reset select,
+.dark .theme-reset textarea {
+  background-color: var(--color-gray-800);
+  color: #fff;
+  border-color: var(--color-gray-700);
 }

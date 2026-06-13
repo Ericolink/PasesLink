@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { loginWithGoogle, registerWithEmail } from '../firebase/auth'
+import { AuthLayout } from '../components/AuthLayout'
 
 export function Register() {
   const [name, setName] = useState('')
@@ -38,7 +39,7 @@ export function Register() {
   }
 
   return (
-    <div className="max-w-sm mx-auto mt-16 px-4">
+    <AuthLayout>
       <h1 className="text-2xl font-semibold text-gray-900 mb-6 text-center">Crear cuenta</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -99,6 +100,6 @@ export function Register() {
           Inicia sesión
         </Link>
       </p>
-    </div>
+    </AuthLayout>
   )
 }

@@ -135,7 +135,7 @@ export function Scanner() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-6 min-h-[calc(100vh-3.5rem)] bg-gray-900 text-white -mt-px">
+    <div className="theme-reset max-w-md mx-auto px-4 py-6 min-h-[calc(100vh-3.5rem)] bg-gray-900 text-white -mt-px">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-white">Escanear pases</h1>
         <Link to={`/events/${eventId}`} className="text-sm text-primary font-medium">

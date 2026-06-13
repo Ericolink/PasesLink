@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { subscribeToUserEvents } from '../firebase/events'
 import type { EventData } from '../types'
 import { PlanBadge } from '../components/PlanBadge'
+import { IconCalendar, IconStar, IconTicket } from '../components/Icons'
 
 const STATUS_LABELS: Record<EventData['status'], string> = {
   active: 'Activo',
@@ -32,7 +33,7 @@ export function Dashboard() {
   }, [user])
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Mis eventos</h1>
@@ -40,7 +41,7 @@ export function Dashboard() {
         </div>
         <Link
           to="/events/new"
-          className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors shrink-0"
+          className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors hover:-translate-y-0.5 hover:shadow-md shrink-0"
         >
           + Nuevo evento
         </Link>
@@ -49,12 +50,15 @@ export function Dashboard() {
       {loading && <p className="text-gray-500">Cargando eventos...</p>}
 
       {!loading && events.length === 0 && (
-        <div className="text-center border border-dashed border-gray-300 rounded-lg py-16 bg-white">
-          <div className="text-3xl mb-2">🎉</div>
-          <p className="text-gray-500 mb-4">Todavía no tienes eventos.</p>
+        <div className="text-center border border-dashed border-gray-300 rounded-lg py-16 bg-white animate-fade-in-up">
+          <IconCalendar className="w-12 h-12 mb-3 mx-auto text-gray-300" />
+          <h2 className="text-lg font-medium text-gray-900 mb-1">Todavía no tienes eventos</h2>
+          <p className="text-gray-500 mb-4 max-w-sm mx-auto">
+            Crea tu primer evento, agrega invitados y genera sus pases con QR en pocos minutos.
+          </p>
           <Link
             to="/events/new"
-            className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
+            className="inline-block bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors hover:-translate-y-0.5 hover:shadow-md"
           >
             Crea tu primer evento
           </Link>
@@ -62,16 +66,24 @@ export function Dashboard() {
       )}
 
       <div className="space-y-3">
-        {events.map((event) => {
+        {events.map((event, i) => {
           const progress = event.guestCount > 0 ? Math.min(100, (event.checkedInCount / event.guestCount) * 100) : 0
           return (
             <Link
               key={event.id}
               to={`/events/${event.id}`}
-              className="block border border-gray-200 rounded-lg p-4 bg-white hover:border-primary hover:shadow-sm transition-all"
+              style={{ animationDelay: `${Math.min(i, 6) * 0.06}s` }}
+              className="card-hover animate-fade-in-up block border border-gray-200 rounded-lg p-4 bg-white hover:border-primary transition-colors"
             >
               <div className="flex items-center justify-between gap-2 mb-1">
-                <h2 className="font-medium text-gray-900">{event.name}</h2>
+                <h2 className="font-medium text-gray-900 flex items-center gap-2">
+                  {event.plan === 'premium' ? (
+                    <IconStar className="w-4 h-4 text-amber-500 shrink-0" />
+                  ) : (
+                    <IconTicket className="w-4 h-4 text-primary shrink-0" />
+                  )}
+                  {event.name}
+                </h2>
                 <div className="flex items-center gap-2 shrink-0">
                   <PlanBadge plan={event.plan} />
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[event.status]}`}>
@@ -89,7 +101,10 @@ export function Dashboard() {
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }} />
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${progress}%` }}
+                  />
                 </div>
               </div>
             </Link>
