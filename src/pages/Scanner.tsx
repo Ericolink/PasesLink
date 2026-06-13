@@ -118,7 +118,8 @@ export function Scanner() {
           showFeedback({ type: 'invalid', detail: 'Invitado no encontrado.' })
         }
       }
-    } catch {
+    } catch (err) {
+      console.error('Error processing scan:', err)
       showFeedback({ type: 'invalid', detail: 'Ocurrió un error al confirmar la asistencia.' })
     } finally {
       setTimeout(() => {

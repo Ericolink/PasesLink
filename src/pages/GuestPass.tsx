@@ -39,7 +39,10 @@ export function GuestPass() {
           setLocked(true)
         }
       })
-      .catch(() => setError(true))
+      .catch((err) => {
+        console.error('Error loading guest pass:', err)
+        setError(true)
+      })
       .finally(() => setLoading(false))
   }, [eventId, qrToken])
 

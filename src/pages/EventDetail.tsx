@@ -4,7 +4,6 @@ import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useCheckinToast } from '../hooks/useCheckinToast'
 import { deleteEvent, setEventStatus } from '../firebase/events'
-import { exportGuestPassesPdf } from '../utils/exportPdf'
 import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
@@ -43,6 +42,7 @@ export function EventDetail() {
   async function handleExport() {
     setExporting(true)
     try {
+      const { exportGuestPassesPdf } = await import('../utils/exportPdf')
       await exportGuestPassesPdf(event!, guests)
     } finally {
       setExporting(false)

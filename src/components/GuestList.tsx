@@ -41,8 +41,8 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
       await navigator.clipboard.writeText(url)
       setCopiedId(guest.id)
       setTimeout(() => setCopiedId(null), 1500)
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Error copying invitation link:', err)
     }
   }
 

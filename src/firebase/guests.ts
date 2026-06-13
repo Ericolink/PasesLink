@@ -148,6 +148,14 @@ export async function claimGuestPass(eventId: string, guestId: string, deviceTok
   })
 }
 
+async function findGuestRefByToken(eventId: string, qrToken: string) {
+  const guests = collection(db, 'events', eventId, 'guests')
+  const q = query(guests, where('qrToken', '==', qrToken), limit(1))
+  const queryResult = await getDocs(q)
+  if (queryResult.empty) return null
+  return doc(db, 'events', eventId, 'guests', queryResult.docs[0].id)
+}
+
 export type CheckInResult =
   | { status: 'success'; guest: GuestData }
   | { status: 'already_checked_in'; guest: GuestData }
@@ -159,16 +167,11 @@ export async function checkInGuest(
   scannedBy: string,
   scannedByEmail: string | null,
 ): Promise<CheckInResult> {
-  const guests = collection(db, 'events', eventId, 'guests')
-  const q = query(guests, where('qrToken', '==', qrToken), limit(1))
-  const queryResult = await getDocs(q)
-  const snapshot = queryResult.empty ? null : mapGuest(queryResult.docs[0].id, queryResult.docs[0].data())
-
-  if (!snapshot) {
+  const guestRef = await findGuestRefByToken(eventId, qrToken)
+  if (!guestRef) {
     return { status: 'not_found' }
   }
 
-  const guestRef = doc(db, 'events', eventId, 'guests', snapshot.id)
   const eventRef = doc(db, 'events', eventId)
 
   return runTransaction(db, async (transaction) => {
@@ -220,16 +223,10 @@ export async function checkOutGuest(
   scannedBy: string,
   scannedByEmail: string | null,
 ): Promise<CheckOutResult> {
-  const guests = collection(db, 'events', eventId, 'guests')
-  const q = query(guests, where('qrToken', '==', qrToken), limit(1))
-  const queryResult = await getDocs(q)
-  const snapshot = queryResult.empty ? null : mapGuest(queryResult.docs[0].id, queryResult.docs[0].data())
-
-  if (!snapshot) {
+  const guestRef = await findGuestRefByToken(eventId, qrToken)
+  if (!guestRef) {
     return { status: 'not_found' }
   }
-
-  const guestRef = doc(db, 'events', eventId, 'guests', snapshot.id)
 
   return runTransaction(db, async (transaction) => {
     const guestSnap = await transaction.get(guestRef)
