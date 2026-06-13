@@ -41,6 +41,7 @@ export interface GuestData {
   checkedInByEmail: string | null
   checkedOutAt: number | null
   checkedOutByEmail: string | null
+  lockToken: string | null
   createdAt: number
 }
 

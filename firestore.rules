@@ -34,9 +34,13 @@ service cloud.firestore {
         allow get: if true;
 
         // El organizador puede editar cualquier campo (datos del invitado, check-in/out).
-        // Los invitados (sin auth) solo pueden actualizar su propio RSVP.
+        // Los invitados (sin auth) solo pueden actualizar su RSVP y reclamar su pase
+        // (lockToken) una sola vez: si ya está asignado, no puede cambiarse.
         allow update: if isOwner(eventId) ||
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus']);
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&
+            (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken)
+          );
       }
 
       match /checkins/{checkinId} {

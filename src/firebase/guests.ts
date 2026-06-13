@@ -43,6 +43,7 @@ export async function addGuest(eventId: string, input: NewGuestInput) {
     checkedInByEmail: null,
     checkedOutAt: null,
     checkedOutByEmail: null,
+    lockToken: null,
     createdAt: serverTimestamp(),
   })
   batch.update(doc(db, 'events', eventId), { guestCount: increment(1) })
@@ -67,6 +68,7 @@ export async function addGuestsBulk(eventId: string, names: string[]) {
       checkedInByEmail: null,
       checkedOutAt: null,
       checkedOutByEmail: null,
+      lockToken: null,
       createdAt: serverTimestamp(),
     })
   }
@@ -126,7 +128,24 @@ export async function setGuestRsvp(eventId: string, qrToken: string, rsvpStatus:
 }
 
 export async function resetGuestRsvp(eventId: string, guestId: string) {
-  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { rsvpStatus: 'pending' })
+  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { rsvpStatus: 'pending', lockToken: null })
+}
+
+/**
+ * Claims the guest pass for a device. If no device has claimed it yet, locks it to
+ * `deviceToken` and returns it. Otherwise returns the token of the device that
+ * already claimed it (which may differ from `deviceToken`).
+ */
+export async function claimGuestPass(eventId: string, guestId: string, deviceToken: string): Promise<string> {
+  const guestRef = doc(db, 'events', eventId, 'guests', guestId)
+  return runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(guestRef)
+    if (!snap.exists()) return deviceToken
+    const existing = (snap.data().lockToken as string) || null
+    if (existing) return existing
+    transaction.update(guestRef, { lockToken: deviceToken })
+    return deviceToken
+  })
 }
 
 export type CheckInResult =
@@ -262,6 +281,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     checkedInByEmail: (data.checkedInByEmail as string) || null,
     checkedOutAt: toMillisOrNull(data.checkedOutAt),
     checkedOutByEmail: (data.checkedOutByEmail as string) || null,
+    lockToken: (data.lockToken as string) || null,
     createdAt: toMillisOrNull(data.createdAt) || 0,
   }
 }
