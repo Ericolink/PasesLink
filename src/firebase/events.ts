@@ -112,30 +112,6 @@ export async function updateEventBranding(
   })
 }
 
-export async function duplicateEvent(eventId: string): Promise<string> {
-  const event = await getEvent(eventId)
-  if (!event) throw new Error('Evento no encontrado')
-
-  const ref = await addDoc(collection(db, 'events'), {
-    ownerId: event.ownerId,
-    name: `${event.name} (copia)`,
-    date: event.date,
-    location: event.location,
-    description: event.description || '',
-    welcomeMessage: event.welcomeMessage || '',
-    accentColor: event.accentColor || '',
-    logoUrl: event.logoUrl || '',
-    plan: event.plan,
-    paymentStatus: 'pending',
-    status: 'active',
-    guestCount: 0,
-    checkedInCount: 0,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  })
-  return ref.id
-}
-
 export async function deleteEvent(eventId: string) {
   const subcollections = ['guests', 'checkins']
   for (const sub of subcollections) {

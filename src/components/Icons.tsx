@@ -227,6 +227,64 @@ export function IconCornerUpLeft({ className = 'w-4 h-4' }: IconProps) {
   )
 }
 
+export function IconEye({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+export function IconEdit({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
+    </svg>
+  )
+}
+
+export function IconTrash({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M3 6h18" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
+
+export function IconShare({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="M8.59 13.51 15.42 17.49M15.41 6.51 8.59 10.49" />
+    </svg>
+  )
+}
+
+export function IconDownload({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M7 10l5 5 5-5" />
+      <path d="M12 15V3" />
+    </svg>
+  )
+}
+
+export function IconRotateCcw({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M3 12a9 9 0 1 0 2.64-6.36L3 8" />
+      <path d="M3 3v5h5" />
+    </svg>
+  )
+}
+
 export function IconSparkles({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg className={className} {...base}>

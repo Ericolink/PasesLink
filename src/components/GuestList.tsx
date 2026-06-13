@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { deleteGuest, updateGuest } from '../firebase/guests'
+import { deleteGuest, resetGuestRsvp, updateGuest } from '../firebase/guests'
 import type { GuestData } from '../types'
 import { RSVP_LABELS } from '../types'
-import { IconInbox } from './Icons'
+import { IconEdit, IconEye, IconInbox, IconShare, IconTrash } from './Icons'
 
 export function GuestList({ eventId, guests }: { eventId: string; guests: GuestData[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -23,8 +23,20 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
     await deleteGuest(eventId, guest.id, guest.status === 'checked_in')
   }
 
-  async function handleCopy(guest: GuestData) {
+  async function handleReactivate(guest: GuestData) {
+    await resetGuestRsvp(eventId, guest.id)
+  }
+
+  async function handleShare(guest: GuestData) {
     const url = `${window.location.origin}/pass/${eventId}/${guest.qrToken}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Tu invitación', text: `Aquí está tu invitación, ${guest.name}`, url })
+        return
+      } catch {
+        return
+      }
+    }
     try {
       await navigator.clipboard.writeText(url)
       setCopiedId(guest.id)
@@ -35,23 +47,37 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
   }
 
   return (
-    <div className="divide-y divide-gray-100">
+    <div className="space-y-2">
       {guests.map((guest) =>
         editingId === guest.id ? (
           <EditGuestRow key={guest.id} eventId={eventId} guest={guest} onDone={() => setEditingId(null)} />
         ) : (
-          <div key={guest.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-2.5 gap-2">
-            <div className="min-w-0">
-              <p className="font-medium text-gray-900 text-sm truncate">
-                {guest.name}
-                {guest.companions > 0 && (
-                  <span className="text-gray-400 font-normal"> +{guest.companions}</span>
-                )}
-              </p>
-              {guest.email && <p className="text-xs text-gray-500 truncate">{guest.email}</p>}
+          <div key={guest.id} className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="p-3 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-medium text-gray-900 text-sm break-words">
+                  {guest.name}
+                  {guest.companions > 0 && (
+                    <span className="text-gray-400 font-normal"> +{guest.companions}</span>
+                  )}
+                </p>
+                {guest.email && <p className="text-xs text-gray-500 truncate">{guest.email}</p>}
+              </div>
+              <span
+                className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${
+                  guest.rsvpStatus === 'yes'
+                    ? 'bg-green-500'
+                    : guest.rsvpStatus === 'no'
+                      ? 'bg-red-500'
+                      : 'bg-amber-400'
+                }`}
+                title={
+                  guest.rsvpStatus === 'yes' ? 'Asistirá' : guest.rsvpStatus === 'no' ? 'No asistirá' : 'Sin responder'
+                }
+              />
             </div>
-            <div className="flex items-center gap-2 flex-wrap sm:shrink-0 sm:justify-end">
-              {guest.rsvpStatus !== 'pending' && (
+            {guest.rsvpStatus !== 'pending' && (
+              <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                     guest.rsvpStatus === 'yes' ? 'bg-blue-50 text-primary' : 'bg-gray-100 text-gray-500'
@@ -59,32 +85,41 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
                 >
                   {RSVP_LABELS[guest.rsvpStatus]}
                 </span>
-              )}
-              {guest.status === 'checked_in' ? (
-                guest.checkedOutAt ? (
-                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">
-                    Salió
-                  </span>
-                ) : (
-                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
-                    Confirmado
-                  </span>
-                )
-              ) : (
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">
-                  Invitado
-                </span>
-              )}
-              <button onClick={() => handleCopy(guest)} className="text-xs text-primary font-medium">
-                {copiedId === guest.id ? 'Copiado!' : 'Copiar link'}
+                {guest.rsvpStatus === 'no' && (
+                  <button onClick={() => handleReactivate(guest)} className="text-xs text-primary font-medium">
+                    Reactivar invitación
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="grid grid-cols-4 divide-x divide-gray-100 border-t border-gray-100">
+              <button
+                onClick={() => handleShare(guest)}
+                className="flex flex-col items-center justify-center gap-1 py-2.5 text-xs text-primary font-medium hover:bg-gray-50 transition-colors"
+              >
+                <IconShare className="w-4 h-4" />
+                {copiedId === guest.id ? 'Copiado!' : 'Compartir'}
               </button>
-              <Link to={`/pass/${eventId}/${guest.qrToken}`} target="_blank" className="text-xs text-primary font-medium">
+              <Link
+                to={`/pass/${eventId}/${guest.qrToken}`}
+                target="_blank"
+                className="flex flex-col items-center justify-center gap-1 py-2.5 text-xs text-primary font-medium hover:bg-gray-50 transition-colors"
+              >
+                <IconEye className="w-4 h-4" />
                 Ver pase
               </Link>
-              <button onClick={() => setEditingId(guest.id)} className="text-xs text-gray-500 font-medium">
+              <button
+                onClick={() => setEditingId(guest.id)}
+                className="flex flex-col items-center justify-center gap-1 py-2.5 text-xs text-gray-500 font-medium hover:bg-gray-50 transition-colors"
+              >
+                <IconEdit className="w-4 h-4" />
                 Editar
               </button>
-              <button onClick={() => handleDelete(guest)} className="text-xs text-red-500 font-medium">
+              <button
+                onClick={() => handleDelete(guest)}
+                className="flex flex-col items-center justify-center gap-1 py-2.5 text-xs text-red-500 font-medium hover:bg-red-50 transition-colors"
+              >
+                <IconTrash className="w-4 h-4" />
                 Eliminar
               </button>
             </div>

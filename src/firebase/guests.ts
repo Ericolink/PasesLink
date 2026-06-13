@@ -125,6 +125,10 @@ export async function setGuestRsvp(eventId: string, qrToken: string, rsvpStatus:
   await updateDoc(doc(db, 'events', eventId, 'guests', guest.id), { rsvpStatus })
 }
 
+export async function resetGuestRsvp(eventId: string, guestId: string) {
+  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { rsvpStatus: 'pending' })
+}
+
 export type CheckInResult =
   | { status: 'success'; guest: GuestData }
   | { status: 'already_checked_in'; guest: GuestData }

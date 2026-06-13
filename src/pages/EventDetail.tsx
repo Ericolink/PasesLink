@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useCheckinToast } from '../hooks/useCheckinToast'
-import { deleteEvent, duplicateEvent, setEventStatus } from '../firebase/events'
+import { deleteEvent, setEventStatus } from '../firebase/events'
 import { exportGuestPassesPdf } from '../utils/exportPdf'
 import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
@@ -27,7 +27,6 @@ export function EventDetail() {
   const { event, guests, loading } = useEvent(eventId)
   const [exporting, setExporting] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
-  const [duplicating, setDuplicating] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [search, setSearch] = useState('')
   const checkinToast = useCheckinToast(eventId)
@@ -57,17 +56,6 @@ export function EventDetail() {
       await setEventStatus(eventId, status)
     } finally {
       setUpdatingStatus(false)
-    }
-  }
-
-  async function handleDuplicate() {
-    if (!eventId) return
-    setDuplicating(true)
-    try {
-      const newId = await duplicateEvent(eventId)
-      navigate(`/events/${newId}/checkout`)
-    } finally {
-      setDuplicating(false)
     }
   }
 
@@ -239,13 +227,6 @@ export function EventDetail() {
               Reactivar evento
             </button>
           )}
-          <button
-            onClick={handleDuplicate}
-            disabled={duplicating}
-            className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50 disabled:opacity-50"
-          >
-            {duplicating ? 'Duplicando...' : 'Duplicar evento'}
-          </button>
           <Link
             to="/events/new"
             className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50"
