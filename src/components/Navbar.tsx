@@ -29,7 +29,10 @@ export function Navbar() {
                 Admin
               </Link>
             )}
-            <span className="text-gray-500 dark:text-gray-400 hidden sm:inline">{user.email}</span>
+            <Link to="/profile" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors">
+              <span className="hidden sm:inline">{user.email}</span>
+              <span className="sm:hidden">Perfil</span>
+            </Link>
             <button
               onClick={toggleTheme}
               aria-label="Cambiar tema"

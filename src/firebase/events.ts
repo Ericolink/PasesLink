@@ -95,6 +95,23 @@ export async function setEventStatus(eventId: string, status: EventStatus) {
   })
 }
 
+export interface UpdateEventInput {
+  name: string
+  date: string
+  location: string
+  description?: string
+}
+
+export async function updateEventDetails(eventId: string, input: UpdateEventInput) {
+  await updateDoc(doc(db, 'events', eventId), {
+    name: input.name,
+    date: input.date,
+    location: input.location,
+    description: input.description || '',
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export async function updateEventWelcomeMessage(eventId: string, welcomeMessage: string) {
   await updateDoc(doc(db, 'events', eventId), {
     welcomeMessage,

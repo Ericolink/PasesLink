@@ -10,9 +10,17 @@ export function Footer() {
           © {new Date().getFullYear()} PaseLink · Desarrollado por{' '}
           <span className="font-medium text-gray-700">ericolink</span>
         </p>
-        <Link to="/" className="hover:text-primary transition-colors">
-          Inicio
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/" className="hover:text-primary transition-colors">
+            Inicio
+          </Link>
+          <Link to="/terminos" className="hover:text-primary transition-colors">
+            Términos
+          </Link>
+          <Link to="/privacidad" className="hover:text-primary transition-colors">
+            Privacidad
+          </Link>
+        </div>
       </div>
     </footer>
   )

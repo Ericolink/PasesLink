@@ -9,10 +9,12 @@ import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
 import { WelcomeMessageEditor } from '../components/WelcomeMessageEditor'
 import { BrandingEditor } from '../components/BrandingEditor'
+import { EditEventForm } from '../components/EditEventForm'
 import {
   IconArrowLeft,
   IconCheckCircle,
   IconClock,
+  IconEdit,
   IconHome,
   IconThumbsDown,
   IconThumbsUp,
@@ -28,6 +30,7 @@ export function EventDetail() {
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [search, setSearch] = useState('')
+  const [editingEvent, setEditingEvent] = useState(false)
   const checkinToast = useCheckinToast(eventId)
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
@@ -104,6 +107,13 @@ export function EventDetail() {
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-2xl font-semibold text-gray-900">{event.name}</h1>
             <PlanBadge plan={event.plan} />
+            <button
+              onClick={() => setEditingEvent((v) => !v)}
+              className="text-gray-400 hover:text-primary transition-colors"
+              title="Editar evento"
+            >
+              <IconEdit className="w-4 h-4" />
+            </button>
           </div>
           <p className="text-sm text-gray-500">
             {event.date} · {event.location}
@@ -126,6 +136,12 @@ export function EventDetail() {
           )}
         </div>
       </div>
+
+      {editingEvent && (
+        <div className="mt-3">
+          <EditEventForm event={event} onDone={() => setEditingEvent(false)} />
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-6">
         <div className="card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
