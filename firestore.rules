@@ -22,11 +22,11 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
       allow update: if isOwner(eventId) || isAdmin();
-      allow delete: if false;
+      allow delete: if isOwner(eventId) || isAdmin();
 
       match /guests/{guestId} {
         // El organizador puede leer/escribir todo.
-        allow read, create, delete: if isOwner(eventId);
+        allow read, create, delete: if isOwner(eventId) || isAdmin();
 
         // Lectura pública limitada: solo consultas de un único documento (por qrToken),
         // usadas por la página del pase y el escáner.
@@ -42,7 +42,8 @@ service cloud.firestore {
       match /checkins/{checkinId} {
         allow read: if isOwner(eventId);
         allow create: if isOwner(eventId);
-        allow update, delete: if false;
+        allow delete: if isOwner(eventId) || isAdmin();
+        allow update: if false;
       }
     }
   }

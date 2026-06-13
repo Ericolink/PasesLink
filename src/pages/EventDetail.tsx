@@ -1,21 +1,27 @@
 import { useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
-import { setEventStatus } from '../firebase/events'
+import { useCheckinToast } from '../hooks/useCheckinToast'
+import { deleteEvent, duplicateEvent, setEventStatus } from '../firebase/events'
 import { exportGuestPassesPdf } from '../utils/exportPdf'
 import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
 import { WelcomeMessageEditor } from '../components/WelcomeMessageEditor'
+import { BrandingEditor } from '../components/BrandingEditor'
 
 export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const { event, guests, loading } = useEvent(eventId)
   const [exporting, setExporting] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [search, setSearch] = useState('')
+  const checkinToast = useCheckinToast(eventId)
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
   if (!event) return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
@@ -45,6 +51,32 @@ export function EventDetail() {
     }
   }
 
+  async function handleDuplicate() {
+    if (!eventId) return
+    setDuplicating(true)
+    try {
+      const newId = await duplicateEvent(eventId)
+      navigate(`/events/${newId}/checkout`)
+    } finally {
+      setDuplicating(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!eventId) return
+    const confirmed = window.confirm(
+      `¿Eliminar "${event?.name}" definitivamente? Se borrarán todos sus invitados y el historial de check-ins. Esta acción no se puede deshacer.`,
+    )
+    if (!confirmed) return
+    setDeleting(true)
+    try {
+      await deleteEvent(eventId)
+      navigate('/dashboard')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const totalPeople = guests.reduce((sum, g) => sum + 1 + g.companions, 0)
   const insideGuests = guests.filter((g) => g.status === 'checked_in' && !g.checkedOutAt)
   const peopleInside = insideGuests.reduce((sum, g) => sum + 1 + g.companions, 0)
@@ -59,6 +91,11 @@ export function EventDetail() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
+      {checkinToast && (
+        <div className="fixed top-16 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse">
+          ✓ {checkinToast}
+        </div>
+      )}
       <Link to="/dashboard" className="text-sm text-gray-500 hover:text-primary transition-colors inline-block mb-3">
         ← Mis eventos
       </Link>
@@ -122,7 +159,10 @@ export function EventDetail() {
       </div>
 
       {event.plan === 'premium' && (
-        <WelcomeMessageEditor eventId={event.id} welcomeMessage={event.welcomeMessage || ''} />
+        <>
+          <WelcomeMessageEditor eventId={event.id} welcomeMessage={event.welcomeMessage || ''} />
+          <BrandingEditor eventId={event.id} accentColor={event.accentColor || ''} logoUrl={event.logoUrl || ''} />
+        </>
       )}
 
       <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
@@ -181,6 +221,13 @@ export function EventDetail() {
               Reactivar evento
             </button>
           )}
+          <button
+            onClick={handleDuplicate}
+            disabled={duplicating}
+            className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50 disabled:opacity-50"
+          >
+            {duplicating ? 'Duplicando...' : 'Duplicar evento'}
+          </button>
           <Link
             to="/events/new"
             className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50"
@@ -188,6 +235,20 @@ export function EventDetail() {
             Crear nuevo evento
           </Link>
         </div>
+      </div>
+
+      <div className="border border-red-200 rounded-lg bg-white p-4 mt-4">
+        <h2 className="font-medium text-red-700 mb-1">Eliminar evento</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Borra el evento, sus invitados y el historial de check-ins de forma permanente. No se puede deshacer.
+        </p>
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-sm border border-red-300 text-red-600 rounded-md px-3 py-1.5 font-medium hover:bg-red-50 disabled:opacity-50"
+        >
+          {deleting ? 'Eliminando...' : 'Eliminar evento definitivamente'}
+        </button>
       </div>
     </div>
   )

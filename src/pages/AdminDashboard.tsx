@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { subscribeToAllEvents, subscribeToAllUsers, type AdminUser } from '../firebase/admin'
-import { setEventPaymentStatus, setEventStatus } from '../firebase/events'
+import { deleteEvent, setEventPaymentStatus, setEventStatus } from '../firebase/events'
 import type { EventData, EventStatus, PaymentStatus, Plan } from '../types'
 import { PLAN_LABELS } from '../types'
 import { PlanBadge } from '../components/PlanBadge'
@@ -65,6 +65,14 @@ export function AdminDashboard() {
 
   async function handleStatusChange(eventId: string, status: EventStatus) {
     await setEventStatus(eventId, status)
+  }
+
+  async function handleDelete(event: EventData) {
+    const confirmed = window.confirm(
+      `¿Eliminar "${event.name}" definitivamente? Se borrarán todos sus invitados y el historial de check-ins. Esta acción no se puede deshacer.`,
+    )
+    if (!confirmed) return
+    await deleteEvent(event.id)
   }
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
@@ -133,7 +141,14 @@ export function AdminDashboard() {
                 <td className="px-4 py-2 text-gray-600">
                   {event.checkedInCount} / {event.guestCount}
                 </td>
-                <td className="px-4 py-2"></td>
+                <td className="px-4 py-2">
+                  <button
+                    onClick={() => handleDelete(event)}
+                    className="text-xs text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Eliminar
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -35,6 +35,7 @@ export function GuestPass() {
   }
 
   const passUrl = `${window.location.origin}/pass/${eventId}/${qrToken}`
+  const accentColor = event.accentColor || ''
 
   async function handleRsvp(rsvpStatus: RsvpStatus) {
     if (!guest) return
@@ -50,9 +51,16 @@ export function GuestPass() {
   return (
     <div className="max-w-sm mx-auto px-4 py-12 text-center">
       <div className="flex justify-center mb-6">
-        <Logo />
+        {event.logoUrl ? (
+          <img src={event.logoUrl} alt={event.name} className="h-12 object-contain" />
+        ) : (
+          <Logo />
+        )}
       </div>
-      <div className="border border-gray-200 rounded-xl bg-white p-6 shadow-sm">
+      <div
+        className="border border-gray-200 rounded-xl bg-white p-6 shadow-sm"
+        style={accentColor ? { borderTopWidth: '4px', borderTopColor: accentColor } : undefined}
+      >
         <h1 className="text-xl font-semibold text-gray-900">{event.name}</h1>
         <p className="text-sm text-gray-500 mt-1">
           {event.date} · {event.location}
@@ -85,6 +93,7 @@ export function GuestPass() {
                 <button
                   onClick={() => handleRsvp('yes')}
                   disabled={rsvpSaving}
+                  style={accentColor ? { backgroundColor: accentColor } : undefined}
                   className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
                 >
                   Sí, asistiré

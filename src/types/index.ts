@@ -12,6 +12,8 @@ export interface EventData {
   location: string
   description?: string
   welcomeMessage?: string
+  accentColor?: string
+  logoUrl?: string
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus

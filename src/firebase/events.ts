@@ -1,14 +1,17 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from './config'
 import type { EventData, EventStatus, PaymentStatus, Plan } from '../types'
@@ -97,6 +100,56 @@ export async function updateEventWelcomeMessage(eventId: string, welcomeMessage:
     welcomeMessage,
     updatedAt: serverTimestamp(),
   })
+}
+
+export async function updateEventBranding(
+  eventId: string,
+  branding: { accentColor?: string; logoUrl?: string },
+) {
+  await updateDoc(doc(db, 'events', eventId), {
+    ...branding,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function duplicateEvent(eventId: string): Promise<string> {
+  const event = await getEvent(eventId)
+  if (!event) throw new Error('Evento no encontrado')
+
+  const ref = await addDoc(collection(db, 'events'), {
+    ownerId: event.ownerId,
+    name: `${event.name} (copia)`,
+    date: event.date,
+    location: event.location,
+    description: event.description || '',
+    welcomeMessage: event.welcomeMessage || '',
+    accentColor: event.accentColor || '',
+    logoUrl: event.logoUrl || '',
+    plan: event.plan,
+    paymentStatus: 'pending',
+    status: 'active',
+    guestCount: 0,
+    checkedInCount: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return ref.id
+}
+
+export async function deleteEvent(eventId: string) {
+  const subcollections = ['guests', 'checkins']
+  for (const sub of subcollections) {
+    const snapshot = await getDocs(collection(db, 'events', eventId, sub))
+    const docs = snapshot.docs
+    for (let i = 0; i < docs.length; i += 450) {
+      const batch = writeBatch(db)
+      for (const d of docs.slice(i, i + 450)) {
+        batch.delete(d.ref)
+      }
+      await batch.commit()
+    }
+  }
+  await deleteDoc(doc(db, 'events', eventId))
 }
 
 export function mapEvent(id: string, data: Record<string, unknown>): EventData {
