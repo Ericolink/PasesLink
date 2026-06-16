@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Html5Qrcode } from 'html5-qrcode'
+import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEvent } from '../hooks/useEvent'
 import { checkInGuest, checkOutGuest } from '../firebase/guests'
@@ -94,7 +95,8 @@ export function Scanner() {
       if (modeRef.current === 'in') {
         const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
         if (result.status === 'success') {
-          const welcome = event?.plan === 'premium' && event.welcomeMessage ? event.welcomeMessage : undefined
+          confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+          const welcome = event?.welcomeMessage || undefined
           const companions = result.guest.companions > 0 ? `+${result.guest.companions} acompañante(s)` : undefined
           showFeedback({
             type: 'success',

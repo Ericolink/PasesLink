@@ -7,8 +7,6 @@ import { deleteEvent, setEventStatus } from '../firebase/events'
 import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
-import { WelcomeMessageEditor } from '../components/WelcomeMessageEditor'
-import { BrandingEditor } from '../components/BrandingEditor'
 import { EditEventForm } from '../components/EditEventForm'
 import {
   IconArrowLeft,
@@ -179,13 +177,6 @@ export function EventDetail() {
       <div className="mb-4">
         <GuestAddForm eventId={event.id} />
       </div>
-
-      {event.plan === 'premium' && (
-        <>
-          <WelcomeMessageEditor eventId={event.id} welcomeMessage={event.welcomeMessage || ''} />
-          <BrandingEditor eventId={event.id} accentColor={event.accentColor || ''} logoUrl={event.logoUrl || ''} />
-        </>
-      )}
 
       <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
         <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">

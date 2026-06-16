@@ -15,7 +15,7 @@ export function ScanResultModal({ feedback, onClose }: { feedback: ScanFeedback;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
-      <div className={`${styles.bg} text-white rounded-2xl shadow-xl max-w-sm w-full p-8 text-center`}>
+      <div className={`${styles.bg} text-white rounded-2xl shadow-xl max-w-sm w-full p-8 text-center animate-bounce-in`}>
         <Icon className="w-14 h-14 mb-3 mx-auto" />
         <h2 className="text-2xl font-semibold mb-2">{styles.title}</h2>
         {feedback.guestName && <p className="text-lg mb-1">{feedback.guestName}</p>}

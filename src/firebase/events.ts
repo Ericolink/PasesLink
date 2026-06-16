@@ -21,6 +21,9 @@ export interface NewEventInput {
   date: string
   location: string
   description?: string
+  coverImage?: string
+  accentColor?: string
+  welcomeMessage?: string
   plan: Plan
 }
 
@@ -31,7 +34,9 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     date: input.date,
     location: input.location,
     description: input.description || '',
-    welcomeMessage: '',
+    coverImage: input.coverImage || '',
+    accentColor: input.accentColor || '',
+    welcomeMessage: input.welcomeMessage || '',
     plan: input.plan,
     paymentStatus: 'pending',
     status: 'active',
@@ -100,6 +105,9 @@ export interface UpdateEventInput {
   date: string
   location: string
   description?: string
+  coverImage?: string
+  accentColor?: string
+  welcomeMessage?: string
 }
 
 export async function updateEventDetails(eventId: string, input: UpdateEventInput) {
@@ -108,6 +116,9 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     date: input.date,
     location: input.location,
     description: input.description || '',
+    coverImage: input.coverImage ?? '',
+    accentColor: input.accentColor ?? '',
+    welcomeMessage: input.welcomeMessage ?? '',
     updatedAt: serverTimestamp(),
   })
 }
@@ -153,6 +164,8 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     date: data.date as string,
     location: data.location as string,
     description: (data.description as string) || '',
+    coverImage: (data.coverImage as string) || '',
+    accentColor: (data.accentColor as string) || '',
     welcomeMessage: (data.welcomeMessage as string) || '',
     plan: data.plan as Plan,
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],

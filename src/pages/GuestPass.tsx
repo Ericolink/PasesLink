@@ -76,17 +76,21 @@ export function GuestPass() {
 
   return (
     <div className="max-w-sm mx-auto px-4 py-12 text-center animate-fade-in">
-      <div className="flex justify-center mb-6">
-        {event.logoUrl ? (
-          <img src={event.logoUrl} alt={event.name} className="h-12 object-contain" />
-        ) : (
+      {!event.coverImage && (
+        <div className="flex justify-center mb-6">
           <Logo />
-        )}
-      </div>
+        </div>
+      )}
       <div
-        className="border border-gray-200 rounded-xl bg-white p-6 shadow-sm"
+        className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden"
         style={accentColor ? { borderTopWidth: '4px', borderTopColor: accentColor } : undefined}
       >
+        {event.coverImage && (
+          <div className="w-full h-36 overflow-hidden">
+            <img src={event.coverImage} alt={event.name} className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="p-6">
         <h1 className="text-xl font-semibold text-gray-900">{event.name}</h1>
         <p className="text-sm text-gray-500 mt-1">
           {event.date} · {event.location}
@@ -191,6 +195,16 @@ export function GuestPass() {
             </button>
           </div>
         )}
+
+        {event.welcomeMessage && (
+          <p
+            className="mt-5 pt-4 border-t border-gray-100 text-sm font-medium italic"
+            style={accentColor ? { color: accentColor } : { color: '#2563eb' }}
+          >
+            {event.welcomeMessage}
+          </p>
+        )}
+        </div>
       </div>
     </div>
   )

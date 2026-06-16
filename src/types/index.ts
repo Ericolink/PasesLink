@@ -11,9 +11,9 @@ export interface EventData {
   date: string
   location: string
   description?: string
-  welcomeMessage?: string
+  coverImage?: string
   accentColor?: string
-  logoUrl?: string
+  welcomeMessage?: string
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus
@@ -68,36 +68,3 @@ export const RSVP_LABELS: Record<RsvpStatus, string> = {
   no: 'No asistirá',
 }
 
-export interface EventTemplate {
-  id: string
-  label: string
-  description: string
-  welcomeMessage: string
-}
-
-export const EVENT_TEMPLATES: EventTemplate[] = [
-  {
-    id: 'birthday',
-    label: 'Cumpleaños',
-    description: 'Celebración de cumpleaños con familiares y amigos.',
-    welcomeMessage: '¡Bienvenido/a a la fiesta! Que disfrutes mucho.',
-  },
-  {
-    id: 'wedding',
-    label: 'Boda',
-    description: 'Celebración de boda. Por favor presenta tu pase en la entrada.',
-    welcomeMessage: '¡Gracias por acompañarnos en este día tan especial!',
-  },
-  {
-    id: 'corporate',
-    label: 'Evento corporativo',
-    description: 'Evento corporativo. El acceso es exclusivo para invitados con pase.',
-    welcomeMessage: 'Bienvenido/a, esperamos que disfrutes del evento.',
-  },
-  {
-    id: 'other',
-    label: 'Otro',
-    description: '',
-    welcomeMessage: '¡Bienvenido/a al evento!',
-  },
-]
