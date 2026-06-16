@@ -56,9 +56,8 @@ service cloud.firestore {
       match /wall/{messageId} {
         allow read: if true;
         allow create: if true;
-        // Only owner can soft-delete (set deleted=true) or add replies
         allow update: if isOwner(eventId) || isAdmin()
-          // Anyone can like/dislike (only likedBy/dislikedBy change)
+          // Anyone can like/dislike
           || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy']);
         allow delete: if isOwner(eventId) || isAdmin();
       }

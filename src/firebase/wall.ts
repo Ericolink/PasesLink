@@ -36,17 +36,30 @@ export async function postWallMessage(
   type: WallMessageType,
   authorName: string,
   authorToken: string,
+  authorRole: 'owner' | 'guest' = 'guest',
 ) {
   await addDoc(collection(db, 'events', eventId, 'wall'), {
     text: text.trim(),
     type,
     authorName,
     authorToken,
+    authorRole,
     likedBy: [],
     dislikedBy: [],
     replies: [],
     deleted: false,
+    pinned: false,
     createdAt: serverTimestamp(),
+  })
+}
+
+export async function pinWallMessage(
+  eventId: string,
+  messageId: string,
+  currentlyPinned: boolean,
+) {
+  await updateDoc(doc(db, 'events', eventId, 'wall', messageId), {
+    pinned: !currentlyPinned,
   })
 }
 
@@ -109,10 +122,12 @@ function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
     type: (data.type as WallMessageType) || 'comment',
     authorName: data.authorName as string,
     authorToken: data.authorToken as string,
+    authorRole: (data.authorRole as 'owner' | 'guest') || 'guest',
     likedBy: (data.likedBy as string[]) || [],
     dislikedBy: (data.dislikedBy as string[]) || [],
     replies: (data.replies as WallReply[]) || [],
     deleted: (data.deleted as boolean) || false,
+    pinned: (data.pinned as boolean) || false,
     createdAt: toMillis(data.createdAt),
   }
 }

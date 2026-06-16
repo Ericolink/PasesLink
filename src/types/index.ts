@@ -45,11 +45,13 @@ export interface WallMessage {
   type: WallMessageType
   authorName: string
   authorToken: string
+  authorRole: 'owner' | 'guest'
   createdAt: number
   likedBy: string[]
   dislikedBy: string[]
   replies: WallReply[]
   deleted: boolean
+  pinned: boolean
 }
 
 export interface WallReply {

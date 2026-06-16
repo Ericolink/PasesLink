@@ -5,16 +5,19 @@ import {
   deleteWallMessage,
   dislikeWallMessage,
   likeWallMessage,
+  pinWallMessage,
   postWallMessage,
   replyToWallMessage,
   subscribeToWall,
 } from '../firebase/wall'
 import { useAuth } from '../hooks/useAuth'
 import {
+  IconCrown,
   IconHelpCircle,
   IconLightbulb,
   IconMessageSquare,
   IconMusic,
+  IconPin,
   IconThumbsDown,
   IconThumbsUp,
   IconX,
@@ -28,13 +31,13 @@ interface TypeConfig {
 }
 
 const TYPE_CONFIG: Record<WallMessageType, TypeConfig> = {
-  comment: { label: 'Comentario', Icon: IconMessageSquare, color: 'bg-blue-100 text-blue-700' },
-  question: { label: 'Pregunta', Icon: IconHelpCircle, color: 'bg-yellow-100 text-yellow-700' },
-  music: { label: 'Música', Icon: IconMusic, color: 'bg-purple-100 text-purple-700' },
-  idea: { label: 'Idea', Icon: IconLightbulb, color: 'bg-green-100 text-green-700' },
+  comment:  { label: 'Comentario', Icon: IconMessageSquare, color: 'bg-blue-100 text-blue-700' },
+  question: { label: 'Pregunta',   Icon: IconHelpCircle,    color: 'bg-yellow-100 text-yellow-700' },
+  music:    { label: 'Música',     Icon: IconMusic,          color: 'bg-purple-100 text-purple-700' },
+  idea:     { label: 'Idea',       Icon: IconLightbulb,      color: 'bg-green-100 text-green-700' },
 }
 
-const GUEST_NAME_KEY = 'wall_guest_name'
+const GUEST_NAME_KEY  = 'wall_guest_name'
 const DEVICE_TOKEN_KEY = 'wall_device_token'
 
 function getDeviceToken(): string {
@@ -46,22 +49,26 @@ function getDeviceToken(): string {
   return token
 }
 
+/* Nombre que se guarda en Firestore para el anfitrión */
+const OWNER_DISPLAY = 'Anfitrión'
+
 export function EventWall() {
-  const { id } = useParams<{ id: string }>()
-  const { user } = useAuth()
-  const [event, setEvent] = useState<EventData | null>(null)
-  const [messages, setMessages] = useState<WallMessage[]>([])
-  const [loading, setLoading] = useState(true)
-  const [guestName, setGuestName] = useState(() => localStorage.getItem(GUEST_NAME_KEY) || '')
+  const { id }    = useParams<{ id: string }>()
+  const { user }  = useAuth()
+  const [event, setEvent]           = useState<EventData | null>(null)
+  const [messages, setMessages]     = useState<WallMessage[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [guestName, setGuestName]   = useState(() => localStorage.getItem(GUEST_NAME_KEY) || '')
   const [nameConfirmed, setNameConfirmed] = useState(!!localStorage.getItem(GUEST_NAME_KEY))
-  const [text, setText] = useState('')
-  const [type, setType] = useState<WallMessageType>('comment')
-  const [posting, setPosting] = useState(false)
+  const [text, setText]             = useState('')
+  const [type, setType]             = useState<WallMessageType>('comment')
+  const [posting, setPosting]       = useState(false)
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
-  const [replyText, setReplyText] = useState('')
+  const [replyText, setReplyText]   = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const isOwner = user && event && user.uid === event.ownerId
+  const isOwner    = !!(user && event && user.uid === event.ownerId)
+  const isPremium  = event?.plan === 'premium'
 
   useEffect(() => {
     if (!id) return
@@ -82,10 +89,13 @@ export function EventWall() {
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault()
-    if (!id || !text.trim() || !guestName) return
+    if (!id || !text.trim()) return
     setPosting(true)
     try {
-      await postWallMessage(id, text, type, guestName, localStorage.getItem(GUEST_NAME_KEY) || guestName)
+      const authorName  = isOwner ? OWNER_DISPLAY : guestName
+      const authorToken = isOwner ? (user?.uid ?? 'owner') : (localStorage.getItem(GUEST_NAME_KEY) || guestName)
+      const authorRole  = isOwner ? 'owner' : 'guest'
+      await postWallMessage(id, text, type, authorName, authorToken, authorRole)
       setText('')
       textareaRef.current?.focus()
     } finally {
@@ -103,6 +113,11 @@ export function EventWall() {
   async function handleDelete(messageId: string) {
     if (!id) return
     await deleteWallMessage(id, messageId)
+  }
+
+  async function handlePin(msg: WallMessage) {
+    if (!id) return
+    await pinWallMessage(id, msg.id, msg.pinned)
   }
 
   async function handleLike(msg: WallMessage) {
@@ -144,7 +159,14 @@ export function EventWall() {
     )
   }
 
-  const authorLabel = isOwner ? (user?.displayName || 'Anfitrión') : guestName
+  const postLabel = isOwner ? OWNER_DISPLAY : guestName
+
+  /* Pinned first, then by date desc */
+  const sorted = [...messages].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1
+    if (!a.pinned && b.pinned) return 1
+    return b.createdAt - a.createdAt
+  })
 
   return (
     <div className="max-w-xl mx-auto px-4 py-6 min-h-screen">
@@ -195,7 +217,9 @@ export function EventWall() {
           className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
         />
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-400">Como: <strong>{authorLabel}</strong></span>
+          <span className="text-xs text-gray-400">
+            Como: <AuthorName name={postLabel} role={isOwner ? 'owner' : 'guest'} premium={isPremium} />
+          </span>
           <button
             type="submit"
             disabled={posting || !text.trim()}
@@ -206,7 +230,6 @@ export function EventWall() {
         </div>
       </form>
 
-      {/* Messages */}
       {loading && <p className="text-center text-gray-400 text-sm">Cargando mensajes...</p>}
 
       {!loading && messages.length === 0 && (
@@ -214,42 +237,72 @@ export function EventWall() {
       )}
 
       <div className="space-y-3">
-        {messages.map((msg) => {
-          const cfg = TYPE_CONFIG[msg.type]
+        {sorted.map((msg) => {
+          const cfg       = TYPE_CONFIG[msg.type]
+          const isOwnerMsg = msg.authorRole === 'owner'
           return (
-            <div key={msg.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 animate-fade-in-up">
+            <div
+              key={msg.id}
+              className={`bg-white dark:bg-gray-800 rounded-xl border p-4 animate-fade-in-up transition-all ${
+                msg.pinned
+                  ? 'border-yellow-400/60 dark:border-yellow-500/40 shadow-[0_0_12px_rgba(250,239,93,.18)]'
+                  : 'border-gray-200 dark:border-gray-700'
+              }`}
+            >
+              {/* Header */}
               <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {msg.pinned && (
+                    <span className="flex items-center gap-1 text-xs font-medium text-yellow-500">
+                      <IconPin className="w-3 h-3" />
+                      Destacado
+                    </span>
+                  )}
                   <span className={`flex items-center gap-1 text-xs rounded-full px-2 py-0.5 font-medium ${cfg.color}`}>
                     <cfg.Icon className="w-3 h-3" />
                     {cfg.label}
                   </span>
-                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.authorName}</span>
+                  <AuthorName name={msg.authorName} role={msg.authorRole} premium={isPremium && isOwnerMsg} />
                 </div>
+                {/* Owner actions */}
                 {isOwner && (
-                  <button onClick={() => handleDelete(msg.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">
-                    Eliminar
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handlePin(msg)}
+                      title={msg.pinned ? 'Quitar destacado' : 'Destacar mensaje'}
+                      className={`text-xs transition-colors ${msg.pinned ? 'text-yellow-500 hover:text-yellow-400' : 'text-gray-400 hover:text-yellow-500'}`}
+                    >
+                      <IconPin className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(msg.id)}
+                      className="text-xs text-red-400 hover:text-red-600"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 )}
               </div>
-              <p className="text-sm text-gray-800 dark:text-gray-200 mb-3">{msg.text}</p>
+
+              <p className="text-sm text-gray-900 dark:text-white mb-3">{msg.text}</p>
 
               {/* Replies */}
               {msg.replies.length > 0 && (
                 <div className="border-l-2 border-gray-100 dark:border-gray-700 pl-3 mb-3 space-y-2">
                   {msg.replies.map((r) => (
                     <div key={r.id}>
-                      <span className="text-xs font-semibold text-primary">Anfitrión · </span>
-                      <span className="text-xs text-gray-700 dark:text-gray-300">{r.text}</span>
+                      <AuthorName name={OWNER_DISPLAY} role="owner" premium={isPremium} inline />
+                      <span className="text-xs text-gray-700 dark:text-gray-300 ml-1">{r.text}</span>
                     </div>
                   ))}
                 </div>
               )}
 
+              {/* Reactions row */}
               <div className="flex items-center gap-3">
                 {(() => {
-                  const token = getDeviceToken()
-                  const liked = msg.likedBy.includes(token)
+                  const token    = getDeviceToken()
+                  const liked    = msg.likedBy.includes(token)
                   const disliked = msg.dislikedBy.includes(token)
                   return (
                     <>
@@ -277,6 +330,7 @@ export function EventWall() {
                 )}
               </div>
 
+              {/* Reply input */}
               {isOwner && replyingTo === msg.id && (
                 <div className="mt-3 flex gap-2">
                   <input
@@ -301,5 +355,44 @@ export function EventWall() {
         })}
       </div>
     </div>
+  )
+}
+
+/* Componente para renderizar el nombre del autor con estilo según plan */
+function AuthorName({
+  name,
+  role,
+  premium,
+  inline = false,
+}: {
+  name: string
+  role: 'owner' | 'guest'
+  premium: boolean
+  inline?: boolean
+}) {
+  if (role !== 'owner') {
+    return <span className={`text-xs font-semibold text-gray-700 dark:text-gray-300 ${inline ? 'inline' : ''}`}>{name}</span>
+  }
+
+  if (premium) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-xs font-bold ${inline ? '' : ''}`}
+        style={{
+          color: '#FAEF5D',
+          textShadow: '0 0 8px rgba(250,239,93,.8), 0 0 16px rgba(250,239,93,.4)',
+        }}
+      >
+        <IconCrown className="w-3 h-3" />
+        {name}
+      </span>
+    )
+  }
+
+  /* Basic plan — resaltar pero sin dorado */
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-bold text-primary ${inline ? '' : ''}`}>
+      {name}
+    </span>
   )
 }

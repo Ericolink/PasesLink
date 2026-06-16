@@ -377,3 +377,19 @@ export function IconWaves({ className = 'w-5 h-5' }: IconProps) {
     </svg>
   )
 }
+
+export function IconPin({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M12 17v5M9 10.5V5M15 10.5V5M5 5h14M7 5l1 5.5a4 4 0 0 0 8 0L17 5" />
+    </svg>
+  )
+}
+
+export function IconCrown({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base} fill="currentColor" stroke="none">
+      <path d="M2 19h20v2H2v-2zM2 5l5 7 5-7 5 7 5-7v12H2V5z" />
+    </svg>
+  )
+}

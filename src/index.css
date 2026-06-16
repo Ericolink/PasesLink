@@ -142,17 +142,35 @@ body {
 
 /* ── Dark mode Pico-8 palette ───────────────────────────────── */
 .dark {
+  /* Fondos y bordes (oscuros) */
   --color-gray-50:  #0E1628;
   --color-gray-100: #131D3A;
   --color-gray-200: #1A2548;
-  --color-gray-300: #2A3A6A;
-  --color-gray-400: #4A5A88;
-  --color-gray-500: #7B8DB0;
-  --color-gray-600: #A0AEC8;
-  --color-gray-700: #C4CEEA;
-  --color-gray-800: #DDE4F8;
-  --color-gray-900: #F0F4FF;
+  /* Texto — todos con contraste suficiente sobre fondo oscuro */
+  --color-gray-300: #B0C0DC;   /* labels / texto secundario  (~7.5:1) */
+  --color-gray-400: #90A2C8;   /* texto muted               (~5.5:1) */
+  --color-gray-500: #7888B4;   /* texto más muted            (~4.3:1) */
+  --color-gray-600: #BCCCE8;   /* texto secundario claro     (~8.5:1) */
+  --color-gray-700: #CDD8F0;   /* texto principal secundario (~10:1)  */
+  --color-gray-800: #DDE6FF;   /* texto principal            (~12:1)  */
+  --color-gray-900: #F0F4FF;   /* texto máximo brillo        (~14:1)  */
   --color-primary-light: #2A0A15;
+}
+
+/* Los bordes usan gray-200/300/400 como clase pero deben
+   permanecer oscuros — explicitamos su color aquí. */
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark .border-gray-400,
+.dark .border-gray-700 {
+  border-color: rgba(42, 58, 106, 0.65) !important;
+}
+
+.dark .divide-gray-100,
+.dark .divide-gray-200,
+.dark .divide-gray-300 {
+  border-color: rgba(42, 58, 106, 0.45) !important;
 }
 
 /* Cards, inputs, superficies */

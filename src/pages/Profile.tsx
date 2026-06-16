@@ -110,7 +110,7 @@ export function Profile() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={photoUploading}
-              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
             >
               {photoUploading ? 'Subiendo...' : 'Cambiar foto'}
             </button>
