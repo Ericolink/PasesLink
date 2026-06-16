@@ -5,7 +5,7 @@ import { deleteEvent, setEventStatus, subscribeToUserEvents } from '../firebase/
 import type { EventData } from '../types'
 import { PlanBadge } from '../components/PlanBadge'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { IconCalendar, IconStar, IconTicket } from '../components/Icons'
+import { IconCalendar, IconStar, IconTicket, IconUsers } from '../components/Icons'
 
 function isEventPast(date: string): boolean {
   const today = new Date()
@@ -17,12 +17,6 @@ const STATUS_LABELS: Record<EventData['status'], string> = {
   active: 'Activo',
   cancelled: 'Cancelado',
   archived: 'Archivado',
-}
-
-const STATUS_STYLES: Record<EventData['status'], string> = {
-  active: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
-  archived: 'bg-gray-100 text-gray-600',
 }
 
 export function Dashboard() {
@@ -39,7 +33,6 @@ export function Dashboard() {
     const unsubscribe = subscribeToUserEvents(user.uid, (data) => {
       setEvents(data)
       setLoading(false)
-      // Auto-archive active events whose date has passed
       data.forEach((ev) => {
         if (ev.status === 'active' && isEventPast(ev.date)) {
           setEventStatus(ev.id, 'archived').catch(() => {})
@@ -51,62 +44,106 @@ export function Dashboard() {
 
   async function handleStatusChange(eventId: string, status: 'cancelled' | 'archived' | 'active') {
     setActionLoading(eventId)
-    try {
-      await setEventStatus(eventId, status)
-    } finally {
-      setActionLoading(null)
-    }
+    try { await setEventStatus(eventId, status) }
+    finally { setActionLoading(null) }
   }
 
   async function handleDelete(eventId: string) {
     setActionLoading(eventId)
-    try {
-      await deleteEvent(eventId)
-    } finally {
-      setActionLoading(null)
-      setConfirmDeleteId(null)
-    }
+    try { await deleteEvent(eventId) }
+    finally { setActionLoading(null); setConfirmDeleteId(null) }
   }
 
   const eventToDelete = events.find((e) => e.id === confirmDeleteId)
   const activeEvents = events.filter((e) => e.status === 'active')
   const pastEvents = events.filter((e) => e.status !== 'active')
 
+  const totalGuests = events.reduce((s, e) => s + e.guestCount, 0)
+  const totalCheckins = events.reduce((s, e) => s + e.checkedInCount, 0)
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
+
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Mis eventos</h1>
-          {user?.email && <p className="text-sm text-gray-500 mt-0.5">{user.email}</p>}
+          <h1 className="text-2xl font-bold text-white">Mis eventos</h1>
+          {user?.email && (
+            <p className="text-sm text-gray-500 mt-0.5">{user.email}</p>
+          )}
         </div>
         <Link
           to="/events/new"
-          className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors hover:-translate-y-0.5 hover:shadow-md shrink-0"
+          className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-semibold hover:-translate-y-0.5 transition-all shrink-0"
         >
           + Nuevo evento
         </Link>
       </div>
 
-      {loading && <p className="text-gray-500">Cargando eventos...</p>}
+      {/* Stats bar */}
+      {!loading && events.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {[
+            { label: 'Eventos', value: events.length, icon: IconCalendar },
+            { label: 'Invitados', value: totalGuests, icon: IconUsers },
+            { label: 'Check-ins', value: totalCheckins, icon: IconTicket },
+          ].map(({ label, value, icon: Icon }) => (
+            <div
+              key={label}
+              className="rounded-xl p-3 text-center"
+              style={{
+                background: 'rgba(26,37,72,.7)',
+                border: '1px solid rgba(42,58,106,.8)',
+              }}
+            >
+              <Icon className="w-4 h-4 text-primary mx-auto mb-1" />
+              <p className="text-xl font-bold text-white">{value}</p>
+              <p className="text-xs text-gray-500">{label}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
+      {loading && <p className="text-gray-500 text-sm">Cargando eventos...</p>}
+
+      {/* Empty state */}
       {!loading && events.length === 0 && (
-        <div className="text-center border border-dashed border-gray-300 rounded-lg py-16 bg-white animate-fade-in-up">
-          <IconCalendar className="w-12 h-12 mb-3 mx-auto text-gray-300" />
-          <h2 className="text-lg font-medium text-gray-900 mb-1">Todavía no tienes eventos</h2>
-          <p className="text-gray-500 mb-4 max-w-sm mx-auto">
+        <div
+          className="text-center rounded-2xl py-16 animate-fade-in-up"
+          style={{ background: 'rgba(26,37,72,.5)', border: '1px dashed rgba(42,58,106,.9)' }}
+        >
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: 'rgba(255,0,77,.1)', border: '1px solid rgba(255,0,77,.2)' }}
+          >
+            <IconCalendar className="w-6 h-6 text-primary" />
+          </div>
+          <h2 className="text-lg font-semibold text-white mb-1">Todavía no tienes eventos</h2>
+          <p className="text-gray-500 mb-6 max-w-sm mx-auto text-sm">
             Crea tu primer evento, agrega invitados y genera sus pases con QR en pocos minutos.
           </p>
           <Link
             to="/events/new"
-            className="inline-block bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors hover:-translate-y-0.5 hover:shadow-md"
+            className="inline-block bg-primary text-white rounded-lg px-5 py-2.5 text-sm font-semibold hover:-translate-y-0.5 transition-all"
           >
             Crea tu primer evento
           </Link>
         </div>
       )}
 
+      {/* Active events */}
       <div className="space-y-3">
-        {activeEvents.map((event, i) => <EventCard key={event.id} event={event} index={i} isLoading={actionLoading === event.id} onNavigate={() => navigate(`/events/${event.id}`)} onCancel={() => handleStatusChange(event.id, 'cancelled')} onDelete={() => { setConfirmDeleteId(event.id) }} />)}
+        {activeEvents.map((event, i) => (
+          <EventCard
+            key={event.id}
+            event={event}
+            index={i}
+            isLoading={actionLoading === event.id}
+            onNavigate={() => navigate(`/events/${event.id}`)}
+            onCancel={() => handleStatusChange(event.id, 'cancelled')}
+            onDelete={() => setConfirmDeleteId(event.id)}
+          />
+        ))}
       </div>
 
       {/* Past events */}
@@ -114,9 +151,9 @@ export function Dashboard() {
         <div className="mt-8">
           <button
             onClick={() => setShowPast((v) => !v)}
-            className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 mb-3"
+            className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-300 mb-3 transition-colors"
           >
-            <span className={`transition-transform ${showPast ? 'rotate-90' : ''}`}>▶</span>
+            <span className={`transition-transform duration-200 ${showPast ? 'rotate-90' : ''}`}>▶</span>
             Eventos pasados ({pastEvents.length})
           </button>
           {showPast && (
@@ -130,7 +167,7 @@ export function Dashboard() {
                   isLoading={actionLoading === event.id}
                   onNavigate={() => navigate(`/events/${event.id}`)}
                   onReactivate={event.status !== 'active' ? () => handleStatusChange(event.id, 'active') : undefined}
-                  onDelete={() => { setConfirmDeleteId(event.id) }}
+                  onDelete={() => setConfirmDeleteId(event.id)}
                 />
               ))}
             </div>
@@ -165,63 +202,131 @@ interface EventCardProps {
 
 function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReactivate, onDelete }: EventCardProps) {
   const progress = event.guestCount > 0 ? Math.min(100, (event.checkedInCount / event.guestCount) * 100) : 0
+
   return (
     <div
-      style={{ animationDelay: `${Math.min(index, 6) * 0.06}s` }}
-      className={`card-hover animate-fade-in-up border rounded-lg bg-white dark:bg-gray-800 hover:border-primary transition-colors ${past ? 'border-gray-100 opacity-80' : 'border-gray-200'}`}
+      style={{
+        animationDelay: `${Math.min(index, 6) * 0.06}s`,
+        borderLeft: past ? undefined : '3px solid #FF004D',
+        boxShadow: past ? undefined : '0 0 20px rgba(255,0,77,.06)',
+      }}
+      className={`card-hover animate-fade-in-up rounded-xl overflow-hidden ${
+        past ? 'opacity-70' : ''
+      }`}
     >
-      <button onClick={onNavigate} disabled={isLoading} className="w-full text-left p-4 pb-3">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <h2 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-            {event.plan === 'premium' ? (
-              <IconStar className="w-4 h-4 text-amber-500 shrink-0" />
-            ) : (
-              <IconTicket className="w-4 h-4 text-primary shrink-0" />
+      <div
+        style={{
+          background: 'rgba(26,37,72,.8)',
+          border: '1px solid rgba(42,58,106,.7)',
+          borderLeft: past ? '1px solid rgba(42,58,106,.7)' : 'none',
+        }}
+      >
+        {/* Clickable body */}
+        <button onClick={onNavigate} disabled={isLoading} className="w-full text-left p-4 pb-3">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <h2 className="font-semibold text-white flex items-center gap-2">
+              {event.plan === 'premium'
+                ? <IconStar className="w-4 h-4 text-amber-400 shrink-0" />
+                : <IconTicket className="w-4 h-4 text-primary shrink-0" />
+              }
+              {event.name}
+            </h2>
+            <div className="flex items-center gap-2 shrink-0">
+              <PlanBadge plan={event.plan} />
+              {event.status !== 'active' && (
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full font-medium"
+                  style={{
+                    background: event.status === 'cancelled' ? 'rgba(255,0,77,.15)' : 'rgba(42,58,106,.8)',
+                    color: event.status === 'cancelled' ? '#FF004D' : '#7B8DB0',
+                    border: `1px solid ${event.status === 'cancelled' ? 'rgba(255,0,77,.3)' : 'rgba(42,58,106,.9)'}`,
+                  }}
+                >
+                  {STATUS_LABELS[event.status]}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-500 mb-3">{event.date} · {event.location}</p>
+
+          {/* Progress */}
+          <div>
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+              <span>{event.checkedInCount} / {event.guestCount} confirmados</span>
+              {event.capacity && (
+                <span className="text-gray-600">cap. {event.capacity}</span>
+              )}
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(42,58,106,.8)' }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${progress}%`,
+                  background: progress > 0 ? 'linear-gradient(90deg, #FF004D, #CC003E)' : 'transparent',
+                  boxShadow: progress > 0 ? '0 0 6px rgba(255,0,77,.5)' : 'none',
+                }}
+              />
+            </div>
+          </div>
+        </button>
+
+        {/* Action row */}
+        <div
+          className="px-4 pb-3 pt-2 flex items-center justify-between gap-2"
+          style={{ borderTop: '1px solid rgba(42,58,106,.5)' }}
+        >
+          {!past ? (
+            <Link
+              to={`/events/${event.id}/scan`}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Escanear QR
+            </Link>
+          ) : <span />}
+
+          <div className="flex items-center gap-1.5">
+            {onCancel && (
+              <button
+                onClick={onCancel}
+                disabled={isLoading}
+                className="text-xs px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
+                style={{
+                  background: 'rgba(42,58,106,.5)',
+                  border: '1px solid rgba(42,58,106,.9)',
+                  color: '#A0AEC8',
+                }}
+              >
+                Cancelar
+              </button>
             )}
-            {event.name}
-          </h2>
-          <div className="flex items-center gap-2 shrink-0">
-            <PlanBadge plan={event.plan} />
-            {event.status !== 'active' && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[event.status]}`}>
-                {STATUS_LABELS[event.status]}
-              </span>
+            {onReactivate && (
+              <button
+                onClick={onReactivate}
+                disabled={isLoading}
+                className="text-xs px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
+                style={{
+                  background: 'rgba(26,100,26,.2)',
+                  border: '1px solid rgba(34,197,94,.2)',
+                  color: '#4ade80',
+                }}
+              >
+                Reactivar
+              </button>
             )}
-          </div>
-        </div>
-        <p className="text-sm text-gray-500">{event.date} · {event.location}</p>
-        <div className="mt-3">
-          <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-            <span>{event.checkedInCount} / {event.guestCount} confirmados</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-            <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-      </button>
-      <div className="px-4 pb-3 flex items-center justify-between gap-2 border-t border-gray-50 dark:border-gray-700">
-        {!past ? (
-          <Link to={`/events/${event.id}/scan`} className="text-xs font-medium text-primary hover:underline">
-            Escanear QR
-          </Link>
-        ) : <span />}
-        <div className="flex items-center gap-1">
-          {onCancel && (
-            <button onClick={onCancel} disabled={isLoading}
-              className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 rounded-md px-2.5 py-1 hover:bg-red-50 transition-colors disabled:opacity-40">
-              Cancelar
+            <button
+              onClick={onDelete}
+              disabled={isLoading}
+              className="text-xs px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
+              style={{
+                background: 'rgba(255,0,77,.1)',
+                border: '1px solid rgba(255,0,77,.3)',
+                color: '#FF004D',
+              }}
+            >
+              {isLoading ? '...' : 'Eliminar'}
             </button>
-          )}
-          {onReactivate && (
-            <button onClick={onReactivate} disabled={isLoading}
-              className="text-xs text-gray-500 hover:text-green-600 border border-gray-200 rounded-md px-2.5 py-1 hover:bg-green-50 transition-colors disabled:opacity-40">
-              Reactivar
-            </button>
-          )}
-          <button onClick={onDelete} disabled={isLoading}
-            className="text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-md px-2.5 py-1 hover:bg-red-50 transition-colors disabled:opacity-40">
-            {isLoading ? '...' : 'Eliminar'}
-          </button>
+          </div>
         </div>
       </div>
     </div>

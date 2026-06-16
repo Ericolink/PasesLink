@@ -1,14 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { logout } from '../firebase/auth'
 import { useAuth } from '../hooks/useAuth'
-import { useTheme } from '../hooks/useTheme'
 import { isAdminEmail } from '../config/admin'
 import { Logo } from './Logo'
-import { IconMoon, IconSun } from './Icons'
 
 export function Navbar() {
   const { user } = useAuth()
-  const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
   async function handleLogout() {
@@ -17,53 +14,69 @@ export function Navbar() {
   }
 
   return (
-    <header className="border-b border-gray-200 dark:border-gray-700 bg-white sticky top-0 z-40">
+    <header
+      className="sticky top-0 z-40 border-b"
+      style={{
+        background: 'rgba(19,29,58,0.82)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderColor: 'rgba(42,58,106,0.7)',
+      }}
+    >
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link to={user ? '/dashboard' : '/'}>
           <Logo />
         </Link>
+
         {user ? (
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1 text-sm">
             {isAdminEmail(user.email) && (
-              <Link to="/admin" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors">
+              <Link
+                to="/admin"
+                className="px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
                 Admin
               </Link>
             )}
-            <Link to="/profile" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors">
+            <Link
+              to="/profile"
+              className="px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+            >
               <span className="hidden sm:inline">{user.email}</span>
               <span className="sm:hidden">Perfil</span>
             </Link>
             <button
-              onClick={toggleTheme}
-              aria-label="Cambiar tema"
-              className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors"
-            >
-              {theme === 'dark' ? <IconSun className="w-5 h-5" /> : <IconMoon className="w-5 h-5" />}
-            </button>
-            <button
               onClick={handleLogout}
-              className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors"
+              className="ml-1 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors"
+              style={{
+                borderColor: 'rgba(255,0,77,0.4)',
+                color: '#FF004D',
+              }}
+              onMouseEnter={(e) => {
+                const el = e.currentTarget
+                el.style.background = 'rgba(255,0,77,0.12)'
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget
+                el.style.background = 'transparent'
+              }}
             >
-              Cerrar sesión
+              Salir
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-4 text-sm">
-            <button
-              onClick={toggleTheme}
-              aria-label="Cambiar tema"
-              className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors"
+          <div className="flex items-center gap-2 text-sm">
+            <Link
+              to="/login"
+              className="px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
             >
-              {theme === 'dark' ? <IconSun className="w-5 h-5" /> : <IconMoon className="w-5 h-5" />}
-            </button>
-            <Link to="/login" className="text-gray-600 dark:text-gray-300 hover:text-primary transition-colors">
               Iniciar sesión
             </Link>
             <Link
               to="/register"
-              className="bg-primary text-white rounded-md px-3 py-1.5 font-medium hover:bg-primary-dark transition-colors"
+              className="bg-primary text-white rounded-md px-4 py-1.5 font-medium hover:bg-primary-dark transition-colors"
             >
-              Crear cuenta
+              Registrarse
             </Link>
           </div>
         )}

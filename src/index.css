@@ -2,17 +2,21 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ── Pico-8 Retro theme ──────────────────────────────────────── */
 @theme {
-  --color-primary: #2563eb;
-  --color-primary-dark: #1d4ed8;
-  --color-primary-light: #eff6ff;
+  --color-primary:       #FF004D;
+  --color-primary-dark:  #CC003E;
+  --color-primary-light: #2A0A15;
+  --font-sans: 'Space Grotesk', system-ui, 'Segoe UI', sans-serif;
 }
 
+/* ── Base ────────────────────────────────────────────────────── */
 body {
   margin: 0;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  background-color: #f7f9fc;
-  color: var(--color-gray-900);
+  font-family: var(--font-sans);
+  background-color: #131D3A;
+  color: #F0F4FF;
+  -webkit-font-smoothing: antialiased;
 }
 
 #root {
@@ -25,119 +29,57 @@ body {
   flex: 1;
 }
 
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.animate-fade-in-up {
-  animation: fade-in-up 0.5s ease-out both;
-}
-
-.animate-fade-in {
-  animation: fade-in 0.6s ease-out both;
-}
-
-.animate-delay-1 {
-  animation-delay: 0.08s;
-}
-
-.animate-delay-2 {
-  animation-delay: 0.16s;
-}
-
-.animate-delay-3 {
-  animation-delay: 0.24s;
-}
-
-@keyframes bounce-in {
-  0%   { opacity: 0; transform: scale(0.85) translateY(8px); }
-  60%  { transform: scale(1.04) translateY(-2px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-@keyframes slide-in-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.animate-bounce-in {
-  animation: bounce-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.animate-slide-in-up {
-  animation: slide-in-up 0.3s ease-out both;
-}
-
-.card-hover {
-  transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
-}
-
-.card-hover:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 24px -8px rgb(0 0 0 / 0.18);
-}
-
+/* ── Dark mode Pico-8 palette ───────────────────────────────── */
 .dark {
-  --color-gray-50: #0f172a;
-  --color-gray-100: #1e293b;
-  --color-gray-200: #334155;
-  --color-gray-300: #475569;
-  --color-gray-400: #94a3b8;
-  --color-gray-500: #94a3b8;
-  --color-gray-600: #cbd5e1;
-  --color-gray-700: #e2e8f0;
-  --color-gray-800: #f1f5f9;
-  --color-gray-900: #f8fafc;
-  --color-primary-light: #1e3a5f;
+  --color-gray-50:  #0E1628;
+  --color-gray-100: #131D3A;
+  --color-gray-200: #1A2548;
+  --color-gray-300: #2A3A6A;
+  --color-gray-400: #4A5A88;
+  --color-gray-500: #7B8DB0;
+  --color-gray-600: #A0AEC8;
+  --color-gray-700: #C4CEEA;
+  --color-gray-800: #DDE4F8;
+  --color-gray-900: #F0F4FF;
+  --color-primary-light: #2A0A15;
 }
 
 .dark body {
-  background-color: #0f172a;
+  background-color: #131D3A;
 }
 
-/* Las tarjetas usan bg-white; en modo oscuro las pasamos a un gris oscuro
-   sin tocar --color-white (que también usan los botones con text-white). */
 .dark .bg-white {
-  background-color: #1e293b;
+  background-color: #1A2548;
+}
+
+.dark .bg-gray-50 {
+  background-color: #0E1628 !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #131D3A !important;
 }
 
 .dark input,
 .dark select,
 .dark textarea {
-  background-color: #1e293b;
-  color: var(--color-gray-900);
-  border-color: var(--color-gray-300);
+  background-color: #1A2548;
+  color: #F0F4FF;
+  border-color: #2A3A6A;
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: var(--color-gray-500);
+  color: #7B8DB0;
 }
 
 .dark input[type='color'] {
   background-color: transparent;
 }
 
-/* Secciones que mantienen su propio tema oscuro fijo (ej. escáner QR):
-   restablecen la paleta para no heredar la inversión del modo oscuro global. */
+/* Scanner keeps its own dark sub-theme */
 .theme-reset {
-  --color-gray-50: #f9fafb;
+  --color-gray-50:  #f9fafb;
   --color-gray-100: #f3f4f6;
   --color-gray-200: #e5e7eb;
   --color-gray-300: #d1d5db;
@@ -147,7 +89,7 @@ body {
   --color-gray-700: #374151;
   --color-gray-800: #1f2937;
   --color-gray-900: #111827;
-  --color-primary-light: #eff6ff;
+  --color-primary-light: #2A0A15;
   color: var(--color-gray-900);
 }
 
@@ -158,3 +100,116 @@ body {
   color: #fff;
   border-color: var(--color-gray-700);
 }
+
+/* ── Utility classes ─────────────────────────────────────────── */
+
+/* Background grid for hero sections */
+.bg-grid {
+  background-image:
+    radial-gradient(ellipse at 15% 60%, rgba(255,0,77,.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 20%, rgba(126,37,83,.09) 0%, transparent 50%),
+    linear-gradient(rgba(42,58,106,.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(42,58,106,.35) 1px, transparent 1px);
+  background-size: auto, auto, 48px 48px, 48px 48px;
+}
+
+/* Glass card */
+.glass {
+  background: rgba(26, 37, 72, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(42, 58, 106, 0.7);
+}
+
+/* Neon glow text */
+.neon-text {
+  color: #FF004D;
+  text-shadow: 0 0 10px rgba(255,0,77,.7), 0 0 22px rgba(255,0,77,.35);
+}
+
+/* Highlight / accent color */
+.text-accent { color: #FAEF5D; }
+.bg-accent    { background-color: #FAEF5D; }
+
+/* Neon red glow shadow — applied to primary buttons */
+.shadow-neon {
+  box-shadow: 0 0 12px rgba(255,0,77,.55), 0 0 28px rgba(255,0,77,.22);
+}
+
+.shadow-neon-lg {
+  box-shadow: 0 0 18px rgba(255,0,77,.65), 0 0 40px rgba(255,0,77,.28);
+}
+
+/* Primary buttons always get the neon glow */
+.bg-primary {
+  box-shadow: 0 0 12px rgba(255,0,77,.5), 0 0 24px rgba(255,0,77,.2);
+  transition: box-shadow 0.2s ease, filter 0.2s ease, transform 0.15s ease;
+}
+
+.bg-primary:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 0 18px rgba(255,0,77,.65), 0 0 36px rgba(255,0,77,.28);
+}
+
+/* Focus rings */
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  outline: none;
+  border-color: #FF004D !important;
+  box-shadow: 0 0 0 3px rgba(255,0,77,.25) !important;
+}
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes bounce-in {
+  0%   { opacity: 0; transform: scale(0.85) translateY(8px); }
+  60%  { transform: scale(1.04) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 12px rgba(255,0,77,.5), 0 0 24px rgba(255,0,77,.2); }
+  50%       { box-shadow: 0 0 20px rgba(255,0,77,.75), 0 0 40px rgba(255,0,77,.35); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+.animate-fade-in-up   { animation: fade-in-up  0.5s ease-out both; }
+.animate-fade-in      { animation: fade-in      0.6s ease-out both; }
+.animate-bounce-in    { animation: bounce-in    0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
+.animate-slide-in-up  { animation: slide-in-up  0.3s ease-out both; }
+.animate-pulse-glow   { animation: pulse-glow   2.5s ease-in-out infinite; }
+.animate-float        { animation: float        3s ease-in-out infinite; }
+
+.animate-delay-1 { animation-delay: 0.08s; }
+.animate-delay-2 { animation-delay: 0.16s; }
+.animate-delay-3 { animation-delay: 0.24s; }
+
+/* ── Card hover ──────────────────────────────────────────────── */
+.card-hover {
+  transition: transform 0.18s ease-out, box-shadow 0.18s ease-out, border-color 0.18s ease-out;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 0, 77, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(255,0,77,.2), 0 12px 32px -8px rgba(0,0,0,.5);
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #131D3A; }
+::-webkit-scrollbar-thumb { background: #2A3A6A; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #FF004D; }
