@@ -3,9 +3,26 @@ import { Link, useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { getEvent } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
+import {
+  IconBan,
+  IconCheckCircle,
+  IconFrown,
+  IconSparkles,
+} from '../components/Icons'
 import type { EventData } from '../types'
 
 type State = 'loading' | 'form' | 'submitting' | 'success' | 'full' | 'not_found' | 'error'
+
+interface SavedReg {
+  name: string
+  phone: string
+  qrToken: string
+  customValues: Record<string, string>
+}
+
+function regKey(eventId: string) {
+  return `join_reg_${eventId}`
+}
 
 export function EventJoin() {
   const { id } = useParams<{ id: string }>()
@@ -23,6 +40,23 @@ export function EventJoin() {
       if (!ev) { setState('not_found'); return }
       if (ev.entryMode === 'list') { setState('error'); return }
       setEvent(ev)
+
+      // Restore saved registration for this event
+      const saved = localStorage.getItem(regKey(id))
+      if (saved) {
+        try {
+          const reg: SavedReg = JSON.parse(saved)
+          setName(reg.name)
+          setPhone(reg.phone)
+          setCustomValues(reg.customValues || {})
+          setQrToken(reg.qrToken)
+          setState('success')
+          return
+        } catch {
+          localStorage.removeItem(regKey(id))
+        }
+      }
+
       setState('form')
     })
   }, [id])
@@ -41,7 +75,10 @@ export function EventJoin() {
     if (result.status === 'full') {
       setState('full')
     } else {
-      setQrToken(result.qrToken!)
+      const token = result.qrToken!
+      setQrToken(token)
+      // Persist so returning to the page restores their QR
+      localStorage.setItem(regKey(id), JSON.stringify({ name, phone, qrToken: token, customValues }))
       setState('success')
     }
   }
@@ -58,7 +95,9 @@ export function EventJoin() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="text-4xl mb-3">🚫</div>
+          <div className="flex justify-center mb-3">
+            <IconBan className="w-12 h-12 text-gray-400" />
+          </div>
           <p className="text-gray-600 dark:text-gray-400">
             {state === 'not_found' ? 'Este evento no existe.' : 'Este evento no acepta registros libres.'}
           </p>
@@ -71,7 +110,9 @@ export function EventJoin() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center animate-bounce-in">
-          <div className="text-6xl mb-4">😔</div>
+          <div className="flex justify-center mb-4">
+            <IconFrown className="w-14 h-14 text-gray-400" />
+          </div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Cupo agotado</h1>
           <p className="text-gray-500">El evento ya alcanzó su capacidad máxima.</p>
         </div>
@@ -87,9 +128,13 @@ export function EventJoin() {
             <img src={event.coverImage} alt="Portada" className="w-full h-28 object-cover rounded-xl mb-5" />
           )}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <div className="text-3xl mb-2">🎉</div>
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-1">¡Registro exitoso!</h1>
-            <p className="text-sm text-gray-500 mb-4">Guarda este QR — te lo pedirán en la entrada.</p>
+            <div className="flex justify-center mb-2">
+              <IconSparkles className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+              Hola, {name}
+            </h1>
+            <p className="text-sm text-gray-500 mb-4">Este es tu pase de entrada. Guárdalo.</p>
             <div className="flex justify-center mb-4">
               <canvas ref={canvasRef} className="rounded-lg" />
             </div>
@@ -99,11 +144,25 @@ export function EventJoin() {
             {id && (
               <Link
                 to={`/events/${id}/wall`}
-                className="block text-center text-sm font-medium text-primary hover:underline"
+                className="flex items-center justify-center gap-1.5 text-sm font-medium text-primary hover:underline"
               >
-                Ver el muro del evento →
+                <IconCheckCircle className="w-4 h-4" />
+                Ver el muro del evento
               </Link>
             )}
+            <button
+              onClick={() => {
+                if (id) localStorage.removeItem(regKey(id))
+                setState('form')
+                setName('')
+                setPhone('')
+                setCustomValues({})
+                setQrToken('')
+              }}
+              className="mt-3 text-xs text-gray-400 hover:text-gray-600"
+            >
+              No soy yo — cambiar registro
+            </button>
           </div>
         </div>
       </div>

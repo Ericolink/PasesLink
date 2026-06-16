@@ -66,7 +66,7 @@ export function Scanner() {
       const result = await walkIn(eventId)
       if (result === 'success') {
         confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
-        showFeedback({ type: 'success', detail: 'Ingreso registrado ✓' })
+        showFeedback({ type: 'success', detail: 'Ingreso registrado' })
       } else {
         showFeedback({ type: 'invalid', detail: '¡Cupo máximo alcanzado!' })
       }
@@ -234,7 +234,7 @@ export function Scanner() {
           </div>
           {walkInMsg && (
             <p className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>
-              {walkInMsg === 'full' ? '¡Cupo máximo alcanzado!' : '✓ Ingreso registrado'}
+              {walkInMsg === 'full' ? '¡Cupo máximo alcanzado!' : 'Ingreso registrado'}
             </p>
           )}
         </div>

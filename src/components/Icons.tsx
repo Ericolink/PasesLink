@@ -293,3 +293,87 @@ export function IconSparkles({ className = 'w-5 h-5' }: IconProps) {
     </svg>
   )
 }
+
+export function IconMessageSquare({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+export function IconHelpCircle({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
+    </svg>
+  )
+}
+
+export function IconMusic({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+    </svg>
+  )
+}
+
+export function IconLightbulb({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.9 10 19 8.6 19 7A7 7 0 1 0 5 7c0 1.6 1.1 3 2.5 4.5.8.8 1.3 1.5 1.5 2.5" />
+      <path d="M9 18h6M10 22h4" />
+    </svg>
+  )
+}
+
+export function IconX({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  )
+}
+
+export function IconFrown({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M16 16s-1.5-2-4-2-4 2-4 2M9 9h.01M15 9h.01" />
+    </svg>
+  )
+}
+
+export function IconBan({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M4.93 4.93l14.14 14.14" />
+    </svg>
+  )
+}
+
+export function IconParty({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M5.8 11.3 2 22l10.7-3.79" />
+      <path d="M4 3h.01M22 8h.01M15 2h.01M22 20h.01M22 2l-2.24.75a2.9 2.9 0 0 0-1.96 3.12v0c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10" />
+      <path d="M5 3 4.77 5.27a1.97 1.97 0 0 0 1.96 2.14H7" />
+      <path d="M11 12 9.77 14.27a1.97 1.97 0 0 0 1.96 2.14H12" />
+      <path d="m13 7 1.23 2.27a1.97 1.97 0 0 1-1.96 2.14H12" />
+    </svg>
+  )
+}
+
+export function IconWaves({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+      <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+      <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+    </svg>
+  )
+}

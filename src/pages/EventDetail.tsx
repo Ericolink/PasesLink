@@ -325,7 +325,7 @@ function PublicLink({ label, desc, path }: { label: string; desc: string; path: 
         onClick={copy}
         className="text-xs shrink-0 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
       >
-        {copied ? '✓ Copiado' : 'Copiar link'}
+        {copied ? 'Copiado' : 'Copiar link'}
       </button>
     </div>
   )

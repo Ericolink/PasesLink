@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { getEvent } from '../firebase/events'
+import { IconBan } from '../components/Icons'
 import type { EventData } from '../types'
 
 type State = 'loading' | 'ready' | 'not_found' | 'error'
@@ -41,7 +42,9 @@ export function EventArrive() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="text-4xl mb-3">🚫</div>
+          <div className="flex justify-center mb-3">
+            <IconBan className="w-12 h-12 text-gray-400" />
+          </div>
           <p className="text-gray-600 dark:text-gray-400">
             {state === 'not_found' ? 'Este evento no existe.' : 'Este evento no acepta ingresos libres.'}
           </p>
