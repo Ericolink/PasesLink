@@ -14,7 +14,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './config'
-import type { EventData, EventStatus, PaymentStatus, Plan } from '../types'
+import type { EntryMode, EventData, EventStatus, PaymentStatus, Plan } from '../types'
 
 export interface NewEventInput {
   name: string
@@ -24,6 +24,8 @@ export interface NewEventInput {
   coverImage?: string
   accentColor?: string
   welcomeMessage?: string
+  entryMode?: EntryMode
+  capacity?: number
   plan: Plan
 }
 
@@ -37,6 +39,8 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     coverImage: input.coverImage || '',
     accentColor: input.accentColor || '',
     welcomeMessage: input.welcomeMessage || '',
+    entryMode: input.entryMode || 'list',
+    capacity: input.capacity || null,
     plan: input.plan,
     paymentStatus: 'pending',
     status: 'active',
@@ -108,6 +112,8 @@ export interface UpdateEventInput {
   coverImage?: string
   accentColor?: string
   welcomeMessage?: string
+  entryMode?: EntryMode
+  capacity?: number
 }
 
 export async function updateEventDetails(eventId: string, input: UpdateEventInput) {
@@ -119,6 +125,8 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     coverImage: input.coverImage ?? '',
     accentColor: input.accentColor ?? '',
     welcomeMessage: input.welcomeMessage ?? '',
+    entryMode: input.entryMode || 'list',
+    capacity: input.capacity || null,
     updatedAt: serverTimestamp(),
   })
 }
@@ -167,6 +175,8 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     coverImage: (data.coverImage as string) || '',
     accentColor: (data.accentColor as string) || '',
     welcomeMessage: (data.welcomeMessage as string) || '',
+    entryMode: (data.entryMode as EntryMode) || 'list',
+    capacity: (data.capacity as number) || undefined,
     plan: data.plan as Plan,
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],
     status: data.status as EventStatus,

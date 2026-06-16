@@ -22,6 +22,8 @@ const Scanner = lazy(() => import('./pages/Scanner').then((m) => ({ default: m.S
 const Reports = lazy(() => import('./pages/Reports').then((m) => ({ default: m.Reports })))
 const GuestPass = lazy(() => import('./pages/GuestPass').then((m) => ({ default: m.GuestPass })))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then((m) => ({ default: m.AdminDashboard })))
+const EventArrive = lazy(() => import('./pages/EventArrive').then((m) => ({ default: m.EventArrive })))
+const EventJoin = lazy(() => import('./pages/EventJoin').then((m) => ({ default: m.EventJoin })))
 
 function PageFallback() {
   return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando...</div>
@@ -43,6 +45,8 @@ function App() {
         <Route path="/terminos" element={<Terms />} />
         <Route path="/privacidad" element={<Privacy />} />
         <Route path="/pass/:eventId/:qrToken" element={<GuestPass />} />
+        <Route path="/events/:id/arrive" element={<EventArrive />} />
+        <Route path="/events/:id/join" element={<EventJoin />} />
 
         <Route
           path="/dashboard"

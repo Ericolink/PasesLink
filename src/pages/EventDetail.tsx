@@ -174,6 +174,44 @@ export function EventDetail() {
         </div>
       </div>
 
+      {/* Open / hybrid entry links */}
+      {event.entryMode !== 'list' && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-medium text-gray-900 dark:text-white">Ingreso libre</h2>
+            <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">
+              {event.entryMode === 'hybrid' ? 'Mixto' : 'Ingreso libre'}
+            </span>
+          </div>
+          {event.capacity && (
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
+                <span>Cupo utilizado</span>
+                <span className="font-medium">{event.checkedInCount} / {event.capacity}</span>
+              </div>
+              <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.min(100, (event.checkedInCount / event.capacity) * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+          <div className="space-y-2">
+            <PublicLink
+              label="Auto-registro (Opción B)"
+              desc="Los asistentes se registran y obtienen su QR propio"
+              path={`/events/${event.id}/join`}
+            />
+            <PublicLink
+              label="Ingreso directo (Opción C)"
+              desc="Solo confirman llegada — sin QR individual"
+              path={`/events/${event.id}/arrive`}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="mb-4">
         <GuestAddForm eventId={event.id} />
       </div>
@@ -256,6 +294,33 @@ export function EventDetail() {
           {deleting ? 'Eliminando...' : 'Eliminar evento definitivamente'}
         </button>
       </div>
+    </div>
+  )
+}
+
+function PublicLink({ label, desc, path }: { label: string; desc: string; path: string }) {
+  const [copied, setCopied] = useState(false)
+  const url = window.location.origin + path
+
+  function copy() {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+        <p className="text-xs text-gray-500 truncate">{desc}</p>
+      </div>
+      <button
+        onClick={copy}
+        className="text-xs shrink-0 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+      >
+        {copied ? '✓ Copiado' : 'Copiar link'}
+      </button>
     </div>
   )
 }

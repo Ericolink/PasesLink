@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createEvent } from '../firebase/events'
 import { uploadImage } from '../utils/cloudinary'
-import type { Plan } from '../types'
+import type { EntryMode, Plan } from '../types'
 
 const PLANS: { id: Plan; title: string; price: string; features: string[] }[] = [
   {
@@ -38,6 +38,8 @@ export function EventCreate() {
   const [coverImage, setCoverImage] = useState('')
   const [accentColor, setAccentColor] = useState('#2563eb')
   const [welcomeMessage, setWelcomeMessage] = useState('')
+  const [entryMode, setEntryMode] = useState<EntryMode>('list')
+  const [capacity, setCapacity] = useState('')
   const [plan, setPlan] = useState<Plan>('basic')
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -71,6 +73,8 @@ export function EventCreate() {
         coverImage,
         accentColor,
         welcomeMessage,
+        entryMode,
+        capacity: capacity ? parseInt(capacity, 10) : undefined,
         plan,
       })
       navigate(`/events/${eventId}/checkout`)
@@ -185,6 +189,47 @@ export function EventCreate() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Modo de ingreso */}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Modo de ingreso</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {([
+              { id: 'list', label: 'Lista cerrada', desc: 'Solo invitados con QR propio' },
+              { id: 'open', label: 'Ingreso libre', desc: 'Cualquiera entra hasta el cupo' },
+              { id: 'hybrid', label: 'Mixto', desc: 'Lista + ingreso libre combinados' },
+            ] as { id: EntryMode; label: string; desc: string }[]).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setEntryMode(m.id)}
+                className={`text-left border rounded-lg p-3 transition-all ${
+                  entryMode === m.id
+                    ? 'border-primary ring-2 ring-primary/20 bg-primary-light'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <div className="text-sm font-semibold text-gray-900 dark:text-white">{m.label}</div>
+                <div className="text-xs text-gray-500 mt-0.5">{m.desc}</div>
+              </button>
+            ))}
+          </div>
+          {entryMode !== 'list' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cupo máximo de personas
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                placeholder="Ej: 200"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          )}
         </div>
 
         {/* Plan */}

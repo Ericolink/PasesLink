@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEvent } from '../hooks/useEvent'
 import { checkInGuest, checkOutGuest } from '../firebase/guests'
+import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
 
 const SCANNER_ELEMENT_ID = 'qr-scanner'
@@ -26,6 +27,7 @@ export function Scanner() {
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
   const [cameraError, setCameraError] = useState('')
   const [manualValue, setManualValue] = useState('')
+  const [walkInMsg, setWalkInMsg] = useState<'success' | 'full' | null>(null)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const processingRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -84,14 +86,26 @@ export function Scanner() {
   async function handleScan(decodedText: string) {
     if (processingRef.current || !eventId || !user) return
 
-    const qrToken = extractQrToken(decodedText, eventId)
-    if (!qrToken) {
-      showFeedback({ type: 'invalid', detail: 'Código QR no válido para este evento.' })
-      return
-    }
-
     processingRef.current = true
     try {
+      // Shared arrive QR (Option C) — no personal token, just walk-in counter
+      if (isArriveQr(decodedText, eventId)) {
+        const result = await walkIn(eventId)
+        if (result === 'success') {
+          confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+          showFeedback({ type: 'success', guestName: undefined, detail: 'Ingreso registrado ✓' })
+        } else {
+          showFeedback({ type: 'invalid', detail: '¡Cupo máximo alcanzado!' })
+        }
+        return
+      }
+
+      const qrToken = extractQrToken(decodedText, eventId)
+      if (!qrToken) {
+        showFeedback({ type: 'invalid', detail: 'Código QR no válido para este evento.' })
+        return
+      }
+
       if (modeRef.current === 'in') {
         const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
         if (result.status === 'success') {
@@ -128,6 +142,19 @@ export function Scanner() {
         processingRef.current = false
       }, 1500)
     }
+  }
+
+  async function handleWalkIn() {
+    if (!eventId) return
+    const result = await walkIn(eventId)
+    setWalkInMsg(result)
+    if (result === 'success') confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } })
+    setTimeout(() => setWalkInMsg(null), 2000)
+  }
+
+  async function handleWalkOut() {
+    if (!eventId) return
+    await walkOut(eventId)
   }
 
   async function handleManualSubmit(e: React.FormEvent) {
@@ -189,6 +216,37 @@ export function Scanner() {
         </div>
       )}
 
+      {event && event.entryMode !== 'list' && (
+        <div className="mt-4 bg-gray-800 rounded-lg p-4">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-3">Contador walk-in</p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleWalkOut}
+              className="flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded-md py-2.5 text-lg font-bold transition-colors"
+            >
+              −
+            </button>
+            <div className="text-center min-w-[60px]">
+              <span className="text-2xl font-bold text-white">{event.checkedInCount}</span>
+              {event.capacity && (
+                <p className="text-xs text-gray-400">/ {event.capacity}</p>
+              )}
+            </div>
+            <button
+              onClick={handleWalkIn}
+              className="flex-1 bg-primary hover:bg-primary-dark text-white rounded-md py-2.5 text-lg font-bold transition-colors"
+            >
+              +
+            </button>
+          </div>
+          {walkInMsg && (
+            <p className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>
+              {walkInMsg === 'full' ? '¡Cupo máximo alcanzado!' : '✓ Ingreso registrado'}
+            </p>
+          )}
+        </div>
+      )}
+
       <details className="mt-6 text-sm text-gray-400">
         <summary className="cursor-pointer">¿Problemas con la cámara? Confirmar manualmente</summary>
         <form onSubmit={handleManualSubmit} className="mt-2 flex gap-2">
@@ -209,6 +267,17 @@ export function Scanner() {
       </details>
     </div>
   )
+}
+
+function isArriveQr(decodedText: string, eventId: string): boolean {
+  try {
+    const url = new URL(decodedText)
+    const parts = url.pathname.split('/').filter(Boolean)
+    // matches /events/{eventId}/arrive
+    return parts[0] === 'events' && parts[1] === eventId && parts[2] === 'arrive'
+  } catch {
+    return false
+  }
 }
 
 function extractQrToken(decodedText: string, eventId: string): string | null {

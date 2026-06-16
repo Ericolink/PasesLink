@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { updateEventDetails } from '../firebase/events'
 import { uploadImage } from '../utils/cloudinary'
-import type { EventData } from '../types'
+import type { EntryMode, EventData } from '../types'
 
 export function EditEventForm({ event, onDone }: { event: EventData; onDone: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -13,6 +13,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [coverImage, setCoverImage] = useState(event.coverImage || '')
   const [accentColor, setAccentColor] = useState(event.accentColor || '#2563eb')
   const [welcomeMessage, setWelcomeMessage] = useState(event.welcomeMessage || '')
+  const [entryMode, setEntryMode] = useState<EntryMode>(event.entryMode || 'list')
+  const [capacity, setCapacity] = useState(event.capacity ? String(event.capacity) : '')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
@@ -41,6 +43,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         coverImage,
         accentColor,
         welcomeMessage: welcomeMessage.trim(),
+        entryMode,
+        capacity: capacity ? parseInt(capacity, 10) : undefined,
       })
       onDone()
     } finally {
@@ -150,6 +154,45 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             />
           </div>
         </div>
+      </div>
+
+      {/* Modo de ingreso */}
+      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Modo de ingreso</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {([
+            { id: 'list', label: 'Lista cerrada', desc: 'Solo invitados con QR propio' },
+            { id: 'open', label: 'Ingreso libre', desc: 'Cualquiera entra hasta el cupo' },
+            { id: 'hybrid', label: 'Mixto', desc: 'Lista + ingreso libre combinados' },
+          ] as { id: EntryMode; label: string; desc: string }[]).map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setEntryMode(m.id)}
+              className={`text-left border rounded-lg p-3 transition-all text-sm ${
+                entryMode === m.id
+                  ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <div className="font-semibold text-gray-900 dark:text-white">{m.label}</div>
+              <div className="text-xs text-gray-500 mt-0.5">{m.desc}</div>
+            </button>
+          ))}
+        </div>
+        {entryMode !== 'list' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cupo máximo de personas</label>
+            <input
+              type="number"
+              min="1"
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              placeholder="Ej: 200"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 pt-1">

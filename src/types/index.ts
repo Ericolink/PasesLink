@@ -4,6 +4,8 @@ export type PaymentStatus = 'pending' | 'paid' | 'free_trial'
 
 export type EventStatus = 'active' | 'cancelled' | 'archived'
 
+export type EntryMode = 'list' | 'open' | 'hybrid'
+
 export interface EventData {
   id: string
   ownerId: string
@@ -14,6 +16,8 @@ export interface EventData {
   coverImage?: string
   accentColor?: string
   welcomeMessage?: string
+  entryMode: EntryMode
+  capacity?: number
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus
