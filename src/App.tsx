@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
+import { Background } from './components/Background'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
@@ -33,6 +34,7 @@ function PageFallback() {
 function App() {
   return (
     <>
+      <Background />
       <Navbar />
       <main>
       <ErrorBoundary>

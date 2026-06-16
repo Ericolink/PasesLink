@@ -1,26 +1,63 @@
 import type { ReactNode } from 'react'
-import { Logo } from './Logo'
 import { IconBarChart, IconCamera, IconTicket } from './Icons'
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)]">
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary to-primary-dark text-white flex-col items-center justify-center p-12 text-center">
-        <div className="animate-fade-in-up">
-          <Logo className="text-2xl justify-center [&_span]:text-white [&_.text-primary]:text-blue-200" />
-          <h2 className="text-2xl font-semibold mt-6 max-w-sm">
+      {/* Panel izquierdo — solo visible en desktop */}
+      <div
+        className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12 text-center relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(145deg, #1A0818 0%, #131D3A 60%, #1A2548 100%)',
+          borderRight: '1px solid rgba(255,0,77,.15)',
+        }}
+      >
+        {/* Glow de fondo */}
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            width: '500px', height: '500px',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'radial-gradient(circle, rgba(255,0,77,.1) 0%, transparent 70%)',
+          }}
+        />
+
+        <div className="relative animate-fade-in-up">
+          {/* Ícono */}
+          <img
+            src="/Icon.png"
+            alt="PaseLink icon"
+            className="h-30 w-auto mx-auto mb-6 animate-float"
+          />
+
+          <h2 className="text-2xl font-bold text-white mt-2 max-w-sm">
             La forma más simple de organizar tu próximo evento
           </h2>
-          <p className="text-blue-100 mt-3 max-w-sm">
+          <p className="mt-3 max-w-sm" style={{ color: 'rgba(240,244,255,.6)' }}>
             Pases QR individuales, check-in en tiempo real y reportes, todo en un solo lugar.
           </p>
-          <div className="flex items-center justify-center gap-4 mt-8">
-            <IconTicket className="w-8 h-8" />
-            <IconCamera className="w-8 h-8" />
-            <IconBarChart className="w-8 h-8" />
+
+          {/* Íconos decorativos */}
+          <div className="flex items-center justify-center gap-5 mt-8">
+            {[IconTicket, IconCamera, IconBarChart].map((Icon, i) => (
+              <div
+                key={i}
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{
+                  background: 'rgba(255,0,77,.1)',
+                  border: '1px solid rgba(255,0,77,.25)',
+                  boxShadow: '0 0 10px rgba(255,0,77,.12)',
+                }}
+              >
+                <Icon className="w-5 h-5 text-primary" />
+              </div>
+            ))}
           </div>
         </div>
       </div>
+
+      {/* Panel derecho — formulario */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm animate-fade-in-up">{children}</div>
       </div>
