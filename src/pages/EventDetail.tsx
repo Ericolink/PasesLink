@@ -8,6 +8,7 @@ import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
 import { EditEventForm } from '../components/EditEventForm'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import {
   IconArrowLeft,
   IconCheckCircle,
@@ -27,6 +28,7 @@ export function EventDetail() {
   const [exporting, setExporting] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [search, setSearch] = useState('')
   const [editingEvent, setEditingEvent] = useState(false)
   const checkinToast = useCheckinToast(eventId)
@@ -62,10 +64,6 @@ export function EventDetail() {
 
   async function handleDelete() {
     if (!eventId) return
-    const confirmed = window.confirm(
-      `¿Eliminar "${event?.name}" definitivamente? Se borrarán todos sus invitados y el historial de check-ins. Esta acción no se puede deshacer.`,
-    )
-    if (!confirmed) return
     setDeleting(true)
     try {
       await deleteEvent(eventId)
@@ -123,6 +121,12 @@ export function EventDetail() {
             className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
           >
             Escanear QR
+          </Link>
+          <Link
+            to={`/events/${event.id}/wall`}
+            className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            Muro
           </Link>
           {event.plan === 'premium' && (
             <Link
@@ -254,15 +258,6 @@ export function EventDetail() {
               Cancelar evento
             </button>
           )}
-          {event.status === 'active' && (
-            <button
-              onClick={() => handleStatusChange('archived')}
-              disabled={updatingStatus}
-              className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50 disabled:opacity-50"
-            >
-              Archivar evento
-            </button>
-          )}
           {event.status !== 'active' && (
             <button
               onClick={() => handleStatusChange('active')}
@@ -287,13 +282,24 @@ export function EventDetail() {
           Borra el evento, sus invitados y el historial de check-ins de forma permanente. No se puede deshacer.
         </p>
         <button
-          onClick={handleDelete}
+          onClick={() => setConfirmDelete(true)}
           disabled={deleting}
           className="text-sm border border-red-300 text-red-600 rounded-md px-3 py-1.5 font-medium hover:bg-red-50 disabled:opacity-50"
         >
           {deleting ? 'Eliminando...' : 'Eliminar evento definitivamente'}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        title={`Eliminar "${event.name}"`}
+        message="Se borrarán todos los invitados y el historial de check-ins. Esta acción no se puede deshacer."
+        confirmLabel={deleting ? 'Eliminando...' : 'Sí, eliminar'}
+        cancelLabel="Cancelar"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   )
 }

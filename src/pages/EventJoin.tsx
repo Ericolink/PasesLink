@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { getEvent } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
 import type { EventData } from '../types'
 
-type State = 'loading' | 'form' | 'submitting' | 'success' | 'full' | 'error' | 'not_found'
+type State = 'loading' | 'form' | 'submitting' | 'success' | 'full' | 'not_found' | 'error'
 
 export function EventJoin() {
   const { id } = useParams<{ id: string }>()
   const [event, setEvent] = useState<EventData | null>(null)
   const [state, setState] = useState<State>('loading')
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [qrToken, setQrToken] = useState('')
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -36,7 +37,7 @@ export function EventJoin() {
     e.preventDefault()
     if (!id || !name.trim()) return
     setState('submitting')
-    const result = await registerWalkInGuest(id, name, email)
+    const result = await registerWalkInGuest(id, name, undefined, phone, customValues)
     if (result.status === 'full') {
       setState('full')
     } else {
@@ -93,13 +94,23 @@ export function EventJoin() {
               <canvas ref={canvasRef} className="rounded-lg" />
             </div>
             {event?.welcomeMessage && (
-              <p className="text-sm italic text-gray-500">{event.welcomeMessage}</p>
+              <p className="text-sm italic text-gray-500 mb-4">{event.welcomeMessage}</p>
+            )}
+            {id && (
+              <Link
+                to={`/events/${id}/wall`}
+                className="block text-center text-sm font-medium text-primary hover:underline"
+              >
+                Ver el muro del evento →
+              </Link>
             )}
           </div>
         </div>
       </div>
     )
   }
+
+  const customFields = event?.customFields || []
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -124,15 +135,32 @@ export function EventJoin() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email (opcional)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono *</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="ana@email.com"
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1 234 567 8900"
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
+
+            {customFields.map((field) => (
+              <div key={field.id}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {field.label}{field.required ? ' *' : ''}
+                </label>
+                <input
+                  type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'}
+                  required={field.required}
+                  value={customValues[field.id] || ''}
+                  onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            ))}
+
             {event?.capacity && (
               <p className="text-xs text-gray-400 text-center">
                 {event.guestCount} / {event.capacity} registros

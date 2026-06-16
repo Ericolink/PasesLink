@@ -14,7 +14,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './config'
-import type { EntryMode, EventData, EventStatus, PaymentStatus, Plan } from '../types'
+import type { CustomField, EntryMode, EventData, EventStatus, PaymentStatus, Plan } from '../types'
 
 export interface NewEventInput {
   name: string
@@ -26,6 +26,7 @@ export interface NewEventInput {
   welcomeMessage?: string
   entryMode?: EntryMode
   capacity?: number
+  customFields?: CustomField[]
   plan: Plan
 }
 
@@ -41,6 +42,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     welcomeMessage: input.welcomeMessage || '',
     entryMode: input.entryMode || 'list',
     capacity: input.capacity || null,
+    customFields: input.customFields || [],
     plan: input.plan,
     paymentStatus: 'pending',
     status: 'active',
@@ -114,6 +116,7 @@ export interface UpdateEventInput {
   welcomeMessage?: string
   entryMode?: EntryMode
   capacity?: number
+  customFields?: CustomField[]
 }
 
 export async function updateEventDetails(eventId: string, input: UpdateEventInput) {
@@ -127,6 +130,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     welcomeMessage: input.welcomeMessage ?? '',
     entryMode: input.entryMode || 'list',
     capacity: input.capacity || null,
+    customFields: input.customFields || [],
     updatedAt: serverTimestamp(),
   })
 }
@@ -177,6 +181,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     welcomeMessage: (data.welcomeMessage as string) || '',
     entryMode: (data.entryMode as EntryMode) || 'list',
     capacity: (data.capacity as number) || undefined,
+    customFields: (data.customFields as CustomField[]) || [],
     plan: data.plan as Plan,
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],
     status: data.status as EventStatus,

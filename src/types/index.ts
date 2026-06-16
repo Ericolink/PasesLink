@@ -6,6 +6,15 @@ export type EventStatus = 'active' | 'cancelled' | 'archived'
 
 export type EntryMode = 'list' | 'open' | 'hybrid'
 
+export type CustomFieldType = 'text' | 'number' | 'email' | 'phone'
+
+export interface CustomField {
+  id: string
+  label: string
+  type: CustomFieldType
+  required: boolean
+}
+
 export interface EventData {
   id: string
   ownerId: string
@@ -18,6 +27,7 @@ export interface EventData {
   welcomeMessage?: string
   entryMode: EntryMode
   capacity?: number
+  customFields?: CustomField[]
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus
@@ -25,6 +35,26 @@ export interface EventData {
   checkedInCount: number
   createdAt: number
   updatedAt: number
+}
+
+export type WallMessageType = 'comment' | 'question' | 'music' | 'idea'
+
+export interface WallMessage {
+  id: string
+  text: string
+  type: WallMessageType
+  authorName: string
+  authorToken: string
+  createdAt: number
+  likes: number
+  replies: WallReply[]
+  deleted: boolean
+}
+
+export interface WallReply {
+  id: string
+  text: string
+  createdAt: number
 }
 
 export type GuestStatus = 'invited' | 'checked_in'
@@ -46,6 +76,7 @@ export interface GuestData {
   checkedOutAt: number | null
   checkedOutByEmail: string | null
   lockToken: string | null
+  customData?: Record<string, string>
   createdAt: number
 }
 

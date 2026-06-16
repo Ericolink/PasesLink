@@ -1,9 +1,11 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createEvent } from '../firebase/events'
-import { uploadImage } from '../utils/cloudinary'
-import type { EntryMode, Plan } from '../types'
+import { useCoverPhoto } from '../hooks/useCoverPhoto'
+import { ImageCropModal } from '../components/ImageCropModal'
+import { CustomFieldsBuilder } from '../components/CustomFieldsBuilder'
+import type { CustomField, EntryMode, Plan } from '../types'
 
 const PLANS: { id: Plan; title: string; price: string; features: string[] }[] = [
   {
@@ -29,35 +31,20 @@ const PLANS: { id: Plan; title: string; price: string; features: string[] }[] = 
 export function EventCreate() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cover = useCoverPhoto()
 
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
   const [location, setLocation] = useState('')
   const [description, setDescription] = useState('')
-  const [coverImage, setCoverImage] = useState('')
   const [accentColor, setAccentColor] = useState('#2563eb')
   const [welcomeMessage, setWelcomeMessage] = useState('')
   const [entryMode, setEntryMode] = useState<EntryMode>('list')
   const [capacity, setCapacity] = useState('')
+  const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [plan, setPlan] = useState<Plan>('basic')
   const [loading, setLoading] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
-
-  async function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    try {
-      const url = await uploadImage(file)
-      setCoverImage(url)
-    } catch {
-      setError('No pudimos subir la imagen. Intenta de nuevo.')
-    } finally {
-      setUploading(false)
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -70,11 +57,12 @@ export function EventCreate() {
         date,
         location,
         description,
-        coverImage,
+        coverImage: cover.coverImage,
         accentColor,
         welcomeMessage,
         entryMode,
         capacity: capacity ? parseInt(capacity, 10) : undefined,
+        customFields,
         plan,
       })
       navigate(`/events/${eventId}/checkout`)
@@ -86,6 +74,14 @@ export function EventCreate() {
   }
 
   return (
+    <>
+    {cover.rawImage && (
+      <ImageCropModal
+        imageSrc={cover.rawImage}
+        onCrop={cover.onCropConfirmed}
+        onCancel={cover.onCropCancelled}
+      />
+    )}
     <div className="max-w-2xl mx-auto px-4 py-8 animate-fade-in">
       <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Crear evento</h1>
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -141,26 +137,22 @@ export function EventCreate() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Imagen de portada</label>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleCoverUpload} className="hidden" />
-            {coverImage ? (
+            <input ref={cover.fileInputRef} type="file" accept="image/*" onChange={cover.onFileSelected} className="hidden" />
+            {cover.coverImage ? (
               <div className="relative rounded-lg overflow-hidden h-32 bg-gray-100">
-                <img src={coverImage} alt="Portada" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => setCoverImage('')}
-                  className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1"
-                >
+                <img src={cover.coverImage} alt="Portada" className="w-full h-full object-cover" />
+                <button type="button" onClick={cover.clearCover} className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1">
                   Quitar
                 </button>
               </div>
             ) : (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
+                onClick={cover.openPicker}
+                disabled={cover.uploading}
                 className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-6 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
               >
-                {uploading ? 'Subiendo...' : '+ Subir imagen de portada'}
+                {cover.uploading ? 'Subiendo...' : '+ Subir imagen de portada'}
               </button>
             )}
           </div>
@@ -189,6 +181,18 @@ export function EventCreate() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Campos personalizados del registro */}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Campos de registro</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Los invitados siempre ingresan nombre y teléfono. Puedes agregar campos extra.</p>
+          </div>
+          <div className="flex gap-2 text-xs text-gray-400 border border-gray-100 dark:border-gray-700 rounded-md px-3 py-2 bg-gray-50 dark:bg-gray-700/30">
+            <span className="font-medium text-gray-600 dark:text-gray-300">Fijos:</span> Nombre · Teléfono
+          </div>
+          <CustomFieldsBuilder fields={customFields} onChange={setCustomFields} />
         </div>
 
         {/* Modo de ingreso */}
@@ -265,12 +269,13 @@ export function EventCreate() {
 
         <button
           type="submit"
-          disabled={loading || uploading}
+          disabled={loading || cover.uploading}
           className="w-full bg-primary text-white rounded-md py-2.5 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-md"
         >
           {loading ? 'Creando...' : 'Continuar al pago'}
         </button>
       </form>
     </div>
+    </>
   )
 }

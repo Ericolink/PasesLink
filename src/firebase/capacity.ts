@@ -39,6 +39,8 @@ export async function registerWalkInGuest(
   eventId: string,
   name: string,
   email?: string,
+  phone?: string,
+  customData?: Record<string, string>,
 ): Promise<{ status: 'success' | 'full'; qrToken?: string }> {
   const eventRef = doc(db, 'events', eventId)
 
@@ -55,7 +57,7 @@ export async function registerWalkInGuest(
     tx.set(guestRef, {
       name: name.trim(),
       email: email?.trim() || '',
-      phone: '',
+      phone: phone?.trim() || '',
       qrToken,
       status: 'invited',
       rsvpStatus: 'yes',
@@ -67,6 +69,7 @@ export async function registerWalkInGuest(
       checkedOutByEmail: null,
       lockToken: null,
       notes: '',
+      customData: customData || {},
       createdAt: serverTimestamp(),
     })
     tx.update(eventRef, { guestCount: increment(1) })

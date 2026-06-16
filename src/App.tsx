@@ -24,6 +24,7 @@ const GuestPass = lazy(() => import('./pages/GuestPass').then((m) => ({ default:
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then((m) => ({ default: m.AdminDashboard })))
 const EventArrive = lazy(() => import('./pages/EventArrive').then((m) => ({ default: m.EventArrive })))
 const EventJoin = lazy(() => import('./pages/EventJoin').then((m) => ({ default: m.EventJoin })))
+const EventWall = lazy(() => import('./pages/EventWall').then((m) => ({ default: m.EventWall })))
 
 function PageFallback() {
   return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando...</div>
@@ -47,6 +48,7 @@ function App() {
         <Route path="/pass/:eventId/:qrToken" element={<GuestPass />} />
         <Route path="/events/:id/arrive" element={<EventArrive />} />
         <Route path="/events/:id/join" element={<EventJoin />} />
+        <Route path="/events/:id/wall" element={<EventWall />} />
 
         <Route
           path="/dashboard"

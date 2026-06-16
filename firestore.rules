@@ -52,6 +52,16 @@ service cloud.firestore {
         allow delete: if isOwner(eventId) || isAdmin();
         allow update: if false;
       }
+
+      match /wall/{messageId} {
+        allow read: if true;
+        allow create: if true;
+        // Only owner can soft-delete (set deleted=true) or add replies
+        allow update: if isOwner(eventId) || isAdmin()
+          // Anyone can like (only likes field changes)
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']);
+        allow delete: if isOwner(eventId) || isAdmin();
+      }
     }
   }
 }
