@@ -1,9 +1,10 @@
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
-  increment,
   onSnapshot,
   orderBy,
   query,
@@ -41,17 +42,38 @@ export async function postWallMessage(
     type,
     authorName,
     authorToken,
-    likes: 0,
+    likedBy: [],
+    dislikedBy: [],
     replies: [],
     deleted: false,
     createdAt: serverTimestamp(),
   })
 }
 
-export async function likeWallMessage(eventId: string, messageId: string) {
-  await updateDoc(doc(db, 'events', eventId, 'wall', messageId), {
-    likes: increment(1),
-  })
+export async function likeWallMessage(
+  eventId: string,
+  messageId: string,
+  token: string,
+  currentlyLiked: boolean,
+) {
+  await updateDoc(doc(db, 'events', eventId, 'wall', messageId),
+    currentlyLiked
+      ? { likedBy: arrayRemove(token) }
+      : { likedBy: arrayUnion(token), dislikedBy: arrayRemove(token) },
+  )
+}
+
+export async function dislikeWallMessage(
+  eventId: string,
+  messageId: string,
+  token: string,
+  currentlyDisliked: boolean,
+) {
+  await updateDoc(doc(db, 'events', eventId, 'wall', messageId),
+    currentlyDisliked
+      ? { dislikedBy: arrayRemove(token) }
+      : { dislikedBy: arrayUnion(token), likedBy: arrayRemove(token) },
+  )
 }
 
 export async function replyToWallMessage(
@@ -76,7 +98,6 @@ export async function deleteWallMessage(eventId: string, messageId: string) {
   })
 }
 
-// Hard delete — only for admin cleanup
 export async function hardDeleteWallMessage(eventId: string, messageId: string) {
   await deleteDoc(doc(db, 'events', eventId, 'wall', messageId))
 }
@@ -88,7 +109,8 @@ function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
     type: (data.type as WallMessageType) || 'comment',
     authorName: data.authorName as string,
     authorToken: data.authorToken as string,
-    likes: (data.likes as number) || 0,
+    likedBy: (data.likedBy as string[]) || [],
+    dislikedBy: (data.dislikedBy as string[]) || [],
     replies: (data.replies as WallReply[]) || [],
     deleted: (data.deleted as boolean) || false,
     createdAt: toMillis(data.createdAt),

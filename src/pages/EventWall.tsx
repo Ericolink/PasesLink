@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { getEvent } from '../firebase/events'
 import {
   deleteWallMessage,
+  dislikeWallMessage,
   likeWallMessage,
   postWallMessage,
   replyToWallMessage,
@@ -14,6 +15,7 @@ import {
   IconLightbulb,
   IconMessageSquare,
   IconMusic,
+  IconThumbsDown,
   IconThumbsUp,
   IconX,
 } from '../components/Icons'
@@ -33,6 +35,16 @@ const TYPE_CONFIG: Record<WallMessageType, TypeConfig> = {
 }
 
 const GUEST_NAME_KEY = 'wall_guest_name'
+const DEVICE_TOKEN_KEY = 'wall_device_token'
+
+function getDeviceToken(): string {
+  let token = localStorage.getItem(DEVICE_TOKEN_KEY)
+  if (!token) {
+    token = crypto.randomUUID()
+    localStorage.setItem(DEVICE_TOKEN_KEY, token)
+  }
+  return token
+}
 
 export function EventWall() {
   const { id } = useParams<{ id: string }>()
@@ -93,9 +105,16 @@ export function EventWall() {
     await deleteWallMessage(id, messageId)
   }
 
-  async function handleLike(messageId: string) {
+  async function handleLike(msg: WallMessage) {
     if (!id) return
-    await likeWallMessage(id, messageId)
+    const token = getDeviceToken()
+    await likeWallMessage(id, msg.id, token, msg.likedBy.includes(token))
+  }
+
+  async function handleDislike(msg: WallMessage) {
+    if (!id) return
+    const token = getDeviceToken()
+    await dislikeWallMessage(id, msg.id, token, msg.dislikedBy.includes(token))
   }
 
   if (!nameConfirmed && !isOwner) {
@@ -228,13 +247,29 @@ export function EventWall() {
               )}
 
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleLike(msg.id)}
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors"
-                >
-                  <IconThumbsUp className="w-3.5 h-3.5" />
-                  {msg.likes > 0 && <span>{msg.likes}</span>}
-                </button>
+                {(() => {
+                  const token = getDeviceToken()
+                  const liked = msg.likedBy.includes(token)
+                  const disliked = msg.dislikedBy.includes(token)
+                  return (
+                    <>
+                      <button
+                        onClick={() => handleLike(msg)}
+                        className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'text-primary font-medium' : 'text-gray-400 hover:text-primary'}`}
+                      >
+                        <IconThumbsUp className="w-3.5 h-3.5" />
+                        {msg.likedBy.length > 0 && <span>{msg.likedBy.length}</span>}
+                      </button>
+                      <button
+                        onClick={() => handleDislike(msg)}
+                        className={`flex items-center gap-1 text-xs transition-colors ${disliked ? 'text-red-500 font-medium' : 'text-gray-400 hover:text-red-400'}`}
+                      >
+                        <IconThumbsDown className="w-3.5 h-3.5" />
+                        {msg.dislikedBy.length > 0 && <span>{msg.dislikedBy.length}</span>}
+                      </button>
+                    </>
+                  )
+                })()}
                 {isOwner && replyingTo !== msg.id && (
                   <button onClick={() => setReplyingTo(msg.id)} className="text-xs text-gray-400 hover:text-primary">
                     Responder

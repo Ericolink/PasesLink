@@ -46,7 +46,8 @@ export interface WallMessage {
   authorName: string
   authorToken: string
   createdAt: number
-  likes: number
+  likedBy: string[]
+  dislikedBy: string[]
   replies: WallReply[]
   deleted: boolean
 }

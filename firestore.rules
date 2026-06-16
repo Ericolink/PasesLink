@@ -58,8 +58,8 @@ service cloud.firestore {
         allow create: if true;
         // Only owner can soft-delete (set deleted=true) or add replies
         allow update: if isOwner(eventId) || isAdmin()
-          // Anyone can like (only likes field changes)
-          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']);
+          // Anyone can like/dislike (only likedBy/dislikedBy change)
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy']);
         allow delete: if isOwner(eventId) || isAdmin();
       }
     }
