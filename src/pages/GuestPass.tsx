@@ -6,6 +6,7 @@ import { claimGuestPass, findGuestByToken, setGuestRsvp } from '../firebase/gues
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { Logo } from '../components/Logo'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart } from '../components/Icons'
+import { WallSection } from '../components/WallSection'
 
 export function GuestPass() {
   const { eventId, qrToken } = useParams<{ eventId: string; qrToken: string }>()
@@ -82,7 +83,7 @@ export function GuestPass() {
         </div>
       )}
       <div
-        className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden"
+        className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
         style={accentColor ? { borderTopWidth: '4px', borderTopColor: accentColor } : undefined}
       >
         {event.coverImage && (
@@ -116,7 +117,7 @@ export function GuestPass() {
 
             <div className="flex justify-center my-6" ref={qrWrapperRef}>
               <div className="p-3 border border-gray-100 rounded-lg inline-block">
-                <QRCodeCanvas value={passUrl} size={200} />
+                <QRCodeCanvas value={passUrl} size={220} />
               </div>
             </div>
 
@@ -206,6 +207,9 @@ export function GuestPass() {
         )}
         </div>
       </div>
+      {eventId && (
+        <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} />
+      )}
     </div>
   )
 }

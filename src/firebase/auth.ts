@@ -29,12 +29,26 @@ async function ensureUserDoc(uid: string, email: string | null, displayName: str
   )
 }
 
-export async function registerWithEmail(email: string, password: string, displayName: string) {
+export async function registerWithEmail(
+  email: string,
+  password: string,
+  firstName: string,
+  lastName: string,
+  birthDate: string,
+  photoURL?: string,
+) {
+  const displayName = `${firstName} ${lastName}`.trim()
   const credential = await createUserWithEmailAndPassword(auth, email, password)
-  if (displayName) {
-    await updateProfile(credential.user, { displayName })
-  }
-  await ensureUserDoc(credential.user.uid, credential.user.email, displayName || null)
+  await updateProfile(credential.user, { displayName, photoURL: photoURL || '' })
+  await setDoc(doc(db, 'users', credential.user.uid), {
+    email,
+    displayName,
+    firstName,
+    lastName,
+    birthDate,
+    photoURL: photoURL || null,
+    createdAt: serverTimestamp(),
+  })
   void sendWelcomeEmail(email, displayName)
   return credential.user
 }
@@ -102,4 +116,12 @@ export async function uploadProfilePhoto(file: File) {
   await updateProfile(user, { photoURL })
   await setDoc(doc(db, 'users', user.uid), { photoURL }, { merge: true })
   return photoURL
+}
+
+export async function isGoogleProfileComplete(uid: string): Promise<boolean> {
+  const { getDoc } = await import('firebase/firestore')
+  const snap = await getDoc(doc(db, 'users', uid))
+  if (!snap.exists()) return false
+  const data = snap.data()
+  return !!(data.birthDate)
 }

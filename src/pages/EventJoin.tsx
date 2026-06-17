@@ -3,6 +3,10 @@ import { Link, useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { getEvent } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
+import { useAuth } from '../hooks/useAuth'
+import { useUserProfile } from '../hooks/useUserProfile'
+import { saveUserInvitation } from '../firebase/userProfile'
+import { WallSection } from '../components/WallSection'
 import {
   IconBan,
   IconCheckCircle,
@@ -26,6 +30,8 @@ function regKey(eventId: string) {
 
 export function EventJoin() {
   const { id } = useParams<{ id: string }>()
+  const { user } = useAuth()
+  const { profile } = useUserProfile()
   const [event, setEvent] = useState<EventData | null>(null)
   const [state, setState] = useState<State>('loading')
   const [name, setName] = useState('')
@@ -61,6 +67,13 @@ export function EventJoin() {
     })
   }, [id])
 
+  // Pre-fill name when profile loads
+  useEffect(() => {
+    if (user && (profile?.displayName || user.displayName) && !name) {
+      setName(profile?.displayName || user.displayName || '')
+    }
+  }, [profile, user])
+
   useEffect(() => {
     if (state === 'success' && qrToken && canvasRef.current) {
       QRCode.toCanvas(canvasRef.current, qrToken, { width: 200, margin: 2 })
@@ -80,6 +93,19 @@ export function EventJoin() {
       // Persist so returning to the page restores their QR
       localStorage.setItem(regKey(id), JSON.stringify({ name, phone, qrToken: token, customValues }))
       setState('success')
+      // Save invitation to user profile if logged in
+      if (user && id && event) {
+        void saveUserInvitation(user.uid, {
+          eventId: id,
+          eventName: event.name,
+          eventDate: event.date,
+          eventLocation: event.location,
+          eventCoverImage: event.coverImage,
+          guestName: name,
+          qrToken: token,
+          type: 'walkin',
+        })
+      }
     }
   }
 
@@ -122,12 +148,12 @@ export function EventJoin() {
 
   if (state === 'success') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-sm text-center animate-bounce-in">
+      <div className="flex items-start justify-center min-h-screen p-4">
+        <div className="w-full max-w-sm animate-bounce-in">
           {event?.coverImage && (
             <img src={event.coverImage} alt="Portada" className="w-full h-28 object-cover rounded-xl mb-5" />
           )}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
             <div className="flex justify-center mb-2">
               <IconSparkles className="w-8 h-8 text-primary" />
             </div>
@@ -164,6 +190,7 @@ export function EventJoin() {
               No soy yo — cambiar registro
             </button>
           </div>
+          {id && <WallSection eventId={id} />}
         </div>
       </div>
     )

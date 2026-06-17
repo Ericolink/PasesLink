@@ -26,6 +26,8 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then((m) => (
 const EventArrive = lazy(() => import('./pages/EventArrive').then((m) => ({ default: m.EventArrive })))
 const EventJoin = lazy(() => import('./pages/EventJoin').then((m) => ({ default: m.EventJoin })))
 const EventWall = lazy(() => import('./pages/EventWall').then((m) => ({ default: m.EventWall })))
+const CompleteProfile = lazy(() => import('./pages/CompleteProfile').then((m) => ({ default: m.CompleteProfile })))
+const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => ({ default: m.MyInvitations })))
 
 function PageFallback() {
   return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando...</div>
@@ -116,6 +118,9 @@ function App() {
             </AdminRoute>
           }
         />
+
+        <Route path="/complete-profile" element={<CompleteProfile />} />
+        <Route path="/my-invitations" element={<MyInvitations />} />
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -1,0 +1,106 @@
+import { useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { updateProfile } from 'firebase/auth'
+import { saveUserProfile } from '../firebase/userProfile'
+import { useAuth } from '../hooks/useAuth'
+import { uploadImage } from '../utils/cloudinary'
+
+export function CompleteProfile() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+
+  // Pre-parse Google displayName
+  const parts    = (user?.displayName || '').split(' ')
+  const [firstName, setFirstName] = useState(parts[0] || '')
+  const [lastName, setLastName]   = useState(parts.slice(1).join(' ') || '')
+  const [birthDate, setBirthDate] = useState('')
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(user?.photoURL || null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user) return
+    setLoading(true)
+    setError('')
+    try {
+      let photoURL = user.photoURL || undefined
+      if (photoFile) photoURL = await uploadImage(photoFile)
+      const displayName = `${firstName} ${lastName}`.trim()
+      await updateProfile(user, { displayName, photoURL: photoURL || user.photoURL || '' })
+      await saveUserProfile(user.uid, {
+        email: user.email || '',
+        firstName,
+        lastName,
+        displayName,
+        birthDate,
+        photoURL,
+      })
+      navigate('/dashboard')
+    } catch {
+      setError('No pudimos guardar tu perfil. Intenta de nuevo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-sm animate-fade-in-up">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-2">
+          Completa tu perfil
+        </h1>
+        <p className="text-sm text-gray-500 text-center mb-6">
+          Solo un momento más antes de entrar
+        </p>
+
+        {/* Avatar */}
+        <div className="flex justify-center mb-5">
+          <button type="button" onClick={() => fileRef.current?.click()}
+            className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-dashed border-gray-300 hover:border-primary transition-colors bg-gray-100 dark:bg-gray-800">
+            {photoPreview
+              ? <img src={photoPreview} alt="" className="w-full h-full object-cover" />
+              : <span className="text-xs text-gray-500 text-center px-1">Foto<br/>(opcional)</span>
+            }
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3 bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
+              <input type="text" required value={firstName} onChange={(e) => setFirstName(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido *</label>
+              <input type="text" required value={lastName} onChange={(e) => setLastName(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha de nacimiento *</label>
+            <input type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <button type="submit" disabled={loading}
+            className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
+            {loading ? 'Guardando...' : 'Guardar y entrar'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}

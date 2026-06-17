@@ -46,6 +46,7 @@ export interface WallMessage {
   authorName: string
   authorToken: string
   authorRole: 'owner' | 'guest'
+  authorPhotoURL?: string
   createdAt: number
   likedBy: string[]
   dislikedBy: string[]
@@ -104,5 +105,28 @@ export const RSVP_LABELS: Record<RsvpStatus, string> = {
   pending: 'Sin responder',
   yes: 'Asistirá',
   no: 'No asistirá',
+}
+
+export interface UserProfile {
+  uid: string
+  email: string
+  firstName: string
+  lastName: string
+  displayName: string      // firstName + ' ' + lastName
+  birthDate: string        // 'YYYY-MM-DD'
+  photoURL?: string
+  createdAt: number
+}
+
+export interface UserInvitation {
+  eventId: string
+  eventName: string
+  eventDate: string
+  eventLocation: string
+  eventCoverImage?: string
+  guestName: string
+  qrToken: string
+  type: 'walkin' | 'invited'
+  registeredAt: number
 }
 

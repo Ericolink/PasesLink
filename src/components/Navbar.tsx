@@ -39,11 +39,22 @@ export function Navbar() {
               </Link>
             )}
             <Link
-              to="/profile"
-              className="px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              to="/my-invitations"
+              className="hidden sm:block px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
             >
-              <span className="hidden sm:inline">{user.email}</span>
-              <span className="sm:hidden">Perfil</span>
+              Mis invitaciones
+            </Link>
+            <Link
+              to="/profile"
+              className="px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+            >
+              {user.photoURL
+                ? <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full object-cover" />
+                : <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center text-[10px] font-bold text-primary">
+                    {(user.displayName || user.email || '?')[0].toUpperCase()}
+                  </div>
+              }
+              <span className="hidden sm:inline">{user.displayName || user.email}</span>
             </Link>
             <button
               onClick={handleLogout}
@@ -53,12 +64,10 @@ export function Navbar() {
                 color: '#FF004D',
               }}
               onMouseEnter={(e) => {
-                const el = e.currentTarget
-                el.style.background = 'rgba(255,0,77,0.12)'
+                e.currentTarget.style.background = 'rgba(255,0,77,0.12)'
               }}
               onMouseLeave={(e) => {
-                const el = e.currentTarget
-                el.style.background = 'transparent'
+                e.currentTarget.style.background = 'transparent'
               }}
             >
               Salir

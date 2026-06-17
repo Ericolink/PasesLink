@@ -11,6 +11,7 @@ import {
   subscribeToWall,
 } from '../firebase/wall'
 import { useAuth } from '../hooks/useAuth'
+import { useUserProfile } from '../hooks/useUserProfile'
 import {
   IconCrown,
   IconHelpCircle,
@@ -49,17 +50,26 @@ function getDeviceToken(): string {
   return token
 }
 
+function getAge(birthDate: string): number {
+  const [y, m, d] = birthDate.split('-').map(Number)
+  const today = new Date()
+  let age = today.getFullYear() - y
+  if (today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d)) age--
+  return age
+}
+
 /* Nombre que se guarda en Firestore para el anfitrión */
 const OWNER_DISPLAY = 'Anfitrión'
 
 export function EventWall() {
   const { id }    = useParams<{ id: string }>()
   const { user }  = useAuth()
+  const { profile } = useUserProfile()
   const [event, setEvent]           = useState<EventData | null>(null)
   const [messages, setMessages]     = useState<WallMessage[]>([])
   const [loading, setLoading]       = useState(true)
   const [guestName, setGuestName]   = useState(() => localStorage.getItem(GUEST_NAME_KEY) || '')
-  const [nameConfirmed, setNameConfirmed] = useState(!!localStorage.getItem(GUEST_NAME_KEY))
+  const [nameConfirmed, setNameConfirmed] = useState(() => !!localStorage.getItem(GUEST_NAME_KEY) || !!localStorage.getItem('firebase:authUser'))
   const [text, setText]             = useState('')
   const [type, setType]             = useState<WallMessageType>('comment')
   const [posting, setPosting]       = useState(false)
@@ -69,6 +79,18 @@ export function EventWall() {
 
   const isOwner    = !!(user && event && user.uid === event.ownerId)
   const isPremium  = event?.plan === 'premium'
+  const isMinor    = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
+
+  // If user is authenticated, skip name screen
+  useEffect(() => {
+    if (user) {
+      setNameConfirmed(true)
+      if (!guestName) {
+        const name = profile?.displayName || user.displayName || ''
+        if (name) setGuestName(name)
+      }
+    }
+  }, [user, profile])
 
   useEffect(() => {
     if (!id) return
@@ -89,13 +111,14 @@ export function EventWall() {
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault()
-    if (!id || !text.trim()) return
+    if (!id || !text.trim() || isMinor) return
     setPosting(true)
     try {
-      const authorName  = isOwner ? OWNER_DISPLAY : guestName
-      const authorToken = isOwner ? (user?.uid ?? 'owner') : (localStorage.getItem(GUEST_NAME_KEY) || guestName)
+      const authorName  = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
+      const authorToken = isOwner ? (user?.uid ?? 'owner') : (user ? user.uid : (localStorage.getItem(GUEST_NAME_KEY) || guestName))
       const authorRole  = isOwner ? 'owner' : 'guest'
-      await postWallMessage(id, text, type, authorName, authorToken, authorRole)
+      const authorPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
+      await postWallMessage(id, text, type, authorName, authorToken, authorRole, authorPhotoURL)
       setText('')
       textareaRef.current?.focus()
     } finally {
@@ -132,7 +155,7 @@ export function EventWall() {
     await dislikeWallMessage(id, msg.id, token, msg.dislikedBy.includes(token))
   }
 
-  if (!nameConfirmed && !isOwner) {
+  if (!nameConfirmed && !isOwner && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
@@ -159,7 +182,8 @@ export function EventWall() {
     )
   }
 
-  const postLabel = isOwner ? OWNER_DISPLAY : guestName
+  const postLabel = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
+  const postPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
 
   /* Pinned first, then by date desc */
   const sorted = [...messages].sort((a, b) => {
@@ -178,7 +202,7 @@ export function EventWall() {
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">{event?.name}</h1>
           <p className="text-xs text-gray-500">Muro del evento</p>
         </div>
-        {!isOwner && (
+        {!isOwner && !user && (
           <button
             onClick={() => { localStorage.removeItem(GUEST_NAME_KEY); setNameConfirmed(false) }}
             className="text-xs text-gray-400 hover:text-gray-600"
@@ -188,47 +212,59 @@ export function EventWall() {
         )}
       </div>
 
+      {/* Age restriction notice */}
+      {user && isMinor && (
+        <div className="text-xs text-amber-500 bg-amber-500/10 rounded-lg px-3 py-2 mb-4">
+          Solo puedes dar me gusta — los comentarios están disponibles para mayores de 18 años.
+        </div>
+      )}
+
       {/* Post form */}
-      <form onSubmit={handlePost} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-5 space-y-3">
-        <div className="flex gap-2 flex-wrap">
-          {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
-            const cfg = TYPE_CONFIG[t]
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 font-medium transition-all ${
-                  type === t ? cfg.color + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
-              >
-                <cfg.Icon className="w-3 h-3" />
-                {cfg.label}
-              </button>
-            )
-          })}
-        </div>
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}...`}
-          rows={2}
-          className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
-        />
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-400">
-            Como: <AuthorName name={postLabel} role={isOwner ? 'owner' : 'guest'} premium={isPremium} />
-          </span>
-          <button
-            type="submit"
-            disabled={posting || !text.trim()}
-            className="bg-primary text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-40"
-          >
-            {posting ? 'Publicando...' : 'Publicar'}
-          </button>
-        </div>
-      </form>
+      {!isMinor && (
+        <form onSubmit={handlePost} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-5 space-y-3">
+          <div className="flex gap-2 flex-wrap">
+            {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
+              const cfg = TYPE_CONFIG[t]
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setType(t)}
+                  className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 font-medium transition-all ${
+                    type === t ? cfg.color + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  <cfg.Icon className="w-3 h-3" />
+                  {cfg.label}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex items-start gap-2">
+            <Avatar name={postLabel} photoURL={postPhotoURL} size={28} />
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}...`}
+              rows={2}
+              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">
+              Como: <AuthorName name={postLabel} role={isOwner ? 'owner' : 'guest'} premium={isPremium} />
+            </span>
+            <button
+              type="submit"
+              disabled={posting || !text.trim()}
+              className="bg-primary text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-40"
+            >
+              {posting ? 'Publicando...' : 'Publicar'}
+            </button>
+          </div>
+        </form>
+      )}
 
       {loading && <p className="text-center text-gray-400 text-sm">Cargando mensajes...</p>}
 
@@ -251,18 +287,21 @@ export function EventWall() {
             >
               {/* Header */}
               <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {msg.pinned && (
-                    <span className="flex items-center gap-1 text-xs font-medium text-yellow-500">
-                      <IconPin className="w-3 h-3" />
-                      Destacado
+                <div className="flex items-start gap-2 flex-1 min-w-0">
+                  <Avatar name={msg.authorName} photoURL={msg.authorPhotoURL} size={28} />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {msg.pinned && (
+                      <span className="flex items-center gap-1 text-xs font-medium text-yellow-500">
+                        <IconPin className="w-3 h-3" />
+                        Destacado
+                      </span>
+                    )}
+                    <span className={`flex items-center gap-1 text-xs rounded-full px-2 py-0.5 font-medium ${cfg.color}`}>
+                      <cfg.Icon className="w-3 h-3" />
+                      {cfg.label}
                     </span>
-                  )}
-                  <span className={`flex items-center gap-1 text-xs rounded-full px-2 py-0.5 font-medium ${cfg.color}`}>
-                    <cfg.Icon className="w-3 h-3" />
-                    {cfg.label}
-                  </span>
-                  <AuthorName name={msg.authorName} role={msg.authorRole} premium={isPremium && isOwnerMsg} />
+                    <AuthorName name={msg.authorName} role={msg.authorRole} premium={isPremium && isOwnerMsg} />
+                  </div>
                 </div>
                 {/* Owner actions */}
                 {isOwner && (
@@ -284,11 +323,11 @@ export function EventWall() {
                 )}
               </div>
 
-              <p className="text-sm text-gray-900 dark:text-white mb-3">{msg.text}</p>
+              <p className="text-sm text-gray-900 dark:text-white mb-3 ml-9">{msg.text}</p>
 
               {/* Replies */}
               {msg.replies.length > 0 && (
-                <div className="border-l-2 border-gray-100 dark:border-gray-700 pl-3 mb-3 space-y-2">
+                <div className="border-l-2 border-gray-100 dark:border-gray-700 pl-3 mb-3 space-y-2 ml-9">
                   {msg.replies.map((r) => (
                     <div key={r.id}>
                       <AuthorName name={OWNER_DISPLAY} role="owner" premium={isPremium} inline />
@@ -299,7 +338,7 @@ export function EventWall() {
               )}
 
               {/* Reactions row */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 ml-9">
                 {(() => {
                   const token    = getDeviceToken()
                   const liked    = msg.likedBy.includes(token)
@@ -332,7 +371,7 @@ export function EventWall() {
 
               {/* Reply input */}
               {isOwner && replyingTo === msg.id && (
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex gap-2 ml-9">
                   <input
                     type="text"
                     value={replyText}
@@ -354,6 +393,20 @@ export function EventWall() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/* Avatar component */
+function Avatar({ name, photoURL, size = 32 }: { name: string; photoURL?: string; size?: number }) {
+  if (photoURL) {
+    return <img src={photoURL} alt={name} className="rounded-full object-cover shrink-0"
+      style={{ width: size, height: size }} />
+  }
+  return (
+    <div className="rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-xs font-bold text-primary"
+      style={{ width: size, height: size }}>
+      {name?.[0]?.toUpperCase() || '?'}
     </div>
   )
 }

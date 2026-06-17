@@ -19,6 +19,10 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow write: if request.auth != null && request.auth.uid == userId;
+
+      match /invitations/{invId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     match /events/{eventId} {

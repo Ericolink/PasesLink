@@ -37,6 +37,7 @@ export async function postWallMessage(
   authorName: string,
   authorToken: string,
   authorRole: 'owner' | 'guest' = 'guest',
+  authorPhotoURL?: string,
 ) {
   await addDoc(collection(db, 'events', eventId, 'wall'), {
     text: text.trim(),
@@ -44,6 +45,7 @@ export async function postWallMessage(
     authorName,
     authorToken,
     authorRole,
+    authorPhotoURL: authorPhotoURL || null,
     likedBy: [],
     dislikedBy: [],
     replies: [],
@@ -123,6 +125,7 @@ function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
     authorName: data.authorName as string,
     authorToken: data.authorToken as string,
     authorRole: (data.authorRole as 'owner' | 'guest') || 'guest',
+    authorPhotoURL: (data.authorPhotoURL as string) || undefined,
     likedBy: (data.likedBy as string[]) || [],
     dislikedBy: (data.dislikedBy as string[]) || [],
     replies: (data.replies as WallReply[]) || [],
