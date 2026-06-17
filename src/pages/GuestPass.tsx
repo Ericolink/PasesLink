@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
+import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
-import { claimGuestPass, findGuestByToken, setGuestRsvp } from '../firebase/guests'
+import { checkInGuest, claimGuestPass, findGuestByToken, setGuestRsvp } from '../firebase/guests'
+import { useAuth } from '../hooks/useAuth'
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { Logo } from '../components/Logo'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconWhatsApp } from '../components/Icons'
@@ -11,6 +13,7 @@ import { EventMap } from '../components/EventMap'
 
 export function GuestPass() {
   const { eventId, qrToken } = useParams<{ eventId: string; qrToken: string }>()
+  const { user } = useAuth()
   const [event, setEvent] = useState<EventData | null>(null)
   const [guest, setGuest] = useState<GuestData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -18,6 +21,7 @@ export function GuestPass() {
   const [locked, setLocked] = useState(false)
   const [rsvpSaving, setRsvpSaving] = useState(false)
   const [showMaybeMessage, setShowMaybeMessage] = useState(false)
+  const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already'>('idle')
   const qrWrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -29,6 +33,17 @@ export function GuestPass() {
           return
         }
         setEvent(eventData)
+
+        // Si el visor es organizador o co-org, no aplicar lock — solo cargar el guest
+        const viewerIsOrg = !!user && (
+          user.uid === eventData.ownerId ||
+          !!(eventData.coOrganizersMap && user.uid in eventData.coOrganizersMap)
+        )
+        if (viewerIsOrg) {
+          setGuest(guestData)
+          if (guestData.status === 'checked_in') setCheckInState('already')
+          return
+        }
 
         const storageKey = `paselink_lock_${eventId}_${qrToken}`
         const localToken = localStorage.getItem(storageKey) || crypto.randomUUID()
@@ -46,11 +61,73 @@ export function GuestPass() {
         setError(true)
       })
       .finally(() => setLoading(false))
-  }, [eventId, qrToken])
+  }, [eventId, qrToken, user])
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
   if (error || !event || !guest || !eventId || !qrToken) {
     return <p className="text-center text-gray-500 mt-16">Pase no encontrado.</p>
+  }
+
+  const isOrg = !!user && (
+    user.uid === event.ownerId ||
+    !!(event.coOrganizersMap && user.uid in event.coOrganizersMap)
+  )
+
+  async function handleCheckIn() {
+    if (!eventId || !qrToken || !user) return
+    setCheckInState('loading')
+    const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
+    if (result.status === 'success') {
+      setGuest((g) => g ? { ...g, status: 'checked_in' } : g)
+      setCheckInState('done')
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.5 } })
+    } else if (result.status === 'already_checked_in') {
+      setCheckInState('already')
+    }
+  }
+
+  // Vista del organizador: solo check-in, sin lock ni RSVP
+  if (isOrg) {
+    return (
+      <div className="max-w-sm mx-auto px-4 py-12 text-center animate-fade-in">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-sm p-6">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-4">Modo organizador</p>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{guest.name}</h1>
+          {guest.companions > 0 && (
+            <p className="text-sm text-gray-500 mt-1">+ {guest.companions} acompañante(s)</p>
+          )}
+          <p className="text-sm text-gray-400 mt-1">{event.name}</p>
+
+          <div className="mt-8">
+            {checkInState === 'done' && (
+              <div className="flex flex-col items-center gap-3">
+                <IconCheckCircle className="w-16 h-16 text-green-500" />
+                <p className="text-lg font-semibold text-green-600">¡Entrada registrada!</p>
+                {event.welcomeMessage && (
+                  <p className="text-sm text-gray-500 italic">{event.welcomeMessage}</p>
+                )}
+              </div>
+            )}
+            {checkInState === 'already' && (
+              <div className="flex flex-col items-center gap-3">
+                <IconAlertTriangle className="w-14 h-14 text-amber-400" />
+                <p className="text-base font-semibold text-amber-600">Ya registrado</p>
+                <p className="text-sm text-gray-500">Este invitado ya hizo check-in anteriormente.</p>
+              </div>
+            )}
+            {(checkInState === 'idle' || checkInState === 'loading') && (
+              <button
+                onClick={handleCheckIn}
+                disabled={checkInState === 'loading'}
+                className="w-full bg-primary text-white rounded-xl py-4 text-lg font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {checkInState === 'loading' ? 'Registrando...' : 'Registrar entrada'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const passUrl = `${window.location.origin}/pass/${eventId}/${qrToken}`

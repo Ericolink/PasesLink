@@ -88,10 +88,11 @@ export function EventJoin() {
   }, [profile, user])
 
   useEffect(() => {
-    if (state === 'success' && qrToken && canvasRef.current) {
-      QRCode.toCanvas(canvasRef.current, qrToken, { width: 200, margin: 2 })
+    if (state === 'success' && qrToken && canvasRef.current && id) {
+      const passUrl = `${window.location.origin}/pass/${id}/${qrToken}`
+      QRCode.toCanvas(canvasRef.current, passUrl, { width: 200, margin: 2 })
     }
-  }, [state, qrToken])
+  }, [state, qrToken, id])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
