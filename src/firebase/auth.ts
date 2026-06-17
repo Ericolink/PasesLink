@@ -5,10 +5,13 @@ import {
   verifyPasswordResetCode as firebaseVerifyPasswordResetCode,
   EmailAuthProvider,
   getAdditionalUserInfo,
+  linkWithCredential,
+  linkWithPopup,
   reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  unlink,
   updatePassword,
   updateProfile,
 } from 'firebase/auth'
@@ -116,6 +119,28 @@ export async function uploadProfilePhoto(file: File) {
   await updateProfile(user, { photoURL })
   await setDoc(doc(db, 'users', user.uid), { photoURL }, { merge: true })
   return photoURL
+}
+
+export async function linkGoogleAccount() {
+  const user = auth.currentUser
+  if (!user) throw new Error('No hay usuario autenticado')
+  await linkWithPopup(user, googleProvider)
+  await user.reload()
+}
+
+export async function linkEmailPassword(password: string) {
+  const user = auth.currentUser
+  if (!user || !user.email) throw new Error('No hay usuario autenticado')
+  const credential = EmailAuthProvider.credential(user.email, password)
+  await linkWithCredential(user, credential)
+  await user.reload()
+}
+
+export async function unlinkProvider(providerId: string) {
+  const user = auth.currentUser
+  if (!user) throw new Error('No hay usuario autenticado')
+  await unlink(user, providerId)
+  await user.reload()
 }
 
 export async function isGoogleProfileComplete(uid: string): Promise<boolean> {

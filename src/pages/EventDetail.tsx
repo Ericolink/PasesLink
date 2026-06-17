@@ -183,9 +183,9 @@ export function EventDetail() {
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-medium text-gray-900 dark:text-white">Ingreso libre</h2>
-            <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">
-              {event.entryMode === 'hybrid' ? 'Mixto' : 'Ingreso libre'}
-            </span>
+            {event.entryMode === 'hybrid' && (
+              <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Mixto</span>
+            )}
           </div>
           {event.capacity && (
             <div className="mb-4">
@@ -203,12 +203,12 @@ export function EventDetail() {
           )}
           <div className="space-y-2">
             <PublicLink
-              label="Auto-registro (Opción B)"
+              label="Auto-registro"
               desc="Los asistentes se registran y obtienen su QR propio"
               path={`/events/${event.id}/join`}
             />
             <PublicLink
-              label="Ingreso directo (Opción C)"
+              label="Ingreso directo"
               desc="Solo confirman llegada — sin QR individual"
               path={`/events/${event.id}/arrive`}
             />

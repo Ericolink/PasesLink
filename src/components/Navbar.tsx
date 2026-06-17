@@ -39,6 +39,12 @@ export function Navbar() {
               </Link>
             )}
             <Link
+              to="/my-events"
+              className="hidden sm:block px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              Mis eventos
+            </Link>
+            <Link
               to="/my-invitations"
               className="hidden sm:block px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
             >

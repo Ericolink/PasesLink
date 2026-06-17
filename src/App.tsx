@@ -28,6 +28,7 @@ const EventJoin = lazy(() => import('./pages/EventJoin').then((m) => ({ default:
 const EventWall = lazy(() => import('./pages/EventWall').then((m) => ({ default: m.EventWall })))
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile').then((m) => ({ default: m.CompleteProfile })))
 const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => ({ default: m.MyInvitations })))
+const MyEvents        = lazy(() => import('./pages/MyEvents').then((m) => ({ default: m.MyEvents })))
 
 function PageFallback() {
   return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando...</div>
@@ -121,6 +122,7 @@ function App() {
 
         <Route path="/complete-profile" element={<CompleteProfile />} />
         <Route path="/my-invitations" element={<MyInvitations />} />
+        <Route path="/my-events" element={<MyEvents />} />
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

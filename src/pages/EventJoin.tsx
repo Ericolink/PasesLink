@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { getEvent } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
@@ -9,7 +9,6 @@ import { saveUserInvitation } from '../firebase/userProfile'
 import { WallSection } from '../components/WallSection'
 import {
   IconBan,
-  IconCheckCircle,
   IconFrown,
   IconSparkles,
 } from '../components/Icons'
@@ -167,28 +166,6 @@ export function EventJoin() {
             {event?.welcomeMessage && (
               <p className="text-sm italic text-gray-500 mb-4">{event.welcomeMessage}</p>
             )}
-            {id && (
-              <Link
-                to={`/events/${id}/wall`}
-                className="flex items-center justify-center gap-1.5 text-sm font-medium text-primary hover:underline"
-              >
-                <IconCheckCircle className="w-4 h-4" />
-                Ver el muro del evento
-              </Link>
-            )}
-            <button
-              onClick={() => {
-                if (id) localStorage.removeItem(regKey(id))
-                setState('form')
-                setName('')
-                setPhone('')
-                setCustomValues({})
-                setQrToken('')
-              }}
-              className="mt-3 text-xs text-gray-400 hover:text-gray-600"
-            >
-              No soy yo — cambiar registro
-            </button>
           </div>
           {id && <WallSection eventId={id} />}
         </div>

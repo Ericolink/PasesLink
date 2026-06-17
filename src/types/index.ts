@@ -115,6 +115,7 @@ export interface UserProfile {
   displayName: string      // firstName + ' ' + lastName
   birthDate: string        // 'YYYY-MM-DD'
   photoURL?: string
+  notifyOnCheckin?: boolean
   createdAt: number
 }
 
