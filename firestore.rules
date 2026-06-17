@@ -8,6 +8,17 @@ service cloud.firestore {
         request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.ownerId;
     }
 
+    function isCoOrganizer(eventId) {
+      let ev = get(/databases/$(database)/documents/events/$(eventId));
+      return request.auth != null &&
+        ev.data.coOrganizersMap != null &&
+        request.auth.uid in ev.data.coOrganizersMap;
+    }
+
+    function isOwnerOrCoOrg(eventId) {
+      return isOwner(eventId) || isCoOrganizer(eventId);
+    }
+
     function isAdmin() {
       return request.auth != null && request.auth.token.email == 'ericmunoz441@gmail.com';
     }
@@ -17,7 +28,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow list: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
 
       match /invitations/{invId} {
@@ -38,12 +50,11 @@ service cloud.firestore {
       allow delete: if isOwner(eventId) || isAdmin();
 
       match /guests/{guestId} {
-        allow read, delete: if isOwner(eventId) || isAdmin();
-        // Auto-registro (Opción B): cualquiera puede crear un invitado en eventos open/hybrid
-        allow create: if isOwner(eventId) || isAdmin() || isOpenEvent(eventId);
+        allow read, delete: if isOwnerOrCoOrg(eventId) || isAdmin();
+        allow create: if isOwnerOrCoOrg(eventId) || isAdmin() || isOpenEvent(eventId);
         allow list: if request.query.limit <= 1;
         allow get: if true;
-        allow update: if isOwner(eventId) ||
+        allow update: if isOwnerOrCoOrg(eventId) || isAdmin() ||
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&
             (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken)
@@ -51,17 +62,21 @@ service cloud.firestore {
       }
 
       match /checkins/{checkinId} {
-        allow read: if isOwner(eventId);
-        allow create: if isOwner(eventId);
+        allow read: if isOwnerOrCoOrg(eventId) || isAdmin();
+        allow create: if isOwnerOrCoOrg(eventId) || isAdmin();
         allow delete: if isOwner(eventId) || isAdmin();
         allow update: if false;
+      }
+
+      match /waitlist/{entryId} {
+        allow read, update, delete: if isOwner(eventId) || isAdmin();
+        allow create: if true;
       }
 
       match /wall/{messageId} {
         allow read: if true;
         allow create: if true;
         allow update: if isOwner(eventId) || isAdmin()
-          // Anyone can like/dislike
           || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy']);
         allow delete: if isOwner(eventId) || isAdmin();
       }

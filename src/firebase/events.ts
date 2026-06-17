@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -156,8 +157,22 @@ export async function updateEventBranding(
   })
 }
 
+export async function addCoOrganizer(eventId: string, uid: string, email: string) {
+  await updateDoc(doc(db, 'events', eventId), {
+    [`coOrganizersMap.${uid}`]: email,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function removeCoOrganizer(eventId: string, uid: string) {
+  await updateDoc(doc(db, 'events', eventId), {
+    [`coOrganizersMap.${uid}`]: deleteField(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export async function deleteEvent(eventId: string) {
-  const subcollections = ['guests', 'checkins']
+  const subcollections = ['guests', 'checkins', 'waitlist']
   for (const sub of subcollections) {
     const snapshot = await getDocs(collection(db, 'events', eventId, sub))
     const docs = snapshot.docs
@@ -192,6 +207,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     status: data.status as EventStatus,
     guestCount: (data.guestCount as number) || 0,
     checkedInCount: (data.checkedInCount as number) || 0,
+    coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
   }

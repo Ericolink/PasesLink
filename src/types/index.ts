@@ -34,8 +34,19 @@ export interface EventData {
   status: EventStatus
   guestCount: number
   checkedInCount: number
+  coOrganizersMap?: Record<string, string>  // { [uid]: email }
   createdAt: number
   updatedAt: number
+}
+
+export interface WaitlistEntry {
+  id: string
+  name: string
+  lastName: string
+  phone: string
+  createdAt: number
+  status: 'waiting' | 'promoted'
+  qrToken?: string
 }
 
 export type WallMessageType = 'comment' | 'question' | 'music' | 'idea'

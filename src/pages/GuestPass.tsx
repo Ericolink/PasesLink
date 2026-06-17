@@ -5,7 +5,7 @@ import { getEvent } from '../firebase/events'
 import { claimGuestPass, findGuestByToken, setGuestRsvp } from '../firebase/guests'
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { Logo } from '../components/Logo'
-import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart } from '../components/Icons'
+import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 
@@ -130,13 +130,23 @@ export function GuestPass() {
               <p className="text-sm text-gray-500">Presenta este código QR en la entrada</p>
             )}
 
-            <button
-              onClick={handleDownload}
-              style={accentColor ? { backgroundColor: accentColor } : undefined}
-              className="mt-4 inline-flex items-center gap-2 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
-            >
-              <IconDownload className="w-4 h-4" /> Descargar QR
-            </button>
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
+              <button
+                onClick={handleDownload}
+                style={accentColor ? { backgroundColor: accentColor } : undefined}
+                className="inline-flex items-center justify-center gap-2 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
+              >
+                <IconDownload className="w-4 h-4" /> Descargar QR
+              </button>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`Aquí está mi pase para ${event.name}: ${passUrl}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                <IconWhatsApp className="w-4 h-4" /> Compartir
+              </a>
+            </div>
           </>
         )}
 
