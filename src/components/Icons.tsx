@@ -394,6 +394,15 @@ export function IconCrown({ className = 'w-4 h-4' }: IconProps) {
   )
 }
 
+export function IconMapPin({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  )
+}
+
 export function IconBell({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg className={className} {...base}>

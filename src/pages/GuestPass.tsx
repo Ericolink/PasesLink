@@ -7,6 +7,7 @@ import type { EventData, GuestData, RsvpStatus } from '../types'
 import { Logo } from '../components/Logo'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
+import { EventMap } from '../components/EventMap'
 
 export function GuestPass() {
   const { eventId, qrToken } = useParams<{ eventId: string; qrToken: string }>()
@@ -207,8 +208,11 @@ export function GuestPass() {
         )}
         </div>
       </div>
+      {event.location && (
+        <EventMap location={event.location} mapsUrl={event.mapsUrl} />
+      )}
       {eventId && (
-        <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} />
+        <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} />
       )}
     </div>
   )

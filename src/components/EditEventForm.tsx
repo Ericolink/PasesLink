@@ -14,6 +14,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [description, setDescription] = useState(event.description || '')
   const [accentColor, setAccentColor] = useState(event.accentColor || '#2563eb')
   const [welcomeMessage, setWelcomeMessage] = useState(event.welcomeMessage || '')
+  const [mapsUrl, setMapsUrl] = useState(event.mapsUrl || '')
   const [entryMode, setEntryMode] = useState<EntryMode>(event.entryMode || 'list')
   const [capacity, setCapacity] = useState(event.capacity ? String(event.capacity) : '')
   const [customFields, setCustomFields] = useState<CustomField[]>(event.customFields || [])
@@ -32,6 +33,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         coverImage: cover.coverImage,
         accentColor,
         welcomeMessage: welcomeMessage.trim(),
+        mapsUrl: mapsUrl.trim() || undefined,
         entryMode,
         capacity: capacity ? parseInt(capacity, 10) : undefined,
         customFields,
@@ -82,6 +84,17 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span>
+        </label>
+        <input type="url" value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)}
+          placeholder="https://maps.google.com/maps?q=..."
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+        <p className="text-xs text-gray-400 mt-1">
+          Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto). El botón "Cómo llegar" funciona con cualquier link.
+        </p>
       </div>
 
       {/* Personalización */}

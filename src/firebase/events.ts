@@ -24,6 +24,7 @@ export interface NewEventInput {
   coverImage?: string
   accentColor?: string
   welcomeMessage?: string
+  mapsUrl?: string
   entryMode?: EntryMode
   capacity?: number
   customFields?: CustomField[]
@@ -40,6 +41,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     coverImage: input.coverImage || '',
     accentColor: input.accentColor || '',
     welcomeMessage: input.welcomeMessage || '',
+    mapsUrl: input.mapsUrl || '',
     entryMode: input.entryMode || 'list',
     capacity: input.capacity || null,
     customFields: input.customFields || [],
@@ -114,6 +116,7 @@ export interface UpdateEventInput {
   coverImage?: string
   accentColor?: string
   welcomeMessage?: string
+  mapsUrl?: string
   entryMode?: EntryMode
   capacity?: number
   customFields?: CustomField[]
@@ -128,6 +131,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     coverImage: input.coverImage ?? '',
     accentColor: input.accentColor ?? '',
     welcomeMessage: input.welcomeMessage ?? '',
+    mapsUrl: input.mapsUrl ?? '',
     entryMode: input.entryMode || 'list',
     capacity: input.capacity || null,
     customFields: input.customFields || [],
@@ -179,6 +183,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     coverImage: (data.coverImage as string) || '',
     accentColor: (data.accentColor as string) || '',
     welcomeMessage: (data.welcomeMessage as string) || '',
+    mapsUrl: (data.mapsUrl as string) || '',
     entryMode: (data.entryMode as EntryMode) || 'list',
     capacity: (data.capacity as number) || undefined,
     customFields: (data.customFields as CustomField[]) || [],

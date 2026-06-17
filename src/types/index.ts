@@ -25,6 +25,7 @@ export interface EventData {
   coverImage?: string
   accentColor?: string
   welcomeMessage?: string
+  mapsUrl?: string
   entryMode: EntryMode
   capacity?: number
   customFields?: CustomField[]

@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
 import { WallSection } from '../components/WallSection'
+import { EventMap } from '../components/EventMap'
 import {
   IconBan,
   IconFrown,
@@ -18,6 +19,7 @@ type State = 'loading' | 'form' | 'submitting' | 'success' | 'full' | 'not_found
 
 interface SavedReg {
   name: string
+  lastName: string
   phone: string
   qrToken: string
   customValues: Record<string, string>
@@ -34,6 +36,7 @@ export function EventJoin() {
   const [event, setEvent] = useState<EventData | null>(null)
   const [state, setState] = useState<State>('loading')
   const [name, setName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [qrToken, setQrToken] = useState('')
@@ -52,6 +55,7 @@ export function EventJoin() {
         try {
           const reg: SavedReg = JSON.parse(saved)
           setName(reg.name)
+          setLastName(reg.lastName || '')
           setPhone(reg.phone)
           setCustomValues(reg.customValues || {})
           setQrToken(reg.qrToken)
@@ -66,10 +70,11 @@ export function EventJoin() {
     })
   }, [id])
 
-  // Pre-fill name when profile loads
+  // Pre-fill name/lastName from profile
   useEffect(() => {
-    if (user && (profile?.displayName || user.displayName) && !name) {
-      setName(profile?.displayName || user.displayName || '')
+    if (user && !name) {
+      setName(profile?.firstName || user.displayName?.split(' ')[0] || '')
+      setLastName(profile?.lastName || user.displayName?.split(' ').slice(1).join(' ') || '')
     }
   }, [profile, user])
 
@@ -81,18 +86,18 @@ export function EventJoin() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!id || !name.trim()) return
+    if (!id || !name.trim() || !lastName.trim()) return
     setState('submitting')
-    const result = await registerWalkInGuest(id, name, undefined, phone, customValues)
+    const fullName = `${name.trim()} ${lastName.trim()}`
+    const result = await registerWalkInGuest(id, fullName, undefined, phone, customValues)
     if (result.status === 'full') {
       setState('full')
     } else {
       const token = result.qrToken!
       setQrToken(token)
-      // Persist so returning to the page restores their QR
-      localStorage.setItem(regKey(id), JSON.stringify({ name, phone, qrToken: token, customValues }))
+      localStorage.setItem(regKey(id), JSON.stringify({ name, lastName, phone, qrToken: token, customValues }))
+      localStorage.setItem('wall_guest_name', fullName)
       setState('success')
-      // Save invitation to user profile if logged in
       if (user && id && event) {
         void saveUserInvitation(user.uid, {
           eventId: id,
@@ -100,7 +105,7 @@ export function EventJoin() {
           eventDate: event.date,
           eventLocation: event.location,
           eventCoverImage: event.coverImage,
-          guestName: name,
+          guestName: fullName,
           qrToken: token,
           type: 'walkin',
         })
@@ -157,7 +162,7 @@ export function EventJoin() {
               <IconSparkles className="w-8 h-8 text-primary" />
             </div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-              Hola, {name}
+              Hola, {name} {lastName}
             </h1>
             <p className="text-sm text-gray-500 mb-4">Este es tu pase de entrada. Guárdalo.</p>
             <div className="flex justify-center mb-4">
@@ -167,7 +172,10 @@ export function EventJoin() {
               <p className="text-sm italic text-gray-500 mb-4">{event.welcomeMessage}</p>
             )}
           </div>
-          {id && <WallSection eventId={id} />}
+          {event?.location && (
+            <EventMap location={event.location} mapsUrl={event.mapsUrl} />
+          )}
+          {id && <WallSection eventId={id} guestName={`${name} ${lastName}`.trim()} />}
         </div>
       </div>
     )
@@ -186,22 +194,34 @@ export function EventJoin() {
           <p className="text-sm text-gray-500 mb-4">{event?.date} · {event?.location}</p>
 
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tu nombre *</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ana García"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ana"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido *</label>
+                <input
+                  type="text"
+                  required
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="García"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono <span className="text-gray-400 font-normal">(opcional)</span></label>
               <input
                 type="tel"
-                required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+1 234 567 8900"

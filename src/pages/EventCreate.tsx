@@ -39,6 +39,7 @@ export function EventCreate() {
   const [description, setDescription] = useState('')
   const [accentColor, setAccentColor] = useState('#2563eb')
   const [welcomeMessage, setWelcomeMessage] = useState('')
+  const [mapsUrl, setMapsUrl] = useState('')
   const [entryMode, setEntryMode] = useState<EntryMode>('list')
   const [capacity, setCapacity] = useState('')
   const [customFields, setCustomFields] = useState<CustomField[]>([])
@@ -60,6 +61,7 @@ export function EventCreate() {
         coverImage: cover.coverImage,
         accentColor,
         welcomeMessage,
+        mapsUrl: mapsUrl.trim() || undefined,
         entryMode,
         capacity: capacity ? parseInt(capacity, 10) : undefined,
         customFields,
@@ -129,6 +131,21 @@ export function EventCreate() {
             rows={2}
             className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
           />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <input
+            type="url"
+            value={mapsUrl}
+            onChange={(e) => setMapsUrl(e.target.value)}
+            placeholder="https://maps.google.com/maps?q=..."
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto). El botón "Cómo llegar" funciona con cualquier link.
+          </p>
         </div>
 
         {/* Personalización */}

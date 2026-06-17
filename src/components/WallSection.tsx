@@ -29,9 +29,9 @@ const TYPE_CONFIG: Record<WallMessageType, { label: string; Icon: React.FC<{clas
   idea:     { label: 'Idea',       Icon: IconLightbulb,      color: 'bg-green-100 text-green-700' },
 }
 
-interface Props { eventId: string; isPremium?: boolean }
+interface Props { eventId: string; isPremium?: boolean; guestName?: string }
 
-export function WallSection({ eventId, isPremium = false }: Props) {
+export function WallSection({ eventId, isPremium = false, guestName: guestNameProp }: Props) {
   const { user }          = useAuth()
   const { profile }       = useUserProfile()
   const [messages, setMessages] = useState<WallMessage[]>([])
@@ -39,12 +39,13 @@ export function WallSection({ eventId, isPremium = false }: Props) {
   const [text, setText]         = useState('')
   const [type, setType]         = useState<WallMessageType>('comment')
   const [posting, setPosting]   = useState(false)
-  const [guestName, setGuestName]     = useState(() => localStorage.getItem(GUEST_NAME_KEY) || '')
-  const [nameConfirmed, setNameConfirmed] = useState(!!localStorage.getItem(GUEST_NAME_KEY))
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isMinor = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
-  const authorName  = user ? (profile?.displayName || user.displayName || 'Anfitrión') : guestName
+
+  // Name resolution: prop → localStorage → empty
+  const resolvedGuestName = guestNameProp || localStorage.getItem(GUEST_NAME_KEY) || ''
+  const authorName  = user ? (profile?.displayName || user.displayName || 'Anfitrión') : resolvedGuestName
   const authorPhoto = user ? (profile?.photoURL || user.photoURL || undefined) : undefined
 
   useEffect(() => {
@@ -64,20 +65,13 @@ export function WallSection({ eventId, isPremium = false }: Props) {
     if (!text.trim() || isMinor) return
     setPosting(true)
     try {
-      const token = user ? user.uid : (localStorage.getItem(GUEST_NAME_KEY) || guestName)
+      const token = user ? user.uid : (resolvedGuestName || crypto.randomUUID())
       await postWallMessage(eventId, text, type, authorName, token, 'guest', authorPhoto)
       setText('')
       textareaRef.current?.focus()
     } finally {
       setPosting(false)
     }
-  }
-
-  function handleGuestNameSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!guestName.trim()) return
-    localStorage.setItem(GUEST_NAME_KEY, guestName.trim())
-    setNameConfirmed(true)
   }
 
   async function handleLike(msg: WallMessage) {
@@ -90,28 +84,11 @@ export function WallSection({ eventId, isPremium = false }: Props) {
     await dislikeWallMessage(eventId, msg.id, token, msg.dislikedBy.includes(token))
   }
 
-  const canPost = user ? !isMinor : nameConfirmed
+  const canPost = user ? !isMinor : !!resolvedGuestName
 
   return (
     <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
       <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Muro del evento</h2>
-
-      {/* Name prompt for guests (non-auth) */}
-      {!user && !nameConfirmed && (
-        <form onSubmit={handleGuestNameSubmit} className="flex gap-2 mb-4">
-          <input
-            type="text"
-            required
-            value={guestName}
-            onChange={(e) => setGuestName(e.target.value)}
-            placeholder="Tu nombre para participar"
-            className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <button type="submit" className="bg-primary text-white rounded-md px-3 py-2 text-sm font-medium">
-            Entrar
-          </button>
-        </form>
-      )}
 
       {/* Age restriction notice */}
       {user && isMinor && (
