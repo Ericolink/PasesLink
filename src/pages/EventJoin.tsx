@@ -263,6 +263,18 @@ export function EventJoin() {
             <div className="flex justify-center mb-4">
               <canvas ref={canvasRef} className="rounded-lg" />
             </div>
+            {event?.requiresPayment && (
+              <div className="text-left bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 mb-4">
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Pago de entrada</p>
+                <p className="text-sm text-amber-800 dark:text-amber-300 mb-1">
+                  Monto a pagar: <strong>{event.currency}{event.ticketPrice.toLocaleString('es')}</strong>
+                </p>
+                {event.paymentInstructions && (
+                  <p className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-line">{event.paymentInstructions}</p>
+                )}
+                <p className="text-xs text-amber-600 mt-1">El organizador confirmará tu pago al ingresar.</p>
+              </div>
+            )}
             {event?.welcomeMessage && (
               <p className="text-sm italic text-gray-500 mb-4">{event.welcomeMessage}</p>
             )}

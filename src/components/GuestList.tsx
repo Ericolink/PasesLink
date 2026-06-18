@@ -1,12 +1,24 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { deleteGuest, resetGuestRsvp, updateGuest } from '../firebase/guests'
+import { deleteGuest, resetGuestRsvp, setGuestPaymentStatus, updateGuest } from '../firebase/guests'
 import type { GuestData } from '../types'
 import { RSVP_LABELS } from '../types'
-import { IconEdit, IconEye, IconInbox, IconShare, IconTrash } from './Icons'
+import { IconEdit, IconEye, IconInbox, IconShare, IconTicket, IconTrash } from './Icons'
 import { ConfirmDialog } from './ConfirmDialog'
 
-export function GuestList({ eventId, guests }: { eventId: string; guests: GuestData[] }) {
+export function GuestList({
+  eventId,
+  guests,
+  requiresPayment = false,
+  ticketPrice = 0,
+  currency = '',
+}: {
+  eventId: string
+  guests: GuestData[]
+  requiresPayment?: boolean
+  ticketPrice?: number
+  currency?: string
+}) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deletingGuest, setDeletingGuest] = useState<GuestData | null>(null)
@@ -28,6 +40,10 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
 
   async function handleReactivate(guest: GuestData) {
     await resetGuestRsvp(eventId, guest.id)
+  }
+
+  async function handleTogglePayment(guest: GuestData) {
+    await setGuestPaymentStatus(eventId, guest.id, guest.paymentStatus === 'paid' ? 'unpaid' : 'paid')
   }
 
   async function handleShare(guest: GuestData) {
@@ -97,6 +113,23 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
                     Reactivar invitación
                   </button>
                 )}
+              </div>
+            )}
+            {requiresPayment && (
+              <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
+                <span
+                  className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                    guest.paymentStatus === 'paid' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+                  }`}
+                >
+                  <IconTicket className="w-3.5 h-3.5" />
+                  {guest.paymentStatus === 'paid'
+                    ? 'Pagó'
+                    : `Pendiente · ${currency}${(ticketPrice * (1 + guest.companions)).toLocaleString('es')}`}
+                </span>
+                <button onClick={() => handleTogglePayment(guest)} className="text-xs text-primary font-medium">
+                  {guest.paymentStatus === 'paid' ? 'Marcar como no pagado' : 'Marcar como pagado'}
+                </button>
               </div>
             )}
             <div className="grid grid-cols-4 divide-x divide-gray-100 border-t border-gray-100">

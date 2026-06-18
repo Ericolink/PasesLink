@@ -9,6 +9,8 @@ export type EventStatus = 'active' | 'cancelled' | 'archived'
 
 export type EntryMode = 'list' | 'open' | 'hybrid'
 
+export type GuestPaymentStatus = 'unpaid' | 'paid'
+
 export type CustomFieldType = 'text' | 'number' | 'email' | 'phone'
 
 export interface CustomField {
@@ -32,6 +34,10 @@ export interface EventData {
   entryMode: EntryMode
   capacity?: number
   customFields?: CustomField[]
+  requiresPayment: boolean
+  ticketPrice: number
+  currency: string
+  paymentInstructions: string
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus
@@ -96,6 +102,7 @@ export interface GuestData {
   checkedOutByEmail: string | null
   lockToken: string | null
   customData?: Record<string, string>
+  paymentStatus: GuestPaymentStatus
   createdAt: number
 }
 

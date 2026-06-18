@@ -14,7 +14,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './config'
-import type { GuestData, RsvpStatus } from '../types'
+import type { GuestData, GuestPaymentStatus, RsvpStatus } from '../types'
 
 export interface NewGuestInput {
   name: string
@@ -44,6 +44,7 @@ export async function addGuest(eventId: string, input: NewGuestInput) {
     checkedOutAt: null,
     checkedOutByEmail: null,
     lockToken: null,
+    paymentStatus: 'unpaid',
     createdAt: serverTimestamp(),
   })
   batch.update(doc(db, 'events', eventId), { guestCount: increment(1) })
@@ -69,6 +70,7 @@ export async function addGuestsBulk(eventId: string, names: string[]) {
       checkedOutAt: null,
       checkedOutByEmail: null,
       lockToken: null,
+      paymentStatus: 'unpaid',
       createdAt: serverTimestamp(),
     })
   }
@@ -131,6 +133,14 @@ export async function resetGuestRsvp(eventId: string, guestId: string) {
   await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { rsvpStatus: 'pending', lockToken: null })
 }
 
+export async function setGuestPaymentStatus(
+  eventId: string,
+  guestId: string,
+  paymentStatus: GuestPaymentStatus,
+) {
+  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { paymentStatus })
+}
+
 /**
  * Claims the guest pass for a device. If no device has claimed it yet, locks it to
  * `deviceToken` and returns it. Otherwise returns the token of the device that
@@ -159,6 +169,7 @@ async function findGuestRefByToken(eventId: string, qrToken: string) {
 export type CheckInResult =
   | { status: 'success'; guest: GuestData }
   | { status: 'already_checked_in'; guest: GuestData }
+  | { status: 'payment_required'; guest: GuestData }
   | { status: 'not_found' }
 
 export async function checkInGuest(
@@ -182,6 +193,11 @@ export async function checkInGuest(
     const guest = mapGuest(guestSnap.id, guestSnap.data())
     if (guest.status === 'checked_in') {
       return { status: 'already_checked_in', guest } as CheckInResult
+    }
+
+    const eventSnap = await transaction.get(eventRef)
+    if (eventSnap.data()?.requiresPayment && guest.paymentStatus !== 'paid') {
+      return { status: 'payment_required', guest } as CheckInResult
     }
 
     transaction.update(guestRef, {
@@ -279,6 +295,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     checkedOutAt: toMillisOrNull(data.checkedOutAt),
     checkedOutByEmail: (data.checkedOutByEmail as string) || null,
     lockToken: (data.lockToken as string) || null,
+    paymentStatus: (data.paymentStatus as GuestData['paymentStatus']) || 'unpaid',
     createdAt: toMillisOrNull(data.createdAt) || 0,
   }
 }

@@ -3,12 +3,12 @@ import { useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
-import { checkInGuest, claimGuestPass, findGuestByToken, setGuestRsvp } from '../firebase/guests'
+import { checkInGuest, claimGuestPass, findGuestByToken, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { useAuth } from '../hooks/useAuth'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { Logo } from '../components/Logo'
-import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconWhatsApp } from '../components/Icons'
+import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 
@@ -31,7 +31,8 @@ function GuestPassInner() {
   const [locked, setLocked] = useState(false)
   const [rsvpSaving, setRsvpSaving] = useState(false)
   const [showMaybeMessage, setShowMaybeMessage] = useState(false)
-  const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already'>('idle')
+  const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required'>('idle')
+  const [paymentSaving, setPaymentSaving] = useState(false)
   const qrWrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -99,6 +100,21 @@ function GuestPassInner() {
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.5 } })
     } else if (result.status === 'already_checked_in') {
       setCheckInState('already')
+    } else if (result.status === 'payment_required') {
+      setCheckInState('payment_required')
+    }
+  }
+
+  async function handleTogglePayment() {
+    if (!eventId || !guest) return
+    setPaymentSaving(true)
+    try {
+      const next = guest.paymentStatus === 'paid' ? 'unpaid' : 'paid'
+      await setGuestPaymentStatus(eventId, guest.id, next)
+      setGuest((g) => g ? { ...g, paymentStatus: next } : g)
+      if (checkInState === 'payment_required' && next === 'paid') setCheckInState('idle')
+    } finally {
+      setPaymentSaving(false)
     }
   }
 
@@ -113,6 +129,28 @@ function GuestPassInner() {
             <p className="text-sm text-gray-500 mt-1">+ {guest.companions} acompañante(s)</p>
           )}
           <p className="text-sm text-gray-400 mt-1">{event.name}</p>
+
+          {event.requiresPayment && (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full font-medium ${
+                  guest.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                }`}
+              >
+                <IconTicket className="w-4 h-4" />
+                {guest.paymentStatus === 'paid'
+                  ? 'Pago confirmado'
+                  : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions)).toLocaleString('es')}`}
+              </span>
+              <button
+                onClick={handleTogglePayment}
+                disabled={paymentSaving}
+                className="text-sm text-primary font-medium disabled:opacity-50"
+              >
+                {guest.paymentStatus === 'paid' ? 'Marcar como no pagado' : 'Marcar como pagado'}
+              </button>
+            </div>
+          )}
 
           {checkInState !== 'done' && (
             <div className="flex justify-center my-6">
@@ -139,10 +177,13 @@ function GuestPassInner() {
                 <p className="text-sm text-gray-500">Este invitado ya hizo check-in anteriormente.</p>
               </div>
             )}
-            {(checkInState === 'idle' || checkInState === 'loading') && (
+            {checkInState === 'payment_required' && (
+              <p className="text-sm text-amber-600 mb-3">Cobra la entrada y marcá el pago antes de registrar el ingreso.</p>
+            )}
+            {(checkInState === 'idle' || checkInState === 'loading' || checkInState === 'payment_required') && (
               <button
                 onClick={handleCheckIn}
-                disabled={checkInState === 'loading'}
+                disabled={checkInState === 'loading' || (event.requiresPayment && guest.paymentStatus !== 'paid')}
                 className="w-full bg-primary text-white rounded-xl py-4 text-lg font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
               >
                 {checkInState === 'loading' ? 'Registrando...' : 'Registrar entrada'}
@@ -209,10 +250,10 @@ function GuestPassInner() {
           </div>
         )}
 
-        {/* El QR se muestra siempre que no haya rechazado asistir — no depende de
-            haber confirmado el RSVP, para que invitados agregados a mano (que
-            arrancan en "pending") tengan un pase escaneable desde el primer momento. */}
-        {!locked && guest.rsvpStatus !== 'no' && (
+        {/* El invitado solo ve su propio QR después de confirmar que asistirá.
+            El organizador puede verlo/escanearlo igual desde su propia vista
+            (más abajo en este archivo), sin depender del RSVP del invitado. */}
+        {!locked && guest.rsvpStatus === 'yes' && (
           <>
             <p className="text-lg font-medium text-gray-900 mt-6">{guest.name}</p>
             {guest.companions > 0 && (
@@ -266,7 +307,11 @@ function GuestPassInner() {
 
         {!locked && guest.rsvpStatus === 'pending' && !showMaybeMessage && (
           <div className="mt-6 pt-6 border-t border-gray-100">
-            <p className="text-sm font-medium text-gray-900 mb-3">¿Asistirás a este evento?</p>
+            <p className="text-lg font-medium text-gray-900 mb-1">{guest.name}</p>
+            {guest.companions > 0 && (
+              <p className="text-sm text-gray-500 mb-3">+ {guest.companions} acompañante(s)</p>
+            )}
+            <p className="text-sm font-medium text-gray-900 mb-3 mt-3">¿Asistirás a este evento?</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => handleRsvp('yes')}
@@ -304,6 +349,28 @@ function GuestPassInner() {
             <button onClick={() => setShowMaybeMessage(false)} className="text-sm text-primary font-medium">
               Responder ahora
             </button>
+          </div>
+        )}
+
+        {!locked && event.requiresPayment && guest.rsvpStatus !== 'no' && (
+          <div className="mt-5 pt-4 border-t border-gray-100 text-left">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pago de entrada</p>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-sm text-gray-700">
+                Monto a pagar: <strong>{event.currency}{(event.ticketPrice * (1 + guest.companions)).toLocaleString('es')}</strong>
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                  guest.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                }`}
+              >
+                <IconTicket className="w-3.5 h-3.5" />
+                {guest.paymentStatus === 'paid' ? 'Pagado' : 'Pendiente'}
+              </span>
+            </div>
+            {event.paymentInstructions && (
+              <p className="text-sm text-gray-500 whitespace-pre-line">{event.paymentInstructions}</p>
+            )}
           </div>
         )}
 

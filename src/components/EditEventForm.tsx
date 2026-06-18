@@ -32,6 +32,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const entryMode = event.entryMode || 'list'
   const [capacity, setCapacity] = useState(event.capacity ? String(event.capacity) : '')
   const [customFields, setCustomFields] = useState<CustomField[]>(event.customFields || [])
+  const [requiresPayment, setRequiresPayment] = useState(event.requiresPayment || false)
+  const [ticketPrice, setTicketPrice] = useState(event.ticketPrice ? String(event.ticketPrice) : '')
+  const [currency, setCurrency] = useState(event.currency || '$')
+  const [paymentInstructions, setPaymentInstructions] = useState(event.paymentInstructions || '')
   const [saving, setSaving] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -51,6 +55,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         entryMode,
         capacity: capacity ? parseInt(capacity, 10) : undefined,
         customFields,
+        requiresPayment,
+        ticketPrice: requiresPayment ? parseFloat(ticketPrice) || 0 : 0,
+        currency: requiresPayment ? currency.trim() : '',
+        paymentInstructions: requiresPayment ? paymentInstructions.trim() : '',
       })
       onDone()
     } finally {
@@ -188,6 +196,59 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             <input type="number" min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)}
               placeholder="Ej: 200" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
+        )}
+      </div>
+
+      {/* Cobro de entrada */}
+      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={requiresPayment}
+            onChange={(e) => setRequiresPayment(e.target.checked)}
+            className="w-4 h-4 text-primary focus:ring-primary rounded"
+          />
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Cobrar entrada a los invitados
+          </span>
+        </label>
+        {requiresPayment && (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio por persona</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={ticketPrice}
+                  onChange={(e) => setTicketPrice(e.target.value)}
+                  placeholder="Ej: 5000"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Moneda</label>
+                <input
+                  type="text"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  placeholder="$"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instrucciones de pago</label>
+              <textarea
+                value={paymentInstructions}
+                onChange={(e) => setPaymentInstructions(e.target.value)}
+                rows={3}
+                placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          </>
         )}
       </div>
 

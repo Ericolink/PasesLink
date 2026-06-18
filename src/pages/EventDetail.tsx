@@ -23,6 +23,7 @@ import {
   IconMail,
   IconThumbsDown,
   IconThumbsUp,
+  IconTicket,
   IconUserPlus,
   IconUsers,
   IconX,
@@ -78,7 +79,10 @@ export function EventDetail() {
 
   function handleExportCsv() {
     const rows = [
-      ['Nombre', 'Email', 'Teléfono', 'Estado', 'RSVP', 'Check-in'],
+      [
+        'Nombre', 'Email', 'Teléfono', 'Estado', 'RSVP', 'Check-in',
+        ...(event!.requiresPayment ? ['Pago'] : []),
+      ],
       ...guests.map((g) => [
         g.name,
         g.email || '',
@@ -86,6 +90,7 @@ export function EventDetail() {
         g.status === 'checked_in' ? 'Asistió' : 'Invitado',
         g.rsvpStatus === 'yes' ? 'Sí' : g.rsvpStatus === 'no' ? 'No' : 'Pendiente',
         g.checkedInAt ? new Date(g.checkedInAt).toLocaleString('es') : '',
+        ...(event!.requiresPayment ? [g.paymentStatus === 'paid' ? 'Pagó' : 'Pendiente'] : []),
       ]),
     ]
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -171,6 +176,9 @@ export function EventDetail() {
   }
 
   const totalPeople = guests.reduce((sum, g) => sum + 1 + g.companions, 0)
+  const totalCollected = guests
+    .filter((g) => g.paymentStatus === 'paid')
+    .reduce((sum, g) => sum + event.ticketPrice * (1 + g.companions), 0)
   const insideGuests = guests.filter((g) => g.status === 'checked_in' && !g.checkedOutAt)
   const peopleInside = insideGuests.reduce((sum, g) => sum + 1 + g.companions, 0)
   const rsvpYes = guests.filter((g) => g.rsvpStatus === 'yes').length
@@ -237,6 +245,14 @@ export function EventDetail() {
         <StatCard icon={<IconHome className="w-5 h-5 mb-1 mx-auto text-primary" />} value={peopleInside} label="Personas dentro ahora" valueClass="text-primary" />
         <StatCard icon={<IconThumbsUp className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={rsvpYes} label="RSVP: asistirán" />
         <StatCard icon={<IconThumbsDown className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={rsvpNo} label="RSVP: no asistirán" />
+        {event.requiresPayment && (
+          <StatCard
+            icon={<IconTicket className="w-5 h-5 mb-1 mx-auto text-green-600" />}
+            value={totalCollected}
+            label={`Recaudado (${event.currency})`}
+            valueClass="text-green-600"
+          />
+        )}
       </div>
 
       {/* Analytics (premium) */}
@@ -333,7 +349,13 @@ export function EventDetail() {
             placeholder="Buscar por nombre o email..."
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary" />
         )}
-        <GuestList eventId={event.id} guests={filteredGuests} />
+        <GuestList
+          eventId={event.id}
+          guests={filteredGuests}
+          requiresPayment={event.requiresPayment}
+          ticketPrice={event.ticketPrice}
+          currency={event.currency}
+        />
       </div>
 
       {/* Recordatorios */}

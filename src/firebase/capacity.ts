@@ -69,6 +69,7 @@ export async function registerWalkInGuest(
       checkedOutByEmail: null,
       lockToken: null,
       notes: '',
+      paymentStatus: 'unpaid',
       customData: customData || {},
       createdAt: serverTimestamp(),
     })

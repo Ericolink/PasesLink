@@ -34,6 +34,10 @@ export function EventCreate() {
   const [entryMode, setEntryMode] = useState<EntryMode>('list')
   const [capacity, setCapacity] = useState('')
   const [customFields, setCustomFields] = useState<CustomField[]>([])
+  const [requiresPayment, setRequiresPayment] = useState(false)
+  const [ticketPrice, setTicketPrice] = useState('')
+  const [currency, setCurrency] = useState('$')
+  const [paymentInstructions, setPaymentInstructions] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -55,6 +59,10 @@ export function EventCreate() {
         entryMode,
         capacity: capacity ? parseInt(capacity, 10) : undefined,
         customFields,
+        requiresPayment,
+        ticketPrice: requiresPayment ? parseFloat(ticketPrice) || 0 : 0,
+        currency: requiresPayment ? currency.trim() : '',
+        paymentInstructions: requiresPayment ? paymentInstructions.trim() : '',
       })
       navigate(`/events/${eventId}`)
     } catch {
@@ -244,6 +252,64 @@ export function EventCreate() {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
+          )}
+        </div>
+
+        {/* Cobro de entrada */}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={requiresPayment}
+              onChange={(e) => setRequiresPayment(e.target.checked)}
+              className="w-4 h-4 text-primary focus:ring-primary rounded"
+            />
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+              Cobrar entrada a los invitados
+            </span>
+          </label>
+          {requiresPayment && (
+            <>
+              <p className="text-xs text-gray-500">
+                El pago se confirma manualmente: vos marcás a cada invitado como pagado desde la
+                lista o al escanear su pase en la puerta.
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio por persona</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={ticketPrice}
+                    onChange={(e) => setTicketPrice(e.target.value)}
+                    placeholder="Ej: 5000"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Moneda</label>
+                  <input
+                    type="text"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    placeholder="$"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instrucciones de pago</label>
+                <textarea
+                  value={paymentInstructions}
+                  onChange={(e) => setPaymentInstructions(e.target.value)}
+                  rows={3}
+                  placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <p className="text-xs text-gray-400 mt-1">Esto lo van a ver los invitados en su pase, junto al monto a pagar.</p>
+              </div>
+            </>
           )}
         </div>
 

@@ -29,6 +29,10 @@ export interface NewEventInput {
   entryMode?: EntryMode
   capacity?: number
   customFields?: CustomField[]
+  requiresPayment?: boolean
+  ticketPrice?: number
+  currency?: string
+  paymentInstructions?: string
 }
 
 export async function createEvent(ownerId: string, input: NewEventInput) {
@@ -45,6 +49,10 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     entryMode: input.entryMode || 'list',
     capacity: input.capacity || null,
     customFields: input.customFields || [],
+    requiresPayment: input.requiresPayment || false,
+    ticketPrice: input.ticketPrice || 0,
+    currency: input.currency || '',
+    paymentInstructions: input.paymentInstructions || '',
     // Premium gratis mientras se da a conocer el servicio — sin plan a elegir
     // ni pago que confirmar. Cuando se reintroduzcan pagos, esto vuelve a
     // depender de la elección del organizador.
@@ -109,6 +117,10 @@ export interface UpdateEventInput {
   entryMode?: EntryMode
   capacity?: number
   customFields?: CustomField[]
+  requiresPayment?: boolean
+  ticketPrice?: number
+  currency?: string
+  paymentInstructions?: string
 }
 
 export async function updateEventDetails(eventId: string, input: UpdateEventInput) {
@@ -124,6 +136,10 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     entryMode: input.entryMode || 'list',
     capacity: input.capacity || null,
     customFields: input.customFields || [],
+    requiresPayment: input.requiresPayment || false,
+    ticketPrice: input.ticketPrice || 0,
+    currency: input.currency ?? '',
+    paymentInstructions: input.paymentInstructions ?? '',
     updatedAt: serverTimestamp(),
   })
 }
@@ -190,6 +206,10 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     entryMode: (data.entryMode as EntryMode) || 'list',
     capacity: (data.capacity as number) || undefined,
     customFields: (data.customFields as CustomField[]) || [],
+    requiresPayment: (data.requiresPayment as boolean) || false,
+    ticketPrice: (data.ticketPrice as number) || 0,
+    currency: (data.currency as string) || '',
+    paymentInstructions: (data.paymentInstructions as string) || '',
     plan: data.plan as EventData['plan'],
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],
     status: data.status as EventStatus,
