@@ -63,7 +63,7 @@ export function MyInvitations() {
                 to={inv.type === 'walkin' ? `/events/${inv.eventId}/join` : `/pass/${inv.eventId}/${inv.qrToken}`}
                 className="block"
               >
-                <QRCodeCanvas value={inv.qrToken} size={64} className="rounded" />
+                <QRCodeCanvas value={inv.qrToken} size={64} marginSize={2} className="rounded" />
                 <p className="text-xs text-primary text-center mt-1">Ver pase</p>
               </Link>
             </div>

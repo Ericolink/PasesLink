@@ -23,7 +23,7 @@ export function GuestPass() {
 
 function GuestPassInner() {
   const { eventId, qrToken } = useParams<{ eventId: string; qrToken: string }>()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [event, setEvent] = useState<EventData | null>(null)
   const [guest, setGuest] = useState<GuestData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -35,7 +35,12 @@ function GuestPassInner() {
   const qrWrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!eventId || !qrToken) return
+    // Esperar a que useAuth() confirme la sesión antes de decidir si el visor
+    // es organizador o invitado público — si no, una carga fresca de la página
+    // puede tratar momentáneamente al organizador como invitado anónimo
+    // (auth.currentUser todavía no resuelto) y aplicarle el flujo de RSVP/lock
+    // en vez del de check-in.
+    if (!eventId || !qrToken || authLoading) return
     Promise.all([getEvent(eventId), findGuestByToken(eventId, qrToken)])
       .then(async ([eventData, guestData]) => {
         if (!eventData || !guestData) {
@@ -71,7 +76,7 @@ function GuestPassInner() {
         setError(true)
       })
       .finally(() => setLoading(false))
-  }, [eventId, qrToken, user])
+  }, [eventId, qrToken, user, authLoading])
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
   if (error || !event || !guest || !eventId || !qrToken) {
@@ -82,6 +87,7 @@ function GuestPassInner() {
     user.uid === event.ownerId ||
     !!(event.coOrganizersMap && user.uid in event.coOrganizersMap)
   )
+  const passUrl = `${window.location.origin}/pass/${eventId}/${qrToken}`
 
   async function handleCheckIn() {
     if (!eventId || !qrToken || !user) return
@@ -107,6 +113,14 @@ function GuestPassInner() {
             <p className="text-sm text-gray-500 mt-1">+ {guest.companions} acompañante(s)</p>
           )}
           <p className="text-sm text-gray-400 mt-1">{event.name}</p>
+
+          {checkInState !== 'done' && (
+            <div className="flex justify-center my-6">
+              <div className="p-3 border border-gray-100 dark:border-gray-700 rounded-lg inline-block">
+                <QRCodeCanvas value={passUrl} size={180} marginSize={2} />
+              </div>
+            </div>
+          )}
 
           <div className="mt-8">
             {checkInState === 'done' && (
@@ -140,7 +154,6 @@ function GuestPassInner() {
     )
   }
 
-  const passUrl = `${window.location.origin}/pass/${eventId}/${qrToken}`
   const accentColor = event.accentColor || ''
 
   async function handleRsvp(rsvpStatus: RsvpStatus) {
@@ -196,7 +209,10 @@ function GuestPassInner() {
           </div>
         )}
 
-        {!locked && guest.rsvpStatus === 'yes' && (
+        {/* El QR se muestra siempre que no haya rechazado asistir — no depende de
+            haber confirmado el RSVP, para que invitados agregados a mano (que
+            arrancan en "pending") tengan un pase escaneable desde el primer momento. */}
+        {!locked && guest.rsvpStatus !== 'no' && (
           <>
             <p className="text-lg font-medium text-gray-900 mt-6">{guest.name}</p>
             {guest.companions > 0 && (
@@ -205,7 +221,7 @@ function GuestPassInner() {
 
             <div className="flex justify-center my-6" ref={qrWrapperRef}>
               <div className="p-3 border border-gray-100 rounded-lg inline-block">
-                <QRCodeCanvas value={passUrl} size={220} />
+                <QRCodeCanvas value={passUrl} size={220} marginSize={2} />
               </div>
             </div>
 
@@ -250,11 +266,7 @@ function GuestPassInner() {
 
         {!locked && guest.rsvpStatus === 'pending' && !showMaybeMessage && (
           <div className="mt-6 pt-6 border-t border-gray-100">
-            <p className="text-lg font-medium text-gray-900 mb-1">{guest.name}</p>
-            {guest.companions > 0 && (
-              <p className="text-sm text-gray-500 mb-3">+ {guest.companions} acompañante(s)</p>
-            )}
-            <p className="text-sm font-medium text-gray-900 mb-3 mt-3">¿Asistirás a este evento?</p>
+            <p className="text-sm font-medium text-gray-900 mb-3">¿Asistirás a este evento?</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => handleRsvp('yes')}

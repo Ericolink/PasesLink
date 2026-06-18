@@ -68,14 +68,18 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
               </div>
               <span
                 className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${
-                  guest.rsvpStatus === 'yes'
-                    ? 'bg-green-500'
-                    : guest.rsvpStatus === 'no'
-                      ? 'bg-red-500'
-                      : 'bg-amber-400'
+                  guest.status === 'checked_in'
+                    ? 'bg-blue-500'
+                    : guest.rsvpStatus === 'yes'
+                      ? 'bg-green-500'
+                      : guest.rsvpStatus === 'no'
+                        ? 'bg-red-500'
+                        : 'bg-amber-400'
                 }`}
                 title={
-                  guest.rsvpStatus === 'yes' ? 'Asistirá' : guest.rsvpStatus === 'no' ? 'No asistirá' : 'Sin responder'
+                  guest.status === 'checked_in'
+                    ? 'Escaneado'
+                    : guest.rsvpStatus === 'yes' ? 'Asistirá' : guest.rsvpStatus === 'no' ? 'No asistirá' : 'Sin responder'
                 }
               />
             </div>
