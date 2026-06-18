@@ -26,6 +26,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState('')
   const [showPast, setShowPast] = useState(false)
 
   useEffect(() => {
@@ -35,7 +36,9 @@ export function Dashboard() {
       setLoading(false)
       data.forEach((ev) => {
         if (ev.status === 'active' && isEventPast(ev.date)) {
-          setEventStatus(ev.id, 'archived').catch(() => {})
+          setEventStatus(ev.id, 'archived').catch((err) => {
+            console.error('Error archiving past event:', err)
+          })
         }
       })
     })
@@ -44,14 +47,29 @@ export function Dashboard() {
 
   async function handleStatusChange(eventId: string, status: 'cancelled' | 'archived' | 'active') {
     setActionLoading(eventId)
-    try { await setEventStatus(eventId, status) }
-    finally { setActionLoading(null) }
+    setActionError('')
+    try {
+      await setEventStatus(eventId, status)
+    } catch (err) {
+      console.error('Error updating event status:', err)
+      setActionError('No se pudo actualizar el estado del evento. Intenta de nuevo.')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   async function handleDelete(eventId: string) {
     setActionLoading(eventId)
-    try { await deleteEvent(eventId) }
-    finally { setActionLoading(null); setConfirmDeleteId(null) }
+    setActionError('')
+    try {
+      await deleteEvent(eventId)
+    } catch (err) {
+      console.error('Error deleting event:', err)
+      setActionError('No se pudo eliminar el evento por completo. Es posible que parte de los datos ya se haya borrado — revisa el evento e intenta de nuevo.')
+    } finally {
+      setActionLoading(null)
+      setConfirmDeleteId(null)
+    }
   }
 
   const eventToDelete = events.find((e) => e.id === confirmDeleteId)
@@ -79,6 +97,15 @@ export function Dashboard() {
           + Nuevo evento
         </Link>
       </div>
+
+      {actionError && (
+        <p
+          className="text-sm rounded-lg px-3 py-2 mb-4"
+          style={{ background: 'rgba(255,0,77,.1)', border: '1px solid rgba(255,0,77,.3)', color: '#FF004D' }}
+        >
+          {actionError}
+        </p>
+      )}
 
       {/* Stats bar */}
       {!loading && events.length > 0 && (

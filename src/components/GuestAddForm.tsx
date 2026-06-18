@@ -9,17 +9,21 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
   const [companions, setCompanions] = useState(0)
   const [bulkNames, setBulkNames] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSingleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
     setLoading(true)
+    setError('')
     try {
       await addGuest(eventId, { name: name.trim(), email: email.trim(), phone: phone.trim(), companions })
       setName('')
       setEmail('')
       setPhone('')
       setCompanions(0)
+    } catch {
+      setError('No se pudo agregar el invitado. Intenta de nuevo.')
     } finally {
       setLoading(false)
     }
@@ -33,9 +37,12 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
       .filter(Boolean)
     if (names.length === 0) return
     setLoading(true)
+    setError('')
     try {
       await addGuestsBulk(eventId, names)
       setBulkNames('')
+    } catch {
+      setError('Ocurrió un error agregando la lista. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.')
     } finally {
       setLoading(false)
     }
@@ -61,6 +68,8 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
           Agregar lista
         </button>
       </div>
+
+      {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
 
       {mode === 'single' ? (
         <form onSubmit={handleSingleSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-3">

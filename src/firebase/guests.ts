@@ -27,55 +27,70 @@ function generateQrToken(): string {
   return crypto.randomUUID().replace(/-/g, '')
 }
 
-export async function addGuest(eventId: string, input: NewGuestInput) {
-  const batch = writeBatch(db)
-  const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-  batch.set(guestRef, {
+// `email`/`phone` NUNCA se guardan en el documento de `guests`: ese documento es
+// legible públicamente (necesario para que el pase /pass/:eventId/:qrToken
+// funcione sin login) y esos dos campos son PII. Viven aparte, en
+// `guestContacts/{guestId}`, cuya regla de Firestore solo permite lectura al
+// organizador/co-organizador/admin. Ver firestore.rules.
+function buildNewGuestPayload(input: { name: string; companions?: number }) {
+  return {
     name: input.name,
-    email: input.email || '',
-    phone: input.phone || '',
     companions: input.companions || 0,
-    rsvpStatus: 'pending',
+    rsvpStatus: 'pending' as const,
     qrToken: generateQrToken(),
-    status: 'invited',
+    status: 'invited' as const,
     checkedInAt: null,
     checkedInBy: null,
     checkedInByEmail: null,
     checkedOutAt: null,
     checkedOutByEmail: null,
     lockToken: null,
-    paymentStatus: 'unpaid',
+    paymentStatus: 'unpaid' as const,
     createdAt: serverTimestamp(),
-  })
+  }
+}
+
+function hasContactInfo(email?: string, phone?: string): boolean {
+  return !!(email?.trim() || phone?.trim())
+}
+
+function contactRef(eventId: string, guestId: string) {
+  return doc(db, 'events', eventId, 'guestContacts', guestId)
+}
+
+export async function addGuest(eventId: string, input: NewGuestInput) {
+  const batch = writeBatch(db)
+  const guestRef = doc(collection(db, 'events', eventId, 'guests'))
+  batch.set(guestRef, buildNewGuestPayload(input))
+  if (hasContactInfo(input.email, input.phone)) {
+    batch.set(contactRef(eventId, guestRef.id), {
+      email: input.email?.trim() || '',
+      phone: input.phone?.trim() || '',
+    })
+  }
   batch.update(doc(db, 'events', eventId), { guestCount: increment(1) })
   await batch.commit()
   return guestRef.id
 }
 
+// Firestore rechaza batches de más de 500 operaciones; se reparte en chunks de
+// 450 (margen para el update del contador) confirmados uno a la vez. Si un
+// chunk falla, los anteriores ya quedaron guardados y guestCount refleja
+// exactamente lo que se confirmó — no hay overselling silencioso ni fallo
+// total al cargar listas grandes.
+const BULK_CHUNK_SIZE = 450
+
 export async function addGuestsBulk(eventId: string, names: string[]) {
-  const batch = writeBatch(db)
-  for (const name of names) {
-    const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-    batch.set(guestRef, {
-      name,
-      email: '',
-      phone: '',
-      companions: 0,
-      rsvpStatus: 'pending',
-      qrToken: generateQrToken(),
-      status: 'invited',
-      checkedInAt: null,
-      checkedInBy: null,
-      checkedInByEmail: null,
-      checkedOutAt: null,
-      checkedOutByEmail: null,
-      lockToken: null,
-      paymentStatus: 'unpaid',
-      createdAt: serverTimestamp(),
-    })
+  for (let i = 0; i < names.length; i += BULK_CHUNK_SIZE) {
+    const slice = names.slice(i, i + BULK_CHUNK_SIZE)
+    const batch = writeBatch(db)
+    for (const name of slice) {
+      const guestRef = doc(collection(db, 'events', eventId, 'guests'))
+      batch.set(guestRef, buildNewGuestPayload({ name }))
+    }
+    batch.update(doc(db, 'events', eventId), { guestCount: increment(slice.length) })
+    await batch.commit()
   }
-  batch.update(doc(db, 'events', eventId), { guestCount: increment(names.length) })
-  await batch.commit()
 }
 
 export interface UpdateGuestInput {
@@ -86,12 +101,25 @@ export interface UpdateGuestInput {
 }
 
 export async function updateGuest(eventId: string, guestId: string, input: UpdateGuestInput) {
-  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { ...input })
+  const { email, phone, ...guestFields } = input
+  const batch = writeBatch(db)
+  if (Object.keys(guestFields).length > 0) {
+    batch.update(doc(db, 'events', eventId, 'guests', guestId), { ...guestFields })
+  }
+  if (email !== undefined || phone !== undefined) {
+    batch.set(
+      contactRef(eventId, guestId),
+      { ...(email !== undefined && { email }), ...(phone !== undefined && { phone }) },
+      { merge: true },
+    )
+  }
+  await batch.commit()
 }
 
 export async function deleteGuest(eventId: string, guestId: string, wasCheckedIn: boolean) {
   const batch = writeBatch(db)
   batch.delete(doc(db, 'events', eventId, 'guests', guestId))
+  batch.delete(contactRef(eventId, guestId))
   const updates: Record<string, unknown> = { guestCount: increment(-1) }
   if (wasCheckedIn) {
     updates.checkedInCount = increment(-1)
@@ -100,12 +128,56 @@ export async function deleteGuest(eventId: string, guestId: string, wasCheckedIn
   await batch.commit()
 }
 
-export function subscribeToGuests(eventId: string, callback: (guests: GuestData[]) => void) {
-  const q = query(collection(db, 'events', eventId, 'guests'), orderBy('createdAt', 'asc'))
-  return onSnapshot(q, (snapshot) => {
-    const guests = snapshot.docs.map((d) => mapGuest(d.id, d.data()))
-    callback(guests)
-  })
+// El organizador necesita email/phone junto con el resto del invitado (lista,
+// CSV, recordatorios), pero esos campos viven en `guestContacts` (ver
+// buildNewGuestPayload). Se suscribe a ambas colecciones y se fusionan por id
+// antes de emitir, así el resto de la app sigue recibiendo el mismo
+// `GuestData[]` de siempre sin saber que los datos vienen de dos lugares.
+export function subscribeToGuests(
+  eventId: string,
+  callback: (guests: GuestData[]) => void,
+  onError?: (error: Error) => void,
+) {
+  let baseGuests: GuestData[] | null = null
+  let contacts: Record<string, { email: string; phone: string }> | null = null
+
+  function emitIfReady() {
+    if (baseGuests === null || contacts === null) return
+    callback(
+      baseGuests.map((g) => ({
+        ...g,
+        email: contacts![g.id]?.email || g.email,
+        phone: contacts![g.id]?.phone || g.phone,
+      })),
+    )
+  }
+
+  const guestsQuery = query(collection(db, 'events', eventId, 'guests'), orderBy('createdAt', 'asc'))
+  const unsubGuests = onSnapshot(
+    guestsQuery,
+    (snapshot) => {
+      baseGuests = snapshot.docs.map((d) => mapGuest(d.id, d.data()))
+      emitIfReady()
+    },
+    onError,
+  )
+
+  const unsubContacts = onSnapshot(
+    collection(db, 'events', eventId, 'guestContacts'),
+    (snapshot) => {
+      contacts = {}
+      snapshot.docs.forEach((d) => {
+        contacts![d.id] = { email: (d.data().email as string) || '', phone: (d.data().phone as string) || '' }
+      })
+      emitIfReady()
+    },
+    onError,
+  )
+
+  return () => {
+    unsubGuests()
+    unsubContacts()
+  }
 }
 
 export async function findGuestByToken(
@@ -131,6 +203,13 @@ export async function setGuestRsvp(eventId: string, qrToken: string, rsvpStatus:
 
 export async function resetGuestRsvp(eventId: string, guestId: string) {
   await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { rsvpStatus: 'pending', lockToken: null })
+}
+
+// A diferencia de resetGuestRsvp, NO toca el RSVP — solo libera el pase para
+// que pueda abrirse desde otro dispositivo (invitado que cambió de teléfono,
+// borró el navegador, o lo abrió por error desde el dispositivo equivocado).
+export async function unlockGuestPass(eventId: string, guestId: string) {
+  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { lockToken: null })
 }
 
 export async function setGuestPaymentStatus(

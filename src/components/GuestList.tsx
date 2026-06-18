@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { deleteGuest, resetGuestRsvp, setGuestPaymentStatus, updateGuest } from '../firebase/guests'
+import { deleteGuest, resetGuestRsvp, setGuestPaymentStatus, unlockGuestPass, updateGuest } from '../firebase/guests'
 import type { GuestData } from '../types'
 import { RSVP_LABELS } from '../types'
-import { IconEdit, IconEye, IconInbox, IconShare, IconTicket, IconTrash } from './Icons'
+import { IconEdit, IconEye, IconInbox, IconRotateCcw, IconShare, IconTicket, IconTrash } from './Icons'
 import { ConfirmDialog } from './ConfirmDialog'
 
 export function GuestList({
@@ -22,6 +22,8 @@ export function GuestList({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deletingGuest, setDeletingGuest] = useState<GuestData | null>(null)
+  const [unlockingGuest, setUnlockingGuest] = useState<GuestData | null>(null)
+  const [actionError, setActionError] = useState('')
 
   if (guests.length === 0) {
     return (
@@ -34,16 +36,48 @@ export function GuestList({
 
   async function confirmDelete() {
     if (!deletingGuest) return
-    await deleteGuest(eventId, deletingGuest.id, deletingGuest.status === 'checked_in')
-    setDeletingGuest(null)
+    setActionError('')
+    try {
+      await deleteGuest(eventId, deletingGuest.id, deletingGuest.status === 'checked_in')
+    } catch (err) {
+      console.error('Error deleting guest:', err)
+      setActionError('No se pudo eliminar el invitado. Intenta de nuevo.')
+    } finally {
+      setDeletingGuest(null)
+    }
   }
 
   async function handleReactivate(guest: GuestData) {
-    await resetGuestRsvp(eventId, guest.id)
+    setActionError('')
+    try {
+      await resetGuestRsvp(eventId, guest.id)
+    } catch (err) {
+      console.error('Error reactivating guest invitation:', err)
+      setActionError('No se pudo reactivar la invitación. Intenta de nuevo.')
+    }
+  }
+
+  async function confirmUnlock() {
+    if (!unlockingGuest) return
+    setActionError('')
+    try {
+      await unlockGuestPass(eventId, unlockingGuest.id)
+    } catch (err) {
+      console.error('Error unlocking guest pass:', err)
+      setActionError('No se pudo desbloquear el pase. Intenta de nuevo.')
+    } finally {
+      setUnlockingGuest(null)
+    }
   }
 
   async function handleTogglePayment(guest: GuestData) {
-    await setGuestPaymentStatus(eventId, guest.id, guest.paymentStatus === 'paid' ? 'unpaid' : 'paid')
+    setActionError('')
+    try {
+      await setGuestPaymentStatus(eventId, guest.id, guest.paymentStatus === 'paid' ? 'unpaid' : 'paid')
+    } catch (err) {
+      console.error('Error updating guest payment status:', err)
+      setActionError('No se pudo actualizar el estado de pago. Intenta de nuevo.')
+    }
   }
 
   async function handleShare(guest: GuestData) {
@@ -62,11 +96,15 @@ export function GuestList({
       setTimeout(() => setCopiedId(null), 1500)
     } catch (err) {
       console.error('Error copying invitation link:', err)
+      setActionError('No se pudo copiar el link. Intenta de nuevo.')
     }
   }
 
   return (
     <div className="space-y-2">
+      {actionError && (
+        <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-md px-3 py-2">{actionError}</p>
+      )}
       {guests.map((guest) =>
         editingId === guest.id ? (
           <EditGuestRow key={guest.id} eventId={eventId} guest={guest} onDone={() => setEditingId(null)} />
@@ -113,6 +151,20 @@ export function GuestList({
                     Reactivar invitación
                   </button>
                 )}
+              </div>
+            )}
+            {guest.lockToken && (
+              <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700">
+                  Pase abierto en un dispositivo
+                </span>
+                <button
+                  onClick={() => setUnlockingGuest(guest)}
+                  className="flex items-center gap-1 text-xs text-primary font-medium"
+                >
+                  <IconRotateCcw className="w-3.5 h-3.5" />
+                  Desbloquear pase
+                </button>
               </div>
             )}
             {requiresPayment && (
@@ -175,6 +227,14 @@ export function GuestList({
         onConfirm={confirmDelete}
         onCancel={() => setDeletingGuest(null)}
       />
+      <ConfirmDialog
+        open={!!unlockingGuest}
+        title="Desbloquear pase"
+        message={`Esto permite que "${unlockingGuest?.name}" abra su pase desde un dispositivo distinto al que lo bloqueó (por ejemplo, si cambió de teléfono). No afecta su confirmación de asistencia ni su check-in.`}
+        confirmLabel="Desbloquear"
+        onConfirm={confirmUnlock}
+        onCancel={() => setUnlockingGuest(null)}
+      />
     </div>
   )
 }
@@ -193,11 +253,13 @@ function EditGuestRow({
   const [phone, setPhone] = useState(guest.phone || '')
   const [companions, setCompanions] = useState(guest.companions)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
     setSaving(true)
+    setError('')
     try {
       await updateGuest(eventId, guest.id, {
         name: name.trim(),
@@ -206,6 +268,9 @@ function EditGuestRow({
         companions,
       })
       onDone()
+    } catch (err) {
+      console.error('Error updating guest:', err)
+      setError('No se pudo guardar el invitado. Intenta de nuevo.')
     } finally {
       setSaving(false)
     }
@@ -213,6 +278,7 @@ function EditGuestRow({
 
   return (
     <form onSubmit={handleSave} className="py-2.5 grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
+      {error && <p className="col-span-2 sm:col-span-5 text-xs text-red-500">{error}</p>}
       <input
         type="text"
         required

@@ -27,6 +27,45 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/events/$(eventId)).data.entryMode in ['open', 'hybrid'];
     }
 
+    // Cualquier cliente puede crear wall/waitlist sin autenticarse — estos
+    // límites son la última barrera real si alguien evita por completo la
+    // capa de aplicación (src/firebase/wall.ts, src/firebase/waitlist.ts) y
+    // escribe directo contra Firestore. Deben coincidir con src/utils/validation.ts.
+    function isValidWallMessage() {
+      let d = request.resource.data;
+      return d.text is string && d.text.size() > 0 && d.text.size() <= 500
+        && d.type in ['comment', 'question', 'music', 'idea']
+        && d.authorName is string && d.authorName.size() > 0 && d.authorName.size() <= 60
+        && d.authorToken is string && d.authorToken.size() <= 100;
+    }
+
+    function isValidWaitlistEntry() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.lastName is string && d.lastName.size() > 0 && d.lastName.size() <= 60
+        && d.phone is string && d.phone.size() <= 30;
+    }
+
+    // Auto-registro público de invitados (registerWalkInGuest, eventos
+    // open/hybrid). Solo se valida esta rama pública — el alta hecha por el
+    // organizador (addGuest/addGuestsBulk) no pasa por isOpenEvent y queda
+    // fuera de esta validación, sin cambiar su comportamiento actual.
+    // customData.size() limita la CANTIDAD de campos (Firestore rules no
+    // puede iterar un mapa para validar el largo de cada valor individual —
+    // eso solo lo cubren la UI y src/firebase/capacity.ts). Límites deben
+    // coincidir con src/utils/validation.ts.
+    function isValidPublicGuestRegistration() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 121
+        && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30));
+    }
+
+    function isValidPublicGuestContact() {
+      let d = request.resource.data;
+      return (!('email' in d) || (d.email is string && d.email.size() <= 120))
+        && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30));
+    }
+
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
       // El admin puede listar todos los usuarios (AdminDashboard). Cualquier otro usuario
@@ -57,7 +96,8 @@ service cloud.firestore {
 
       match /guests/{guestId} {
         allow read, delete: if isOwnerOrCoOrg(eventId) || isAdmin();
-        allow create: if isOwnerOrCoOrg(eventId) || isAdmin() || isOpenEvent(eventId);
+        allow create: if isOwnerOrCoOrg(eventId) || isAdmin()
+          || (isOpenEvent(eventId) && isValidPublicGuestRegistration());
         allow list: if request.query.limit <= 1;
         allow get: if true;
         allow update: if isOwnerOrCoOrg(eventId) || isAdmin() ||
@@ -65,6 +105,16 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&
             (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken)
           );
+      }
+
+      // email/phone del invitado: nunca público. A diferencia de `guests`
+      // (que necesita `allow get: if true` para que el pase compartible
+      // funcione sin login), esta colección solo la lee el organizador.
+      match /guestContacts/{guestId} {
+        allow read, delete: if isOwnerOrCoOrg(eventId) || isAdmin();
+        allow create: if isOwnerOrCoOrg(eventId) || isAdmin()
+          || (isOpenEvent(eventId) && isValidPublicGuestContact());
+        allow update: if isOwnerOrCoOrg(eventId) || isAdmin();
       }
 
       match /checkins/{checkinId} {
@@ -76,14 +126,16 @@ service cloud.firestore {
 
       match /waitlist/{entryId} {
         allow read, update, delete: if isOwner(eventId) || isAdmin();
-        allow create: if true;
+        allow create: if isValidWaitlistEntry();
       }
 
       match /wall/{messageId} {
         allow read: if true;
-        allow create: if true;
+        allow create: if isValidWallMessage();
         allow update: if isOwner(eventId) || isAdmin()
-          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy']);
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy'])
+              && request.resource.data.likedBy.size() <= 5000
+              && request.resource.data.dislikedBy.size() <= 5000);
         allow delete: if isOwner(eventId) || isAdmin();
       }
     }

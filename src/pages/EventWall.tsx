@@ -4,6 +4,7 @@ import { getEvent } from '../firebase/events'
 import {
   deleteWallMessage,
   dislikeWallMessage,
+  getOlderWallMessages,
   likeWallMessage,
   pinWallMessage,
   postWallMessage,
@@ -13,6 +14,7 @@ import {
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
+import { WALL_NAME_MAX, WALL_TEXT_MAX } from '../utils/validation'
 import {
   IconCrown,
   IconHelpCircle,
@@ -69,11 +71,17 @@ export function EventWall() {
   const [event, setEvent]           = useState<EventData | null>(null)
   const [messages, setMessages]     = useState<WallMessage[]>([])
   const [loading, setLoading]       = useState(true)
+  const [wallError, setWallError]   = useState('')
+  const [olderMessages, setOlderMessages] = useState<WallMessage[]>([])
+  const [loadingOlder, setLoadingOlder]   = useState(false)
+  const [hasMoreOlder, setHasMoreOlder]   = useState(true)
+  const [olderError, setOlderError]       = useState('')
   const [guestName, setGuestName]   = useState(() => localStorage.getItem(GUEST_NAME_KEY) || '')
   const [nameConfirmed, setNameConfirmed] = useState(() => !!localStorage.getItem(GUEST_NAME_KEY) || !!localStorage.getItem('firebase:authUser'))
   const [text, setText]             = useState('')
   const [type, setType]             = useState<WallMessageType>('comment')
   const [posting, setPosting]       = useState(false)
+  const [postError, setPostError]   = useState('')
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [replyText, setReplyText]   = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -103,9 +111,31 @@ export function EventWall() {
     const unsub = subscribeToWall(id, (msgs) => {
       setMessages(msgs)
       setLoading(false)
+    }, (err) => {
+      console.error('Error loading event wall:', err)
+      setWallError('No se pudieron cargar los mensajes del muro. Verifica tu conexión.')
+      setLoading(false)
     })
     return unsub
   }, [id])
+
+  async function handleLoadOlder() {
+    if (!id || loadingOlder) return
+    setLoadingOlder(true)
+    setOlderError('')
+    try {
+      const allLoaded = [...messages, ...olderMessages]
+      const oldest = allLoaded.length > 0 ? Math.min(...allLoaded.map((m) => m.createdAt)) : Date.now()
+      const { messages: older, hasMore } = await getOlderWallMessages(id, oldest)
+      setOlderMessages((prev) => [...prev, ...older])
+      setHasMoreOlder(hasMore)
+    } catch (err) {
+      console.error('Error loading older wall messages:', err)
+      setOlderError('No se pudieron cargar mensajes anteriores. Intenta de nuevo.')
+    } finally {
+      setLoadingOlder(false)
+    }
+  }
 
   function confirmName(e: React.FormEvent) {
     e.preventDefault()
@@ -118,6 +148,7 @@ export function EventWall() {
     e.preventDefault()
     if (!id || !text.trim() || isMinor) return
     setPosting(true)
+    setPostError('')
     try {
       const authorName  = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
       const authorToken = isOwner ? (user?.uid ?? 'owner') : (user ? user.uid : (localStorage.getItem(GUEST_NAME_KEY) || guestName))
@@ -126,6 +157,9 @@ export function EventWall() {
       await postWallMessage(id, text, type, authorName, authorToken, authorRole, authorPhotoURL)
       setText('')
       textareaRef.current?.focus()
+    } catch (err) {
+      console.error('Error posting wall message:', err)
+      setPostError(err instanceof Error ? err.message : 'No se pudo publicar el mensaje. Intenta de nuevo.')
     } finally {
       setPosting(false)
     }
@@ -133,9 +167,14 @@ export function EventWall() {
 
   async function handleReply(message: WallMessage) {
     if (!id || !replyText.trim()) return
-    await replyToWallMessage(id, message.id, replyText, message.replies)
-    setReplyText('')
-    setReplyingTo(null)
+    try {
+      await replyToWallMessage(id, message.id, replyText, message.replies)
+      setReplyText('')
+      setReplyingTo(null)
+    } catch (err) {
+      console.error('Error replying to wall message:', err)
+      setPostError(err instanceof Error ? err.message : 'No se pudo enviar la respuesta. Intenta de nuevo.')
+    }
   }
 
   async function handleDelete(messageId: string) {
@@ -172,6 +211,7 @@ export function EventWall() {
             <input
               type="text"
               required
+              maxLength={WALL_NAME_MAX}
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
               placeholder="Tu nombre"
@@ -190,8 +230,14 @@ export function EventWall() {
   const postLabel = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
   const postPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
 
+  /* Mensajes en vivo (recientes + destacados) + históricos cargados a pedido,
+     sin duplicar (un mensaje destacado viejo puede llegar por ambas vías). */
+  const allMessagesById = new Map<string, WallMessage>()
+  for (const m of messages) allMessagesById.set(m.id, m)
+  for (const m of olderMessages) allMessagesById.set(m.id, m)
+
   /* Pinned first, then by date desc */
-  const sorted = [...messages].sort((a, b) => {
+  const sorted = Array.from(allMessagesById.values()).sort((a, b) => {
     if (a.pinned && !b.pinned) return -1
     if (!a.pinned && b.pinned) return 1
     return b.createdAt - a.createdAt
@@ -253,6 +299,7 @@ export function EventWall() {
               onChange={(e) => setText(e.target.value)}
               placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}...`}
               rows={2}
+              maxLength={WALL_TEXT_MAX}
               className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
             />
           </div>
@@ -260,6 +307,7 @@ export function EventWall() {
             <span className="text-xs text-gray-400">
               Como: <AuthorName name={postLabel} role={isOwner ? 'owner' : 'guest'} premium={isPremium} />
             </span>
+            <span className="text-xs text-gray-400">{text.length}/{WALL_TEXT_MAX}</span>
             <button
               type="submit"
               disabled={posting || !text.trim()}
@@ -268,12 +316,19 @@ export function EventWall() {
               {posting ? 'Publicando...' : 'Publicar'}
             </button>
           </div>
+          {postError && <p className="text-xs text-red-500">{postError}</p>}
         </form>
       )}
 
       {loading && <p className="text-center text-gray-400 text-sm">Cargando mensajes...</p>}
 
-      {!loading && messages.length === 0 && (
+      {wallError && (
+        <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2 mb-4">
+          {wallError}
+        </p>
+      )}
+
+      {!loading && !wallError && sorted.length === 0 && (
         <p className="text-center text-gray-400 text-sm py-8">Sé el primero en escribir algo</p>
       )}
 
@@ -382,6 +437,7 @@ export function EventWall() {
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     placeholder="Escribe tu respuesta..."
+                    maxLength={WALL_TEXT_MAX}
                     autoFocus
                     className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
                     onKeyDown={(e) => { if (e.key === 'Enter') handleReply(msg) }}
@@ -398,6 +454,19 @@ export function EventWall() {
           )
         })}
       </div>
+
+      {!loading && !wallError && sorted.length > 0 && hasMoreOlder && (
+        <div className="text-center mt-4">
+          {olderError && <p className="text-xs text-red-500 mb-2">{olderError}</p>}
+          <button
+            onClick={handleLoadOlder}
+            disabled={loadingOlder}
+            className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-50"
+          >
+            {loadingOlder ? 'Cargando...' : 'Cargar mensajes anteriores'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

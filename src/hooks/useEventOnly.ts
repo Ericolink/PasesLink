@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { subscribeToEvent } from '../firebase/events'
-import { subscribeToGuests } from '../firebase/guests'
-import type { EventData, GuestData } from '../types'
+import type { EventData } from '../types'
 
-export function useEvent(eventId: string | undefined) {
+// Para pantallas que solo necesitan los datos/contadores del evento (p.ej.
+// Scanner) y no la lista de invitados. A diferencia de useEvent, no suscribe
+// `guests`/`guestContacts` — evita lecturas, memoria y renders innecesarios
+// en pantallas de alto tráfico (muchos dispositivos a la vez).
+export function useEventOnly(eventId: string | undefined) {
   const [event, setEvent] = useState<EventData | null>(null)
-  const [guests, setGuests] = useState<GuestData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -15,17 +17,13 @@ export function useEvent(eventId: string | undefined) {
       setError('No se pudo cargar el evento. Verifica tu conexión o que sigas teniendo acceso.')
       setLoading(false)
     }
-    const unsubEvent = subscribeToEvent(eventId, (data) => {
+    const unsubscribe = subscribeToEvent(eventId, (data) => {
       setEvent(data)
       setLoading(false)
       setError(null)
     }, handleError)
-    const unsubGuests = subscribeToGuests(eventId, setGuests, handleError)
-    return () => {
-      unsubEvent()
-      unsubGuests()
-    }
+    return unsubscribe
   }, [eventId])
 
-  return { event, guests, loading, error }
+  return { event, loading, error }
 }

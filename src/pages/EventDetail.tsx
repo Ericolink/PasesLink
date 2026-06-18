@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
@@ -34,11 +34,15 @@ export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const { event, guests, loading } = useEvent(eventId)
+  const { event, guests, loading, error } = useEvent(eventId)
   const [exporting, setExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState<{ done: number; total: number } | null>(null)
+  const [exportPdfError, setExportPdfError] = useState('')
+  const exportCancelledRef = useRef(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [actionError, setActionError] = useState('')
   const [search, setSearch] = useState('')
   const [editingEvent, setEditingEvent] = useState(false)
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([])
@@ -56,6 +60,7 @@ export function EventDetail() {
   }, [eventId])
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
+  if (error) return <p className="text-center text-red-500 mt-16">{error}</p>
   if (!event) return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
 
   const coOrgsMap = event.coOrganizersMap || {}
@@ -69,12 +74,29 @@ export function EventDetail() {
 
   async function handleExportPdf() {
     setExporting(true)
+    setExportPdfError('')
+    setExportProgress({ done: 0, total: guests.length })
+    exportCancelledRef.current = false
     try {
       const { exportGuestPassesPdf } = await import('../utils/exportPdf')
-      await exportGuestPassesPdf(event!, guests)
+      const result = await exportGuestPassesPdf(event!, guests, {
+        onProgress: (done, total) => setExportProgress({ done, total }),
+        isCancelled: () => exportCancelledRef.current,
+      })
+      if (result === 'cancelled') {
+        setExportPdfError('Exportación cancelada.')
+      }
+    } catch (err) {
+      console.error('Error exporting guest passes PDF:', err)
+      setExportPdfError('No se pudo generar el PDF. Intenta de nuevo.')
     } finally {
       setExporting(false)
+      setExportProgress(null)
     }
+  }
+
+  function handleCancelExportPdf() {
+    exportCancelledRef.current = true
   }
 
   function handleExportCsv() {
@@ -106,13 +128,29 @@ export function EventDetail() {
   async function handleStatusChange(status: 'cancelled' | 'archived' | 'active') {
     if (!eventId) return
     setUpdatingStatus(true)
-    try { await setEventStatus(eventId, status) } finally { setUpdatingStatus(false) }
+    setActionError('')
+    try {
+      await setEventStatus(eventId, status)
+    } catch {
+      setActionError('No se pudo actualizar el estado del evento. Intenta de nuevo.')
+    } finally {
+      setUpdatingStatus(false)
+    }
   }
 
   async function handleDelete() {
     if (!eventId) return
     setDeleting(true)
-    try { await deleteEvent(eventId); navigate('/dashboard') } finally { setDeleting(false) }
+    setActionError('')
+    try {
+      await deleteEvent(eventId)
+      navigate('/dashboard')
+    } catch {
+      setConfirmDelete(false)
+      setActionError('No se pudo eliminar el evento por completo. Es posible que parte de los datos ya se haya borrado — revisa el evento e intenta de nuevo.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   async function handlePromote(entry: WaitlistEntry) {
@@ -339,11 +377,26 @@ export function EventDetail() {
               CSV
             </button>
             <span className="text-gray-300">|</span>
-            <button onClick={handleExportPdf} disabled={exporting || guests.length === 0} className="text-sm text-primary font-medium disabled:opacity-40">
-              {exporting ? 'Generando...' : 'PDF'}
-            </button>
+            {exporting ? (
+              <button onClick={handleCancelExportPdf} className="text-sm text-red-500 font-medium hover:underline">
+                Cancelar {exportProgress ? `(${exportProgress.done}/${exportProgress.total})` : ''}
+              </button>
+            ) : (
+              <button onClick={handleExportPdf} disabled={guests.length === 0} className="text-sm text-primary font-medium disabled:opacity-40">
+                PDF
+              </button>
+            )}
           </div>
         </div>
+        {exporting && exportProgress && exportProgress.total > 0 && (
+          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden mb-2">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${(exportProgress.done / exportProgress.total) * 100}%` }}
+            />
+          </div>
+        )}
+        {exportPdfError && <p className="text-xs text-red-500 mb-2">{exportPdfError}</p>}
         {guests.length > 0 && (
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre o email..."
@@ -422,6 +475,9 @@ export function EventDetail() {
 
       {isOwner && (
         <>
+          {actionError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4">{actionError}</p>
+          )}
           <div className="border border-gray-200 rounded-lg bg-white p-4">
             <h2 className="font-medium text-gray-900 mb-2">Estado del evento</h2>
             <p className="text-sm text-gray-500 mb-3">Estado actual: <span className="font-medium">{statusLabel(event.status)}</span></p>

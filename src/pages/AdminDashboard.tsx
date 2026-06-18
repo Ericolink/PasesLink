@@ -15,14 +15,22 @@ export function AdminDashboard() {
   const [events, setEvents] = useState<EventData[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [deletingEvent, setDeletingEvent] = useState<EventData | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [actionError, setActionError] = useState('')
 
   useEffect(() => {
+    function handleLoadError(err: Error) {
+      console.error('Error loading admin data:', err)
+      setLoadError('No se pudieron cargar los datos del panel. Verifica tu conexión o tus permisos.')
+      setLoading(false)
+    }
     const unsubEvents = subscribeToAllEvents((data) => {
       setEvents(data)
       setLoading(false)
-    })
-    const unsubUsers = subscribeToAllUsers(setUsers)
+    }, handleLoadError)
+    const unsubUsers = subscribeToAllUsers(setUsers, handleLoadError)
     return () => {
       unsubEvents()
       unsubUsers()
@@ -38,20 +46,40 @@ export function AdminDashboard() {
   const activeEvents = events.filter((e) => e.status === 'active').length
 
   async function handleStatusChange(eventId: string, status: EventStatus) {
-    await setEventStatus(eventId, status)
+    setActionError('')
+    try {
+      await setEventStatus(eventId, status)
+    } catch (err) {
+      console.error('Error updating event status:', err)
+      setActionError('No se pudo actualizar el estado del evento. Intenta de nuevo.')
+    }
   }
 
   async function confirmDeleteEvent() {
     if (!deletingEvent) return
-    await deleteEvent(deletingEvent.id)
-    setDeletingEvent(null)
+    setDeleting(true)
+    setActionError('')
+    try {
+      await deleteEvent(deletingEvent.id)
+    } catch (err) {
+      console.error('Error deleting event:', err)
+      setActionError('No se pudo eliminar el evento por completo. Es posible que parte de los datos ya se haya borrado — revisa el evento e intenta de nuevo.')
+    } finally {
+      setDeleting(false)
+      setDeletingEvent(null)
+    }
   }
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
+  if (loadError) return <p className="text-center text-red-500 mt-16">{loadError}</p>
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 animate-fade-in">
       <h1 className="text-2xl font-semibold text-gray-900 mb-6">Panel de administración</h1>
+
+      {actionError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4">{actionError}</p>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
         <Stat label="Clientes" value={users.length} />
@@ -144,7 +172,7 @@ export function AdminDashboard() {
         open={!!deletingEvent}
         title="Eliminar evento"
         message={`¿Eliminar "${deletingEvent?.name}" definitivamente? Se borrarán todos sus invitados y el historial de check-ins. Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
+        confirmLabel={deleting ? 'Eliminando...' : 'Eliminar'}
         danger
         onConfirm={confirmDeleteEvent}
         onCancel={() => setDeletingEvent(null)}

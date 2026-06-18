@@ -4,10 +4,15 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { IconThumbsUp, IconThumbsDown, IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown } from './Icons'
+import { WALL_TEXT_MAX } from '../utils/validation'
 import type { WallMessage, WallMessageType } from '../types'
 
 const DEVICE_TOKEN_KEY = 'wall_device_token'
 const GUEST_NAME_KEY   = 'wall_guest_name'
+// Widget embebido (preview), no la vista principal del muro: alcanza con los
+// mensajes más recientes, sin paginación de historial — ver EventWall.tsx
+// para la vista completa con "Cargar mensajes anteriores".
+const WALL_SECTION_LIVE_LIMIT = 20
 
 function getDeviceToken() {
   let t = localStorage.getItem(DEVICE_TOKEN_KEY)
@@ -37,9 +42,11 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
   const { profile }       = useUserProfile()
   const [messages, setMessages] = useState<WallMessage[]>([])
   const [loading, setLoading]   = useState(true)
+  const [wallError, setWallError] = useState('')
   const [text, setText]         = useState('')
   const [type, setType]         = useState<WallMessageType>('comment')
   const [posting, setPosting]   = useState(false)
+  const [postError, setPostError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isMinor = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
@@ -57,7 +64,11 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
         return b.createdAt - a.createdAt
       }))
       setLoading(false)
-    })
+    }, (err) => {
+      console.error('Error loading wall section:', err)
+      setWallError('No se pudieron cargar los mensajes del muro.')
+      setLoading(false)
+    }, WALL_SECTION_LIVE_LIMIT)
     return unsub
   }, [eventId])
 
@@ -65,11 +76,15 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
     e.preventDefault()
     if (!text.trim() || isMinor) return
     setPosting(true)
+    setPostError('')
     try {
       const token = user ? user.uid : (resolvedGuestName || crypto.randomUUID())
       await postWallMessage(eventId, text, type, authorName, token, 'guest', authorPhoto)
       setText('')
       textareaRef.current?.focus()
+    } catch (err) {
+      console.error('Error posting wall message:', err)
+      setPostError(err instanceof Error ? err.message : 'No se pudo publicar el mensaje. Intenta de nuevo.')
     } finally {
       setPosting(false)
     }
@@ -123,21 +138,29 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
               onChange={(e) => setText(e.target.value)}
               placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}...`}
               rows={2}
+              maxLength={WALL_TEXT_MAX}
               className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
             />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">Como: <strong>{authorName}</strong></span>
+            <span className="text-xs text-gray-400">{text.length}/{WALL_TEXT_MAX}</span>
             <button type="submit" disabled={posting || !text.trim()}
               className="bg-primary text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-40">
               {posting ? 'Publicando...' : 'Publicar'}
             </button>
           </div>
+          {postError && <p className="text-xs text-red-500">{postError}</p>}
         </form>
       )}
 
       {loading && <p className="text-center text-gray-400 text-sm py-4">Cargando mensajes...</p>}
-      {!loading && messages.length === 0 && (
+      {wallError && (
+        <p className="text-xs text-red-500 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2 mb-3">
+          {wallError}
+        </p>
+      )}
+      {!loading && !wallError && messages.length === 0 && (
         <p className="text-center text-gray-400 text-sm py-6">Sé el primero en escribir algo</p>
       )}
 

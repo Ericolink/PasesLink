@@ -5,31 +5,112 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  Timestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore'
 import { db } from './config'
+import {
+  requireMaxLength,
+  requireNonEmpty,
+  WALL_NAME_MAX,
+  WALL_PHOTO_URL_MAX,
+  WALL_TEXT_MAX,
+  WALL_TOKEN_MAX,
+  WALL_TYPES,
+} from '../utils/validation'
 import type { WallMessage, WallMessageType, WallReply } from '../types'
 
+export const DEFAULT_WALL_LIVE_LIMIT = 50
+
+// El muro puede acumular cientos de mensajes en un evento largo. En vez de un
+// listener sin límite (descarga todo el historial y reenvía un delta a cada
+// dispositivo conectado por cada like/dislike/post), se mantiene en vivo solo
+// una ventana reciente (`liveLimit`) más los mensajes destacados (`pinned`,
+// que pueden ser viejos y deben seguir visibles arriba). El historial más
+// antiguo se carga aparte, a pedido, con `getOlderWallMessages` — ver ahí.
 export function subscribeToWall(
   eventId: string,
   callback: (messages: WallMessage[]) => void,
+  onError?: (error: Error) => void,
+  liveLimit: number = DEFAULT_WALL_LIVE_LIMIT,
 ) {
+  let recent: WallMessage[] | null = null
+  let pinned: WallMessage[] | null = null
+
+  function emitIfReady() {
+    if (recent === null || pinned === null) return
+    const byId = new Map<string, WallMessage>()
+    for (const m of recent) byId.set(m.id, m)
+    for (const m of pinned) byId.set(m.id, m)
+    callback(Array.from(byId.values()).filter((m) => !m.deleted))
+  }
+
+  const recentQuery = query(
+    collection(db, 'events', eventId, 'wall'),
+    orderBy('createdAt', 'desc'),
+    limit(liveLimit),
+  )
+  const unsubRecent = onSnapshot(
+    recentQuery,
+    (snap) => {
+      recent = snap.docs.map((d) => mapMessage(d.id, d.data()))
+      emitIfReady()
+    },
+    onError,
+  )
+
+  const pinnedQuery = query(
+    collection(db, 'events', eventId, 'wall'),
+    where('pinned', '==', true),
+  )
+  const unsubPinned = onSnapshot(
+    pinnedQuery,
+    (snap) => {
+      pinned = snap.docs.map((d) => mapMessage(d.id, d.data()))
+      emitIfReady()
+    },
+    onError,
+  )
+
+  return () => {
+    unsubRecent()
+    unsubPinned()
+  }
+}
+
+// Carga histórica a pedido (NO en vivo): una sola lectura por página, usada
+// por el botón "Cargar mensajes anteriores". `beforeCreatedAt` es el
+// `createdAt` (millis) del mensaje más antiguo ya cargado en pantalla.
+export async function getOlderWallMessages(
+  eventId: string,
+  beforeCreatedAt: number,
+  pageSize: number = DEFAULT_WALL_LIVE_LIMIT,
+): Promise<{ messages: WallMessage[]; hasMore: boolean }> {
   const q = query(
     collection(db, 'events', eventId, 'wall'),
     orderBy('createdAt', 'desc'),
+    where('createdAt', '<', Timestamp.fromMillis(beforeCreatedAt)),
+    limit(pageSize + 1),
   )
-  return onSnapshot(q, (snap) => {
-    const messages = snap.docs
-      .map((d) => mapMessage(d.id, d.data()))
-      .filter((m) => !m.deleted)
-    callback(messages)
-  })
+  const snap = await getDocs(q)
+  const messages = snap.docs
+    .slice(0, pageSize)
+    .map((d) => mapMessage(d.id, d.data()))
+    .filter((m) => !m.deleted)
+  return { messages, hasMore: snap.docs.length > pageSize }
 }
 
+// Capa de aplicación: no confiar en que la UI ya validó. Cualquier llamador
+// (actual o futuro) pasa por estas mismas validaciones antes de llegar a
+// Firestore. Los límites están duplicados en firestore.rules — esa es la
+// barrera real ante un cliente que la ignore por completo.
 export async function postWallMessage(
   eventId: string,
   text: string,
@@ -39,10 +120,18 @@ export async function postWallMessage(
   authorRole: 'owner' | 'guest' = 'guest',
   authorPhotoURL?: string,
 ) {
+  const trimmedText = requireMaxLength(requireNonEmpty(text, 'El mensaje'), WALL_TEXT_MAX, 'El mensaje')
+  if (!WALL_TYPES.includes(type)) {
+    throw new Error('Tipo de mensaje no válido.')
+  }
+  const trimmedName = requireMaxLength(requireNonEmpty(authorName, 'El nombre'), WALL_NAME_MAX, 'El nombre')
+  requireMaxLength(authorToken, WALL_TOKEN_MAX, 'El identificador de autor')
+  if (authorPhotoURL) requireMaxLength(authorPhotoURL, WALL_PHOTO_URL_MAX, 'La URL de la foto')
+
   await addDoc(collection(db, 'events', eventId, 'wall'), {
-    text: text.trim(),
+    text: trimmedText,
     type,
-    authorName,
+    authorName: trimmedName,
     authorToken,
     authorRole,
     authorPhotoURL: authorPhotoURL || null,
@@ -97,9 +186,10 @@ export async function replyToWallMessage(
   text: string,
   currentReplies: WallReply[],
 ) {
+  const trimmedText = requireMaxLength(requireNonEmpty(text, 'La respuesta'), WALL_TEXT_MAX, 'La respuesta')
   const newReply: WallReply = {
     id: crypto.randomUUID(),
-    text: text.trim(),
+    text: trimmedText,
     createdAt: Date.now(),
   }
   await updateDoc(doc(db, 'events', eventId, 'wall', messageId), {

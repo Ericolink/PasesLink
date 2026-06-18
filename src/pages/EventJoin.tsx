@@ -8,6 +8,13 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
+import {
+  GUEST_CUSTOM_FIELD_VALUE_MAX,
+  GUEST_NAME_PART_MAX,
+  GUEST_PHONE_MAX,
+  WAITLIST_NAME_MAX,
+  WAITLIST_PHONE_MAX,
+} from '../utils/validation'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 import {
@@ -50,6 +57,8 @@ export function EventJoin() {
   const [wlName, setWlName] = useState('')
   const [wlLastName, setWlLastName] = useState('')
   const [wlPhone, setWlPhone] = useState('')
+  const [wlError, setWlError] = useState('')
+  const [regError, setRegError] = useState('')
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -104,28 +113,35 @@ export function EventJoin() {
     e.preventDefault()
     if (!id || !name.trim() || !lastName.trim()) return
     setState('submitting')
-    const fullName = `${name.trim()} ${lastName.trim()}`
-    const result = await registerWalkInGuest(id, fullName, undefined, phone, customValues)
-    if (result.status === 'full') {
-      setState('full')
-    } else {
-      const token = result.qrToken!
-      setQrToken(token)
-      localStorage.setItem(regKey(id), JSON.stringify({ name, lastName, phone, qrToken: token, customValues }))
-      localStorage.setItem('wall_guest_name', fullName)
-      setState('success')
-      if (user && id && event) {
-        void saveUserInvitation(user.uid, {
-          eventId: id,
-          eventName: event.name,
-          eventDate: event.date,
-          eventLocation: event.location,
-          eventCoverImage: event.coverImage,
-          guestName: fullName,
-          qrToken: token,
-          type: 'walkin',
-        })
+    setRegError('')
+    try {
+      const fullName = `${name.trim()} ${lastName.trim()}`
+      const result = await registerWalkInGuest(id, fullName, undefined, phone, customValues)
+      if (result.status === 'full') {
+        setState('full')
+      } else {
+        const token = result.qrToken!
+        setQrToken(token)
+        localStorage.setItem(regKey(id), JSON.stringify({ name, lastName, phone, qrToken: token, customValues }))
+        localStorage.setItem('wall_guest_name', fullName)
+        setState('success')
+        if (user && id && event) {
+          void saveUserInvitation(user.uid, {
+            eventId: id,
+            eventName: event.name,
+            eventDate: event.date,
+            eventLocation: event.location,
+            eventCoverImage: event.coverImage,
+            guestName: fullName,
+            qrToken: token,
+            type: 'walkin',
+          })
+        }
       }
+    } catch (err) {
+      console.error('Error registering guest:', err)
+      setRegError(err instanceof Error ? err.message : 'No se pudo completar el registro. Intenta de nuevo.')
+      setState('form')
     }
   }
 
@@ -157,11 +173,13 @@ export function EventJoin() {
       e.preventDefault()
       if (!id || !wlName.trim() || !wlLastName.trim()) return
       setWlSubmitting(true)
+      setWlError('')
       try {
         await addToWaitlist(id, wlName, wlLastName, wlPhone)
         setWaitlistState('joined')
-      } catch {
-        // keep form visible
+      } catch (err) {
+        console.error('Error joining waitlist:', err)
+        setWlError(err instanceof Error ? err.message : 'No se pudo anotar en la lista de espera. Intenta de nuevo.')
       } finally {
         setWlSubmitting(false)
       }
@@ -197,23 +215,24 @@ export function EventJoin() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
-                    <input type="text" required value={wlName} onChange={(e) => setWlName(e.target.value)}
+                    <input type="text" required maxLength={WAITLIST_NAME_MAX} value={wlName} onChange={(e) => setWlName(e.target.value)}
                       placeholder="Ana"
                       className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido *</label>
-                    <input type="text" required value={wlLastName} onChange={(e) => setWlLastName(e.target.value)}
+                    <input type="text" required maxLength={WAITLIST_NAME_MAX} value={wlLastName} onChange={(e) => setWlLastName(e.target.value)}
                       placeholder="García"
                       className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono <span className="text-gray-400 font-normal">(opcional)</span></label>
-                  <input type="tel" value={wlPhone} onChange={(e) => setWlPhone(e.target.value)}
+                  <input type="tel" maxLength={WAITLIST_PHONE_MAX} value={wlPhone} onChange={(e) => setWlPhone(e.target.value)}
                     placeholder="+1 234 567 8900"
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                 </div>
+                {wlError && <p className="text-xs text-red-500">{wlError}</p>}
                 <button type="submit" disabled={wlSubmitting}
                   className="w-full bg-primary text-white rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
                   {wlSubmitting ? 'Anotando...' : 'Unirme a la lista'}
@@ -307,6 +326,7 @@ export function EventJoin() {
                 <input
                   type="text"
                   required
+                  maxLength={GUEST_NAME_PART_MAX}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ana"
@@ -318,6 +338,7 @@ export function EventJoin() {
                 <input
                   type="text"
                   required
+                  maxLength={GUEST_NAME_PART_MAX}
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="García"
@@ -329,6 +350,7 @@ export function EventJoin() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono <span className="text-gray-400 font-normal">(opcional)</span></label>
               <input
                 type="tel"
+                maxLength={GUEST_PHONE_MAX}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+1 234 567 8900"
@@ -344,6 +366,7 @@ export function EventJoin() {
                 <input
                   type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'}
                   required={field.required}
+                  maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
                   value={customValues[field.id] || ''}
                   onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -356,6 +379,7 @@ export function EventJoin() {
                 {event.guestCount} / {event.capacity} registros
               </p>
             )}
+            {regError && <p className="text-xs text-red-500">{regError}</p>}
             <button
               type="submit"
               disabled={state === 'submitting'}

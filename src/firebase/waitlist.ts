@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore'
 import { db } from './config'
 import { registerWalkInGuest } from './capacity'
+import { requireMaxLength, requireNonEmpty, WAITLIST_NAME_MAX, WAITLIST_PHONE_MAX } from '../utils/validation'
 import type { WaitlistEntry } from '../types'
 
 export async function addToWaitlist(
@@ -18,10 +19,14 @@ export async function addToWaitlist(
   lastName: string,
   phone: string,
 ): Promise<void> {
+  const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), WAITLIST_NAME_MAX, 'El nombre')
+  const trimmedLastName = requireMaxLength(requireNonEmpty(lastName, 'El apellido'), WAITLIST_NAME_MAX, 'El apellido')
+  const trimmedPhone = requireMaxLength(phone.trim(), WAITLIST_PHONE_MAX, 'El teléfono')
+
   await addDoc(collection(db, 'events', eventId, 'waitlist'), {
-    name: name.trim(),
-    lastName: lastName.trim(),
-    phone: phone.trim(),
+    name: trimmedName,
+    lastName: trimmedLastName,
+    phone: trimmedPhone,
     status: 'waiting',
     qrToken: null,
     createdAt: serverTimestamp(),

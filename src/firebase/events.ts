@@ -82,14 +82,22 @@ export function subscribeToUserEvents(
   })
 }
 
-export function subscribeToEvent(eventId: string, callback: (event: EventData | null) => void) {
-  return onSnapshot(doc(db, 'events', eventId), (snapshot) => {
-    if (!snapshot.exists()) {
-      callback(null)
-      return
-    }
-    callback(mapEvent(snapshot.id, snapshot.data()))
-  })
+export function subscribeToEvent(
+  eventId: string,
+  callback: (event: EventData | null) => void,
+  onError?: (error: Error) => void,
+) {
+  return onSnapshot(
+    doc(db, 'events', eventId),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        callback(null)
+        return
+      }
+      callback(mapEvent(snapshot.id, snapshot.data()))
+    },
+    onError,
+  )
 }
 
 export async function getEvent(eventId: string): Promise<EventData | null> {
@@ -176,7 +184,7 @@ export async function removeCoOrganizer(eventId: string, uid: string) {
 }
 
 export async function deleteEvent(eventId: string) {
-  const subcollections = ['guests', 'checkins', 'waitlist']
+  const subcollections = ['guests', 'guestContacts', 'checkins', 'waitlist']
   for (const sub of subcollections) {
     const snapshot = await getDocs(collection(db, 'events', eventId, sub))
     const docs = snapshot.docs

@@ -10,28 +10,42 @@ export interface AdminUser {
   createdAt: number
 }
 
-export function subscribeToAllEvents(callback: (events: EventData[]) => void) {
+export function subscribeToAllEvents(
+  callback: (events: EventData[]) => void,
+  onError?: (error: Error) => void,
+) {
   const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'))
-  return onSnapshot(q, (snapshot) => {
-    callback(snapshot.docs.map((d) => mapEvent(d.id, d.data())))
-  })
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      callback(snapshot.docs.map((d) => mapEvent(d.id, d.data())))
+    },
+    onError,
+  )
 }
 
-export function subscribeToAllUsers(callback: (users: AdminUser[]) => void) {
+export function subscribeToAllUsers(
+  callback: (users: AdminUser[]) => void,
+  onError?: (error: Error) => void,
+) {
   const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'))
-  return onSnapshot(q, (snapshot) => {
-    callback(
-      snapshot.docs.map((d) => {
-        const data = d.data()
-        return {
-          id: d.id,
-          email: (data.email as string) || null,
-          displayName: (data.displayName as string) || null,
-          createdAt: toMillis(data.createdAt),
-        }
-      }),
-    )
-  })
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      callback(
+        snapshot.docs.map((d) => {
+          const data = d.data()
+          return {
+            id: d.id,
+            email: (data.email as string) || null,
+            displayName: (data.displayName as string) || null,
+            createdAt: toMillis(data.createdAt),
+          }
+        }),
+      )
+    },
+    onError,
+  )
 }
 
 function toMillis(value: unknown): number {

@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { Html5Qrcode } from 'html5-qrcode'
 import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
-import { useEvent } from '../hooks/useEvent'
+import { useEventOnly } from '../hooks/useEventOnly'
 import { checkInGuest } from '../firebase/guests'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
@@ -21,7 +21,7 @@ const SCAN_COOLDOWN_MS = 2500
 export function Scanner() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
-  const { event, loading: eventLoading } = useEvent(eventId)
+  const { event, loading: eventLoading, error: eventError } = useEventOnly(eventId)
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
   const [scanning, setScanning] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -131,6 +131,9 @@ export function Scanner() {
 
   if (eventLoading) {
     return <p className="text-center text-gray-500 mt-16">Cargando...</p>
+  }
+  if (eventError) {
+    return <p className="text-center text-red-500 mt-16">{eventError}</p>
   }
   if (!event) {
     return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
