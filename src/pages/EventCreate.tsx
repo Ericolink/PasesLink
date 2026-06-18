@@ -205,10 +205,14 @@ export function EventCreate() {
         {/* Modo de ingreso */}
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Modo de ingreso</h2>
+          <p className="text-xs text-gray-500">
+            Elegí con cuidado: no se puede cambiar después de crear el evento, para no romper
+            invitaciones o links de autoregistro que ya hayas compartido.
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {([
               { id: 'list', label: 'Lista cerrada', desc: 'Solo invitados con QR propio' },
-              { id: 'open', label: 'Ingreso libre', desc: 'Cualquiera entra hasta el cupo' },
+              { id: 'open', label: 'Ingreso libre', desc: 'Cualquiera se autoregistra y entra hasta el cupo; no se agregan invitados a mano' },
               { id: 'hybrid', label: 'Mixto', desc: 'Lista + ingreso libre combinados' },
             ] as { id: EntryMode; label: string; desc: string }[]).map((m) => (
               <button

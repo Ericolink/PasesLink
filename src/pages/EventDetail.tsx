@@ -308,7 +308,7 @@ export function EventDetail() {
         </div>
       )}
 
-      {isOwner && (
+      {isOwner && event.entryMode !== 'open' && (
         <div className="mb-4">
           <GuestAddForm eventId={event.id} />
         </div>

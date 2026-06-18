@@ -27,7 +27,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [accentColor, setAccentColor] = useState(event.accentColor || '#2563eb')
   const [welcomeMessage, setWelcomeMessage] = useState(event.welcomeMessage || '')
   const [mapsUrl, setMapsUrl] = useState(event.mapsUrl || '')
-  const [entryMode, setEntryMode] = useState<EntryMode>(event.entryMode || 'list')
+  // No es editable: cambiar el modo de ingreso después de compartir invitaciones
+  // o links de autoregistro rompería esos links (ver firestore.rules y EventJoin).
+  const entryMode = event.entryMode || 'list'
   const [capacity, setCapacity] = useState(event.capacity ? String(event.capacity) : '')
   const [customFields, setCustomFields] = useState<CustomField[]>(event.customFields || [])
   const [saving, setSaving] = useState(false)
@@ -158,22 +160,26 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <CustomFieldsBuilder fields={customFields} onChange={setCustomFields} />
       </div>
 
-      {/* Modo de ingreso */}
+      {/* Modo de ingreso (fijo, no se puede cambiar después de crear el evento) */}
       <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Modo de ingreso</p>
+        <p className="text-xs text-gray-400">
+          No se puede cambiar después de crear el evento, para no romper invitaciones o links de
+          autoregistro que ya hayas compartido.
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {([
             { id: 'list', label: 'Lista cerrada', desc: 'Solo invitados con QR propio' },
             { id: 'open', label: 'Ingreso libre', desc: 'Cualquiera entra hasta el cupo' },
             { id: 'hybrid', label: 'Mixto', desc: 'Lista + ingreso libre combinados' },
           ] as { id: EntryMode; label: string; desc: string }[]).map((m) => (
-            <button key={m.id} type="button" onClick={() => setEntryMode(m.id)}
-              className={`text-left border rounded-lg p-3 transition-all text-sm ${
-                entryMode === m.id ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+            <div key={m.id}
+              className={`text-left border rounded-lg p-3 text-sm ${
+                entryMode === m.id ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-gray-200 dark:border-gray-600 opacity-50'
               }`}>
               <div className="font-semibold text-gray-900 dark:text-white">{m.label}</div>
               <div className="text-xs text-gray-500 mt-0.5">{m.desc}</div>
-            </button>
+            </div>
           ))}
         </div>
         {entryMode !== 'list' && (

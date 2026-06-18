@@ -190,7 +190,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     entryMode: (data.entryMode as EntryMode) || 'list',
     capacity: (data.capacity as number) || undefined,
     customFields: (data.customFields as CustomField[]) || [],
-    plan: data.plan as Plan,
+    plan: data.plan as EventData['plan'],
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],
     status: data.status as EventStatus,
     guestCount: (data.guestCount as number) || 0,

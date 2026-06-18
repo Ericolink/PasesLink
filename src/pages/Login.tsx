@@ -36,7 +36,8 @@ export function Login() {
       const { isGoogleProfileComplete } = await import('../firebase/auth')
       const complete = await isGoogleProfileComplete(u.uid)
       navigate(complete ? '/dashboard' : '/complete-profile')
-    } catch {
+    } catch (err) {
+      console.error('Error en login con Google:', err)
       setError('No pudimos iniciar sesión con Google.')
     } finally {
       setLoading(false)

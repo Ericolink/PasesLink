@@ -12,7 +12,16 @@ import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart,
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 
+// El navegador reutiliza la misma instancia de GuestPass al navegar entre dos
+// URLs /pass/:eventId/:qrToken distintas (mismo patrón de ruta) — sin esta key,
+// el estado de check-in del invitado anterior queda pegado al escanear el
+// siguiente QR, mostrando "ya registrado" sin haber hecho el check-in real.
 export function GuestPass() {
+  const { qrToken } = useParams<{ qrToken: string }>()
+  return <GuestPassInner key={qrToken} />
+}
+
+function GuestPassInner() {
   const { eventId, qrToken } = useParams<{ eventId: string; qrToken: string }>()
   const { user } = useAuth()
   const [event, setEvent] = useState<EventData | null>(null)
