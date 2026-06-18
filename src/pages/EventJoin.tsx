@@ -84,14 +84,14 @@ export function EventJoin() {
   // llega async después de user, y el guard `!name` evita pisar lo que el
   // usuario ya tipeó. Convertirlo a "ajustar estado durante el render" cambiaría
   // cuándo se aplica el valor de profile vs. el de user.displayName.
-  /* eslint-disable react-hooks/set-state-in-effect */
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     if (user && !name) {
       setName(profile?.firstName || user.displayName?.split(' ')[0] || '')
       setLastName(profile?.lastName || user.displayName?.split(' ').slice(1).join(' ') || '')
     }
   }, [profile, user])
-  /* eslint-enable react-hooks/set-state-in-effect */
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   useEffect(() => {
     if (state === 'success' && qrToken && canvasRef.current && id) {

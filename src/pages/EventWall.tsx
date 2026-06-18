@@ -85,7 +85,7 @@ export function EventWall() {
   // If user is authenticated, skip name screen. Igual que en EventJoin: profile
   // llega async después de user, y el guard `!guestName` evita pisar lo que el
   // usuario ya escribió.
-  /* eslint-disable react-hooks/set-state-in-effect */
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     if (user) {
       setNameConfirmed(true)
@@ -95,7 +95,7 @@ export function EventWall() {
       }
     }
   }, [user, profile])
-  /* eslint-enable react-hooks/set-state-in-effect */
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   useEffect(() => {
     if (!id) return

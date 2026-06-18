@@ -16,6 +16,10 @@ export function useUserProfile() {
       setLoadingProfile(false)
     })
     return unsub
+    // Depende del uid (primitivo), no del objeto `user` completo: Firebase Auth
+    // emite una nueva instancia de user en cada cambio de estado de auth aunque
+    // el uid no cambie, y resuscribirse en esos casos sería innecesario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid])
 
   if (!user) return { profile: null, loadingProfile: false }

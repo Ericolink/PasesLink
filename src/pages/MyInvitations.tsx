@@ -17,6 +17,10 @@ export function MyInvitations() {
     getUserInvitations(user.uid)
       .then(setInvitations)
       .finally(() => setLoading(false))
+    // Depende del uid (primitivo), no del objeto `user` completo: Firebase Auth
+    // emite una nueva instancia de user en cada cambio de estado de auth aunque
+    // el uid no cambie, y refetchear en esos casos sería innecesario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid])
 
   if (!user) return (
