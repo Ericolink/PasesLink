@@ -29,7 +29,9 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      allow list: if request.auth != null;
+      // El admin puede listar todos los usuarios (AdminDashboard). Cualquier otro usuario
+      // logueado solo puede hacer búsquedas puntuales (getUserByEmail usa limit(1)).
+      allow list: if isAdmin() || (request.auth != null && request.query.limit <= 1);
       allow write: if request.auth != null && request.auth.uid == userId;
 
       match /invitations/{invId} {
@@ -41,12 +43,16 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
       allow update: if isOwner(eventId) || isAdmin()
-        // Contador walk-in (Opciones A y C): solo checkedInCount cambia
+        // Check-in/checkout individual o contador walk-in (Opciones A y C): solo
+        // organizador/co-org, y de a 1 en 1 — nunca un salto arbitrario.
+        || (isOwnerOrCoOrg(eventId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount'])
+            && (request.resource.data.checkedInCount == resource.data.checkedInCount + 1
+                || request.resource.data.checkedInCount == resource.data.checkedInCount - 1))
+        // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1 en 1.
         || (resource.data.entryMode in ['open', 'hybrid']
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount']))
-        // Auto-registro (Opción B): solo guestCount cambia
-        || (resource.data.entryMode in ['open', 'hybrid']
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount']));
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount'])
+            && request.resource.data.guestCount == resource.data.guestCount + 1);
       allow delete: if isOwner(eventId) || isAdmin();
 
       match /guests/{guestId} {

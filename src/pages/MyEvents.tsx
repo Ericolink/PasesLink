@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { subscribeToUserEvents } from '../firebase/events'
 import { useAuth } from '../hooks/useAuth'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { IconCalendar, IconTicket, IconUsers } from '../components/Icons'
 import type { EventData } from '../types'
 
@@ -18,12 +19,10 @@ const STATUS_COLOR: Record<EventData['status'], string> = {
 }
 
 const PLAN_COLOR: Record<EventData['plan'], string> = {
-  basic:   'bg-gray-500/20 text-gray-400',
   premium: 'bg-yellow-500/20 text-yellow-400',
 }
 
 const PLAN_LABEL: Record<EventData['plan'], string> = {
-  basic:   'Básico',
   premium: 'Premium',
 }
 
@@ -33,7 +32,7 @@ export function MyEvents() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user) { setLoading(false); return }
+    if (!user) return
     const unsub = subscribeToUserEvents(user.uid, (evts) => {
       setEvents(evts)
       setLoading(false)
@@ -88,7 +87,7 @@ export function MyEvents() {
           >
             {/* Cover or placeholder */}
             {ev.coverImage
-              ? <img src={ev.coverImage} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+              ? <img src={optimizedImageUrl(ev.coverImage, 128)} alt="" loading="lazy" className="w-16 h-16 rounded-lg object-cover shrink-0" />
               : (
                 <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <IconTicket className="w-7 h-7 text-primary" />

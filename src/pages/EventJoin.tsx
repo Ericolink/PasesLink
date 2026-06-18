@@ -7,6 +7,7 @@ import { addToWaitlist } from '../firebase/waitlist'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 import {
@@ -79,13 +80,18 @@ export function EventJoin() {
     })
   }, [id])
 
-  // Pre-fill name/lastName from profile
+  // Pre-fill name/lastName from profile. Intencionalmente un efecto: profile
+  // llega async después de user, y el guard `!name` evita pisar lo que el
+  // usuario ya tipeó. Convertirlo a "ajustar estado durante el render" cambiaría
+  // cuándo se aplica el valor de profile vs. el de user.displayName.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (user && !name) {
       setName(profile?.firstName || user.displayName?.split(' ')[0] || '')
       setLastName(profile?.lastName || user.displayName?.split(' ').slice(1).join(' ') || '')
     }
   }, [profile, user])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (state === 'success' && qrToken && canvasRef.current && id) {
@@ -244,7 +250,7 @@ export function EventJoin() {
       <div className="flex items-start justify-center min-h-screen p-4">
         <div className="w-full max-w-sm animate-bounce-in">
           {event?.coverImage && (
-            <img src={event.coverImage} alt="Portada" className="w-full h-28 object-cover rounded-xl mb-5" />
+            <img src={optimizedImageUrl(event.coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-28 object-cover rounded-xl mb-5" />
           )}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
             <div className="flex justify-center mb-2">
@@ -276,7 +282,7 @@ export function EventJoin() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {event?.coverImage && (
-          <img src={event.coverImage} alt="Portada" className="w-full h-36 object-cover rounded-xl mb-6" />
+          <img src={optimizedImageUrl(event.coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-36 object-cover rounded-xl mb-6" />
         )}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{event?.name}</h1>

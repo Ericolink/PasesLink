@@ -15,7 +15,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './config'
-import type { CustomField, EntryMode, EventData, EventStatus, PaymentStatus, Plan } from '../types'
+import type { CustomField, EntryMode, EventData, EventStatus } from '../types'
 
 export interface NewEventInput {
   name: string
@@ -29,7 +29,6 @@ export interface NewEventInput {
   entryMode?: EntryMode
   capacity?: number
   customFields?: CustomField[]
-  plan: Plan
 }
 
 export async function createEvent(ownerId: string, input: NewEventInput) {
@@ -46,8 +45,11 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     entryMode: input.entryMode || 'list',
     capacity: input.capacity || null,
     customFields: input.customFields || [],
-    plan: input.plan,
-    paymentStatus: 'pending',
+    // Premium gratis mientras se da a conocer el servicio — sin plan a elegir
+    // ni pago que confirmar. Cuando se reintroduzcan pagos, esto vuelve a
+    // depender de la elección del organizador.
+    plan: 'premium',
+    paymentStatus: 'paid',
     status: 'active',
     guestCount: 0,
     checkedInCount: 0,
@@ -86,20 +88,6 @@ export async function getEvent(eventId: string): Promise<EventData | null> {
   const snapshot = await getDoc(doc(db, 'events', eventId))
   if (!snapshot.exists()) return null
   return mapEvent(snapshot.id, snapshot.data())
-}
-
-export async function markEventPaid(eventId: string) {
-  await updateDoc(doc(db, 'events', eventId), {
-    paymentStatus: 'paid',
-    updatedAt: serverTimestamp(),
-  })
-}
-
-export async function setEventPaymentStatus(eventId: string, paymentStatus: PaymentStatus) {
-  await updateDoc(doc(db, 'events', eventId), {
-    paymentStatus,
-    updatedAt: serverTimestamp(),
-  })
 }
 
 export async function setEventStatus(eventId: string, status: EventStatus) {

@@ -6,6 +6,7 @@ export function useCoverPhoto(initial = '') {
   const [coverImage, setCoverImage] = useState(initial)
   const [rawImage, setRawImage] = useState<string | null>(null) // src for crop modal
   const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
 
   function openPicker() {
     fileInputRef.current?.click()
@@ -15,6 +16,7 @@ export function useCoverPhoto(initial = '') {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    setError('')
     const reader = new FileReader()
     reader.onload = (ev) => setRawImage(ev.target?.result as string)
     reader.readAsDataURL(file)
@@ -26,6 +28,8 @@ export function useCoverPhoto(initial = '') {
     try {
       const url = await uploadImage(blob)
       setCoverImage(url)
+    } catch {
+      setError('No pudimos subir la imagen. Verifica que sea menor de 5 MB.')
     } finally {
       setUploading(false)
     }
@@ -44,6 +48,7 @@ export function useCoverPhoto(initial = '') {
     coverImage,
     rawImage,
     uploading,
+    error,
     openPicker,
     onFileSelected,
     onCropConfirmed,

@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
 import { checkInGuest, claimGuestPass, findGuestByToken, setGuestRsvp } from '../firebase/guests'
 import { useAuth } from '../hooks/useAuth'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { Logo } from '../components/Logo'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconWhatsApp } from '../components/Icons'
@@ -166,7 +167,7 @@ export function GuestPass() {
       >
         {event.coverImage && (
           <div className="w-full h-36 overflow-hidden">
-            <img src={event.coverImage} alt={event.name} className="w-full h-full object-cover" />
+            <img src={optimizedImageUrl(event.coverImage, 800)} alt={event.name} loading="lazy" className="w-full h-full object-cover" />
           </div>
         )}
         <div className="p-6">

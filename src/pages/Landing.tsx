@@ -16,8 +16,19 @@ const FEATURES = [
   {
     icon: IconBarChart,
     title: 'Reportes y notificaciones',
-    description: 'Reportes detallados, recordatorios automáticos y mensajes personalizados en el plan Premium.',
+    description: 'Reportes detallados, recordatorios automáticos y mensajes de bienvenida personalizados.',
   },
+]
+
+const FREE_FEATURES = [
+  'Invitados ilimitados',
+  'QR individual por invitado',
+  'Check-in en tiempo real',
+  'Exportar pases a PDF',
+  'Reportes detallados de asistencia',
+  'Notificaciones de check-in en tiempo real',
+  'Recordatorios automáticos a invitados',
+  'Mensaje de bienvenida personalizado',
 ]
 
 const STEPS = [
@@ -35,30 +46,6 @@ const STEPS = [
     number: '03',
     title: 'Escanea y disfruta',
     description: 'El día del evento escanea cada pase y mira el aforo actualizarse en vivo.',
-  },
-]
-
-const PLANS = [
-  {
-    id: 'basic',
-    title: 'Básico',
-    price: '$9',
-    description: 'pago único por evento',
-    features: ['Invitados ilimitados', 'QR individual por invitado', 'Check-in en tiempo real', 'Exportar pases a PDF'],
-  },
-  {
-    id: 'premium',
-    title: 'Premium',
-    price: '$19',
-    description: 'pago único por evento',
-    features: [
-      'Todo lo del plan Básico',
-      'Reportes detallados de asistencia',
-      'Notificaciones de check-in en tiempo real',
-      'Recordatorios automáticos a invitados',
-      'Mensaje de bienvenida personalizado',
-      'Soporte prioritario',
-    ],
   },
 ]
 
@@ -114,7 +101,7 @@ export function Landing() {
           {/* Subtitle */}
           <p className="text-gray-500 dark:text-gray-500 text-lg max-w-xl mx-auto mb-10">
             Crea un evento, genera un QR por invitado y confirma la asistencia escaneando desde el celular.
-            Sin instalar nada. Pago único por evento.
+            Sin instalar nada. Gratis mientras lanzamos el servicio.
           </p>
 
           {/* CTAs */}
@@ -228,64 +215,42 @@ export function Landing() {
         </div>
       </section>
 
-      {/* ── Plans ─────────────────────────────────────────────── */}
-      <section className="max-w-3xl mx-auto px-4 py-20">
-        <div className="text-center mb-12">
-          <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Precios</p>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">Sin suscripciones</h2>
-          <p className="text-gray-500 dark:text-gray-500 mt-2">Pago único por evento. Tuyo para siempre.</p>
-        </div>
+      {/* ── Precio ────────────────────────────────────────────── */}
+      <section className="max-w-2xl mx-auto px-4 py-20">
+        <div
+          className="card-hover glass rounded-2xl p-8 text-center relative overflow-hidden"
+          style={{ border: '1px solid rgba(255,0,77,.5)', boxShadow: '0 0 28px rgba(255,0,77,.15), inset 0 0 40px rgba(255,0,77,.03)' }}
+        >
+          <span
+            className="absolute top-4 right-4 text-xs font-bold px-2 py-0.5 rounded-full"
+            style={{ background: '#FF004D', color: '#fff' }}
+          >
+            LANZAMIENTO
+          </span>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          {PLANS.map((plan) => (
-            <div
-              key={plan.id}
-              className="card-hover glass rounded-2xl p-6 relative overflow-hidden"
-              style={
-                plan.id === 'premium'
-                  ? { border: '1px solid rgba(255,0,77,.5)', boxShadow: '0 0 28px rgba(255,0,77,.15), inset 0 0 40px rgba(255,0,77,.03)' }
-                  : {}
-              }
-            >
-              {plan.id === 'premium' && (
-                <span
-                  className="absolute top-4 right-4 text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: '#FF004D', color: '#fff' }}
-                >
-                  POPULAR
-                </span>
-              )}
+          <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Precio</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">Premium, totalmente gratis</h2>
+          <p className="text-gray-500 dark:text-gray-500 mb-6">
+            Mientras damos a conocer el servicio, todas las funciones están incluidas sin costo. Sin tarjeta, sin
+            límite de invitados.
+          </p>
 
-              <h3 className="text-lg font-bold text-white mb-1">{plan.title}</h3>
-              <div className="flex items-baseline gap-1 mb-1">
-                <span className="text-3xl font-bold" style={{ color: plan.id === 'premium' ? '#FF004D' : '#FAEF5D' }}>
-                  {plan.price}
-                </span>
-                <span className="text-xs text-gray-500 dark:text-gray-500"> / {plan.description}</span>
-              </div>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left max-w-md mx-auto mb-8">
+            {FREE_FEATURES.map((f) => (
+              <li key={f} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-600">
+                <IconCheck className="w-4 h-4 shrink-0 text-primary" />
+                {f}
+              </li>
+            ))}
+          </ul>
 
-              <ul className="mt-4 space-y-2">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-600">
-                    <IconCheck className="w-4 h-4 shrink-0 text-primary" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-
-              <Link
-                to="/register"
-                className="mt-5 block text-center rounded-lg py-2.5 text-sm font-semibold transition-all hover:-translate-y-0.5"
-                style={
-                  plan.id === 'premium'
-                    ? { background: '#FF004D', color: '#fff', boxShadow: '0 0 14px rgba(255,0,77,.45)' }
-                    : { background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', color: '#C4CEEA' }
-                }
-              >
-                Empezar con {plan.title}
-              </Link>
-            </div>
-          ))}
+          <Link
+            to="/register"
+            className="inline-block rounded-lg px-8 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5"
+            style={{ background: '#FF004D', color: '#fff', boxShadow: '0 0 14px rgba(255,0,77,.45)' }}
+          >
+            Crear mi evento gratis
+          </Link>
         </div>
       </section>
 

@@ -10,6 +10,7 @@ import {
   uploadProfilePhoto,
 } from '../firebase/auth'
 import { saveUserProfile } from '../firebase/userProfile'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import {
   IconBell,
   IconCheckCircle,
@@ -136,10 +137,16 @@ export function Profile() {
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError]     = useState('')
 
+  // Mantiene photoURL/notifyOnCheckin sincronizados con la fuente de verdad
+  // (Firestore vía useUserProfile). Re-correr en cada snapshot es intencional
+  // e idempotente: el toggle/la foto ya se guardan optimistamente en sus propios
+  // handlers, esto solo confirma el valor del servidor.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setPhotoURL(profile?.photoURL || user?.photoURL || '')
     setNotifyOnCheckin(profile?.notifyOnCheckin ?? false)
   }, [profile, user])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!user) return null
 
@@ -266,7 +273,7 @@ export function Profile() {
         <div className="flex items-center gap-4 mb-6">
           <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden flex items-center justify-center shrink-0 ring-2 ring-primary/40">
             {photoURL
-              ? <img src={photoURL} alt="Foto de perfil" className="w-full h-full object-cover" />
+              ? <img src={optimizedImageUrl(photoURL, 200)} alt="Foto de perfil" loading="lazy" className="w-full h-full object-cover" />
               : <IconUsers className="w-10 h-10 text-gray-400" />
             }
           </div>

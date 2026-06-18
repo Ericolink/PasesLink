@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { likeWallMessage, dislikeWallMessage, postWallMessage, subscribeToWall } from '../firebase/wall'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { IconThumbsUp, IconThumbsDown, IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown } from './Icons'
 import type { WallMessage, WallMessageType } from '../types'
 
@@ -197,7 +198,7 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
 
 function Avatar({ name, photoURL, size = 32 }: { name: string; photoURL?: string; size?: number }) {
   if (photoURL) {
-    return <img src={photoURL} alt={name} className="rounded-full object-cover shrink-0"
+    return <img src={optimizedImageUrl(photoURL, size * 2)} alt={name} loading="lazy" className="rounded-full object-cover shrink-0"
       style={{ width: size, height: size }} />
   }
   return (

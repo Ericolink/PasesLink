@@ -1,4 +1,7 @@
-export type Plan = 'basic' | 'premium'
+// Por ahora solo existe 'premium' (gratis durante el lanzamiento). Se deja como
+// union (no un literal suelto) para poder reintroducir un tier de pago después
+// sin tocar el resto del código, que ya está escrito en términos de `Plan`.
+export type Plan = 'premium'
 
 export type PaymentStatus = 'pending' | 'paid' | 'free_trial'
 
@@ -109,7 +112,6 @@ export interface CheckinLog {
 }
 
 export const PLAN_LABELS: Record<Plan, string> = {
-  basic: 'Básico',
   premium: 'Premium',
 }
 

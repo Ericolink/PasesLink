@@ -10,7 +10,7 @@ export function useUserProfile() {
   const [loadingProfile, setLoadingProfile] = useState(true)
 
   useEffect(() => {
-    if (!user) { setProfile(null); setLoadingProfile(false); return }
+    if (!user) return
     const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
       setProfile(snap.exists() ? ({ uid: user.uid, ...snap.data() } as UserProfile) : null)
       setLoadingProfile(false)
@@ -18,5 +18,6 @@ export function useUserProfile() {
     return unsub
   }, [user?.uid])
 
+  if (!user) return { profile: null, loadingProfile: false }
   return { profile, loadingProfile }
 }

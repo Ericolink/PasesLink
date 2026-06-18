@@ -7,6 +7,7 @@ import { useEvent } from '../hooks/useEvent'
 import { checkInGuest } from '../firebase/guests'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
+import { extractQrToken, isArriveQr } from '../utils/qrUrl'
 
 export type ScanFeedback = {
   type: 'success' | 'already' | 'invalid' | 'checkout' | 'not_checked_in' | 'already_out'
@@ -20,7 +21,7 @@ const SCAN_COOLDOWN_MS = 2500
 export function Scanner() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
-  const { event } = useEvent(eventId)
+  const { event, loading: eventLoading } = useEvent(eventId)
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
   const [scanning, setScanning] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -126,6 +127,18 @@ export function Scanner() {
   async function handleWalkOut() {
     if (!eventId) return
     await walkOut(eventId)
+  }
+
+  if (eventLoading) {
+    return <p className="text-center text-gray-500 mt-16">Cargando...</p>
+  }
+  if (!event) {
+    return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
+  }
+  const coOrgsMap = event.coOrganizersMap || {}
+  const hasAccess = !!user && (user.uid === event.ownerId || user.uid in coOrgsMap)
+  if (!hasAccess) {
+    return <p className="text-center text-gray-500 mt-16">No tienes acceso a este evento.</p>
   }
 
   return (
@@ -252,29 +265,4 @@ export function Scanner() {
       )}
     </div>
   )
-}
-
-function isArriveQr(decodedText: string, eventId: string): boolean {
-  try {
-    const url = new URL(decodedText)
-    const parts = url.pathname.split('/').filter(Boolean)
-    return parts[0] === 'events' && parts[1] === eventId && parts[2] === 'arrive'
-  } catch {
-    return false
-  }
-}
-
-function extractQrToken(decodedText: string, eventId: string): string | null {
-  try {
-    const url = new URL(decodedText)
-    const parts = url.pathname.split('/').filter(Boolean)
-    const passIndex = parts.indexOf('pass')
-    if (passIndex === -1 || parts.length < passIndex + 3) return null
-    const scannedEventId = parts[passIndex + 1]
-    const qrToken = parts[passIndex + 2]
-    if (scannedEventId !== eventId) return null
-    return qrToken
-  } catch {
-    return null
-  }
 }

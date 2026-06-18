@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getUserInvitations } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { QRCodeCanvas } from 'qrcode.react'
 import type { UserInvitation } from '../types'
 import { IconCalendar } from '../components/Icons'
@@ -12,7 +13,7 @@ export function MyInvitations() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user) { setLoading(false); return }
+    if (!user) return
     getUserInvitations(user.uid)
       .then(setInvitations)
       .finally(() => setLoading(false))
@@ -47,7 +48,7 @@ export function MyInvitations() {
           <div key={inv.eventId}
             className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-4 card-hover">
             {inv.eventCoverImage
-              ? <img src={inv.eventCoverImage} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+              ? <img src={optimizedImageUrl(inv.eventCoverImage, 128)} alt="" loading="lazy" className="w-16 h-16 rounded-lg object-cover shrink-0" />
               : <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <IconCalendar className="w-7 h-7 text-primary" />
                 </div>

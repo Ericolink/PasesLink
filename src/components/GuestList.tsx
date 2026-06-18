@@ -4,10 +4,12 @@ import { deleteGuest, resetGuestRsvp, updateGuest } from '../firebase/guests'
 import type { GuestData } from '../types'
 import { RSVP_LABELS } from '../types'
 import { IconEdit, IconEye, IconInbox, IconShare, IconTrash } from './Icons'
+import { ConfirmDialog } from './ConfirmDialog'
 
 export function GuestList({ eventId, guests }: { eventId: string; guests: GuestData[] }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [deletingGuest, setDeletingGuest] = useState<GuestData | null>(null)
 
   if (guests.length === 0) {
     return (
@@ -18,9 +20,10 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
     )
   }
 
-  async function handleDelete(guest: GuestData) {
-    if (!confirm(`¿Eliminar a ${guest.name}?`)) return
-    await deleteGuest(eventId, guest.id, guest.status === 'checked_in')
+  async function confirmDelete() {
+    if (!deletingGuest) return
+    await deleteGuest(eventId, deletingGuest.id, deletingGuest.status === 'checked_in')
+    setDeletingGuest(null)
   }
 
   async function handleReactivate(guest: GuestData) {
@@ -116,7 +119,7 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
                 Editar
               </button>
               <button
-                onClick={() => handleDelete(guest)}
+                onClick={() => setDeletingGuest(guest)}
                 className="flex flex-col items-center justify-center gap-1 py-2.5 text-xs text-red-500 font-medium hover:bg-red-50 transition-colors"
               >
                 <IconTrash className="w-4 h-4" />
@@ -126,6 +129,15 @@ export function GuestList({ eventId, guests }: { eventId: string; guests: GuestD
           </div>
         ),
       )}
+      <ConfirmDialog
+        open={!!deletingGuest}
+        title="Eliminar invitado"
+        message={`¿Eliminar a ${deletingGuest?.name}? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setDeletingGuest(null)}
+      />
     </div>
   )
 }

@@ -17,7 +17,6 @@ const Terms = lazy(() => import('./pages/Terms').then((m) => ({ default: m.Terms
 const Privacy = lazy(() => import('./pages/Privacy').then((m) => ({ default: m.Privacy })))
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })))
 const EventCreate = lazy(() => import('./pages/EventCreate').then((m) => ({ default: m.EventCreate })))
-const EventCheckout = lazy(() => import('./pages/EventCheckout').then((m) => ({ default: m.EventCheckout })))
 const EventDetail = lazy(() => import('./pages/EventDetail').then((m) => ({ default: m.EventDetail })))
 const Scanner = lazy(() => import('./pages/Scanner').then((m) => ({ default: m.Scanner })))
 const Reports = lazy(() => import('./pages/Reports').then((m) => ({ default: m.Reports })))
@@ -68,14 +67,6 @@ function App() {
           element={
             <ProtectedRoute>
               <EventCreate />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/events/:eventId/checkout"
-          element={
-            <ProtectedRoute>
-              <EventCheckout />
             </ProtectedRoute>
           }
         />

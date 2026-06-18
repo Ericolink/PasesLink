@@ -3,35 +3,26 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createEvent } from '../firebase/events'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { CustomFieldsBuilder } from '../components/CustomFieldsBuilder'
-import type { CustomField, EntryMode, Plan } from '../types'
-
-const PLANS: { id: Plan; title: string; price: string; features: string[] }[] = [
-  {
-    id: 'basic',
-    title: 'Básico',
-    price: '$9 / evento',
-    features: ['Invitados ilimitados', 'QR individual por invitado', 'Check-in en tiempo real'],
-  },
-  {
-    id: 'premium',
-    title: 'Premium',
-    price: '$19 / evento',
-    features: [
-      'Todo lo del plan Básico',
-      'Reportes detallados de asistencia',
-      'Notificaciones de check-in en tiempo real',
-      'Recordatorios automáticos a invitados',
-      'Soporte prioritario',
-    ],
-  },
-]
+import type { CustomField, EntryMode } from '../types'
 
 export function EventCreate() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const cover = useCoverPhoto()
+  const {
+    fileInputRef: coverFileInputRef,
+    coverImage,
+    rawImage: coverRawImage,
+    uploading: coverUploading,
+    error: coverError,
+    openPicker: openCoverPicker,
+    onFileSelected: onCoverFileSelected,
+    onCropConfirmed: onCoverCropConfirmed,
+    onCropCancelled: onCoverCropCancelled,
+    clearCover,
+  } = useCoverPhoto()
 
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
@@ -43,7 +34,6 @@ export function EventCreate() {
   const [entryMode, setEntryMode] = useState<EntryMode>('list')
   const [capacity, setCapacity] = useState('')
   const [customFields, setCustomFields] = useState<CustomField[]>([])
-  const [plan, setPlan] = useState<Plan>('basic')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -58,16 +48,15 @@ export function EventCreate() {
         date,
         location,
         description,
-        coverImage: cover.coverImage,
+        coverImage,
         accentColor,
         welcomeMessage,
         mapsUrl: mapsUrl.trim() || undefined,
         entryMode,
         capacity: capacity ? parseInt(capacity, 10) : undefined,
         customFields,
-        plan,
       })
-      navigate(`/events/${eventId}/checkout`)
+      navigate(`/events/${eventId}`)
     } catch {
       setError('No pudimos crear el evento. Intenta de nuevo.')
     } finally {
@@ -77,11 +66,11 @@ export function EventCreate() {
 
   return (
     <>
-    {cover.rawImage && (
+    {coverRawImage && (
       <ImageCropModal
-        imageSrc={cover.rawImage}
-        onCrop={cover.onCropConfirmed}
-        onCancel={cover.onCropCancelled}
+        imageSrc={coverRawImage}
+        onCrop={onCoverCropConfirmed}
+        onCancel={onCoverCropCancelled}
       />
     )}
     <div className="max-w-2xl mx-auto px-4 py-8 animate-fade-in">
@@ -154,24 +143,25 @@ export function EventCreate() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Imagen de portada</label>
-            <input ref={cover.fileInputRef} type="file" accept="image/*" onChange={cover.onFileSelected} className="hidden" />
-            {cover.coverImage ? (
+            <input ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
+            {coverImage ? (
               <div className="relative rounded-lg overflow-hidden h-32 bg-gray-100">
-                <img src={cover.coverImage} alt="Portada" className="w-full h-full object-cover" />
-                <button type="button" onClick={cover.clearCover} className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1">
+                <img src={optimizedImageUrl(coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-full object-cover" />
+                <button type="button" onClick={clearCover} className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1">
                   Quitar
                 </button>
               </div>
             ) : (
               <button
                 type="button"
-                onClick={cover.openPicker}
-                disabled={cover.uploading}
+                onClick={openCoverPicker}
+                disabled={coverUploading}
                 className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-6 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
               >
-                {cover.uploading ? 'Subiendo...' : '+ Subir imagen de portada'}
+                {coverUploading ? 'Subiendo...' : '+ Subir imagen de portada'}
               </button>
             )}
+            {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -253,43 +243,19 @@ export function EventCreate() {
           )}
         </div>
 
-        {/* Plan */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Elige tu plan</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {PLANS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPlan(p.id)}
-                className={`text-left border rounded-lg p-4 transition-all ${
-                  plan === p.id
-                    ? 'border-primary ring-2 ring-primary/20 scale-[1.02]'
-                    : 'border-gray-200 hover:border-gray-300 hover:scale-[1.01]'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-gray-900 dark:text-white">{p.title}</span>
-                  <span className="text-sm font-medium text-primary">{p.price}</span>
-                </div>
-                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                  {p.features.map((f) => (
-                    <li key={f}>· {f}</li>
-                  ))}
-                </ul>
-              </button>
-            ))}
-          </div>
-        </div>
+        <p className="text-sm text-center text-amber-600 bg-amber-50 dark:bg-amber-900/20 rounded-md px-3 py-2">
+          🎉 Todas las funciones Premium (reportes, recordatorios, notificaciones) están incluidas gratis
+          mientras damos a conocer el servicio.
+        </p>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <button
           type="submit"
-          disabled={loading || cover.uploading}
+          disabled={loading || coverUploading}
           className="w-full bg-primary text-white rounded-md py-2.5 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-md"
         >
-          {loading ? 'Creando...' : 'Continuar al pago'}
+          {loading ? 'Creando...' : 'Crear evento'}
         </button>
       </form>
     </div>

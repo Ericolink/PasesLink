@@ -9,7 +9,7 @@ export function ResetPassword() {
   const oobCode = searchParams.get('oobCode') || ''
   const navigate = useNavigate()
 
-  const [status, setStatus] = useState<'checking' | 'ready' | 'invalid' | 'done'>('checking')
+  const [status, setStatus] = useState<'checking' | 'ready' | 'invalid' | 'done'>(() => oobCode ? 'checking' : 'invalid')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -17,10 +17,7 @@ export function ResetPassword() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!oobCode) {
-      setStatus('invalid')
-      return
-    }
+    if (!oobCode) return
     verifyPasswordResetCode(oobCode)
       .then((userEmail) => {
         setEmail(userEmail)

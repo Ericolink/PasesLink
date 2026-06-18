@@ -1,12 +1,24 @@
 import { useState } from 'react'
 import { updateEventDetails } from '../firebase/events'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { ImageCropModal } from './ImageCropModal'
 import { CustomFieldsBuilder } from './CustomFieldsBuilder'
 import type { CustomField, EntryMode, EventData } from '../types'
 
 export function EditEventForm({ event, onDone }: { event: EventData; onDone: () => void }) {
-  const cover = useCoverPhoto(event.coverImage || '')
+  const {
+    fileInputRef: coverFileInputRef,
+    coverImage,
+    rawImage: coverRawImage,
+    uploading: coverUploading,
+    error: coverError,
+    openPicker: openCoverPicker,
+    onFileSelected: onCoverFileSelected,
+    onCropConfirmed: onCoverCropConfirmed,
+    onCropCancelled: onCoverCropCancelled,
+    clearCover,
+  } = useCoverPhoto(event.coverImage || '')
 
   const [name, setName] = useState(event.name)
   const [date, setDate] = useState(event.date)
@@ -30,7 +42,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         date,
         location: location.trim(),
         description: description.trim(),
-        coverImage: cover.coverImage,
+        coverImage,
         accentColor,
         welcomeMessage: welcomeMessage.trim(),
         mapsUrl: mapsUrl.trim() || undefined,
@@ -46,11 +58,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
   return (
     <>
-    {cover.rawImage && (
+    {coverRawImage && (
       <ImageCropModal
-        imageSrc={cover.rawImage}
-        onCrop={cover.onCropConfirmed}
-        onCancel={cover.onCropCancelled}
+        imageSrc={coverRawImage}
+        onCrop={onCoverCropConfirmed}
+        onCancel={onCoverCropCancelled}
       />
     )}
     <form onSubmit={handleSubmit} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4 space-y-3 animate-fade-in-up">
@@ -103,20 +115,21 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Imagen de portada</label>
-          <input ref={cover.fileInputRef} type="file" accept="image/*" onChange={cover.onFileSelected} className="hidden" />
-          {cover.coverImage ? (
+          <input ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
+          {coverImage ? (
             <div className="relative rounded-lg overflow-hidden h-28 bg-gray-100">
-              <img src={cover.coverImage} alt="Portada" className="w-full h-full object-cover" />
-              <button type="button" onClick={cover.clearCover} className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1">
+              <img src={optimizedImageUrl(coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-full object-cover" />
+              <button type="button" onClick={clearCover} className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1">
                 Quitar
               </button>
             </div>
           ) : (
-            <button type="button" onClick={cover.openPicker} disabled={cover.uploading}
+            <button type="button" onClick={openCoverPicker} disabled={coverUploading}
               className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-4 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
-              {cover.uploading ? 'Subiendo...' : '+ Subir imagen de portada'}
+              {coverUploading ? 'Subiendo...' : '+ Subir imagen de portada'}
             </button>
           )}
+          {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -173,7 +186,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       </div>
 
       <div className="flex gap-2 pt-1">
-        <button type="submit" disabled={saving || cover.uploading}
+        <button type="submit" disabled={saving || coverUploading}
           className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </button>

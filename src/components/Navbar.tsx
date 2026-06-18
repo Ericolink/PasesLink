@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { logout } from '../firebase/auth'
 import { useAuth } from '../hooks/useAuth'
 import { isAdminEmail } from '../config/admin'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { Logo } from './Logo'
 
 export function Navbar() {
@@ -55,7 +56,7 @@ export function Navbar() {
               className="px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
             >
               {user.photoURL
-                ? <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full object-cover" />
+                ? <img src={optimizedImageUrl(user.photoURL, 48)} alt="" loading="lazy" className="w-6 h-6 rounded-full object-cover" />
                 : <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center text-[10px] font-bold text-primary">
                     {(user.displayName || user.email || '?')[0].toUpperCase()}
                   </div>

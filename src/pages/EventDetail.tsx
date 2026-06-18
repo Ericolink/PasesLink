@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useCheckinToast } from '../hooks/useCheckinToast'
@@ -64,9 +64,6 @@ export function EventDetail() {
 
   if (user && !hasAccess) {
     return <p className="text-center text-gray-500 mt-16">No tienes acceso a este evento.</p>
-  }
-  if (event.paymentStatus !== 'paid') {
-    return <Navigate to={`/events/${event.id}/checkout`} replace />
   }
 
   async function handleExportPdf() {

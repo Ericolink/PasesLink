@@ -12,6 +12,7 @@ import {
 } from '../firebase/wall'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import {
   IconCrown,
   IconHelpCircle,
@@ -81,7 +82,10 @@ export function EventWall() {
   const isPremium  = event?.plan === 'premium'
   const isMinor    = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
 
-  // If user is authenticated, skip name screen
+  // If user is authenticated, skip name screen. Igual que en EventJoin: profile
+  // llega async después de user, y el guard `!guestName` evita pisar lo que el
+  // usuario ya escribió.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (user) {
       setNameConfirmed(true)
@@ -91,6 +95,7 @@ export function EventWall() {
       }
     }
   }, [user, profile])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!id) return
@@ -195,7 +200,7 @@ export function EventWall() {
   return (
     <div className="max-w-xl mx-auto px-4 py-6 min-h-screen">
       {event?.coverImage && (
-        <img src={event.coverImage} alt="" className="w-full h-28 object-cover rounded-xl mb-4" />
+        <img src={optimizedImageUrl(event.coverImage, 800)} alt="" loading="lazy" className="w-full h-28 object-cover rounded-xl mb-4" />
       )}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -400,7 +405,7 @@ export function EventWall() {
 /* Avatar component */
 function Avatar({ name, photoURL, size = 32 }: { name: string; photoURL?: string; size?: number }) {
   if (photoURL) {
-    return <img src={photoURL} alt={name} className="rounded-full object-cover shrink-0"
+    return <img src={optimizedImageUrl(photoURL, size * 2)} alt={name} loading="lazy" className="rounded-full object-cover shrink-0"
       style={{ width: size, height: size }} />
   }
   return (

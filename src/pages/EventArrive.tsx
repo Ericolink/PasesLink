@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { getEvent } from '../firebase/events'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { IconBan } from '../components/Icons'
 import type { EventData } from '../types'
 
@@ -57,7 +58,7 @@ export function EventArrive() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {event?.coverImage && (
-          <img src={event.coverImage} alt="Portada" className="w-full h-36 object-cover rounded-xl mb-6" />
+          <img src={optimizedImageUrl(event.coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-36 object-cover rounded-xl mb-6" />
         )}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center animate-fade-in">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{event?.name}</h1>
