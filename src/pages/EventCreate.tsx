@@ -6,7 +6,9 @@ import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { CustomFieldsBuilder } from '../components/CustomFieldsBuilder'
-import type { CustomField, EntryMode } from '../types'
+import { TemplatePicker } from '../components/TemplatePicker'
+import { getTemplate } from '../templates/registry'
+import type { CustomField, EntryMode, TemplateId } from '../types'
 
 export function EventCreate() {
   const { user } = useAuth()
@@ -28,7 +30,12 @@ export function EventCreate() {
   const [date, setDate] = useState('')
   const [location, setLocation] = useState('')
   const [description, setDescription] = useState('')
-  const [accentColor, setAccentColor] = useState('#2563eb')
+  const [templateId, setTemplateId] = useState<TemplateId>('default')
+  // Vacío = "sin override manual", usa el acento propio de la plantilla
+  // elegida. Si tuviera un valor por defecto fijo, cada evento nuevo
+  // quedaría pisando el acento del tema con ese color sin que el anfitrión
+  // lo haya elegido a propósito.
+  const [accentColor, setAccentColor] = useState('')
   const [welcomeMessage, setWelcomeMessage] = useState('')
   const [mapsUrl, setMapsUrl] = useState('')
   const [entryMode, setEntryMode] = useState<EntryMode>('list')
@@ -54,6 +61,7 @@ export function EventCreate() {
         description,
         coverImage,
         accentColor,
+        templateId,
         welcomeMessage,
         mapsUrl: mapsUrl.trim() || undefined,
         entryMode,
@@ -145,6 +153,19 @@ export function EventCreate() {
           </p>
         </div>
 
+        {/* Plantilla visual */}
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Plantilla del pase</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Elegí la identidad visual que verán tus invitados. Podés cambiarla después.</p>
+          </div>
+          <TemplatePicker
+            selected={templateId}
+            onSelect={setTemplateId}
+            previewData={{ eventName: name, date, location, mapsUrl, coverImage, accentColor, welcomeMessage }}
+          />
+        </div>
+
         {/* Personalización */}
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Personalización del pase</h2>
@@ -178,11 +199,13 @@ export function EventCreate() {
               <div className="flex items-center gap-2">
                 <input
                   type="color"
-                  value={accentColor}
+                  value={accentColor || getTemplate(templateId).vars.accent}
                   onChange={(e) => setAccentColor(e.target.value)}
                   className="h-10 w-14 border border-gray-300 rounded-md cursor-pointer"
                 />
-                <span className="text-sm text-gray-500">{accentColor}</span>
+                <span className="text-sm text-gray-500">
+                  {accentColor || `${getTemplate(templateId).vars.accent} (de la plantilla)`}
+                </span>
               </div>
             </div>
             <div>

@@ -1,0 +1,130 @@
+/* Panel temático de la página de invitación (InvitationThemeRoot): pinta el
+   fondo y el patrón decorativo de TODO el ancho de <main>, de borde a borde
+   — no solo de la tarjeta. Todo en CSS puro (gradientes/patrones, sin
+   imágenes) para no sumar peso ni requests por tema.
+
+   El selector siempre cuelga de [data-template="x"], aplicado por
+   InvitationThemeRoot.tsx — agregar un tema nuevo es opcionalmente sumar un
+   bloque más aquí, nunca tocar los anteriores. */
+
+.invite-theme-root {
+  background-color: var(--invite-page-bg);
+  transition: background-color 0.3s ease;
+}
+
+/* El tema "default" no impone su propia paleta: respeta el modo oscuro de
+   la app, igual que antes de que existieran las plantillas. El resto de los
+   temas mantiene su identidad propia incluso con el modo oscuro activado —
+   es una elección deliberada, la invitación no es parte del "chrome" de la
+   app. */
+.dark [data-template='default'] {
+  --invite-page-bg: #0e1628;
+  --invite-surface: #1a2548;
+  --invite-text: #f0f4ff;
+  --invite-text-muted: #90a2c8;
+  --invite-border: rgba(144, 162, 200, 0.35);
+}
+
+/* ── Vaquera: madera/cuero ──────────────────────────────────────── */
+[data-template='cowboy'] {
+  background-image:
+    repeating-linear-gradient(180deg, rgba(74, 44, 20, .07) 0 3px, transparent 3px 46px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .05) 0 2px, transparent 2px 10px);
+}
+[data-template='cowboy'] h1 {
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+/* Borde superior tipo soga/rawhide trenzada en vez del acento liso */
+[data-template='cowboy'] .invite-card {
+  border-top-width: 8px !important;
+  border-image: repeating-linear-gradient(
+    45deg,
+    var(--invite-accent) 0 8px,
+    var(--invite-accent-dark) 8px 16px
+  ) 1 !important;
+}
+
+/* ── Boda: floral disperso, cálido ───────────────────────────────── */
+[data-template='wedding'] {
+  background-image:
+    radial-gradient(circle 90px at 10% 15%, rgba(176, 137, 104, .16), transparent 70%),
+    radial-gradient(circle 110px at 90% 12%, rgba(176, 137, 104, .14), transparent 70%),
+    radial-gradient(circle 130px at 50% 95%, rgba(176, 137, 104, .13), transparent 70%);
+}
+[data-template='wedding'] h1 {
+  font-style: italic;
+}
+
+/* ── Graduación: papel rayado / diploma ──────────────────────────── */
+[data-template='graduation'] {
+  background-image:
+    repeating-linear-gradient(180deg, transparent 0 27px, rgba(30, 58, 138, .10) 27px 28px),
+    linear-gradient(90deg, transparent 0 32px, rgba(157, 23, 77, .22) 32px 33px, transparent 33px);
+}
+[data-template='graduation'] h1 {
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 700;
+}
+
+/* ── Aniversario: resplandores cálidos superpuestos ──────────────── */
+[data-template='anniversary'] {
+  background-image:
+    radial-gradient(circle 140px at 15% 20%, rgba(157, 23, 77, .14), transparent 70%),
+    radial-gradient(circle 170px at 85% 85%, rgba(157, 23, 77, .12), transparent 70%);
+}
+[data-template='anniversary'] h1 {
+  font-style: italic;
+}
+
+/* ── Formal: minimalismo elegante, doble filete en vez de textura ── */
+[data-template='formal'] {
+  background-image:
+    linear-gradient(180deg, rgba(0, 0, 0, .05), transparent 90px),
+    linear-gradient(0deg, rgba(0, 0, 0, .04), transparent 90px);
+}
+[data-template='formal'] h1 {
+  letter-spacing: .04em;
+}
+/* El acento ya se ve en el doble filete (--invite-shadow, ver registry.ts):
+   el borde superior grueso de InvitationCard quedaría redundante/recargado
+   encima de ese marco, así que aquí se reduce a una línea fina uniforme. */
+[data-template='formal'] .invite-card {
+  border-top-width: 1px !important;
+  border-top-color: var(--invite-border) !important;
+}
+
+/* ── Casual: brisa suave ──────────────────────────────────────────── */
+[data-template='casual'] {
+  background-image: repeating-linear-gradient(120deg, rgba(13, 148, 136, .09) 0 14px, transparent 14px 42px);
+}
+
+/* ── Infantil: confeti en puntos, dos tonos ──────────────────────── */
+[data-template='kids'] {
+  background-image:
+    radial-gradient(circle, rgba(245, 158, 11, .22) 2px, transparent 2px),
+    radial-gradient(circle, rgba(217, 119, 6, .16) 1.4px, transparent 1.4px);
+  background-size: 22px 22px, 22px 22px;
+  background-position: 0 0, 11px 11px;
+}
+
+/* ── Cumpleaños: confeti en tiras diagonales (distinto de infantil) ─ */
+[data-template='birthday'] {
+  background-image:
+    repeating-linear-gradient(35deg, rgba(219, 39, 119, .12) 0 6px, transparent 6px 26px),
+    repeating-linear-gradient(-35deg, rgba(168, 23, 92, .10) 0 4px, transparent 4px 30px);
+}
+
+/* ── Cena empresarial: grilla fina tipo plano técnico ────────────── */
+[data-template='corporate'] {
+  background-image:
+    linear-gradient(rgba(51, 65, 85, .07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51, 65, 85, .07) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px;
+}
+[data-template='corporate'] h1 {
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 600;
+}

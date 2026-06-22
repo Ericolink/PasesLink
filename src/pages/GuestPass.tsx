@@ -5,12 +5,16 @@ import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
 import { checkInGuest, claimGuestPass, findGuestByToken, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { useAuth } from '../hooks/useAuth'
-import { optimizedImageUrl } from '../utils/cloudinary'
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { Logo } from '../components/Logo'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
+import { InvitationCard } from '../components/InvitationCard'
+import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
+import { ThemeOrnament } from '../components/ThemeOrnament'
+import { InviteDivider } from '../components/InviteDivider'
+import { getTemplate } from '../templates/registry'
 
 // El navegador reutiliza la misma instancia de GuestPass al navegar entre dos
 // URLs /pass/:eventId/:qrToken distintas (mismo patrón de ruta) — sin esta key,
@@ -97,7 +101,13 @@ function GuestPassInner() {
     if (result.status === 'success') {
       setGuest((g) => g ? { ...g, status: 'checked_in' } : g)
       setCheckInState('done')
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.5 } })
+      const tpl = getTemplate(event!.templateId).vars
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.5 },
+        colors: [event!.accentColor || tpl.accent, tpl.accentDark, tpl.accentSoft],
+      })
     } else if (result.status === 'already_checked_in') {
       setCheckInState('already')
     } else if (result.status === 'payment_required') {
@@ -121,23 +131,27 @@ function GuestPassInner() {
   // Vista del organizador: solo check-in, sin lock ni RSVP
   if (isOrg) {
     return (
-      <div className="max-w-sm mx-auto px-4 py-12 text-center animate-fade-in">
-        <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-sm p-6">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-4">Modo organizador</p>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{guest.name}</h1>
+      <InvitationThemeRoot
+        templateId={event.templateId}
+        accentOverride={event.accentColor}
+        className="max-w-sm mx-auto px-4 py-12 text-center"
+      >
+        <InvitationCard>
+          <p className="text-xs uppercase tracking-wide mb-4 text-[var(--invite-text-muted)]">Modo organizador</p>
+          <h1 className="text-xl font-semibold">{guest.name}</h1>
           {guest.companions > 0 && (
-            <p className="text-sm text-gray-500 mt-1">+ {guest.companions} acompañante(s)</p>
+            <p className="text-sm mt-1 text-[var(--invite-text-muted)]">+ {guest.companions} acompañante(s)</p>
           )}
-          <p className="text-sm text-gray-400 mt-1">{event.name}</p>
+          <p className="text-sm mt-1 text-[var(--invite-text-muted)]">{event.name}</p>
 
           {event.requiresPayment && (
             <div className="mt-4 flex flex-col items-center gap-2">
               <span
                 className={`inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full font-medium ${
-                  guest.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                  guest.paymentStatus === 'paid' ? 'bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
                 }`}
               >
-                <IconTicket className="w-4 h-4" />
+                <IconTicket className={`w-4 h-4 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />
                 {guest.paymentStatus === 'paid'
                   ? 'Pago confirmado'
                   : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions)).toLocaleString('es')}`}
@@ -145,7 +159,7 @@ function GuestPassInner() {
               <button
                 onClick={handleTogglePayment}
                 disabled={paymentSaving}
-                className="text-sm text-primary font-medium disabled:opacity-50"
+                className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
               >
                 {guest.paymentStatus === 'paid' ? 'Marcar como no pagado' : 'Marcar como pagado'}
               </button>
@@ -154,7 +168,7 @@ function GuestPassInner() {
 
           {checkInState !== 'done' && (
             <div className="flex justify-center my-6">
-              <div className="p-3 border border-gray-100 dark:border-gray-700 rounded-lg inline-block">
+              <div className="p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
                 <QRCodeCanvas value={passUrl} size={180} marginSize={2} />
               </div>
             </div>
@@ -164,9 +178,9 @@ function GuestPassInner() {
             {checkInState === 'done' && (
               <div className="flex flex-col items-center gap-3">
                 <IconCheckCircle className="w-16 h-16 text-green-500" />
-                <p className="text-lg font-semibold text-green-600">¡Entrada registrada!</p>
+                <p className="text-lg font-semibold text-[var(--invite-text)]">¡Entrada registrada!</p>
                 {event.welcomeMessage && (
-                  <p className="text-sm text-gray-500 italic">{event.welcomeMessage}</p>
+                  <p className="text-sm italic text-[var(--invite-text-muted)]">{event.welcomeMessage}</p>
                 )}
               </div>
             )}
@@ -174,7 +188,7 @@ function GuestPassInner() {
               <div className="flex flex-col items-center gap-3">
                 <IconAlertTriangle className="w-14 h-14 text-amber-400" />
                 <p className="text-base font-semibold text-amber-600">Ya registrado</p>
-                <p className="text-sm text-gray-500">Este invitado ya hizo check-in anteriormente.</p>
+                <p className="text-sm text-[var(--invite-text-muted)]">Este invitado ya hizo check-in anteriormente.</p>
               </div>
             )}
             {checkInState === 'payment_required' && (
@@ -184,18 +198,16 @@ function GuestPassInner() {
               <button
                 onClick={handleCheckIn}
                 disabled={checkInState === 'loading' || (event.requiresPayment && guest.paymentStatus !== 'paid')}
-                className="w-full bg-primary text-white rounded-xl py-4 text-lg font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+                className="w-full text-white rounded-xl py-4 text-lg font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 bg-[var(--invite-accent)]"
               >
                 {checkInState === 'loading' ? 'Registrando...' : 'Registrar entrada'}
               </button>
             )}
           </div>
-        </div>
-      </div>
+        </InvitationCard>
+      </InvitationThemeRoot>
     )
   }
-
-  const accentColor = event.accentColor || ''
 
   async function handleRsvp(rsvpStatus: RsvpStatus) {
     if (!guest) return
@@ -218,32 +230,28 @@ function GuestPassInner() {
   }
 
   return (
-    <div className="max-w-sm mx-auto px-4 py-12 text-center animate-fade-in">
+    <InvitationThemeRoot
+      templateId={event.templateId}
+      accentOverride={event.accentColor}
+      className="max-w-sm mx-auto px-4 py-12 text-center"
+    >
       {!event.coverImage && (
         <div className="flex justify-center mb-6">
           <Logo />
         </div>
       )}
-      <div
-        className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
-        style={accentColor ? { borderTopWidth: '4px', borderTopColor: accentColor } : undefined}
-      >
-        {event.coverImage && (
-          <div className="w-full h-36 overflow-hidden">
-            <img src={optimizedImageUrl(event.coverImage, 800)} alt={event.name} loading="lazy" className="w-full h-full object-cover" />
-          </div>
-        )}
-        <div className="p-6">
-        <h1 className="text-xl font-semibold text-gray-900">{event.name}</h1>
-        <p className="text-sm text-gray-500 mt-1">
+      <InvitationCard coverImage={event.coverImage} coverAlt={event.name}>
+        <h1 className="text-xl font-semibold">{event.name}</h1>
+        <ThemeOrnament templateId={event.templateId} className="w-16 h-6 mx-auto mt-2 text-[var(--invite-accent)]" />
+        <p className="text-sm mt-1 text-[var(--invite-text-muted)]">
           {event.date} · {event.location}
         </p>
 
         {locked && (
           <div className="py-8">
             <IconAlertTriangle className="w-10 h-10 mx-auto mb-3 text-amber-400" />
-            <p className="text-gray-900 font-medium">Esta invitación ya fue abierta</p>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="font-medium">Esta invitación ya fue abierta</p>
+            <p className="text-sm mt-2 text-[var(--invite-text-muted)]">
               Por seguridad, este pase solo puede abrirse desde el dispositivo donde se usó por primera vez. Si crees
               que es un error, contacta al organizador del evento.
             </p>
@@ -255,30 +263,29 @@ function GuestPassInner() {
             (más abajo en este archivo), sin depender del RSVP del invitado. */}
         {!locked && guest.rsvpStatus === 'yes' && (
           <>
-            <p className="text-lg font-medium text-gray-900 mt-6">{guest.name}</p>
+            <p className="text-lg font-medium mt-6">{guest.name}</p>
             {guest.companions > 0 && (
-              <p className="text-sm text-gray-500">+ {guest.companions} acompañante(s)</p>
+              <p className="text-sm text-[var(--invite-text-muted)]">+ {guest.companions} acompañante(s)</p>
             )}
 
             <div className="flex justify-center my-6" ref={qrWrapperRef}>
-              <div className="p-3 border border-gray-100 rounded-lg inline-block">
+              <div className="p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
                 <QRCodeCanvas value={passUrl} size={220} marginSize={2} />
               </div>
             </div>
 
             {guest.status === 'checked_in' ? (
-              <p className="mt-2 inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-green-100 text-green-700">
-                <IconCheckCircle className="w-4 h-4" /> Asistencia confirmada
+              <p className="mt-2 inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
+                <IconCheckCircle className="w-4 h-4 text-green-500" /> Asistencia confirmada
               </p>
             ) : (
-              <p className="text-sm text-gray-500">Presenta este código QR en la entrada</p>
+              <p className="text-sm text-[var(--invite-text-muted)]">Presenta este código QR en la entrada</p>
             )}
 
             <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
               <button
                 onClick={handleDownload}
-                style={accentColor ? { backgroundColor: accentColor } : undefined}
-                className="inline-flex items-center justify-center gap-2 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
+                className="inline-flex items-center justify-center gap-2 text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
               >
                 <IconDownload className="w-4 h-4" /> Descargar QR
               </button>
@@ -297,8 +304,8 @@ function GuestPassInner() {
         {!locked && guest.rsvpStatus === 'no' && (
           <div className="py-8">
             <IconHeart className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-900 font-medium">Qué lástima, ¡te vamos a extrañar!</p>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="font-medium">Qué lástima, ¡te vamos a extrañar!</p>
+            <p className="text-sm mt-2 text-[var(--invite-text-muted)]">
               Registramos que no podrás asistir. Si cambias de opinión, contacta al organizador del evento para que
               te genere un nuevo pase.
             </p>
@@ -306,32 +313,32 @@ function GuestPassInner() {
         )}
 
         {!locked && guest.rsvpStatus === 'pending' && !showMaybeMessage && (
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <p className="text-lg font-medium text-gray-900 mb-1">{guest.name}</p>
+          <div className="mt-6 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
+            <p className="text-lg font-medium mb-1">{guest.name}</p>
             {guest.companions > 0 && (
-              <p className="text-sm text-gray-500 mb-3">+ {guest.companions} acompañante(s)</p>
+              <p className="text-sm mb-3 text-[var(--invite-text-muted)]">+ {guest.companions} acompañante(s)</p>
             )}
-            <p className="text-sm font-medium text-gray-900 mb-3 mt-3">¿Asistirás a este evento?</p>
+            <p className="text-sm font-medium mb-3 mt-3">¿Asistirás a este evento?</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => handleRsvp('yes')}
                 disabled={rsvpSaving}
-                style={accentColor ? { backgroundColor: accentColor } : undefined}
-                className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+                className="text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
               >
                 Sí, asistiré
               </button>
               <button
                 onClick={() => handleRsvp('no')}
                 disabled={rsvpSaving}
-                className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                className="border rounded-md px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
+                style={{ borderColor: 'var(--invite-border)' }}
               >
                 No podré asistir
               </button>
               <button
                 onClick={() => setShowMaybeMessage(true)}
                 disabled={rsvpSaving}
-                className="text-sm text-gray-500 font-medium hover:text-gray-700 transition-colors disabled:opacity-50"
+                className="text-sm font-medium transition-colors disabled:opacity-50 text-[var(--invite-text-muted)] hover:text-[var(--invite-text)]"
               >
                 Aún no lo sé
               </button>
@@ -340,56 +347,55 @@ function GuestPassInner() {
         )}
 
         {!locked && guest.rsvpStatus === 'pending' && showMaybeMessage && (
-          <div className="mt-6 pt-6 border-t border-gray-100 py-2">
+          <div className="mt-6 pt-6 py-2 border-t" style={{ borderColor: 'var(--invite-border)' }}>
             <IconClock className="w-8 h-8 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-900 font-medium">Ok, tómate tu tiempo</p>
-            <p className="text-sm text-gray-500 mt-2 mb-4">
+            <p className="font-medium">Ok, tómate tu tiempo</p>
+            <p className="text-sm mt-2 mb-4 text-[var(--invite-text-muted)]">
               Tu invitación queda pendiente. Vuelve a este enlace cuando quieras para confirmar tu asistencia.
             </p>
-            <button onClick={() => setShowMaybeMessage(false)} className="text-sm text-primary font-medium">
+            <button onClick={() => setShowMaybeMessage(false)} className="text-sm font-medium text-[var(--invite-accent)]">
               Responder ahora
             </button>
           </div>
         )}
 
         {!locked && event.requiresPayment && guest.rsvpStatus !== 'no' && (
-          <div className="mt-5 pt-4 border-t border-gray-100 text-left">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pago de entrada</p>
+          <div className="mt-5 pt-4 text-left border-t" style={{ borderColor: 'var(--invite-border)' }}>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-2 text-[var(--invite-text-muted)]">Pago de entrada</p>
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-sm text-gray-700">
+              <span className="text-sm">
                 Monto a pagar: <strong>{event.currency}{(event.ticketPrice * (1 + guest.companions)).toLocaleString('es')}</strong>
               </span>
               <span
                 className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
-                  guest.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                  guest.paymentStatus === 'paid' ? 'bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
                 }`}
               >
-                <IconTicket className="w-3.5 h-3.5" />
+                <IconTicket className={`w-3.5 h-3.5 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />
                 {guest.paymentStatus === 'paid' ? 'Pagado' : 'Pendiente'}
               </span>
             </div>
             {event.paymentInstructions && (
-              <p className="text-sm text-gray-500 whitespace-pre-line">{event.paymentInstructions}</p>
+              <p className="text-sm whitespace-pre-line text-[var(--invite-text-muted)]">{event.paymentInstructions}</p>
             )}
           </div>
         )}
 
         {event.welcomeMessage && (
-          <p
-            className="mt-5 pt-4 border-t border-gray-100 text-sm font-medium italic"
-            style={accentColor ? { color: accentColor } : { color: '#2563eb' }}
-          >
+          <p className="mt-5 pt-4 text-sm font-medium italic border-t text-[var(--invite-accent)]" style={{ borderColor: 'var(--invite-border)' }}>
             {event.welcomeMessage}
           </p>
         )}
-        </div>
-      </div>
+      </InvitationCard>
       {event.location && (
-        <EventMap location={event.location} mapsUrl={event.mapsUrl} />
+        <>
+          <InviteDivider templateId={event.templateId} />
+          <EventMap location={event.location} mapsUrl={event.mapsUrl} />
+        </>
       )}
       {eventId && (
         <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} />
       )}
-    </div>
+    </InvitationThemeRoot>
   )
 }

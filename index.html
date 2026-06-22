@@ -6,7 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PaseLink - Gestión de invitados para eventos</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Space Grotesk: tipografía de la app. El resto son las fuentes que usan
+         las plantillas de invitación (src/templates/registry.ts) — se cargan
+         una sola vez acá, nunca por plantilla, así agregar un tema nuevo que
+         reuse una de estas no agrega ningún request adicional. -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Cormorant+Garamond:wght@500;600&family=Baloo+2:wght@500;600;700&family=Rye&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>

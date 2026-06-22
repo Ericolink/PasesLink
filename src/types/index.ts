@@ -13,6 +13,22 @@ export type GuestPaymentStatus = 'unpaid' | 'paid'
 
 export type CustomFieldType = 'text' | 'number' | 'email' | 'phone'
 
+// Unión cerrada (no string suelto) para que agregar una plantilla nueva sea
+// un error de tipos hasta que también se agregue su entrada en
+// src/templates/registry.ts — evita plantillas "fantasma" referenciadas desde
+// un evento pero sin definición visual.
+export type TemplateId =
+  | 'default'
+  | 'wedding'
+  | 'cowboy'
+  | 'graduation'
+  | 'anniversary'
+  | 'formal'
+  | 'casual'
+  | 'kids'
+  | 'birthday'
+  | 'corporate'
+
 export interface CustomField {
   id: string
   label: string
@@ -29,6 +45,7 @@ export interface EventData {
   description?: string
   coverImage?: string
   accentColor?: string
+  templateId?: TemplateId
   welcomeMessage?: string
   mapsUrl?: string
   entryMode: EntryMode

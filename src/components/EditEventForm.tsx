@@ -4,7 +4,9 @@ import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { ImageCropModal } from './ImageCropModal'
 import { CustomFieldsBuilder } from './CustomFieldsBuilder'
-import type { CustomField, EntryMode, EventData } from '../types'
+import { TemplatePicker } from './TemplatePicker'
+import { getTemplate } from '../templates/registry'
+import type { CustomField, EntryMode, EventData, TemplateId } from '../types'
 
 export function EditEventForm({ event, onDone }: { event: EventData; onDone: () => void }) {
   const {
@@ -24,7 +26,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [date, setDate] = useState(event.date)
   const [location, setLocation] = useState(event.location)
   const [description, setDescription] = useState(event.description || '')
-  const [accentColor, setAccentColor] = useState(event.accentColor || '#2563eb')
+  const [templateId, setTemplateId] = useState<TemplateId>(event.templateId || 'default')
+  // Vacío = "sin override manual", usa el acento propio de la plantilla.
+  const [accentColor, setAccentColor] = useState(event.accentColor || '')
   const [welcomeMessage, setWelcomeMessage] = useState(event.welcomeMessage || '')
   const [mapsUrl, setMapsUrl] = useState(event.mapsUrl || '')
   // No es editable: cambiar el modo de ingreso después de compartir invitaciones
@@ -50,6 +54,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         description: description.trim(),
         coverImage,
         accentColor,
+        templateId,
         welcomeMessage: welcomeMessage.trim(),
         mapsUrl: mapsUrl.trim() || undefined,
         entryMode,
@@ -119,6 +124,16 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         </p>
       </div>
 
+      {/* Plantilla visual */}
+      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Plantilla del pase</p>
+        <TemplatePicker
+          selected={templateId}
+          onSelect={setTemplateId}
+          previewData={{ eventName: name, date, location, mapsUrl, coverImage, accentColor, welcomeMessage }}
+        />
+      </div>
+
       {/* Personalización */}
       <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Personalización del pase</p>
@@ -146,9 +161,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
             <div className="flex items-center gap-2">
-              <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)}
+              <input type="color" value={accentColor || getTemplate(templateId).vars.accent} onChange={(e) => setAccentColor(e.target.value)}
                 className="h-9 w-12 border border-gray-300 rounded-md cursor-pointer" />
-              <span className="text-sm text-gray-500">{accentColor}</span>
+              <span className="text-sm text-gray-500">{accentColor || `${getTemplate(templateId).vars.accent} (de la plantilla)`}</span>
             </div>
           </div>
           <div>

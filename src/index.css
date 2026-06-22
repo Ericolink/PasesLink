@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./styles/templates.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -201,6 +202,31 @@ body {
   color: #7B8DB0;
 }
 
+/* La regla de arriba (.dark input/select/textarea) es CSS sin @layer, así
+   que le gana a cualquier clase de Tailwind (incluidas las que usan
+   var(--invite-*)) sin importar especificidad — Tailwind genera sus
+   utilidades dentro de @layer utilities, y cualquier CSS sin capa siempre
+   gana contra CSS en capa. Por eso, dentro de una invitación temática, estas
+   reglas con selector más específico son las que de verdad aplican el tema a
+   los campos de texto (incluido el del muro de comentarios). */
+.dark [data-template] input,
+.dark [data-template] select,
+.dark [data-template] textarea {
+  background-color: var(--invite-surface);
+  color: var(--invite-text);
+  border-color: var(--invite-border);
+}
+
+.dark [data-template] input::placeholder,
+.dark [data-template] textarea::placeholder {
+  color: var(--invite-text-muted);
+}
+
+.dark [data-template] input:hover,
+.dark [data-template] textarea:hover {
+  border-color: var(--invite-accent);
+}
+
 .dark input[type='color'] {
   background-color: transparent;
 }
@@ -287,6 +313,15 @@ body {
   box-shadow: 0 0 0 3px rgba(255,0,77,.22) !important;
 }
 
+/* Dentro de una invitación temática (formulario del muro, etc.) el foco usa
+   el acento del tema en vez del rosa global — más específico que la regla
+   de arriba para ganarle el empate de !important. */
+.dark [data-template] input:focus,
+.dark [data-template] textarea:focus {
+  border-color: var(--invite-accent) !important;
+  box-shadow: 0 0 0 3px var(--invite-accent-soft) !important;
+}
+
 /* ── Animaciones ─────────────────────────────────────────────── */
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(14px); }
@@ -319,6 +354,22 @@ body {
 .animate-delay-1 { animation-delay: 0.08s; }
 .animate-delay-2 { animation-delay: 0.16s; }
 .animate-delay-3 { animation-delay: 0.24s; }
+
+/* Quienes piden menos movimiento no deberían recibir ni los orbs del fondo
+   ni las animaciones de entrada de las invitaciones temáticas — afecta toda
+   la app, no solo el sistema de temas. */
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .animate-fade-in-up,
+  .animate-fade-in,
+  .animate-bounce-in,
+  .animate-slide-in-up,
+  .animate-float {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
 
 /* ── Card hover ──────────────────────────────────────────────── */
 .card-hover {

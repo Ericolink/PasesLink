@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { getEvent } from '../firebase/events'
-import { optimizedImageUrl } from '../utils/cloudinary'
+import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
+import { InvitationCard } from '../components/InvitationCard'
+import { ThemeOrnament } from '../components/ThemeOrnament'
 import { IconBan } from '../components/Icons'
 import type { EventData } from '../types'
 
@@ -55,31 +57,33 @@ export function EventArrive() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <InvitationThemeRoot
+      templateId={event?.templateId}
+      accentOverride={event?.accentColor}
+      className="min-h-screen flex items-center justify-center p-4"
+    >
       <div className="w-full max-w-sm">
-        {event?.coverImage && (
-          <img src={optimizedImageUrl(event.coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-36 object-cover rounded-xl mb-6" />
-        )}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center animate-fade-in">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{event?.name}</h1>
-          <p className="text-sm text-gray-500 mb-4">{event?.date} · {event?.location}</p>
+        <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
+          <h1 className="text-xl font-bold mb-1">{event?.name}</h1>
+          <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-2 text-[var(--invite-accent)]" />
+          <p className="text-sm mb-4 text-[var(--invite-text-muted)]">{event?.date} · {event?.location}</p>
 
           <div className="flex justify-center mb-4">
             <canvas ref={canvasRef} className="rounded-lg" />
           </div>
 
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <p className="text-sm font-medium mb-1">
             Muestra este QR en la entrada
           </p>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-[var(--invite-text-muted)]">
             El guardia lo escaneará para registrar tu ingreso
           </p>
 
           {event?.welcomeMessage && (
-            <p className="text-sm italic text-gray-500 mt-4">{event.welcomeMessage}</p>
+            <p className="text-sm italic mt-4 text-[var(--invite-accent)]">{event.welcomeMessage}</p>
           )}
-        </div>
+        </InvitationCard>
       </div>
-    </div>
+    </InvitationThemeRoot>
   )
 }

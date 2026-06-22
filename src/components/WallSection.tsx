@@ -103,8 +103,8 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
   const canPost = user ? !isMinor : !!resolvedGuestName
 
   return (
-    <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-      <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Muro del evento</h2>
+    <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
+      <h2 className="text-lg font-bold mb-4 text-[var(--invite-text)]">Muro del evento</h2>
 
       {/* Age restriction notice */}
       {user && isMinor && (
@@ -115,7 +115,11 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
 
       {/* Post form */}
       {canPost && (
-        <form onSubmit={handlePost} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-4 space-y-3">
+        <form
+          onSubmit={handlePost}
+          className="border p-4 mb-4 space-y-3 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
+          style={{ borderColor: 'var(--invite-border)' }}
+        >
           <div className="flex gap-2 flex-wrap">
             {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
               const cfg = TYPE_CONFIG[t]
@@ -139,14 +143,15 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
               placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}...`}
               rows={2}
               maxLength={WALL_TEXT_MAX}
-              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
+              className="flex-1 border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 bg-transparent text-[var(--invite-text)] focus:ring-[var(--invite-accent)]"
+              style={{ borderColor: 'var(--invite-border)' }}
             />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">Como: <strong>{authorName}</strong></span>
-            <span className="text-xs text-gray-400">{text.length}/{WALL_TEXT_MAX}</span>
+            <span className="text-xs text-[var(--invite-text-muted)]">Como: <strong>{authorName}</strong></span>
+            <span className="text-xs text-[var(--invite-text-muted)]">{text.length}/{WALL_TEXT_MAX}</span>
             <button type="submit" disabled={posting || !text.trim()}
-              className="bg-primary text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-40">
+              className="text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 bg-[var(--invite-accent)]">
               {posting ? 'Publicando...' : 'Publicar'}
             </button>
           </div>
@@ -154,14 +159,14 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
         </form>
       )}
 
-      {loading && <p className="text-center text-gray-400 text-sm py-4">Cargando mensajes...</p>}
+      {loading && <p className="text-center text-sm py-4 text-[var(--invite-text-muted)]">Cargando mensajes...</p>}
       {wallError && (
         <p className="text-xs text-red-500 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2 mb-3">
           {wallError}
         </p>
       )}
       {!loading && !wallError && messages.length === 0 && (
-        <p className="text-center text-gray-400 text-sm py-6">Sé el primero en escribir algo</p>
+        <p className="text-center text-sm py-6 text-[var(--invite-text-muted)]">Sé el primero en escribir algo</p>
       )}
 
       <div className="space-y-3">
@@ -173,11 +178,8 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
           const disliked  = msg.dislikedBy.includes(token)
           return (
             <div key={msg.id}
-              className={`bg-white dark:bg-gray-800 rounded-xl border p-4 ${
-                msg.pinned
-                  ? 'border-yellow-400/60 dark:border-yellow-500/40'
-                  : 'border-gray-200 dark:border-gray-700'
-              }`}>
+              className="border p-4 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
+              style={{ borderColor: msg.pinned ? '#facc15' : 'var(--invite-border)' }}>
               <div className="flex items-start gap-2 mb-2">
                 <Avatar name={msg.authorName} photoURL={msg.authorPhotoURL} size={28} />
                 <div className="flex-1 min-w-0">
@@ -192,16 +194,16 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
                           <IconCrown className="w-3 h-3" />{msg.authorName}
                         </span>
                       : isOwnerMsg
-                        ? <span className="text-xs font-bold text-primary">{msg.authorName}</span>
-                        : <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{msg.authorName}</span>
+                        ? <span className="text-xs font-bold text-[var(--invite-accent)]">{msg.authorName}</span>
+                        : <span className="text-xs font-semibold text-[var(--invite-text)]">{msg.authorName}</span>
                     }
                   </div>
                 </div>
               </div>
-              <p className="text-sm text-gray-900 dark:text-white mb-3 ml-9">{msg.text}</p>
+              <p className="text-sm mb-3 ml-9 text-[var(--invite-text)]">{msg.text}</p>
               <div className="flex items-center gap-3 ml-9">
                 <button onClick={() => handleLike(msg)}
-                  className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'text-primary font-medium' : 'text-gray-400 hover:text-primary'}`}>
+                  className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'font-medium text-[var(--invite-accent)]' : 'text-gray-400 hover:text-[var(--invite-accent)]'}`}>
                   <IconThumbsUp className="w-3.5 h-3.5" />
                   {msg.likedBy.length > 0 && <span>{msg.likedBy.length}</span>}
                 </button>
@@ -225,8 +227,8 @@ function Avatar({ name, photoURL, size = 32 }: { name: string; photoURL?: string
       style={{ width: size, height: size }} />
   }
   return (
-    <div className="rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-xs font-bold text-primary"
-      style={{ width: size, height: size }}>
+    <div className="rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-[var(--invite-accent)]"
+      style={{ width: size, height: size, backgroundColor: 'var(--invite-accent-soft)' }}>
       {name?.[0]?.toUpperCase() || '?'}
     </div>
   )

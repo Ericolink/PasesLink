@@ -15,7 +15,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './config'
-import type { CustomField, EntryMode, EventData, EventStatus } from '../types'
+import type { CustomField, EntryMode, EventData, EventStatus, TemplateId } from '../types'
 
 export interface NewEventInput {
   name: string
@@ -24,6 +24,7 @@ export interface NewEventInput {
   description?: string
   coverImage?: string
   accentColor?: string
+  templateId?: TemplateId
   welcomeMessage?: string
   mapsUrl?: string
   entryMode?: EntryMode
@@ -44,6 +45,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     description: input.description || '',
     coverImage: input.coverImage || '',
     accentColor: input.accentColor || '',
+    templateId: input.templateId || 'default',
     welcomeMessage: input.welcomeMessage || '',
     mapsUrl: input.mapsUrl || '',
     entryMode: input.entryMode || 'list',
@@ -120,6 +122,7 @@ export interface UpdateEventInput {
   description?: string
   coverImage?: string
   accentColor?: string
+  templateId?: TemplateId
   welcomeMessage?: string
   mapsUrl?: string
   entryMode?: EntryMode
@@ -139,6 +142,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     description: input.description || '',
     coverImage: input.coverImage ?? '',
     accentColor: input.accentColor ?? '',
+    templateId: input.templateId || 'default',
     welcomeMessage: input.welcomeMessage ?? '',
     mapsUrl: input.mapsUrl ?? '',
     entryMode: input.entryMode || 'list',
@@ -165,6 +169,13 @@ export async function updateEventBranding(
 ) {
   await updateDoc(doc(db, 'events', eventId), {
     ...branding,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateEventTemplate(eventId: string, templateId: TemplateId) {
+  await updateDoc(doc(db, 'events', eventId), {
+    templateId,
     updatedAt: serverTimestamp(),
   })
 }
@@ -209,6 +220,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     description: (data.description as string) || '',
     coverImage: (data.coverImage as string) || '',
     accentColor: (data.accentColor as string) || '',
+    templateId: (data.templateId as TemplateId) || 'default',
     welcomeMessage: (data.welcomeMessage as string) || '',
     mapsUrl: (data.mapsUrl as string) || '',
     entryMode: (data.entryMode as EntryMode) || 'list',

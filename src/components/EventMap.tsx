@@ -23,8 +23,8 @@ export function EventMap({ location, mapsUrl }: Props) {
     <div className="mt-4 space-y-3">
       {showMap && (
         <div
-          className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 transition-all duration-500"
-          style={{ height: mapLoaded ? 220 : 0, opacity: mapLoaded ? 1 : 0 }}
+          className="overflow-hidden rounded-xl border transition-all duration-500"
+          style={{ height: mapLoaded ? 220 : 0, opacity: mapLoaded ? 1 : 0, borderColor: 'var(--invite-border)' }}
         >
           <iframe
             src={`https://maps.google.com/maps?q=${coords.lat},${coords.lng}&output=embed&hl=es&z=16`}
@@ -44,7 +44,7 @@ export function EventMap({ location, mapsUrl }: Props) {
         href={directionsUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full rounded-xl bg-primary text-white font-semibold py-3 text-sm hover:opacity-90 active:scale-[.98] transition-all shadow-sm"
+        className="flex items-center justify-center gap-2 w-full text-white font-semibold py-3 text-sm hover:opacity-90 active:scale-[.98] transition-all shadow-sm bg-[var(--invite-accent)] [border-radius:var(--invite-radius)]"
       >
         <IconMapPin className="w-4 h-4" />
         Cómo llegar

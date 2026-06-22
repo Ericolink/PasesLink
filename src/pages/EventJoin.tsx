@@ -7,7 +7,6 @@ import { addToWaitlist } from '../firebase/waitlist'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
-import { optimizedImageUrl } from '../utils/cloudinary'
 import {
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_NAME_PART_MAX,
@@ -17,6 +16,10 @@ import {
 } from '../utils/validation'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
+import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
+import { InvitationCard } from '../components/InvitationCard'
+import { ThemeOrnament } from '../components/ThemeOrnament'
+import { InviteDivider } from '../components/InviteDivider'
 import {
   IconBan,
   IconCheckCircle,
@@ -187,98 +190,112 @@ export function EventJoin() {
 
     if (waitlistState === 'joined') {
       return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="w-full max-w-sm text-center animate-bounce-in">
+        <InvitationThemeRoot
+          templateId={event?.templateId}
+          accentOverride={event?.accentColor}
+          className="min-h-screen flex items-center justify-center p-4"
+        >
+          <div className="w-full max-w-sm text-center">
             <IconCheckCircle className="w-14 h-14 mx-auto mb-4 text-green-500" />
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Estás en la lista</h1>
-            <p className="text-gray-500 text-sm">
+            <h1 className="text-xl font-bold text-[var(--invite-text)] mb-2">Estás en la lista</h1>
+            <p className="text-sm text-[var(--invite-text-muted)]">
               Te anotamos en la lista de espera. Si se libera un lugar, el organizador te contactará.
             </p>
           </div>
-        </div>
+        </InvitationThemeRoot>
       )
     }
 
     if (waitlistState === 'form') {
       return (
-        <div className="min-h-screen flex items-center justify-center p-4">
+        <InvitationThemeRoot
+          templateId={event?.templateId}
+          accentOverride={event?.accentColor}
+          className="min-h-screen flex items-center justify-center p-4"
+        >
           <div className="w-full max-w-sm">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
+            <InvitationCard>
               <div className="flex items-center gap-2 mb-4">
-                <IconListOrdered className="w-5 h-5 text-primary" />
-                <h1 className="text-lg font-bold text-gray-900 dark:text-white">Lista de espera</h1>
+                <IconListOrdered className="w-5 h-5 text-[var(--invite-accent)]" />
+                <h1 className="text-lg font-bold">Lista de espera</h1>
               </div>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm mb-4 text-[var(--invite-text-muted)]">
                 El cupo está lleno. Déjanos tus datos y te avisamos si se libera un lugar.
               </p>
               <form onSubmit={handleWaitlist} className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
+                    <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Nombre *</label>
                     <input type="text" required maxLength={WAITLIST_NAME_MAX} value={wlName} onChange={(e) => setWlName(e.target.value)}
                       placeholder="Ana"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido *</label>
+                    <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Apellido *</label>
                     <input type="text" required maxLength={WAITLIST_NAME_MAX} value={wlLastName} onChange={(e) => setWlLastName(e.target.value)}
                       placeholder="García"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono <span className="text-gray-400 font-normal">(opcional)</span></label>
+                  <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Teléfono <span className="font-normal">(opcional)</span></label>
                   <input type="tel" maxLength={WAITLIST_PHONE_MAX} value={wlPhone} onChange={(e) => setWlPhone(e.target.value)}
                     placeholder="+1 234 567 8900"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2" />
                 </div>
                 {wlError && <p className="text-xs text-red-500">{wlError}</p>}
                 <button type="submit" disabled={wlSubmitting}
-                  className="w-full bg-primary text-white rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
+                  className="w-full text-white rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]">
                   {wlSubmitting ? 'Anotando...' : 'Unirme a la lista'}
                 </button>
               </form>
-            </div>
+            </InvitationCard>
           </div>
-        </div>
+        </InvitationThemeRoot>
       )
     }
 
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-center animate-bounce-in">
+      <InvitationThemeRoot
+        templateId={event?.templateId}
+        accentOverride={event?.accentColor}
+        className="min-h-screen flex items-center justify-center p-4"
+      >
+        <div className="text-center">
           <div className="flex justify-center mb-4">
             <IconFrown className="w-14 h-14 text-gray-400" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Cupo agotado</h1>
-          <p className="text-gray-500 mb-5">El evento ya alcanzó su capacidad máxima.</p>
+          <h1 className="text-xl font-bold text-[var(--invite-text)] mb-2">Cupo agotado</h1>
+          <p className="mb-5 text-[var(--invite-text-muted)]">El evento ya alcanzó su capacidad máxima.</p>
           <button
             onClick={() => setWaitlistState('form')}
-            className="inline-flex items-center gap-2 bg-primary text-white rounded-lg px-5 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity"
+            className="inline-flex items-center gap-2 text-white rounded-lg px-5 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
           >
             <IconListOrdered className="w-4 h-4" />
             Unirme a la lista de espera
           </button>
         </div>
-      </div>
+      </InvitationThemeRoot>
     )
   }
 
   if (state === 'success') {
     return (
-      <div className="flex items-start justify-center min-h-screen p-4">
-        <div className="w-full max-w-sm animate-bounce-in">
-          {event?.coverImage && (
-            <img src={optimizedImageUrl(event.coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-28 object-cover rounded-xl mb-5" />
-          )}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
+      <InvitationThemeRoot
+        templateId={event?.templateId}
+        accentOverride={event?.accentColor}
+        className="flex items-start justify-center min-h-screen p-4"
+      >
+        <div className="w-full max-w-sm">
+          <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
             <div className="flex justify-center mb-2">
-              <IconSparkles className="w-8 h-8 text-primary" />
+              <IconSparkles className="w-8 h-8 text-[var(--invite-accent)]" />
             </div>
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+            <h1 className="text-lg font-bold mb-1">
               Hola, {name} {lastName}
             </h1>
-            <p className="text-sm text-gray-500 mb-4">Este es tu pase de entrada. Guárdalo.</p>
+            <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-2 text-[var(--invite-accent)]" />
+            <p className="text-sm mb-4 text-[var(--invite-text-muted)]">Este es tu pase de entrada. Guárdalo.</p>
             <div className="flex justify-center mb-4">
               <canvas ref={canvasRef} className="rounded-lg" />
             </div>
@@ -295,34 +312,39 @@ export function EventJoin() {
               </div>
             )}
             {event?.welcomeMessage && (
-              <p className="text-sm italic text-gray-500 mb-4">{event.welcomeMessage}</p>
+              <p className="text-sm italic text-[var(--invite-accent)]">{event.welcomeMessage}</p>
             )}
-          </div>
+          </InvitationCard>
           {event?.location && (
-            <EventMap location={event.location} mapsUrl={event.mapsUrl} />
+            <>
+              <InviteDivider templateId={event?.templateId} />
+              <EventMap location={event.location} mapsUrl={event.mapsUrl} />
+            </>
           )}
           {id && <WallSection eventId={id} guestName={`${name} ${lastName}`.trim()} />}
         </div>
-      </div>
+      </InvitationThemeRoot>
     )
   }
 
   const customFields = event?.customFields || []
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <InvitationThemeRoot
+      templateId={event?.templateId}
+      accentOverride={event?.accentColor}
+      className="min-h-screen flex items-center justify-center p-4"
+    >
       <div className="w-full max-w-sm">
-        {event?.coverImage && (
-          <img src={optimizedImageUrl(event.coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-36 object-cover rounded-xl mb-6" />
-        )}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{event?.name}</h1>
-          <p className="text-sm text-gray-500 mb-4">{event?.date} · {event?.location}</p>
+        <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
+          <h1 className="text-xl font-bold mb-1">{event?.name}</h1>
+          <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-2 text-[var(--invite-accent)]" />
+          <p className="text-sm mb-4 text-[var(--invite-text-muted)]">{event?.date} · {event?.location}</p>
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-3 text-left">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
+                <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Nombre *</label>
                 <input
                   type="text"
                   required
@@ -330,11 +352,11 @@ export function EventJoin() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ana"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido *</label>
+                <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Apellido *</label>
                 <input
                   type="text"
                   required
@@ -342,25 +364,25 @@ export function EventJoin() {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="García"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono <span className="text-gray-400 font-normal">(opcional)</span></label>
+              <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Teléfono <span className="font-normal">(opcional)</span></label>
               <input
                 type="tel"
                 maxLength={GUEST_PHONE_MAX}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+1 234 567 8900"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
               />
             </div>
 
             {customFields.map((field) => (
               <div key={field.id}>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">
                   {field.label}{field.required ? ' *' : ''}
                 </label>
                 <input
@@ -369,13 +391,13 @@ export function EventJoin() {
                   maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
                   value={customValues[field.id] || ''}
                   onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
                 />
               </div>
             ))}
 
             {event?.capacity && (
-              <p className="text-xs text-gray-400 text-center">
+              <p className="text-xs text-center text-[var(--invite-text-muted)]">
                 {event.guestCount} / {event.capacity} registros
               </p>
             )}
@@ -383,14 +405,13 @@ export function EventJoin() {
             <button
               type="submit"
               disabled={state === 'submitting'}
-              style={{ backgroundColor: event?.accentColor || undefined }}
-              className="w-full bg-primary text-white rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="w-full text-white rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
             >
               {state === 'submitting' ? 'Registrando...' : 'Obtener mi pase'}
             </button>
           </form>
-        </div>
+        </InvitationCard>
       </div>
-    </div>
+    </InvitationThemeRoot>
   )
 }
