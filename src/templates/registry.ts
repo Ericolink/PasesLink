@@ -60,17 +60,29 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
     label: 'Boda',
     category: 'Boda',
     vars: {
-      accent: '#b08968',
-      accentDark: '#8a6a4f',
-      accentSoft: '#f1e4d8',
-      pageBg: '#f3decb',
-      surface: '#fffaf6',
-      text: '#3f2d22',
-      textMuted: '#6b5847',
-      border: '#e8d9c8',
-      fontFamily: "'Playfair Display', Georgia, serif",
+      // Dorado foil cálido, no bronce/cuero (eso es vocabulario de vaquera) —
+      // accentDark se mantiene dorado profundo, nunca marrón apagado, para
+      // que el acento siga leyéndose "luminoso" incluso en sus variantes
+      // oscuras (ver el override de :hover en templates.css).
+      accent: '#c9a35e',
+      accentDark: '#ad8542',
+      accentSoft: '#f6e9d3',
+      // Marfil con base rosada — papel algodón, no el marfil más amarillo/
+      // documental de Graduación.
+      pageBg: '#fbf2e7',
+      surface: '#fffbf5',
+      text: '#4a3b32',
+      // Más claro que el resto de los temas a propósito: Bodas debe sentirse
+      // más liviano en jerarquía visual que Graduación, nunca tan oscuro
+      // como para competir con el texto principal.
+      textMuted: '#9c8a7d',
+      border: '#ecdcc4',
+      // Cuerpo en Cormorant Garamond (override de h1 a Playfair Display
+      // itálica vía templates.css, mismo mecanismo que separa el h1 Cinzel
+      // del cuerpo EB Garamond en Graduación).
+      fontFamily: "'Cormorant Garamond', Georgia, serif",
       borderRadius: '1.5rem',
-      shadow: '0 4px 18px rgba(176,137,104,.18)',
+      shadow: '0 4px 20px rgba(201,163,94,.16)',
       enterAnimation: 'animate-fade-in',
     },
   },
@@ -123,62 +135,39 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
     },
   },
   {
-    id: 'anniversary',
-    label: 'Aniversario',
-    category: 'Aniversario',
-    vars: {
-      accent: '#9d174d',
-      accentDark: '#771239',
-      accentSoft: '#f7dce6',
-      pageBg: '#f6d3e3',
-      surface: '#fff7fa',
-      text: '#3f1224',
-      textMuted: '#7a4760',
-      border: '#f0cfdd',
-      fontFamily: "'Cormorant Garamond', Georgia, serif",
-      borderRadius: '1.25rem',
-      shadow: '0 3px 14px rgba(157,23,77,.16)',
-      enterAnimation: 'animate-fade-in',
-    },
-  },
-  {
     id: 'formal',
     label: 'Evento formal',
     category: 'Evento formal',
     vars: {
-      accent: '#111827',
-      accentDark: '#000000',
-      accentSoft: '#e5e7eb',
+      // Metal sobrio y frío (gunmetal/platino) en vez de negro plano —
+      // el dorado/foil ya es materialidad exclusiva de Graduación y Bodas,
+      // así que el "metálico sobrio" de Formal tiene que ser un metal
+      // distinto: plata/acero, no oro. accentDark deja de ser #000000
+      // (tinta pura) y pasa a un carbón-azulado, coherente con el mismo
+      // metal en su variante oscura.
+      accent: '#5c6470',
+      accentDark: '#383d46',
+      accentSoft: '#e6e8eb',
       pageBg: '#f0f0ee',
       surface: '#ffffff',
       text: '#111827',
       textMuted: '#6b7280',
-      border: '#d1d5db',
-      fontFamily: "'Cormorant Garamond', Georgia, serif",
+      // Gris frío ligeramente más definido que antes — el mismo principio
+      // de "borde fino" que ya tenía, solo más cercano a la familia del
+      // nuevo acento metálico.
+      border: '#d6d9dd',
+      // Cuerpo en sans geométrica (ya cargada para el chrome de la app,
+      // index.html) — el h1 recupera la serif vía override en
+      // templates.css. Es la combinación que más aparece en papelería de
+      // gala/corporativa real: un serif editorial solo para el titular,
+      // sans limpia y legible para el resto ("structured typography").
+      fontFamily: "'Space Grotesk', system-ui, sans-serif",
       borderRadius: '0.25rem',
-      // En vez de una sombra: un doble filete elegante (típico de
-      // invitaciones de gala), separado del borde por un pequeño margen.
+      // Doble filete elegante (típico de invitaciones de gala), separado
+      // del borde por un pequeño margen — mecanismo sin cambios, ahora
+      // dibuja en el metal frío en vez de negro plano.
       shadow: '0 0 0 1px var(--invite-border), 0 0 0 6px var(--invite-surface), 0 0 0 7px var(--invite-accent)',
       enterAnimation: 'animate-fade-in',
-    },
-  },
-  {
-    id: 'casual',
-    label: 'Evento casual',
-    category: 'Evento casual',
-    vars: {
-      accent: '#0d9488',
-      accentDark: '#0a6f64',
-      accentSoft: '#cdf2ec',
-      pageBg: '#cdeee6',
-      surface: '#f8fefc',
-      text: '#0f2e2a',
-      textMuted: '#456b62',
-      border: '#cdeee6',
-      fontFamily: 'inherit',
-      borderRadius: '1.25rem',
-      shadow: '0 2px 10px rgba(13,148,136,.12)',
-      enterAnimation: 'animate-slide-in-up',
     },
   },
   {
@@ -186,56 +175,27 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
     label: 'Fiesta infantil',
     category: 'Fiesta infantil',
     vars: {
-      accent: '#f59e0b',
-      accentDark: '#d97706',
-      accentSoft: '#fde9c4',
-      pageBg: '#fde2b0',
-      surface: '#fffbeb',
-      text: '#3f2d05',
-      textMuted: '#7d5f28',
-      border: '#f6dca3',
+      // Coral cálido y pastel — antes un ámbar saturado, demasiado cerca del
+      // óxido de vaquera y sin el aire "pastel" que pide una celebración
+      // moderna. accent/accentDark/accentSoft siguen siendo un solo matiz en
+      // tres intensidades (confeti monocromático, no multicolor) para que
+      // el fondo se sienta controlado, nunca caótico.
+      accent: '#e8916a',
+      accentDark: '#c46a3f',
+      accentSoft: '#f8ddd0',
+      // Durazno/crema, no el marfil rosado de Bodas ni el ámbar saturado
+      // anterior — "papel de fiesta" cálido, sin convertirse en otro tema.
+      pageBg: '#fbe8d8',
+      surface: '#fffaf3',
+      text: '#5a4133',
+      textMuted: '#8a7363',
+      border: '#f3ddc9',
       fontFamily: "'Baloo 2', system-ui, sans-serif",
       borderRadius: '1.75rem',
-      shadow: '0 4px 14px rgba(245,158,11,.25)',
+      // Sombra cálida y difusa (sin el segundo tono en línea recta que
+      // tenía antes en templates.css) — "suave", no "contrastada".
+      shadow: '0 10px 26px rgba(232,145,106,.22)',
       enterAnimation: 'animate-bounce-in',
-    },
-  },
-  {
-    id: 'birthday',
-    label: 'Cumpleaños',
-    category: 'Cumpleaños',
-    vars: {
-      accent: '#db2777',
-      accentDark: '#a8175c',
-      accentSoft: '#fbd5e8',
-      pageBg: '#f9c9e0',
-      surface: '#fff8fb',
-      text: '#3f0a26',
-      textMuted: '#7d3f5e',
-      border: '#f7c3dd',
-      fontFamily: "'Baloo 2', system-ui, sans-serif",
-      borderRadius: '1.75rem',
-      shadow: '0 4px 14px rgba(219,39,119,.22)',
-      enterAnimation: 'animate-bounce-in',
-    },
-  },
-  {
-    id: 'corporate',
-    label: 'Cena empresarial',
-    category: 'Cena empresarial',
-    vars: {
-      accent: '#334155',
-      accentDark: '#1e293b',
-      accentSoft: '#e2e8f0',
-      pageBg: '#e2e8f0',
-      surface: '#ffffff',
-      text: '#0f172a',
-      textMuted: '#64748b',
-      border: '#d8dee8',
-      fontFamily: 'inherit',
-      borderRadius: '0.5rem',
-      shadow: '0 1px 4px rgba(15,23,42,.1)',
-      enterAnimation: 'animate-fade-in',
     },
   },
 ]

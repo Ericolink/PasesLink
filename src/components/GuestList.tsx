@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deleteGuest, resetGuestRsvp, setGuestPaymentStatus, unlockGuestPass, updateGuest } from '../firebase/guests'
 import type { GuestData } from '../types'
@@ -6,7 +6,7 @@ import { RSVP_LABELS } from '../types'
 import { IconEdit, IconEye, IconInbox, IconRotateCcw, IconShare, IconTicket, IconTrash } from './Icons'
 import { ConfirmDialog } from './ConfirmDialog'
 
-export function GuestList({
+export const GuestList = memo(function GuestList({
   eventId,
   guests,
   requiresPayment = false,
@@ -237,7 +237,7 @@ export function GuestList({
       />
     </div>
   )
-}
+})
 
 function EditGuestRow({
   eventId,

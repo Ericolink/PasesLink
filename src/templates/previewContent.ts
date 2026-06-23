@@ -36,41 +36,17 @@ export const PREVIEW_CONTENT: Record<TemplateId, PreviewSample> = {
     location: 'Auditorio Central',
     guestName: 'Tomás Rivas',
   },
-  anniversary: {
-    eventName: '25° Aniversario de Marta & Jorge',
-    date: '14 feb 2027',
-    location: 'Restaurante Bellavista',
-    guestName: 'Lucía Ortiz',
-  },
   formal: {
     eventName: 'Gala Anual de la Fundación',
     date: '10 dic 2026',
     location: 'Salón Imperial',
     guestName: 'Dr. Alberto Ruiz',
   },
-  casual: {
-    eventName: 'Asado entre amigos',
-    date: '23 ago 2026',
-    location: 'Quinta Los Sauces',
-    guestName: 'Pablo Méndez',
-  },
   kids: {
     eventName: 'Cumpleaños de Tomás (5 años)',
     date: '2 ago 2026',
     location: 'Salón Pequeños Gigantes',
     guestName: 'Emma Castro',
-  },
-  birthday: {
-    eventName: 'Cumpleaños de Camila',
-    date: '18 sep 2026',
-    location: 'Terraza Norte',
-    guestName: 'Julián Díaz',
-  },
-  corporate: {
-    eventName: 'Cena Anual de la Empresa',
-    date: '12 dic 2026',
-    location: 'Hotel Plaza',
-    guestName: 'Lic. Daniela Soto',
   },
 }
 

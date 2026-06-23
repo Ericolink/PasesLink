@@ -16,7 +16,7 @@ const FEATURES = [
   {
     icon: IconBarChart,
     title: 'Reportes y notificaciones',
-    description: 'Reportes detallados, recordatorios automáticos y mensajes de bienvenida personalizados.',
+    description: 'Reportes detallados, recordatorios con un clic y mensajes de bienvenida personalizados.',
   },
 ]
 
@@ -27,7 +27,7 @@ const FREE_FEATURES = [
   'Exportar pases a PDF',
   'Reportes detallados de asistencia',
   'Notificaciones de check-in en tiempo real',
-  'Recordatorios automáticos a invitados',
+  'Envía recordatorios cuando quieras',
   'Mensaje de bienvenida personalizado',
 ]
 

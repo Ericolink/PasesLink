@@ -1,3 +1,64 @@
+/*
+  DESIGN GOVERNANCE LAYER ACTIVE
+
+  See: src/design-system/DESIGN_GOVERNANCE.md
+  All template changes must comply with this contract.
+*/
+
+/* ════════════════════════════════════════════════════════════════════
+   DESIGN STABILITY CONTRACT — sistema de temas de invitación
+   ════════════════════════════════════════════════════════════════════
+   Leer antes de tocar cualquier bloque [data-template='x'] de este
+   archivo. Define el límite entre "tema" (identidad visual, libre) y
+   "producto" (estructura, fija): los temas pueden cambiar de piel,
+   nunca de esqueleto.
+
+   LIBRE POR TEMA (identidad):
+   - Paleta: accent/accentDark/accentSoft/pageBg/surface/text/
+     textMuted/border (registry.ts)
+   - Tipografía: fontFamily base + override de h1, solo con fuentes ya
+     cargadas en index.html
+   - Forma: borderRadius, SVG del ornamento, forma del confetti
+   - Materialidad de fondo: textura/patrón propio (grano, confeti,
+     cuero, guilloché, doble filete...)
+   - Sombra/elevación del card y del botón (color y capas)
+   - Mecanismo de hover del botón primario (brillo / escala / color)
+   - Animación de entrada: una de las 4 ya existentes
+
+   FIJO PARA TODOS LOS TEMAS (estructura):
+   - Orden e inventario de bloques de la invitación (título → ornamento
+     → fecha/ubicación → invitado → QR → acciones → bienvenida → mapa
+     → muro): ningún tema reordena ni esconde un bloque.
+   - Contrato de componentes: ningún tema requiere tocar
+     InvitationCard.tsx, InvitationThemeRoot.tsx, ThemeOrnament.tsx,
+     InviteDivider.tsx, WallSection.tsx ni ThemeSeal.tsx — toda
+     variación entra por registry.ts o por CSS bajo [data-template='x'].
+   - Checklist de superficies por tema: fondo, h1, card, divisor/
+     ornamento, muro, botón — ni una menos, ni una de más.
+   - Densidad pareja: ningún tema debería alejarse más de ~2x en
+     volumen de CSS del resto del grupo (ni "abandonado" ni
+     sobre-trabajado).
+   - Legibilidad mínima de text/textMuted contra pageBg/surface, sin
+     importar cuán liviano sea el tema.
+   - El botón primario siempre reacciona al hover; el foco de inputs
+     siempre es visible.
+   - Modo oscuro: solo "default" lo sigue — el resto mantiene su
+     identidad fija con o sin dark mode.
+   - Materialidad exclusiva: un recurso visual asignado a un tema (ej.
+     foil/guilloché = Graduación, papel/grano/floral = Bodas, cuero/
+     madera = Vaquera, doble filete = Formal, confeti = Infantil) no se
+     reutiliza en otro tema.
+   - !important solo para ganarle a utilidades de Tailwind dentro del
+     propio [data-template='x'], nunca para pisar otro tema.
+   - Alcance: esta hoja tematiza la capa de invitación (card, muro,
+     divisor, páginas de invitado); dashboard/organizador queda fuera
+     salvo decisión explícita aparte.
+
+   Agregar un tema nuevo = sumar un bloque que respete esto. Ajustar un
+   tema existente = primero confirmar que el cambio cae en la columna
+   "libre", no en la "fija".
+   ════════════════════════════════════════════════════════════════════ */
+
 /* Panel temático de la página de invitación (InvitationThemeRoot): pinta el
    fondo y el patrón decorativo de TODO el ancho de <main>, de borde a borde
    — no solo de la tarjeta. Todo en CSS puro (gradientes/patrones, sin
@@ -428,15 +489,119 @@
   text-shadow: 0 1px 0 rgba(255,255,255,.4);
 }
 
-/* ── Boda: floral disperso, cálido ───────────────────────────────── */
+/* ── Boda: papelería editorial, cálida y orgánica ─────────────────────
+   Identidad deliberadamente opuesta a Graduación: sin marco, sin filetes
+   múltiples, sin sello — la ornamentación (ver WeddingOrnament en
+   ornaments.tsx) es un respiro entre bloques, nunca una estructura que
+   encierra el contenido. Paleta marfil rosado + dorado foil (registry.ts),
+   Playfair Display itálica en títulos sobre Cormorant Garamond en cuerpo. */
 [data-template='wedding'] {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  /* Único peso cargado junto al 600 (ver index.html) — fijarlo evita que el
+     navegador tenga que resolver un 400 inexistente en tamaños chicos. */
+  font-weight: 500;
+  /* Grano de papel algodón extremadamente sutil (feTurbulence inline, SVG
+     de datos — cero requests, mismo recurso que ya usan los íconos de
+     vaquera vía mask-image) + radiales con tamaños/posiciones deliberada-
+     mente irregulares (nada de progresión prolija 100/120/140 ni
+     posiciones redondas) para que el fondo deje de leerse "degradé CSS" y
+     se acerque a papel fotografiado. Sigue siendo decoración mínima: la
+     opacidad del grano es .045, nunca compite con el texto. */
   background-image:
-    radial-gradient(circle 90px at 10% 15%, rgba(176, 137, 104, .16), transparent 70%),
-    radial-gradient(circle 110px at 90% 12%, rgba(176, 137, 104, .14), transparent 70%),
-    radial-gradient(circle 130px at 50% 95%, rgba(176, 137, 104, .13), transparent 70%);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.045'/%3E%3C/svg%3E"),
+    radial-gradient(circle 95px at 6% 16%, rgba(201, 163, 94, .15), transparent 70%),
+    radial-gradient(circle 132px at 93% 7%, rgba(201, 163, 94, .1), transparent 72%),
+    radial-gradient(circle 108px at 41% 99%, rgba(201, 163, 94, .13), transparent 68%),
+    radial-gradient(circle 70px at 78% 88%, rgba(201, 163, 94, .08), transparent 65%);
+  background-size: 180px 180px, auto, auto, auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
 }
 [data-template='wedding'] h1 {
+  font-family: 'Playfair Display', Georgia, serif;
   font-style: italic;
+  font-weight: 500;
+  /* Tamaño reforzado frente al cuerpo (la utilidad text-xl/text-lg que ya
+     traen InvitationPreview/GuestPass queda chica para una pieza editorial)
+     — el contraste título/cuerpo es lo que separa "invitación impresa" de
+     "tarjeta de app". */
+  font-size: 1.85rem;
+  letter-spacing: .01em;
+  line-height: 1.2;
+  margin-bottom: .1em;
+}
+/* Ritmo vertical: el elemento que sigue al título (ornamento o fecha,
+   según la página) ganaba muy poco aire con el mt-1/mt-2 que ya traen los
+   componentes — una pieza impresa respira más entre el título y el resto.
+   Gana por especificidad sin !important porque esta hoja no usa @layer. */
+[data-template='wedding'] h1 + * {
+  margin-top: 1.1rem;
+}
+[data-template='wedding'] .invite-card p {
+  line-height: 1.6;
+}
+
+/* Tarjeta: hairline dorado perimetral en vez de la barra superior gruesa de
+   4px que aplica InvitationCard.tsx por defecto — se siente como el borde
+   de una cartulina fina, no un acento de UI. La sombra deja de ser un solo
+   blur difuso (lee "card de UI") y pasa a tres capas: un contacto ceñido
+   (el peso real del papel apoyado), un bloom cálido más amplio (el mismo
+   que ya tenía) y un filo interior casi blanco que sugiere el espesor del
+   papel en el borde — nada de esto es un elemento nuevo, es la misma
+   tarjeta con más densidad. */
+[data-template='wedding'] .invite-card {
+  border-width: 1px !important;
+  border-color: var(--invite-border) !important;
+  border-top-color: var(--invite-accent) !important;
+  border-top-width: 1px !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .5),
+    0 1px 2px rgba(74, 59, 50, .08),
+    0 16px 32px -12px rgba(201, 163, 94, .28) !important;
+}
+/* Contenido de la tarjeta: más aire que el p-6 parejo de InvitationCard.tsx
+   — más arriba/abajo que a los costados, para que el bloque se sienta
+   compuesto verticalmente (impreso) y no repartido de forma uniforme. */
+[data-template='wedding'] .invite-card > div:last-child {
+  padding: 2.25rem 1.5rem 2rem;
+}
+
+/* Divisor: filete fino dorado en vez de la línea gris genérica — la
+   ramita floral (ornaments.tsx) ya existe, pero hasta ahora colgaba de
+   un hairline neutro sin relación con la paleta del tema. Mismo
+   mecanismo que el filete de Formal (border-top-color + un solo
+   box-shadow), nunca un filete doble: eso es materialidad de Formal. */
+[data-template='wedding'] .invite-divider-line {
+  border-top-color: var(--invite-accent) !important;
+  box-shadow: 0 2px 0 0 var(--invite-accent-soft);
+}
+
+/* Muro: radio amplio y sin filete reforzado — la pieza decorativa del tema
+   es la ramita floral del divisor, no una línea de "anotación" como en
+   Graduación. */
+[data-template='wedding'] .invite-wall-message,
+[data-template='wedding'] .invite-wall-form {
+  border-radius: 1.25rem;
+}
+
+/* Botón primario: el hover debe leerse foil/luminoso, nunca un dorado que
+   se oscurece hacia bronce envejecido. */
+[data-template='wedding'] .bg-primary {
+  box-shadow: var(--invite-shadow);
+}
+[data-template='wedding'] .bg-primary:hover {
+  filter: brightness(1.08);
+  box-shadow: var(--invite-shadow);
+}
+
+/* Mapa: viraje cálido y elegante, mucho más sutil que el sepia de cuero
+   de Vaquera — una insinuación de luz dorada de tarde, no un filtro de
+   época. Mismo mecanismo (filter en el iframe), valores propios.
+   Ajustado tras medición real: sepia(.12) quedaba a 4pts de saturación
+   de Vaquera (75.8% vs 80.2%) — demasiado cerca de su materialidad para
+   "mucho más sutil". Bajado a sepia(.05) saturate(1.02), sin brightness
+   (innecesario a esta intensidad). */
+[data-template='wedding'] .invite-map-frame iframe {
+  filter: sepia(.05) saturate(1.02);
 }
 
 /* ── Graduación: documento institucional enmarcado ───────────────────
@@ -713,24 +878,26 @@
   font-family: 'Cinzel', Georgia, serif;
 }
 
-/* ── Aniversario: resplandores cálidos superpuestos ──────────────── */
-[data-template='anniversary'] {
-  background-image:
-    radial-gradient(circle 140px at 15% 20%, rgba(157, 23, 77, .14), transparent 70%),
-    radial-gradient(circle 170px at 85% 85%, rgba(157, 23, 77, .12), transparent 70%);
-}
-[data-template='anniversary'] h1 {
-  font-style: italic;
-}
-
-/* ── Formal: minimalismo elegante, doble filete en vez de textura ── */
+/* ── Formal: minimalismo elegante, doble filete en vez de textura ──────
+   Identidad refinada sobre investigación de invitaciones reales de gala/
+   corporativas: paleta fría (negro tinta + metal gunmetal/platino, nunca
+   el dorado/foil cálido que ya son materialidad de Graduación y Bodas),
+   mucho espacio negativo, titular serif editorial sobre cuerpo en sans
+   geométrica, ornamentación mínima (línea-rombo-línea, nunca un marco). */
 [data-template='formal'] {
   background-image:
     linear-gradient(180deg, rgba(0, 0, 0, .05), transparent 90px),
     linear-gradient(0deg, rgba(0, 0, 0, .04), transparent 90px);
 }
+/* El titular recupera la serif editorial (registry.ts deja el cuerpo en
+   Space Grotesk) — mismo mecanismo que separa el h1 de Cinzel/Playfair del
+   cuerpo en Graduación/Bodas. Tracking amplio en vez de mayúsculas: la
+   lectura "todo en mayúscula" ya es la firma de Graduación. */
 [data-template='formal'] h1 {
-  letter-spacing: .04em;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+  letter-spacing: .06em;
+  line-height: 1.3;
 }
 /* El acento ya se ve en el doble filete (--invite-shadow, ver registry.ts):
    el borde superior grueso de InvitationCard quedaría redundante/recargado
@@ -740,36 +907,118 @@
   border-top-color: var(--invite-border) !important;
 }
 
-/* ── Casual: brisa suave ──────────────────────────────────────────── */
-[data-template='casual'] {
-  background-image: repeating-linear-gradient(120deg, rgba(13, 148, 136, .09) 0 14px, transparent 14px 42px);
+/* Divisor: doble filete en dos intensidades del mismo metal (antes ambas
+   líneas eran el mismo gris) — sutil, nunca dos colores distintos, para
+   que se note como un detalle de papelería fina y no como un borde extra. */
+[data-template='formal'] .invite-divider-line {
+  border-top-color: var(--invite-border) !important;
+  box-shadow: 0 3px 0 0 var(--invite-accent-soft);
 }
 
-/* ── Infantil: confeti en puntos, dos tonos ──────────────────────── */
+/* Muro: placa sobria con un filete superior fino en el acento — la misma
+   idea de "línea de acento, nunca textura" aplicada a cada nota, en vez de
+   dejarla con el borde gris por defecto. */
+[data-template='formal'] .invite-wall-message {
+  border-top-width: 2px !important;
+  border-top-color: var(--invite-accent) !important;
+}
+
+/* Botón primario: sin el glow neón rosa de base (index.css, pensado para
+   el chrome de la app) — el acento de Formal es metal controlado, nunca
+   luz de neón. Hover por brillo, nunca oscurecido (mismo criterio que el
+   resto del sistema de temas). Tracking leve en el texto del botón — el
+   mismo gesto "tipografía estructurada" que el titular, a escala de UI. */
+[data-template='formal'] .bg-primary {
+  box-shadow: var(--invite-shadow);
+  letter-spacing: .03em;
+}
+[data-template='formal'] .bg-primary:hover {
+  filter: brightness(1.05);
+  box-shadow: var(--invite-shadow);
+}
+
+/* Mapa: tratamiento frío, sobrio y editorial — desatura hacia el mismo
+   metal gunmetal/platino del resto del tema, nunca el sepia cálido de
+   Vaquera. Mismo mecanismo (filter en el iframe), valores propios. */
+[data-template='formal'] .invite-map-frame iframe {
+  filter: grayscale(.35) contrast(1.05) brightness(.98);
+}
+
+/* ── Infantil: confeti suelto, pastel, papel de fiesta ────────────────
+   Identidad: coral cálido pastel (registry.ts) en tres intensidades del
+   mismo matiz — confeti monocromático, no multicolor, para que se sienta
+   "fiesta cuidada" y no "caja de crayones". Sin grano de papel (eso es
+   material exclusivo de Bodas) ni estructura/marco (eso es Graduación):
+   el único recurso decorativo del tema es el confeti, repetido a distinta
+   escala en fondo, tarjeta y ornamento. */
 [data-template='kids'] {
+  /* Antes era una grilla perfecta de 2 capas alineadas a 0/11px — se
+     siente "cuadriculado", no "puñado de confeti". Ahora son 3 capas de
+     distinto tamaño con offsets que no coinciden entre sí dentro del mismo
+     mosaico, así no se percibe ningún patrón regular al repetirse. */
   background-image:
-    radial-gradient(circle, rgba(245, 158, 11, .22) 2px, transparent 2px),
-    radial-gradient(circle, rgba(217, 119, 6, .16) 1.4px, transparent 1.4px);
-  background-size: 22px 22px, 22px 22px;
-  background-position: 0 0, 11px 11px;
+    radial-gradient(circle, rgba(232, 145, 106, .26) 2.2px, transparent 2.8px),
+    radial-gradient(circle, rgba(196, 106, 63, .16) 1.6px, transparent 2.1px),
+    radial-gradient(circle, rgba(248, 221, 208, .5) 1.8px, transparent 2.3px);
+  background-size: 58px 58px, 58px 58px, 58px 58px;
+  background-position: 8px 14px, 36px 6px, 20px 40px;
+}
+/* Peso 700 en vez de 600 — ya cargado junto al resto de Baloo 2
+   (index.html: Baloo+2:wght@500;600;700), cero fuente ni request nuevo.
+   Es el único tema no-default que compartía un solo peso entre h1 y
+   cuerpo: este salto de peso es la jerarquía título/cuerpo que el resto
+   de los temas ya tiene vía una familia distinta, sin sumar una. */
+[data-template='kids'] h1 {
+  font-weight: 700;
+  letter-spacing: .01em;
+  line-height: 1.2;
 }
 
-/* ── Cumpleaños: confeti en tiras diagonales (distinto de infantil) ─ */
-[data-template='birthday'] {
-  background-image:
-    repeating-linear-gradient(35deg, rgba(219, 39, 119, .12) 0 6px, transparent 6px 26px),
-    repeating-linear-gradient(-35deg, rgba(168, 23, 92, .10) 0 4px, transparent 4px 30px);
+/* Tarjeta: una sola sombra cálida y difusa (antes tenía un segundo filete
+   de borde recto, efecto "sticker despegado") + borde superior un poco
+   más fino — sigue siendo solo sombra/borde, ningún elemento nuevo. */
+[data-template='kids'] .invite-card {
+  border-top-width: 3px !important;
+  box-shadow: var(--invite-shadow) !important;
 }
 
-/* ── Cena empresarial: grilla fina tipo plano técnico ────────────── */
-[data-template='corporate'] {
-  background-image:
-    linear-gradient(rgba(51, 65, 85, .07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(51, 65, 85, .07) 1px, transparent 1px);
-  background-size: 24px 24px, 24px 24px;
+/* Divisor: filete cálido en el acento en vez de la línea gris genérica —
+   mismo mecanismo que Formal/Bodas (border-top-color + un solo
+   box-shadow), nunca el filete doble (eso es de Formal). */
+[data-template='kids'] .invite-divider-line {
+  border-top-color: var(--invite-accent) !important;
+  box-shadow: 0 2px 0 0 var(--invite-accent-soft);
 }
-[data-template='corporate'] h1 {
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  font-weight: 600;
+
+/* Muro: filete superior en el acento — mismo lenguaje cálido del tema,
+   sin textura ni forma nueva. */
+[data-template='kids'] .invite-wall-message {
+  border-top-width: 3px !important;
+  border-top-color: var(--invite-accent) !important;
+}
+
+/* Botón primario: reemplaza el glow neón rosa de base por el cálido del
+   tema + un rebote sutil en hover y una pequeña compresión al presionar —
+   ambas transiciones (transform, filter) ya existen en `.bg-primary`
+   (index.css), así que esto no agrega ningún mecanismo nuevo, solo usa uno
+   ya disponible en la misma línea que `animate-bounce-in`, la animación de
+   entrada que ya tiene este tema. Nunca "game-like": la escala es mínima
+   (1.04 / .97), no un salto. */
+[data-template='kids'] .bg-primary {
+  box-shadow: var(--invite-shadow);
+}
+[data-template='kids'] .bg-primary:hover {
+  filter: none;
+  box-shadow: var(--invite-shadow);
+  transform: scale(1.04);
+}
+[data-template='kids'] .bg-primary:active {
+  transform: scale(.97);
+}
+
+/* Mapa: un poco más vivo y alegre — leve empuje de saturación/contraste,
+   nunca un viraje de época como el sepia de Vaquera. Mismo mecanismo
+   (filter en el iframe), valores propios. */
+[data-template='kids'] .invite-map-frame iframe {
+  filter: saturate(1.2) contrast(1.04) brightness(1.02);
 }

@@ -22,12 +22,8 @@ export type TemplateId =
   | 'wedding'
   | 'cowboy'
   | 'graduation'
-  | 'anniversary'
   | 'formal'
-  | 'casual'
   | 'kids'
-  | 'birthday'
-  | 'corporate'
 
 export interface CustomField {
   id: string

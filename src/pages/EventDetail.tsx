@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useCheckinToast } from '../hooks/useCheckinToast'
 import { deleteEvent, setEventStatus, addCoOrganizer, removeCoOrganizer } from '../firebase/events'
-import { getUserByEmail } from '../firebase/userProfile'
+import { getUserByEmail, getUserProfile } from '../firebase/userProfile'
 import { subscribeToWaitlist, promoteFromWaitlist } from '../firebase/waitlist'
+import { sendCheckinSummary, type CheckinSummaryEntry } from '../firebase/guests'
 import { sendReminderEmail } from '../utils/emailjs'
 import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
@@ -27,6 +28,7 @@ import {
   IconTicket,
   IconUserPlus,
   IconUsers,
+  IconWhatsApp,
   IconX,
 } from '../components/Icons'
 import type { WaitlistEntry } from '../types'
@@ -55,10 +57,70 @@ export function EventDetail() {
   const [reminderDone, setReminderDone] = useState(0)
   const checkinToast = useCheckinToast(eventId)
 
+  // Acumulador de check-ins "de esta sesión" para el resumen por email
+  // (Prioridad 1). Se deriva de `guests` (ya en tiempo real vía useEvent) en
+  // vez de abrir un segundo listener a `checkins` — useCheckinToast ya cubre
+  // ese rol para el toast in-app y no se toca. seenCheckedInIds guarda los
+  // ids ya vistos como checked_in; null significa "todavía no se fijó la
+  // base" (primer render de este eventId), así los check-ins de ANTES de
+  // abrir esta página no cuentan como "de esta sesión".
+  const [checkinsThisSession, setCheckinsThisSession] = useState<CheckinSummaryEntry[]>([])
+  const seenCheckedInIds = useRef<Set<string> | null>(null)
+  const sessionEventIdRef = useRef<string | undefined>(undefined)
+  const [organizerNotifyEnabled, setOrganizerNotifyEnabled] = useState(false)
+  const [summarySending, setSummarySending] = useState(false)
+  const [summaryToast, setSummaryToast] = useState<string | null>(null)
+  const [promoteResult, setPromoteResult] = useState<{ name: string; phone: string; passUrl: string } | null>(null)
+  const [promoteLinkCopied, setPromoteLinkCopied] = useState(false)
+
   useEffect(() => {
     if (!eventId) return
     return subscribeToWaitlist(eventId, setWaitlist)
   }, [eventId])
+
+  useEffect(() => {
+    // Reinicia el acumulador si se navega a otro evento sin desmontar el
+    // componente — la comparación contra el ref (no solo el array de deps)
+    // es lo que evita que este reset se mezcle con el cálculo de abajo en
+    // cada actualización de `guests` del MISMO evento.
+    if (sessionEventIdRef.current !== eventId) {
+      sessionEventIdRef.current = eventId
+      seenCheckedInIds.current = null
+      setCheckinsThisSession([])
+    }
+    const checkedInNow = guests.filter((g) => g.status === 'checked_in')
+    if (seenCheckedInIds.current === null) {
+      seenCheckedInIds.current = new Set(checkedInNow.map((g) => g.id))
+      return
+    }
+    const seen = seenCheckedInIds.current
+    const newlyCheckedIn = checkedInNow.filter((g) => !seen.has(g.id))
+    if (newlyCheckedIn.length === 0) return
+    newlyCheckedIn.forEach((g) => seen.add(g.id))
+    setCheckinsThisSession((prev) => [
+      ...prev,
+      ...newlyCheckedIn.map((g) => ({ name: g.name, checkInTime: g.checkedInAt ?? Date.now(), status: 'checked_in' as const })),
+    ])
+  }, [eventId, guests])
+
+  useEffect(() => {
+    if (!user) return
+    getUserProfile(user.uid).then((profile) => setOrganizerNotifyEnabled(profile?.notifyOnCheckin === true))
+  }, [user])
+
+  // Memoizado para que GuestList (React.memo) reciba la misma referencia de
+  // array entre renders en los que `guests`/`search` no cambiaron — si no,
+  // cualquier re-render de EventDetail por estado no relacionado (toasts,
+  // exportPdf, etc.) invalidaría el memo de GuestList sin motivo real.
+  const filteredGuests = useMemo(
+    () =>
+      guests.filter((g) => {
+        const term = search.trim().toLowerCase()
+        if (!term) return true
+        return g.name.toLowerCase().includes(term) || (g.email || '').toLowerCase().includes(term)
+      }),
+    [guests, search],
+  )
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
   if (error) return <p className="text-center text-red-500 mt-16">{error}</p>
@@ -103,7 +165,7 @@ export function EventDetail() {
   function handleExportCsv() {
     const rows = [
       [
-        'Nombre', 'Email', 'Teléfono', 'Estado', 'RSVP', 'Check-in',
+        'Nombre', 'Email', 'Teléfono', 'Estado', 'Confirmación', 'Check-in',
         ...(event!.requiresPayment ? ['Pago'] : []),
       ],
       ...guests.map((g) => [
@@ -161,11 +223,32 @@ export function EventDetail() {
       const qrToken = await promoteFromWaitlist(eventId, entry.id, entry.name, entry.lastName, entry.phone)
       if (qrToken) {
         const passUrl = `${window.location.origin}/pass/${eventId}/${qrToken}`
-        await navigator.clipboard.writeText(passUrl).catch(() => {})
-        alert(`Invitado promovido. Link copiado:\n${passUrl}`)
+        setPromoteLinkCopied(false)
+        setPromoteResult({ name: `${entry.name} ${entry.lastName}`, phone: entry.phone, passUrl })
       }
     } finally {
       setPromotingId(null)
+    }
+  }
+
+  function handleCopyPromoteLink() {
+    if (!promoteResult) return
+    navigator.clipboard.writeText(promoteResult.passUrl).then(() => {
+      setPromoteLinkCopied(true)
+      setTimeout(() => setPromoteLinkCopied(false), 2000)
+    }).catch(() => {})
+  }
+
+  async function handleSendCheckinSummary() {
+    if (!eventId || !user || checkinsThisSession.length === 0) return
+    setSummarySending(true)
+    try {
+      await sendCheckinSummary(eventId, user.uid, checkinsThisSession)
+      setCheckinsThisSession([])
+      setSummaryToast('Resumen de check-ins enviado.')
+      setTimeout(() => setSummaryToast(null), 4000)
+    } finally {
+      setSummarySending(false)
     }
   }
 
@@ -226,17 +309,16 @@ export function EventDetail() {
   const waitingEntries = waitlist.filter((e) => e.status === 'waiting')
   const promotedEntries = waitlist.filter((e) => e.status === 'promoted')
 
-  const filteredGuests = guests.filter((g) => {
-    const term = search.trim().toLowerCase()
-    if (!term) return true
-    return g.name.toLowerCase().includes(term) || (g.email || '').toLowerCase().includes(term)
-  })
-
   const content = (
     <>
       {checkinToast && (
         <div className="fixed top-16 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse flex items-center gap-2">
           <IconCheckCircle className="w-4 h-4" /> {checkinToast}
+        </div>
+      )}
+      {summaryToast && (
+        <div className="fixed top-28 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse flex items-center gap-2">
+          <IconCheckCircle className="w-4 h-4" /> {summaryToast}
         </div>
       )}
       <Link to="/dashboard" className="text-sm text-gray-500 hover:text-primary transition-colors inline-flex items-center gap-1 mb-3">
@@ -287,8 +369,8 @@ export function EventDetail() {
         <StatCard icon={<IconCheckCircle className="w-5 h-5 mb-1 mx-auto text-green-600" />} value={event.checkedInCount} label="Confirmados" valueClass="text-green-600" />
         <StatCard icon={<IconClock className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={event.guestCount - event.checkedInCount} label="Pendientes" />
         <StatCard icon={<IconHome className="w-5 h-5 mb-1 mx-auto text-primary" />} value={peopleInside} label="Personas dentro ahora" valueClass="text-primary" />
-        <StatCard icon={<IconThumbsUp className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={rsvpYes} label="RSVP: asistirán" />
-        <StatCard icon={<IconThumbsDown className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={rsvpNo} label="RSVP: no asistirán" />
+        <StatCard icon={<IconThumbsUp className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={rsvpYes} label="Asistirán" />
+        <StatCard icon={<IconThumbsDown className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={rsvpNo} label="No asistirán" />
         {event.requiresPayment && (
           <StatCard
             icon={<IconTicket className="w-5 h-5 mb-1 mx-auto text-green-600" />}
@@ -363,7 +445,7 @@ export function EventDetail() {
             ))}
           </div>
           {promotedEntries.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2">Los promovidos ya tienen su pase generado. Al promover, el link se copia al portapapeles.</p>
+            <p className="text-xs text-gray-400 mt-2">Los promovidos ya tienen su pase generado. Al promover, se muestra el enlace para avisarles por WhatsApp.</p>
           )}
         </div>
       )}
@@ -437,6 +519,25 @@ export function EventDetail() {
               Enviar recordatorio a todos
             </button>
           )}
+        </div>
+      )}
+
+      {/* Resumen de check-ins (Prioridad 1 — "Email por check-in" reparado).
+          Solo visible si el organizador activó el toggle en /profile Y hay
+          al menos un check-in acumulado desde que se abrió esta página. */}
+      {isOwner && organizerNotifyEnabled && checkinsThisSession.length > 0 && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <IconCheckCircle className="w-4 h-4 text-primary" />
+            <h2 className="font-medium text-gray-900 dark:text-white">Resumen de check-ins</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-3">
+            {checkinsThisSession.length} check-in{checkinsThisSession.length !== 1 ? 's' : ''} desde que abriste esta página.
+          </p>
+          <button onClick={handleSendCheckinSummary} disabled={summarySending}
+            className="text-sm bg-primary text-white rounded-md px-4 py-2 font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+            {summarySending ? 'Enviando...' : 'Enviar resumen de check-ins'}
+          </button>
         </div>
       )}
 
@@ -529,6 +630,50 @@ export function EventDetail() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
+
+      {/* Promover de lista de espera (Prioridad 2): mismo overlay/card/
+          animate-bounce-in que ConfirmDialog, inline porque acá hace falta
+          dos acciones (WhatsApp + copiar) en vez de un solo confirmar/
+          cancelar — ConfirmDialog no soporta eso sin cambiar su contrato. */}
+      {promoteResult && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setPromoteResult(null) }}
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm animate-bounce-in p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Invitado promovido</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-4">
+              {promoteResult.name} ya tiene su pase. Avisale por WhatsApp o copiá el enlace.
+            </p>
+            <div className="flex flex-col gap-2">
+              {promoteResult.phone.replace(/\D/g, '') ? (
+                <a
+                  href={`https://wa.me/${promoteResult.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                    `¡Felicidades! Te hemos promovido a invitado de ${event.name}. Toca aquí: ${promoteResult.passUrl}`,
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-xl py-2.5 text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  <IconWhatsApp className="w-4 h-4" /> Abrir WhatsApp
+                </a>
+              ) : (
+                <p className="text-xs text-amber-600">Este invitado no tiene teléfono registrado — solo podés copiar el enlace.</p>
+              )}
+              <button
+                onClick={handleCopyPromoteLink}
+                className="border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                {promoteLinkCopied ? 'Copiado ✓' : 'Copiar enlace'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-3 break-all">{promoteResult.passUrl}</p>
+            <button onClick={() => setPromoteResult(null)} className="w-full text-sm text-gray-500 mt-4 hover:text-gray-700">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 

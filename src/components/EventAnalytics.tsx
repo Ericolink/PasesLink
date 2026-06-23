@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import { IconBarChart2 } from './Icons'
 import type { GuestData } from '../types'
 
@@ -5,9 +6,32 @@ interface Props {
   guests: GuestData[]
 }
 
-export function EventAnalytics({ guests }: Props) {
-  const checkedIn = guests.filter((g) => g.checkedInAt !== null)
-  if (checkedIn.length === 0) {
+export const EventAnalytics = memo(function EventAnalytics({ guests }: Props) {
+  // Único cálculo costoso del componente (recorre todos los guests para
+  // agrupar por hora) — se memoiza para no repetirlo si el padre
+  // re-renderiza por otra razón mientras `guests` sigue siendo la misma referencia.
+  const stats = useMemo(() => {
+    const checkedIn = guests.filter((g) => g.checkedInAt !== null)
+    if (checkedIn.length === 0) return null
+
+    const hourCounts: Record<number, number> = {}
+    for (const g of checkedIn) {
+      const hour = new Date(g.checkedInAt!).getHours()
+      hourCounts[hour] = (hourCounts[hour] || 0) + 1
+    }
+
+    const hours = Object.keys(hourCounts).map(Number).sort((a, b) => a - b)
+    const minHour = Math.max(0, hours[0] - 1)
+    const maxHour = Math.min(23, hours[hours.length - 1] + 1)
+    const allHours = Array.from({ length: maxHour - minHour + 1 }, (_, i) => minHour + i)
+    const maxCount = Math.max(...Object.values(hourCounts))
+    const peakHour = hours.reduce((a, b) => (hourCounts[a] > hourCounts[b] ? a : b))
+    const avgPerHour = (checkedIn.length / hours.length).toFixed(1)
+
+    return { checkedIn, hourCounts, allHours, maxCount, peakHour, avgPerHour }
+  }, [guests])
+
+  if (!stats) {
     return (
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
         <div className="flex items-center gap-2 mb-1">
@@ -20,21 +44,7 @@ export function EventAnalytics({ guests }: Props) {
     )
   }
 
-  // Group by hour
-  const hourCounts: Record<number, number> = {}
-  for (const g of checkedIn) {
-    const hour = new Date(g.checkedInAt!).getHours()
-    hourCounts[hour] = (hourCounts[hour] || 0) + 1
-  }
-
-  const hours = Object.keys(hourCounts).map(Number).sort((a, b) => a - b)
-  const minHour = Math.max(0, hours[0] - 1)
-  const maxHour = Math.min(23, hours[hours.length - 1] + 1)
-  const allHours = Array.from({ length: maxHour - minHour + 1 }, (_, i) => minHour + i)
-  const maxCount = Math.max(...Object.values(hourCounts))
-
-  const peakHour = hours.reduce((a, b) => (hourCounts[a] > hourCounts[b] ? a : b))
-  const avgPerHour = (checkedIn.length / hours.length).toFixed(1)
+  const { checkedIn, hourCounts, allHours, maxCount, peakHour, avgPerHour } = stats
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
@@ -84,4 +94,4 @@ export function EventAnalytics({ guests }: Props) {
       <p className="text-[10px] text-gray-400 text-center mt-1">Hora del día (check-ins)</p>
     </div>
   )
-}
+})

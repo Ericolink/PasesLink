@@ -101,9 +101,9 @@ export function Reports() {
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <Stat label="RSVP: asistirán" value={rsvpYes} color="text-primary" />
-        <Stat label="RSVP: no asistirán" value={rsvpNo} color="text-gray-400" />
-        <Stat label="RSVP: sin responder" value={rsvpPending} color="text-gray-400" />
+        <Stat label="Asistirán" value={rsvpYes} color="text-primary" />
+        <Stat label="No asistirán" value={rsvpNo} color="text-gray-400" />
+        <Stat label="Sin responder" value={rsvpPending} color="text-gray-400" />
       </div>
 
       <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
