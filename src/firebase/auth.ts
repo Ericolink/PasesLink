@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   confirmPasswordReset as firebaseConfirmPasswordReset,
+  sendEmailVerification,
   sendPasswordResetEmail,
   verifyPasswordResetCode as firebaseVerifyPasswordResetCode,
   EmailAuthProvider,
@@ -52,8 +53,24 @@ export async function registerWithEmail(
     photoURL: photoURL || null,
     createdAt: serverTimestamp(),
   })
+  await sendEmailVerification(credential.user)
   void sendWelcomeEmail(email, displayName)
   return credential.user
+}
+
+/** Reenvía el email de verificación al usuario autenticado actual. */
+export async function resendVerificationEmail() {
+  const user = auth.currentUser
+  if (!user) throw new Error('No hay un usuario autenticado.')
+  await sendEmailVerification(user)
+}
+
+/** Recarga al usuario actual desde Firebase y devuelve si ya verificó su email. */
+export async function checkEmailVerified(): Promise<boolean> {
+  const user = auth.currentUser
+  if (!user) return false
+  await user.reload()
+  return user.emailVerified
 }
 
 export async function loginWithEmail(email: string, password: string) {

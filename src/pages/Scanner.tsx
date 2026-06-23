@@ -8,15 +8,24 @@ import { checkInGuest } from '../firebase/guests'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
 import { extractQrToken, isArriveQr } from '../utils/qrUrl'
+import { isNetworkError } from '../utils/network'
 
 export type ScanFeedback = {
-  type: 'success' | 'already' | 'invalid' | 'checkout' | 'not_checked_in' | 'already_out'
+  type: 'success' | 'already' | 'invalid' | 'checkout' | 'not_checked_in' | 'already_out' | 'full' | 'not_found' | 'error'
   guestName?: string
   detail?: string
+  checkedInAt?: number | null
+  checkedInByEmail?: string | null
 }
 
 const AUTO_CLOSE_MS = 3500
 const SCAN_COOLDOWN_MS = 2500
+const NETWORK_RETRY_MS = 2000
+
+// Resultados que requieren una decisión del guardia (cupo lleno, QR duplicado,
+// invitado no encontrado, error de red) se quedan en pantalla hasta que los
+// cierre a mano — solo los casos "informativos" (éxito, salida) se autocierran.
+const AUTO_CLOSE_TYPES: ScanFeedback['type'][] = ['success', 'checkout', 'invalid', 'already_out', 'not_checked_in']
 
 export function Scanner() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -26,6 +35,8 @@ export function Scanner() {
   const [scanning, setScanning] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [walkInMsg, setWalkInMsg] = useState<'success' | 'full' | null>(null)
+  const [manualOpen, setManualOpen] = useState(false)
+  const [manualValue, setManualValue] = useState('')
 
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const cooldownRef = useRef(false)
@@ -40,7 +51,9 @@ export function Scanner() {
   function showFeedback(value: ScanFeedback) {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
     setFeedback(value)
-    closeTimerRef.current = setTimeout(() => setFeedback(null), AUTO_CLOSE_MS)
+    closeTimerRef.current = AUTO_CLOSE_TYPES.includes(value.type)
+      ? setTimeout(() => setFeedback(null), AUTO_CLOSE_MS)
+      : null
   }
 
   async function startScanning() {
@@ -61,10 +74,22 @@ export function Scanner() {
       )
       setScanning(true)
     } catch {
-      setCameraError('No se pudo acceder a la cámara. Verifica los permisos del navegador.')
+      setCameraError('Cámara no disponible. Intenta reiniciar la app.')
       try { scanner.clear() } catch { /* ignore */ }
       scannerRef.current = null
     }
+  }
+
+  function handleManualSubmit() {
+    const value = manualValue.trim()
+    if (!value || !eventId) return
+    setManualValue('')
+    setManualOpen(false)
+    // El input acepta tanto la URL completa del pase (pegada) como el token
+    // crudo; si no parece una URL, se reconstruye la URL de pase esperada para
+    // poder reusar el mismo extractQrToken() que usa el flujo de cámara.
+    const looksLikeUrl = /^https?:\/\//i.test(value)
+    void processQr(looksLikeUrl ? value : `${window.location.origin}/pass/${eventId}/${value}`)
   }
 
   async function stopScanning() {
@@ -78,17 +103,21 @@ export function Scanner() {
     setScanning(false)
   }
 
-  async function processQr(decodedText: string) {
+  async function processQr(decodedText: string, attempt = 1) {
     if (!eventId || !user) return
 
     // Ingreso directo (Opción C) — QR compartido del evento
     if (isArriveQr(decodedText, eventId)) {
-      const result = await walkIn(eventId)
-      if (result === 'success') {
-        confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
-        showFeedback({ type: 'success', detail: 'Ingreso registrado' })
-      } else {
-        showFeedback({ type: 'invalid', detail: '¡Cupo máximo alcanzado!' })
+      try {
+        const result = await walkIn(eventId)
+        if (result === 'success') {
+          confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+          showFeedback({ type: 'success', detail: 'Ingreso registrado' })
+        } else {
+          showFeedback({ type: 'full', detail: 'No quedan lugares disponibles para este evento.' })
+        }
+      } catch (err) {
+        await handleProcessError(err, attempt, () => processQr(decodedText, attempt + 1))
       }
       return
     }
@@ -99,21 +128,48 @@ export function Scanner() {
       return
     }
 
-    const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
-    if (result.status === 'success') {
-      confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
-      const welcome = eventRef.current?.welcomeMessage || undefined
-      const companions = result.guest.companions > 0 ? `+${result.guest.companions} acompañante(s)` : undefined
-      showFeedback({
-        type: 'success',
-        guestName: result.guest.name,
-        detail: [companions, welcome].filter(Boolean).join(' · ') || undefined,
-      })
-    } else if (result.status === 'already_checked_in') {
-      showFeedback({ type: 'already', guestName: result.guest.name })
-    } else {
-      showFeedback({ type: 'invalid', detail: 'Invitado no encontrado.' })
+    try {
+      const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
+      if (result.status === 'success') {
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+        const welcome = eventRef.current?.welcomeMessage || undefined
+        const companions = result.guest.companions.length > 0 ? `+${result.guest.companions.length} acompañante(s)` : undefined
+        showFeedback({
+          type: 'success',
+          guestName: result.guest.name,
+          detail: [companions, welcome].filter(Boolean).join(' · ') || undefined,
+        })
+      } else if (result.status === 'already_checked_in') {
+        showFeedback({
+          type: 'already',
+          guestName: result.guest.name,
+          checkedInAt: result.guest.checkedInAt,
+          checkedInByEmail: result.guest.checkedInByEmail,
+        })
+      } else if (result.status === 'payment_required') {
+        showFeedback({ type: 'invalid', guestName: result.guest.name, detail: 'Debe pagar la entrada antes de ingresar.' })
+      } else {
+        showFeedback({ type: 'not_found', detail: 'Este código no corresponde a ningún invitado de este evento.' })
+      }
+    } catch (err) {
+      await handleProcessError(err, attempt, () => processQr(decodedText, attempt + 1))
     }
+  }
+
+  async function handleProcessError(err: unknown, attempt: number, retry: () => Promise<void>) {
+    console.error('Error procesando QR:', err)
+    if (isNetworkError(err) && attempt < 2) {
+      showFeedback({ type: 'error', detail: 'Sin conexión. Reintentando en unos segundos…' })
+      await new Promise((resolve) => setTimeout(resolve, NETWORK_RETRY_MS))
+      await retry()
+      return
+    }
+    showFeedback({
+      type: 'error',
+      detail: isNetworkError(err)
+        ? 'No hay conexión a internet. Verifica tu WiFi/datos e intenta de nuevo.'
+        : 'No se pudo procesar el código. Intenta de nuevo.',
+    })
   }
 
   async function handleWalkIn() {
@@ -176,15 +232,44 @@ export function Scanner() {
         {!scanning && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-gray-900 rounded-2xl">
             {cameraError ? (
-              <>
-                <p className="text-red-400 text-sm text-center px-4">{cameraError}</p>
-                <button
-                  onClick={startScanning}
-                  className="bg-primary text-white rounded-xl px-6 py-3 text-sm font-semibold hover:opacity-90"
-                >
-                  Reintentar
-                </button>
-              </>
+              <div className="flex flex-col items-center gap-3 px-4 w-full">
+                <p className="text-red-400 text-sm text-center">{cameraError}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={startScanning}
+                    className="min-h-12 bg-primary text-white rounded-xl px-6 py-3 text-sm font-semibold hover:opacity-90"
+                  >
+                    Reintentar
+                  </button>
+                  <button
+                    onClick={() => setManualOpen((v) => !v)}
+                    className="min-h-12 bg-gray-800 text-white rounded-xl px-6 py-3 text-sm font-semibold hover:bg-gray-700"
+                  >
+                    Ingreso manual
+                  </button>
+                </div>
+                {manualOpen && (
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); handleManualSubmit() }}
+                    className="w-full max-w-xs flex flex-col gap-2 mt-1"
+                  >
+                    <input
+                      type="text"
+                      value={manualValue}
+                      onChange={(e) => setManualValue(e.target.value)}
+                      placeholder="Pega el enlace o código del pase"
+                      autoFocus
+                      className="min-h-12 w-full bg-gray-800 text-white placeholder:text-gray-500 rounded-lg px-3 py-3 text-sm border border-gray-700 focus:outline-none focus:border-primary"
+                    />
+                    <button
+                      type="submit"
+                      className="min-h-12 bg-primary text-white rounded-lg py-3 text-sm font-semibold hover:opacity-90"
+                    >
+                      Procesar código
+                    </button>
+                  </form>
+                )}
+              </div>
             ) : (
               <>
                 {/* Icono de visor QR */}
@@ -252,12 +337,12 @@ export function Scanner() {
         <div className="mt-4 bg-gray-800 rounded-lg p-4">
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-3">Contador walk-in</p>
           <div className="flex items-center gap-3">
-            <button onClick={handleWalkOut} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded-md py-2.5 text-lg font-bold transition-colors">−</button>
+            <button onClick={handleWalkOut} className="min-h-12 flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded-md py-3 text-lg font-bold transition-colors">−</button>
             <div className="text-center min-w-[60px]">
               <span className="text-2xl font-bold text-white">{event.checkedInCount}</span>
               {event.capacity && <p className="text-xs text-gray-400">/ {event.capacity}</p>}
             </div>
-            <button onClick={handleWalkIn} className="flex-1 bg-primary hover:bg-primary-dark text-white rounded-md py-2.5 text-lg font-bold transition-colors">+</button>
+            <button onClick={handleWalkIn} className="min-h-12 flex-1 bg-primary hover:bg-primary-dark text-white rounded-md py-3 text-lg font-bold transition-colors">+</button>
           </div>
           {walkInMsg && (
             <p className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>

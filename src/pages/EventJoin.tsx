@@ -315,10 +315,10 @@ export function EventJoin() {
               <p className="text-sm italic text-[var(--invite-accent)]">{event.welcomeMessage}</p>
             )}
           </InvitationCard>
-          {event?.location && (
+          {event?.mapsUrl && (
             <>
               <InviteDivider templateId={event?.templateId} />
-              <EventMap location={event.location} mapsUrl={event.mapsUrl} />
+              <EventMap mapsUrl={event.mapsUrl} />
             </>
           )}
           {id && <WallSection eventId={id} guestName={`${name} ${lastName}`.trim()} />}

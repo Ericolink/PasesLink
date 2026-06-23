@@ -1,27 +1,61 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { addGuest, addGuestsBulk } from '../firebase/guests'
+import { CompanionFieldsEditor } from './CompanionFields'
+import { ConfirmDialog } from './ConfirmDialog'
+import type { CompanionData, GuestData } from '../types'
 
-export function GuestAddForm({ eventId }: { eventId: string }) {
+function normalizeName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function parseBulkNames(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((n) => n.trim())
+    .filter(Boolean)
+}
+
+type PendingDuplicate = { type: 'single' } | { type: 'bulk'; duplicates: string[] }
+
+export function GuestAddForm({ eventId, guests }: { eventId: string; guests: GuestData[] }) {
   const [mode, setMode] = useState<'single' | 'bulk'>('single')
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
-  const [companions, setCompanions] = useState(0)
+  const [companions, setCompanions] = useState<CompanionData[]>([])
   const [bulkNames, setBulkNames] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [pendingDuplicate, setPendingDuplicate] = useState<PendingDuplicate | null>(null)
 
-  async function handleSingleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!name.trim()) return
+  // Nombre completo normalizado de cada invitado ya cargado — usado para
+  // avisar antes de crear un duplicado (mismo invitado agregado 2 veces),
+  // tanto al agregar uno por uno como al pegar una lista.
+  const existingNames = useMemo(
+    () => new Set(guests.map((g) => normalizeName(`${g.name} ${g.lastName || ''}`))),
+    [guests],
+  )
+
+  function findBulkDuplicates(names: string[]): string[] {
+    const seen = new Set<string>()
+    const duplicates = new Set<string>()
+    for (const n of names) {
+      const norm = normalizeName(n)
+      if (existingNames.has(norm) || seen.has(norm)) duplicates.add(n)
+      seen.add(norm)
+    }
+    return Array.from(duplicates)
+  }
+
+  async function submitSingleGuest() {
     setLoading(true)
     setError('')
     try {
-      await addGuest(eventId, { name: name.trim(), email: email.trim(), phone: phone.trim(), companions })
+      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions })
       setName('')
-      setEmail('')
+      setLastName('')
       setPhone('')
-      setCompanions(0)
+      setCompanions([])
     } catch {
       setError('No se pudo agregar el invitado. Intenta de nuevo.')
     } finally {
@@ -29,13 +63,17 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
     }
   }
 
-  async function handleBulkSubmit(e: React.FormEvent) {
+  async function handleSingleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const names = bulkNames
-      .split('\n')
-      .map((n) => n.trim())
-      .filter(Boolean)
-    if (names.length === 0) return
+    if (!name.trim() || !lastName.trim()) return
+    if (existingNames.has(normalizeName(`${name} ${lastName}`))) {
+      setPendingDuplicate({ type: 'single' })
+      return
+    }
+    await submitSingleGuest()
+  }
+
+  async function submitBulkGuests(names: string[]) {
     setLoading(true)
     setError('')
     try {
@@ -46,6 +84,26 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleBulkSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const names = parseBulkNames(bulkNames)
+    if (names.length === 0) return
+    const duplicates = findBulkDuplicates(names)
+    if (duplicates.length > 0) {
+      setPendingDuplicate({ type: 'bulk', duplicates })
+      return
+    }
+    await submitBulkGuests(names)
+  }
+
+  function handleConfirmDuplicate() {
+    const pending = pendingDuplicate
+    setPendingDuplicate(null)
+    if (!pending) return
+    if (pending.type === 'single') void submitSingleGuest()
+    else void submitBulkGuests(parseBulkNames(bulkNames))
   }
 
   return (
@@ -72,43 +130,39 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
       {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
 
       {mode === 'single' ? (
-        <form onSubmit={handleSingleSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input
-            type="text"
-            required
-            placeholder="Nombre"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary sm:col-span-1"
-          />
-          <input
-            type="email"
-            placeholder="Email (opcional)"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <input
-            type="tel"
-            placeholder="Teléfono (opcional)"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600 whitespace-nowrap">Acompañantes</label>
+        <form onSubmit={handleSingleSubmit} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input
-              type="number"
-              min={0}
-              value={companions}
-              onChange={(e) => setCompanions(Math.max(0, Number(e.target.value)))}
-              className="w-20 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              type="text"
+              required
+              placeholder="Nombre"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <input
+              type="text"
+              required
+              placeholder="Apellido"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <input
+              type="tel"
+              placeholder="Teléfono (opcional)"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+
+          <CompanionFieldsEditor companions={companions} onChange={setCompanions} />
+
           <button
             type="submit"
             disabled={loading}
-            className="sm:col-span-3 bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+            className="w-full bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
           >
             {loading ? 'Agregando...' : 'Agregar invitado'}
           </button>
@@ -131,6 +185,22 @@ export function GuestAddForm({ eventId }: { eventId: string }) {
           </button>
         </form>
       )}
+
+      <ConfirmDialog
+        open={pendingDuplicate !== null}
+        title="Posible invitado duplicado"
+        message={
+          pendingDuplicate?.type === 'single'
+            ? `${name.trim()} ${lastName.trim()} ya está en la lista de invitados. ¿Agregar de todas formas?`
+            : pendingDuplicate?.type === 'bulk'
+              ? `${pendingDuplicate.duplicates.length} de los nombres pegados ya están en la lista o se repiten: ${pendingDuplicate.duplicates.join(', ')}. ¿Agregar todos de todas formas?`
+              : ''
+        }
+        confirmLabel="Agregar de todas formas"
+        cancelLabel="Cancelar"
+        onConfirm={handleConfirmDuplicate}
+        onCancel={() => setPendingDuplicate(null)}
+      />
     </div>
   )
 }

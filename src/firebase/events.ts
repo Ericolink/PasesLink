@@ -28,7 +28,7 @@ export interface NewEventInput {
   welcomeMessage?: string
   mapsUrl?: string
   entryMode?: EntryMode
-  capacity?: number
+  capacity: number
   customFields?: CustomField[]
   requiresPayment?: boolean
   ticketPrice?: number
@@ -49,7 +49,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     welcomeMessage: input.welcomeMessage || '',
     mapsUrl: input.mapsUrl || '',
     entryMode: input.entryMode || 'list',
-    capacity: input.capacity || null,
+    capacity: input.capacity,
     customFields: input.customFields || [],
     requiresPayment: input.requiresPayment || false,
     ticketPrice: input.ticketPrice || 0,
@@ -126,7 +126,7 @@ export interface UpdateEventInput {
   welcomeMessage?: string
   mapsUrl?: string
   entryMode?: EntryMode
-  capacity?: number
+  capacity: number
   customFields?: CustomField[]
   requiresPayment?: boolean
   ticketPrice?: number
@@ -146,7 +146,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     welcomeMessage: input.welcomeMessage ?? '',
     mapsUrl: input.mapsUrl ?? '',
     entryMode: input.entryMode || 'list',
-    capacity: input.capacity || null,
+    capacity: input.capacity,
     customFields: input.customFields || [],
     requiresPayment: input.requiresPayment || false,
     ticketPrice: input.ticketPrice || 0,
@@ -224,7 +224,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     welcomeMessage: (data.welcomeMessage as string) || '',
     mapsUrl: (data.mapsUrl as string) || '',
     entryMode: (data.entryMode as EntryMode) || 'list',
-    capacity: (data.capacity as number) || undefined,
+    capacity: (data.capacity as number) || 0,
     customFields: (data.customFields as CustomField[]) || [],
     requiresPayment: (data.requiresPayment as boolean) || false,
     ticketPrice: (data.ticketPrice as number) || 0,

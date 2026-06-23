@@ -11,6 +11,7 @@ import {
 } from '../firebase/auth'
 import { saveUserProfile } from '../firebase/userProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
+import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 import {
   IconBell,
   IconCheckCircle,
@@ -223,7 +224,8 @@ export function Profile() {
   async function handleAddPassword(e: React.FormEvent) {
     e.preventDefault()
     setLinkPasswordError('')
-    if (newLinkPassword.length < 6) { setLinkPasswordError('Mínimo 6 caracteres.'); return }
+    const passwordError = getPasswordError(newLinkPassword)
+    if (passwordError) { setLinkPasswordError(passwordError); return }
     if (newLinkPassword !== confirmLinkPassword) { setLinkPasswordError('Las contraseñas no coinciden.'); return }
     setLinkPasswordSaving(true)
     try {
@@ -246,7 +248,8 @@ export function Profile() {
     e.preventDefault()
     setPasswordError('')
     setPasswordMessage('')
-    if (newPassword.length < 6) { setPasswordError('Mínimo 6 caracteres.'); return }
+    const passwordError = getPasswordError(newPassword)
+    if (passwordError) { setPasswordError(passwordError); return }
     if (newPassword !== confirmPassword) { setPasswordError('Las contraseñas no coinciden.'); return }
     setPasswordSaving(true)
     try {
@@ -409,16 +412,17 @@ export function Profile() {
                 <input
                   type="password"
                   required
-                  minLength={6}
+                  minLength={PASSWORD_MIN_LENGTH}
                   placeholder="Nueva contraseña"
                   value={newLinkPassword}
                   onChange={(e) => setNewLinkPassword(e.target.value)}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                <p className="text-xs text-gray-400">{PASSWORD_HINT}</p>
                 <input
                   type="password"
                   required
-                  minLength={6}
+                  minLength={PASSWORD_MIN_LENGTH}
                   placeholder="Confirmar contraseña"
                   value={confirmLinkPassword}
                   onChange={(e) => setConfirmLinkPassword(e.target.value)}
@@ -491,12 +495,13 @@ export function Profile() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
-              <input type="password" required minLength={6} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+              <input type="password" required minLength={PASSWORD_MIN_LENGTH} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
+              <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
-              <input type="password" required minLength={6} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+              <input type="password" required minLength={PASSWORD_MIN_LENGTH} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             {passwordError   && <p className="text-sm text-red-500">{passwordError}</p>}

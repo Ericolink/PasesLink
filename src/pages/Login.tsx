@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { loginWithEmail, loginWithGoogle } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
+import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { useAuth } from '../hooks/useAuth'
+import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
 export function Login() {
   const { user } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
@@ -16,20 +18,20 @@ export function Login() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
+    setErrorInfo(null)
     setLoading(true)
     try {
       await loginWithEmail(email, password)
       navigate('/dashboard')
-    } catch {
-      setError('No pudimos iniciar sesión. Revisa tu email y contraseña.')
+    } catch (err) {
+      setErrorInfo(getAuthErrorInfo(err, 'No pudimos iniciar sesión. Revisa tu email y contraseña.'))
     } finally {
       setLoading(false)
     }
   }
 
   async function handleGoogle() {
-    setError('')
+    setErrorInfo(null)
     setLoading(true)
     try {
       const u = await loginWithGoogle()
@@ -37,8 +39,9 @@ export function Login() {
       const complete = await isGoogleProfileComplete(u.uid)
       navigate(complete ? '/dashboard' : '/complete-profile')
     } catch (err) {
+      if (isAuthCancellation(err)) return
       console.error('Error en login con Google:', err)
-      setError('No pudimos iniciar sesión con Google.')
+      setErrorInfo(getAuthErrorInfo(err, 'No pudimos iniciar sesión con Google.'))
     } finally {
       setLoading(false)
     }
@@ -73,7 +76,7 @@ export function Login() {
             className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {errorInfo && <AuthErrorMessage info={errorInfo} />}
         <button
           type="submit"
           disabled={loading}

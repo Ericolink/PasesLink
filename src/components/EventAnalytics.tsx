@@ -1,12 +1,14 @@
 import { memo, useMemo } from 'react'
 import { IconBarChart2 } from './Icons'
+import { LoadingInline } from './LoadingInline'
 import type { GuestData } from '../types'
 
 interface Props {
   guests: GuestData[]
+  loading?: boolean
 }
 
-export const EventAnalytics = memo(function EventAnalytics({ guests }: Props) {
+export const EventAnalytics = memo(function EventAnalytics({ guests, loading = false }: Props) {
   // Único cálculo costoso del componente (recorre todos los guests para
   // agrupar por hora) — se memoiza para no repetirlo si el padre
   // re-renderiza por otra razón mientras `guests` sigue siendo la misma referencia.
@@ -31,7 +33,7 @@ export const EventAnalytics = memo(function EventAnalytics({ guests }: Props) {
     return { checkedIn, hourCounts, allHours, maxCount, peakHour, avgPerHour }
   }, [guests])
 
-  if (!stats) {
+  if (loading || !stats) {
     return (
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
         <div className="flex items-center gap-2 mb-1">
@@ -39,7 +41,9 @@ export const EventAnalytics = memo(function EventAnalytics({ guests }: Props) {
           <h2 className="font-medium text-gray-900 dark:text-white">Analytics</h2>
           <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Premium</span>
         </div>
-        <p className="text-sm text-gray-400 mt-3 text-center py-4">Aún no hay check-ins registrados.</p>
+        {loading
+          ? <LoadingInline label="Cargando asistentes..." />
+          : <p className="text-sm text-gray-400 mt-3 text-center py-4">Aún no hay check-ins registrados.</p>}
       </div>
     )
   }

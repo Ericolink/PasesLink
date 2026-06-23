@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { confirmPasswordReset, verifyPasswordResetCode } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
+import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { IconCheckCircle, IconXCircle } from '../components/Icons'
+import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
+import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 
 export function ResetPassword() {
   const [searchParams] = useSearchParams()
@@ -13,7 +16,7 @@ export function ResetPassword() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState('')
+  const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -28,21 +31,22 @@ export function ResetPassword() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.')
+    setErrorInfo(null)
+    const passwordError = getPasswordError(password)
+    if (passwordError) {
+      setErrorInfo({ message: passwordError })
       return
     }
     if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden.')
+      setErrorInfo({ message: 'Las contraseñas no coinciden.' })
       return
     }
     setLoading(true)
     try {
       await confirmPasswordReset(oobCode, password)
       setStatus('done')
-    } catch {
-      setError('No pudimos restablecer tu contraseña. El enlace puede haber expirado.')
+    } catch (err) {
+      setErrorInfo(getAuthErrorInfo(err, 'No pudimos restablecer tu contraseña. El enlace puede haber expirado.'))
     } finally {
       setLoading(false)
     }
@@ -77,24 +81,25 @@ export function ResetPassword() {
               <input
                 type="password"
                 required
-                minLength={6}
+                minLength={PASSWORD_MIN_LENGTH}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
               />
+              <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
               <input
                 type="password"
                 required
-                minLength={6}
+                minLength={PASSWORD_MIN_LENGTH}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {errorInfo && <AuthErrorMessage info={errorInfo} />}
             <button
               type="submit"
               disabled={loading}

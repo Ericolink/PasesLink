@@ -54,5 +54,6 @@ export function useCoverPhoto(initial = '') {
     onCropConfirmed,
     onCropCancelled,
     clearCover,
+    setCoverImage,
   }
 }

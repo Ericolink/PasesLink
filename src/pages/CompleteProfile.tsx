@@ -4,6 +4,8 @@ import { updateProfile } from 'firebase/auth'
 import { saveUserProfile } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import { uploadImage } from '../utils/cloudinary'
+import { AuthErrorMessage } from '../components/AuthErrorMessage'
+import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
 export function CompleteProfile() {
   const { user } = useAuth()
@@ -17,7 +19,7 @@ export function CompleteProfile() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(user?.photoURL || null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -31,7 +33,7 @@ export function CompleteProfile() {
     e.preventDefault()
     if (!user) return
     setLoading(true)
-    setError('')
+    setErrorInfo(null)
     try {
       let photoURL = user.photoURL || undefined
       if (photoFile) photoURL = await uploadImage(photoFile)
@@ -46,8 +48,8 @@ export function CompleteProfile() {
         photoURL,
       })
       navigate('/dashboard')
-    } catch {
-      setError('No pudimos guardar tu perfil. Intenta de nuevo.')
+    } catch (err) {
+      setErrorInfo(getAuthErrorInfo(err, 'No pudimos guardar tu perfil. Intenta de nuevo.'))
     } finally {
       setLoading(false)
     }
@@ -94,7 +96,7 @@ export function CompleteProfile() {
               max={new Date().toISOString().split('T')[0]}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {errorInfo && <AuthErrorMessage info={errorInfo} />}
           <button type="submit" disabled={loading}
             className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
             {loading ? 'Guardando...' : 'Guardar y entrar'}

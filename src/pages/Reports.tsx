@@ -8,15 +8,21 @@ import type { CheckinLog } from '../types'
 import { RSVP_LABELS } from '../types'
 import { IconCheck, IconCornerUpLeft } from '../components/Icons'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
+import { LoadingInline } from '../components/LoadingInline'
 
 export function Reports() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
-  const { event, guests, loading } = useEvent(eventId)
+  const { event, guests, loading, guestsLoading } = useEvent(eventId)
   const [checkins, setCheckins] = useState<CheckinLog[]>([])
+  const [checkinsLoading, setCheckinsLoading] = useState(true)
 
+  // Resetea el loading al cambiar de evento, antes de (re)suscribirse —
+  // necesario para no mostrar datos del evento anterior como si fueran del nuevo.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!eventId) return
+    setCheckinsLoading(true)
     const q = query(collection(db, 'events', eventId, 'checkins'), orderBy('timestamp', 'asc'))
     return onSnapshot(q, (snapshot) => {
       setCheckins(
@@ -33,8 +39,10 @@ export function Reports() {
           }
         }),
       )
+      setCheckinsLoading(false)
     })
   }, [eventId])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
   if (!event) return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
@@ -62,11 +70,11 @@ export function Reports() {
   const maxHourCount = Math.max(1, ...hourEntries.map(([, count]) => count))
 
   function exportCsv() {
-    const rows = [['Invitado', 'Email', 'Estado', 'Hora de ingreso']]
+    const rows = [['Invitado', 'Apellido', 'Estado', 'Hora de ingreso']]
     for (const guest of guests) {
       rows.push([
         guest.name,
-        guest.email || '',
+        guest.lastName || '',
         guest.status === 'checked_in' ? 'Confirmado' : 'Pendiente',
         guest.checkedInAt ? new Date(guest.checkedInAt).toLocaleString() : '',
       ])
@@ -108,7 +116,9 @@ export function Reports() {
 
       <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
         <h2 className="font-medium text-gray-900 mb-3">Llegadas por hora</h2>
-        {hourEntries.length === 0 ? (
+        {checkinsLoading ? (
+          <LoadingInline label="Cargando asistentes..." />
+        ) : hourEntries.length === 0 ? (
           <p className="text-sm text-gray-500">Aún no hay check-ins registrados.</p>
         ) : (
           <div className="space-y-2">
@@ -135,12 +145,13 @@ export function Reports() {
             Exportar CSV
           </button>
         </div>
+        {guestsLoading && <LoadingInline label="Cargando asistentes..." />}
         <div className="divide-y divide-gray-100">
-          {guests.map((guest) => (
+          {!guestsLoading && guests.map((guest) => (
             <div key={guest.id} className="flex items-center justify-between py-2 text-sm gap-2">
               <span className="text-gray-900">
-                {guest.name}
-                {guest.companions > 0 && <span className="text-gray-400"> +{guest.companions}</span>}
+                {guest.name} {guest.lastName}
+                {guest.companions.length > 0 && <span className="text-gray-400"> +{guest.companions.length}</span>}
               </span>
               <span className="text-gray-400 text-xs">{RSVP_LABELS[guest.rsvpStatus]}</span>
               <span className="text-gray-500 text-right">
@@ -160,7 +171,9 @@ export function Reports() {
 
       <div className="border border-gray-200 rounded-lg bg-white p-4">
         <h2 className="font-medium text-gray-900 mb-3">Línea de tiempo</h2>
-        {checkins.length === 0 ? (
+        {checkinsLoading ? (
+          <LoadingInline label="Cargando asistentes..." />
+        ) : checkins.length === 0 ? (
           <p className="text-sm text-gray-500">Aún no hay check-ins registrados.</p>
         ) : (
           <ul className="text-sm space-y-1">

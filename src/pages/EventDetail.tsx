@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useCheckinToast } from '../hooks/useCheckinToast'
@@ -7,7 +7,6 @@ import { deleteEvent, setEventStatus, addCoOrganizer, removeCoOrganizer } from '
 import { getUserByEmail, getUserProfile } from '../firebase/userProfile'
 import { subscribeToWaitlist, promoteFromWaitlist } from '../firebase/waitlist'
 import { sendCheckinSummary, type CheckinSummaryEntry } from '../firebase/guests'
-import { sendReminderEmail } from '../utils/emailjs'
 import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
@@ -22,7 +21,6 @@ import {
   IconEdit,
   IconHome,
   IconListOrdered,
-  IconMail,
   IconThumbsDown,
   IconThumbsUp,
   IconTicket,
@@ -37,7 +35,8 @@ export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const { event, guests, loading, error } = useEvent(eventId)
+  const location = useLocation()
+  const { event, guests, loading, guestsLoading, error } = useEvent(eventId)
   const [exporting, setExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState<{ done: number; total: number } | null>(null)
   const [exportPdfError, setExportPdfError] = useState('')
@@ -53,8 +52,6 @@ export function EventDetail() {
   const [coOrgEmail, setCoOrgEmail] = useState('')
   const [coOrgLoading, setCoOrgLoading] = useState(false)
   const [coOrgError, setCoOrgError] = useState('')
-  const [reminderSending, setReminderSending] = useState(false)
-  const [reminderDone, setReminderDone] = useState(0)
   const checkinToast = useCheckinToast(eventId)
 
   // Acumulador de check-ins "de esta sesión" para el resumen por email
@@ -108,6 +105,16 @@ export function EventDetail() {
     getUserProfile(user.uid).then((profile) => setOrganizerNotifyEnabled(profile?.notifyOnCheckin === true))
   }, [user])
 
+  // Permite que el CTA del modal de éxito de EventCreate (u otros enlaces)
+  // lleve directo a una sección con #hash — React Router no hace scroll a
+  // anclas por sí solo en una SPA, así que se resuelve a mano una vez que el
+  // contenido del evento ya está en el DOM.
+  useEffect(() => {
+    if (!event || !location.hash) return
+    const id = location.hash.slice(1)
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [event, location.hash])
+
   // Memoizado para que GuestList (React.memo) reciba la misma referencia de
   // array entre renders en los que `guests`/`search` no cambiaron — si no,
   // cualquier re-render de EventDetail por estado no relacionado (toasts,
@@ -117,7 +124,7 @@ export function EventDetail() {
       guests.filter((g) => {
         const term = search.trim().toLowerCase()
         if (!term) return true
-        return g.name.toLowerCase().includes(term) || (g.email || '').toLowerCase().includes(term)
+        return g.name.toLowerCase().includes(term) || (g.lastName || '').toLowerCase().includes(term)
       }),
     [guests, search],
   )
@@ -165,13 +172,14 @@ export function EventDetail() {
   function handleExportCsv() {
     const rows = [
       [
-        'Nombre', 'Email', 'Teléfono', 'Estado', 'Confirmación', 'Check-in',
+        'Nombre', 'Apellido', 'Teléfono', 'Acompañantes', 'Estado', 'Confirmación', 'Check-in',
         ...(event!.requiresPayment ? ['Pago'] : []),
       ],
       ...guests.map((g) => [
         g.name,
-        g.email || '',
+        g.lastName || '',
         g.phone || '',
+        String(g.companions.length),
         g.status === 'checked_in' ? 'Asistió' : 'Invitado',
         g.rsvpStatus === 'yes' ? 'Sí' : g.rsvpStatus === 'no' ? 'No' : 'Pendiente',
         g.checkedInAt ? new Date(g.checkedInAt).toLocaleString('es') : '',
@@ -281,31 +289,14 @@ export function EventDetail() {
     await removeCoOrganizer(eventId, uid)
   }
 
-  async function handleSendReminders() {
-    if (!eventId || !event) return
-    const ev = event
-    const withEmail = guests.filter((g) => g.email && g.status !== 'checked_in')
-    if (withEmail.length === 0) return
-    setReminderSending(true)
-    setReminderDone(0)
-    for (const g of withEmail) {
-      const passUrl = `${window.location.origin}/pass/${eventId}/${g.qrToken}`
-      await sendReminderEmail(g.email!, g.name, ev.name, ev.date, ev.location, passUrl)
-      setReminderDone((n) => n + 1)
-      await new Promise((r) => setTimeout(r, 300))
-    }
-    setReminderSending(false)
-  }
-
-  const totalPeople = guests.reduce((sum, g) => sum + 1 + g.companions, 0)
+  const totalPeople = guests.reduce((sum, g) => sum + 1 + g.companions.length, 0)
   const totalCollected = guests
     .filter((g) => g.paymentStatus === 'paid')
-    .reduce((sum, g) => sum + event.ticketPrice * (1 + g.companions), 0)
+    .reduce((sum, g) => sum + event.ticketPrice * (1 + g.companions.length), 0)
   const insideGuests = guests.filter((g) => g.status === 'checked_in' && !g.checkedOutAt)
-  const peopleInside = insideGuests.reduce((sum, g) => sum + 1 + g.companions, 0)
+  const peopleInside = insideGuests.reduce((sum, g) => sum + 1 + g.companions.length, 0)
   const rsvpYes = guests.filter((g) => g.rsvpStatus === 'yes').length
   const rsvpNo = guests.filter((g) => g.rsvpStatus === 'no').length
-  const guestsWithEmail = guests.filter((g) => g.email && g.status !== 'checked_in').length
   const waitingEntries = waitlist.filter((e) => e.status === 'waiting')
   const promotedEntries = waitlist.filter((e) => e.status === 'promoted')
 
@@ -383,29 +374,35 @@ export function EventDetail() {
 
       {/* Analytics (premium) */}
       {event.plan === 'premium' && (
-        <EventAnalytics guests={guests} />
+        <EventAnalytics guests={guests} loading={guestsLoading} />
+      )}
+
+      {/* Límite de invitados: visible para todos los modos de ingreso. En
+          lista cerrada es solo informativo (no bloquea agregar invitados). */}
+      {event.capacity > 0 && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
+          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
+            <span>Límite de invitados</span>
+            <span className="font-medium">{totalPeople} / {event.capacity}</span>
+          </div>
+          <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, (totalPeople / event.capacity) * 100)}%` }} />
+          </div>
+          {event.entryMode === 'list' && totalPeople > event.capacity && (
+            <p className="text-xs text-amber-600 mt-1.5">Superaste el límite configurado — es solo informativo en lista cerrada, no bloquea seguir agregando invitados.</p>
+          )}
+        </div>
       )}
 
       {/* Open/hybrid entry links */}
       {event.entryMode !== 'list' && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
+        <div id="open-entry-links" className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-medium text-gray-900 dark:text-white">Ingreso libre</h2>
             {event.entryMode === 'hybrid' && (
               <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Mixto</span>
             )}
           </div>
-          {event.capacity && (
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
-                <span>Cupo utilizado</span>
-                <span className="font-medium">{event.checkedInCount} / {event.capacity}</span>
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, (event.checkedInCount / event.capacity) * 100)}%` }} />
-              </div>
-            </div>
-          )}
           <div className="space-y-2">
             <PublicLink label="Auto-registro" desc="Los asistentes se registran y obtienen su QR propio" path={`/events/${event.id}/join`} />
             <PublicLink label="Ingreso directo" desc="Solo confirman llegada — sin QR individual" path={`/events/${event.id}/arrive`} />
@@ -451,8 +448,8 @@ export function EventDetail() {
       )}
 
       {isOwner && event.entryMode !== 'open' && (
-        <div className="mb-4">
-          <GuestAddForm eventId={event.id} />
+        <div id="add-guests" className="mb-4">
+          <GuestAddForm eventId={event.id} guests={guests} />
         </div>
       )}
 
@@ -487,7 +484,7 @@ export function EventDetail() {
         {exportPdfError && <p className="text-xs text-red-500 mb-2">{exportPdfError}</p>}
         {guests.length > 0 && (
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o email..."
+            placeholder="Buscar por nombre o apellido..."
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary" />
         )}
         <GuestList
@@ -498,29 +495,6 @@ export function EventDetail() {
           currency={event.currency}
         />
       </div>
-
-      {/* Recordatorios */}
-      {isOwner && guestsWithEmail > 0 && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <IconMail className="w-4 h-4 text-primary" />
-            <h2 className="font-medium text-gray-900 dark:text-white">Recordatorios</h2>
-          </div>
-          <p className="text-sm text-gray-500 mb-3">
-            {guestsWithEmail} invitado{guestsWithEmail !== 1 ? 's' : ''} con email aún no confirmado{guestsWithEmail !== 1 ? 's' : ''}.
-          </p>
-          {reminderSending ? (
-            <p className="text-sm text-primary font-medium">Enviando {reminderDone} / {guestsWithEmail}...</p>
-          ) : reminderDone > 0 ? (
-            <p className="text-sm text-green-600 font-medium">✓ {reminderDone} recordatorios enviados.</p>
-          ) : (
-            <button onClick={handleSendReminders}
-              className="text-sm bg-primary text-white rounded-md px-4 py-2 font-medium hover:opacity-90 transition-opacity">
-              Enviar recordatorio a todos
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Resumen de check-ins (Prioridad 1 — "Email por check-in" reparado).
           Solo visible si el organizador activó el toggle en /profile Y hay

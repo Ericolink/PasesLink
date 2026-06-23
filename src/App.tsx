@@ -4,6 +4,7 @@ import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
 import { Background } from './components/Background'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { GlobalToastHost } from './components/GlobalToastHost'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
 import { Landing } from './pages/Landing'
@@ -37,6 +38,7 @@ function App() {
   return (
     <>
       <Background />
+      <GlobalToastHost />
       <Navbar />
       <main>
       <ErrorBoundary>

@@ -266,6 +266,15 @@ export function IconShare({ className = 'w-4 h-4' }: IconProps) {
   )
 }
 
+export function IconCopy({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  )
+}
+
 export function IconDownload({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg className={className} {...base}>
@@ -456,6 +465,16 @@ export function IconUserPlus({ className = 'w-5 h-5' }: IconProps) {
       <circle cx="9" cy="7" r="4" />
       <line x1="19" y1="8" x2="19" y2="14" />
       <line x1="22" y1="11" x2="16" y2="11" />
+    </svg>
+  )
+}
+
+export function IconMenu({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
     </svg>
   )
 }

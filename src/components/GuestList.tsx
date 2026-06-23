@@ -1,10 +1,40 @@
 import { memo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deleteGuest, resetGuestRsvp, setGuestPaymentStatus, unlockGuestPass, updateGuest } from '../firebase/guests'
-import type { GuestData } from '../types'
+import type { CompanionData, GuestData } from '../types'
 import { RSVP_LABELS } from '../types'
-import { IconEdit, IconEye, IconInbox, IconRotateCcw, IconShare, IconTicket, IconTrash } from './Icons'
+import {
+  IconCheck,
+  IconCheckCircle,
+  IconEdit,
+  IconEye,
+  IconHelpCircle,
+  IconInbox,
+  IconRotateCcw,
+  IconShare,
+  IconTicket,
+  IconTrash,
+  IconX,
+} from './Icons'
 import { ConfirmDialog } from './ConfirmDialog'
+import { CompanionFieldsEditor } from './CompanionFields'
+
+function GuestStatusBadge({ guest }: { guest: GuestData }) {
+  const { label, classes, Icon } = guest.status === 'checked_in'
+    ? { label: 'Escaneado', classes: 'bg-blue-50 text-blue-700', Icon: IconCheckCircle }
+    : guest.rsvpStatus === 'yes'
+      ? { label: 'Asistirá', classes: 'bg-green-50 text-green-700', Icon: IconCheck }
+      : guest.rsvpStatus === 'no'
+        ? { label: 'No asistirá', classes: 'bg-gray-100 text-gray-500', Icon: IconX }
+        : { label: 'Sin responder', classes: 'bg-amber-50 text-amber-700', Icon: IconHelpCircle }
+
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full shrink-0 ${classes}`}>
+      <Icon className="w-3.5 h-3.5" />
+      {label}
+    </span>
+  )
+}
 
 export const GuestList = memo(function GuestList({
   eventId,
@@ -113,29 +143,14 @@ export const GuestList = memo(function GuestList({
             <div className="p-3 flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="font-medium text-gray-900 text-sm break-words">
-                  {guest.name}
-                  {guest.companions > 0 && (
-                    <span className="text-gray-400 font-normal"> +{guest.companions}</span>
+                  {guest.name} {guest.lastName}
+                  {guest.companions.length > 0 && (
+                    <span className="text-gray-400 font-normal"> +{guest.companions.length}</span>
                   )}
                 </p>
-                {guest.email && <p className="text-xs text-gray-500 truncate">{guest.email}</p>}
+                {guest.phone && <p className="text-xs text-gray-500 truncate">{guest.phone}</p>}
               </div>
-              <span
-                className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${
-                  guest.status === 'checked_in'
-                    ? 'bg-blue-500'
-                    : guest.rsvpStatus === 'yes'
-                      ? 'bg-green-500'
-                      : guest.rsvpStatus === 'no'
-                        ? 'bg-red-500'
-                        : 'bg-amber-400'
-                }`}
-                title={
-                  guest.status === 'checked_in'
-                    ? 'Escaneado'
-                    : guest.rsvpStatus === 'yes' ? 'Asistirá' : guest.rsvpStatus === 'no' ? 'No asistirá' : 'Sin responder'
-                }
-              />
+              <GuestStatusBadge guest={guest} />
             </div>
             {guest.rsvpStatus !== 'pending' && (
               <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
@@ -177,7 +192,7 @@ export const GuestList = memo(function GuestList({
                   <IconTicket className="w-3.5 h-3.5" />
                   {guest.paymentStatus === 'paid'
                     ? 'Pagó'
-                    : `Pendiente · ${currency}${(ticketPrice * (1 + guest.companions)).toLocaleString('es')}`}
+                    : `Pendiente · ${currency}${(ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}`}
                 </span>
                 <button onClick={() => handleTogglePayment(guest)} className="text-xs text-primary font-medium">
                   {guest.paymentStatus === 'paid' ? 'Marcar como no pagado' : 'Marcar como pagado'}
@@ -187,7 +202,7 @@ export const GuestList = memo(function GuestList({
             <div className="grid grid-cols-4 divide-x divide-gray-100 border-t border-gray-100">
               <button
                 onClick={() => handleShare(guest)}
-                className="flex flex-col items-center justify-center gap-1 py-2.5 text-xs text-primary font-medium hover:bg-gray-50 transition-colors"
+                className="flex flex-col items-center justify-center gap-1 py-3 min-h-12 text-xs text-primary font-medium hover:bg-gray-50 transition-colors"
               >
                 <IconShare className="w-4 h-4" />
                 {copiedId === guest.id ? 'Copiado!' : 'Compartir'}
@@ -195,21 +210,21 @@ export const GuestList = memo(function GuestList({
               <Link
                 to={`/pass/${eventId}/${guest.qrToken}`}
                 target="_blank"
-                className="flex flex-col items-center justify-center gap-1 py-2.5 text-xs text-primary font-medium hover:bg-gray-50 transition-colors"
+                className="flex flex-col items-center justify-center gap-1 py-3 min-h-12 text-xs text-primary font-medium hover:bg-gray-50 transition-colors"
               >
                 <IconEye className="w-4 h-4" />
                 Ver pase
               </Link>
               <button
                 onClick={() => setEditingId(guest.id)}
-                className="flex flex-col items-center justify-center gap-1 py-2.5 text-xs text-gray-500 font-medium hover:bg-gray-50 transition-colors"
+                className="flex flex-col items-center justify-center gap-1 py-3 min-h-12 text-xs text-gray-500 font-medium hover:bg-gray-50 transition-colors"
               >
                 <IconEdit className="w-4 h-4" />
                 Editar
               </button>
               <button
                 onClick={() => setDeletingGuest(guest)}
-                className="flex flex-col items-center justify-center gap-1 py-2.5 text-xs text-red-500 font-medium hover:bg-red-50 transition-colors"
+                className="flex flex-col items-center justify-center gap-1 py-3 min-h-12 text-xs text-red-500 font-medium hover:bg-red-50 transition-colors"
               >
                 <IconTrash className="w-4 h-4" />
                 Eliminar
@@ -221,7 +236,7 @@ export const GuestList = memo(function GuestList({
       <ConfirmDialog
         open={!!deletingGuest}
         title="Eliminar invitado"
-        message={`¿Eliminar a ${deletingGuest?.name}? Esta acción no se puede deshacer.`}
+        message={`¿Eliminar a ${deletingGuest?.name} ${deletingGuest?.lastName || ''}? Esta acción no se puede deshacer.`}
         confirmLabel="Eliminar"
         danger
         onConfirm={confirmDelete}
@@ -230,7 +245,7 @@ export const GuestList = memo(function GuestList({
       <ConfirmDialog
         open={!!unlockingGuest}
         title="Desbloquear pase"
-        message={`Esto permite que "${unlockingGuest?.name}" abra su pase desde un dispositivo distinto al que lo bloqueó (por ejemplo, si cambió de teléfono). No afecta su confirmación de asistencia ni su check-in.`}
+        message={`Esto permite que "${unlockingGuest?.name} ${unlockingGuest?.lastName || ''}" abra su pase desde un dispositivo distinto al que lo bloqueó (por ejemplo, si cambió de teléfono). No afecta su confirmación de asistencia ni su check-in.`}
         confirmLabel="Desbloquear"
         onConfirm={confirmUnlock}
         onCancel={() => setUnlockingGuest(null)}
@@ -249,21 +264,21 @@ function EditGuestRow({
   onDone: () => void
 }) {
   const [name, setName] = useState(guest.name)
-  const [email, setEmail] = useState(guest.email || '')
+  const [lastName, setLastName] = useState(guest.lastName || '')
   const [phone, setPhone] = useState(guest.phone || '')
-  const [companions, setCompanions] = useState(guest.companions)
+  const [companions, setCompanions] = useState<CompanionData[]>(guest.companions)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim()) return
+    if (!name.trim() || !lastName.trim()) return
     setSaving(true)
     setError('')
     try {
       await updateGuest(eventId, guest.id, {
         name: name.trim(),
-        email: email.trim(),
+        lastName: lastName.trim(),
         phone: phone.trim(),
         companions,
       })
@@ -277,54 +292,50 @@ function EditGuestRow({
   }
 
   return (
-    <form onSubmit={handleSave} className="py-2.5 grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
-      {error && <p className="col-span-2 sm:col-span-5 text-xs text-red-500">{error}</p>}
-      <input
-        type="text"
-        required
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary sm:col-span-1"
-        placeholder="Nombre"
-      />
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        placeholder="Email"
-      />
-      <input
-        type="tel"
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        placeholder="Teléfono"
-      />
-      <input
-        type="number"
-        min={0}
-        value={companions}
-        onChange={(e) => setCompanions(Math.max(0, Number(e.target.value)))}
-        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        placeholder="Acompañantes"
-      />
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={saving}
-          className="flex-1 bg-primary text-white rounded-md px-2 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-        >
-          Guardar
-        </button>
-        <button
-          type="button"
-          onClick={onDone}
-          className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-gray-50"
-        >
-          Cancelar
-        </button>
+    <form onSubmit={handleSave} className="py-2.5 space-y-2">
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <input
+          type="text"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          placeholder="Nombre"
+        />
+        <input
+          type="text"
+          required
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          placeholder="Apellido"
+        />
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          placeholder="Teléfono"
+        />
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex-1 bg-primary text-white rounded-md px-2 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+          >
+            Guardar
+          </button>
+          <button
+            type="button"
+            onClick={onDone}
+            className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+        </div>
       </div>
+      <CompanionFieldsEditor companions={companions} onChange={setCompanions} />
     </form>
   )
 }

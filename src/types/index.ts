@@ -45,7 +45,7 @@ export interface EventData {
   welcomeMessage?: string
   mapsUrl?: string
   entryMode: EntryMode
-  capacity?: number
+  capacity: number
   customFields?: CustomField[]
   requiresPayment: boolean
   ticketPrice: number
@@ -99,14 +99,20 @@ export type GuestStatus = 'invited' | 'checked_in'
 
 export type RsvpStatus = 'pending' | 'yes' | 'no'
 
+export interface CompanionData {
+  name?: string
+  lastName?: string
+  phone?: string
+}
+
 export interface GuestData {
   id: string
   name: string
-  email?: string
+  lastName?: string
   phone?: string
   qrToken: string
   status: GuestStatus
-  companions: number
+  companions: CompanionData[]
   rsvpStatus: RsvpStatus
   checkedInAt: number | null
   checkedInBy: string | null

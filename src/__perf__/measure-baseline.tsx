@@ -24,11 +24,11 @@ export function generateGuests(count: number, checkedInCount: number): GuestData
     guests.push({
       id: `guest-${i}`,
       name: `Invitado ${i}`,
-      email: `invitado${i}@example.com`,
+      lastName: `Apellido ${i}`,
       phone: '',
       qrToken: `token-${i}`,
       status: isCheckedIn ? 'checked_in' : 'invited',
-      companions: i % 3,
+      companions: Array.from({ length: i % 3 }, () => ({})),
       rsvpStatus: isCheckedIn ? 'yes' : i % 2 === 0 ? 'pending' : 'no',
       checkedInAt: isCheckedIn ? now - (i % 12) * 3_600_000 : null,
       checkedInBy: null,

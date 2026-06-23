@@ -44,8 +44,7 @@ export function InvitationPreview({
   const shownLocation = location?.trim() || sample.location
 
   // El mapa solo debe recargar el iframe cuando el anfitrión hace una
-  // pausa al escribir la ubicación, no en cada tecla.
-  const deferredLocation = useDeferredValue(shownLocation)
+  // pausa al escribir el link, no en cada tecla.
   const deferredMapsUrl = useDeferredValue(mapsUrl)
 
   return (
@@ -94,7 +93,7 @@ export function InvitationPreview({
       </InvitationCard>
 
       <InviteDivider templateId={templateId} />
-      <EventMap location={deferredLocation} mapsUrl={deferredMapsUrl} />
+      <EventMap mapsUrl={deferredMapsUrl} />
 
       <div className="mt-8 pt-6 border-t text-left" style={{ borderColor: 'var(--invite-border)' }}>
         <h2 className="text-lg font-bold mb-4 text-center text-[var(--invite-text)]">Muro del evento</h2>

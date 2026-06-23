@@ -1,10 +1,35 @@
 import emailjs from '@emailjs/browser'
+import { emitEmailNotification } from './emailNotifications'
 
 const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID
 const WELCOME_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_WELCOME
-const REMINDER_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_REMINDER
 const CHECKIN_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CHECKIN
 const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+
+const RETRY_DELAYS_MS = [1000, 2000, 4000]
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Reintenta `send` con backoff exponencial (1s, 2s, 4s). En el primer fallo
+ * avisa a la UI vía emailNotifications — antes de saber si los reintentos
+ * funcionarán — para que el usuario sepa que se está reintentando en vez de
+ * asumir silenciosamente que el email se perdió.
+ */
+async function sendWithRetry(send: () => Promise<unknown>, onFirstFailureMessage: string, logLabel: string) {
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      await send()
+      return
+    } catch (err) {
+      console.error(`${logLabel} (intento ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}):`, err)
+      if (attempt === 0) emitEmailNotification(onFirstFailureMessage)
+      if (attempt < RETRY_DELAYS_MS.length) await wait(RETRY_DELAYS_MS[attempt])
+    }
+  }
+}
 
 /**
  * Envía el correo de bienvenida vía EmailJS. Si las credenciales no están configuradas
@@ -12,38 +37,16 @@ const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
  */
 export async function sendWelcomeEmail(toEmail: string, toName: string) {
   if (!SERVICE_ID || !WELCOME_TEMPLATE_ID || !PUBLIC_KEY) return
-  try {
-    await emailjs.send(
+  await sendWithRetry(
+    () => emailjs.send(
       SERVICE_ID,
       WELCOME_TEMPLATE_ID,
       { to_email: toEmail, to_name: toName || 'usuario' },
       { publicKey: PUBLIC_KEY },
-    )
-  } catch (err) {
-    console.error('Error sending welcome email:', err)
-  }
-}
-
-// Template vars: to_email, to_name, event_name, event_date, event_location, pass_url
-export async function sendReminderEmail(
-  toEmail: string,
-  toName: string,
-  eventName: string,
-  eventDate: string,
-  eventLocation: string,
-  passUrl: string,
-) {
-  if (!SERVICE_ID || !REMINDER_TEMPLATE_ID || !PUBLIC_KEY) return
-  try {
-    await emailjs.send(
-      SERVICE_ID,
-      REMINDER_TEMPLATE_ID,
-      { to_email: toEmail, to_name: toName, event_name: eventName, event_date: eventDate, event_location: eventLocation, pass_url: passUrl },
-      { publicKey: PUBLIC_KEY },
-    )
-  } catch (err) {
-    console.error('Error sending reminder email:', err)
-  }
+    ),
+    'No se envió el email de bienvenida. Intentaremos de nuevo.',
+    'Error sending welcome email',
+  )
 }
 
 // Template vars: to_email, event_name, checkins_list (HTML, .checkin-item por invitado), summary_count, current_year

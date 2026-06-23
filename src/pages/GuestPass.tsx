@@ -34,6 +34,8 @@ function GuestPassInner() {
   const [error, setError] = useState(false)
   const [locked, setLocked] = useState(false)
   const [rsvpSaving, setRsvpSaving] = useState(false)
+  const [rsvpError, setRsvpError] = useState<string | null>(null)
+  const [downloaded, setDownloaded] = useState(false)
   const [showMaybeMessage, setShowMaybeMessage] = useState(false)
   const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required'>('idle')
   const [paymentSaving, setPaymentSaving] = useState(false)
@@ -140,8 +142,8 @@ function GuestPassInner() {
         <InvitationCard>
           <p className="text-xs uppercase tracking-wide mb-4 text-[var(--invite-text-muted)]">Modo organizador</p>
           <h1 className="text-xl font-semibold">{guest.name}</h1>
-          {guest.companions > 0 && (
-            <p className="text-sm mt-1 text-[var(--invite-text-muted)]">+ {guest.companions} acompañante(s)</p>
+          {guest.companions.length > 0 && (
+            <p className="text-sm mt-1 text-[var(--invite-text-muted)]">+ {guest.companions.length} acompañante(s)</p>
           )}
           <p className="text-sm mt-1 text-[var(--invite-text-muted)]">{event.name}</p>
 
@@ -156,7 +158,7 @@ function GuestPassInner() {
                 <IconTicket className={`w-4 h-4 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />
                 {guest.paymentStatus === 'paid'
                   ? 'Pago confirmado'
-                  : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions)).toLocaleString('es')}`}
+                  : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}`}
               </span>
               <button
                 onClick={handleTogglePayment}
@@ -217,9 +219,16 @@ function GuestPassInner() {
   async function handleRsvp(rsvpStatus: RsvpStatus) {
     if (!guest) return
     setRsvpSaving(true)
+    setRsvpError(null)
     try {
       await setGuestRsvp(eventId!, qrToken!, rsvpStatus)
+      // Solo se actualiza el estado local después de confirmar que Firestore
+      // guardó el cambio — si la escritura falla, el invitado se queda en el
+      // estado anterior y ve el error en vez de una confirmación falsa.
       setGuest({ ...guest, rsvpStatus })
+    } catch (err) {
+      console.error('Error guardando RSVP:', err)
+      setRsvpError('No se guardó. Intenta de nuevo.')
     } finally {
       setRsvpSaving(false)
     }
@@ -232,6 +241,8 @@ function GuestPassInner() {
     link.download = `pase-${guest!.name.replace(/\s+/g, '_')}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
+    setDownloaded(true)
+    setTimeout(() => setDownloaded(false), 2000)
   }
 
   return (
@@ -267,8 +278,8 @@ function GuestPassInner() {
         {!locked && guest.rsvpStatus === 'yes' && (
           <>
             <p className="text-lg font-medium mt-6">{guest.name}</p>
-            {guest.companions > 0 && (
-              <p className="text-sm text-[var(--invite-text-muted)]">+ {guest.companions} acompañante(s)</p>
+            {guest.companions.length > 0 && (
+              <p className="text-sm text-[var(--invite-text-muted)]">+ {guest.companions.length} acompañante(s)</p>
             )}
 
             <div className="flex justify-center my-6" ref={qrWrapperRef}>
@@ -293,7 +304,8 @@ function GuestPassInner() {
                 onClick={handleDownload}
                 className="inline-flex items-center justify-center gap-2 text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
               >
-                <IconDownload className="w-4 h-4" /> Descargar QR
+                {downloaded ? <IconCheckCircle className="w-4 h-4" /> : <IconDownload className="w-4 h-4" />}
+                {downloaded ? 'Descargado' : 'Descargar QR'}
               </button>
               <a
                 href={`https://wa.me/?text=${encodeURIComponent(`Aquí está mi pase para ${event.name}: ${passUrl}`)}`}
@@ -321,8 +333,8 @@ function GuestPassInner() {
         {!locked && guest.rsvpStatus === 'pending' && !showMaybeMessage && (
           <div className="mt-6 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
             <p className="text-lg font-medium mb-1">{guest.name}</p>
-            {guest.companions > 0 && (
-              <p className="text-sm mb-3 text-[var(--invite-text-muted)]">+ {guest.companions} acompañante(s)</p>
+            {guest.companions.length > 0 && (
+              <p className="text-sm mb-3 text-[var(--invite-text-muted)]">+ {guest.companions.length} acompañante(s)</p>
             )}
             <p className="text-sm font-medium mb-3 mt-3">¿Asistirás a este evento?</p>
             <div className="flex flex-col gap-2">
@@ -349,6 +361,7 @@ function GuestPassInner() {
                 Aún no lo sé
               </button>
             </div>
+            {rsvpError && <p className="text-sm text-red-500 mt-3">{rsvpError}</p>}
           </div>
         )}
 
@@ -370,7 +383,7 @@ function GuestPassInner() {
             <p className="text-xs font-semibold uppercase tracking-wide mb-2 text-[var(--invite-text-muted)]">Pago de entrada</p>
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-sm">
-                Monto a pagar: <strong>{event.currency}{(event.ticketPrice * (1 + guest.companions)).toLocaleString('es')}</strong>
+                Monto a pagar: <strong>{event.currency}{(event.ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}</strong>
               </span>
               <span className="inline-flex items-center gap-2 shrink-0">
                 {guest.paymentStatus === 'paid' && <ThemeSeal templateId={event.templateId} />}
@@ -396,10 +409,10 @@ function GuestPassInner() {
           </p>
         )}
       </InvitationCard>
-      {event.location && (
+      {event.mapsUrl && (
         <>
           <InviteDivider templateId={event.templateId} />
-          <EventMap location={event.location} mapsUrl={event.mapsUrl} />
+          <EventMap mapsUrl={event.mapsUrl} />
         </>
       )}
       {eventId && (

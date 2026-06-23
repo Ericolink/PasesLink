@@ -1,14 +1,40 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createEvent } from '../firebase/events'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
+import { useFormDraft } from '../hooks/useFormDraft'
 import { optimizedImageUrl } from '../utils/cloudinary'
+import { isNetworkError } from '../utils/network'
+import { parseCapacity } from '../utils/validationRules'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { CustomFieldsBuilder } from '../components/CustomFieldsBuilder'
 import { TemplatePicker } from '../components/TemplatePicker'
+import { DraftRecoveryModal } from '../components/DraftRecoveryModal'
+import { IconCheckCircle } from '../components/Icons'
 import { getTemplate } from '../templates/registry'
 import type { CustomField, EntryMode, TemplateId } from '../types'
+
+interface EventDraftFields {
+  name: string
+  date: string
+  location: string
+  description: string
+  templateId: TemplateId
+  accentColor: string
+  welcomeMessage: string
+  mapsUrl: string
+  entryMode: EntryMode
+  capacity: string
+  customFields: CustomField[]
+  requiresPayment: boolean
+  ticketPrice: string
+  currency: string
+  paymentInstructions: string
+  coverImage: string
+}
+
+const DRAFT_SAVE_INTERVAL_MS = 5000
 
 export function EventCreate() {
   const { user } = useAuth()
@@ -24,6 +50,7 @@ export function EventCreate() {
     onCropConfirmed: onCoverCropConfirmed,
     onCropCancelled: onCoverCropCancelled,
     clearCover,
+    setCoverImage,
   } = useCoverPhoto()
 
   const [name, setName] = useState('')
@@ -47,11 +74,60 @@ export function EventCreate() {
   const [paymentInstructions, setPaymentInstructions] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [networkRetry, setNetworkRetry] = useState(false)
+  const [createdEventId, setCreatedEventId] = useState<string | null>(null)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  const draftKey = user ? `eventDraft_${user.uid}_new` : ''
+  const { pendingDraft, saveDraft, clearDraft, dismissPrompt } = useFormDraft<EventDraftFields>(draftKey)
+
+  function applyDraft(fields: EventDraftFields) {
+    setName(fields.name)
+    setDate(fields.date)
+    setLocation(fields.location)
+    setDescription(fields.description)
+    setTemplateId(fields.templateId)
+    setAccentColor(fields.accentColor)
+    setWelcomeMessage(fields.welcomeMessage)
+    setMapsUrl(fields.mapsUrl)
+    setEntryMode(fields.entryMode)
+    setCapacity(fields.capacity)
+    setCustomFields(fields.customFields)
+    setRequiresPayment(fields.requiresPayment)
+    setTicketPrice(fields.ticketPrice)
+    setCurrency(fields.currency)
+    setPaymentInstructions(fields.paymentInstructions)
+    if (fields.coverImage) setCoverImage(fields.coverImage)
+  }
+
+  // Autoguardado del borrador c/5s mientras haya contenido — así un cierre
+  // accidental de la pestaña o un fallo de red al crear el evento no borra
+  // un formulario largo que puede tener 10+ campos.
+  useEffect(() => {
+    if (!draftKey || pendingDraft) return
+    const id = setInterval(() => {
+      const hasContent = name.trim() || date || location.trim() || description.trim()
+      if (!hasContent) return
+      saveDraft({
+        name, date, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
+        entryMode, capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
+      })
+    }, DRAFT_SAVE_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [
+    draftKey, pendingDraft, name, date, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
+    entryMode, capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
+    saveDraft,
+  ])
+
+  async function submitEvent() {
     if (!user) return
     setError('')
+    setNetworkRetry(false)
+    const { value: parsedCapacity, error: capacityError } = parseCapacity(capacity)
+    if (capacityError) {
+      setError(capacityError)
+      return
+    }
     setLoading(true)
     try {
       const eventId = await createEvent(user.uid, {
@@ -65,23 +141,64 @@ export function EventCreate() {
         welcomeMessage,
         mapsUrl: mapsUrl.trim() || undefined,
         entryMode,
-        capacity: capacity ? parseInt(capacity, 10) : undefined,
+        capacity: parsedCapacity,
         customFields,
         requiresPayment,
         ticketPrice: requiresPayment ? parseFloat(ticketPrice) || 0 : 0,
         currency: requiresPayment ? currency.trim() : '',
         paymentInstructions: requiresPayment ? paymentInstructions.trim() : '',
       })
-      navigate(`/events/${eventId}`)
-    } catch {
-      setError('No pudimos crear el evento. Intenta de nuevo.')
+      clearDraft()
+      setCreatedEventId(eventId)
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setError('Guardado localmente. Reintentando...')
+        setNetworkRetry(true)
+      } else {
+        setError('No pudimos crear el evento. Intenta de nuevo.')
+      }
     } finally {
       setLoading(false)
     }
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    void submitEvent()
+  }
+
   return (
     <>
+    {pendingDraft && (
+      <DraftRecoveryModal
+        savedAt={pendingDraft.savedAt}
+        onContinue={() => { applyDraft(pendingDraft.fields); dismissPrompt() }}
+        onStartOver={() => { clearDraft(); dismissPrompt() }}
+      />
+    )}
+    {createdEventId && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-6 text-center animate-bounce-in">
+          <IconCheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">¡Evento creado!</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">{name} ya está listo.</p>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => navigate(`/events/${createdEventId}#${entryMode === 'open' ? 'open-entry-links' : 'add-guests'}`)}
+              className="bg-primary text-white rounded-md py-2.5 text-sm font-medium hover:bg-primary-dark transition-colors"
+            >
+              Próximo paso: {entryMode === 'open' ? 'Compartir enlace de registro' : 'Agregar invitados'}
+            </button>
+            <button
+              onClick={() => navigate(`/events/${createdEventId}`)}
+              className="border border-gray-300 dark:border-gray-600 rounded-md py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Ir al evento
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     {coverRawImage && (
       <ImageCropModal
         imageSrc={coverRawImage}
@@ -149,7 +266,7 @@ export function EventCreate() {
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <p className="text-xs text-gray-400 mt-1">
-            Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto). El botón "Cómo llegar" funciona con cualquier link.
+            Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto).
           </p>
         </div>
 
@@ -261,21 +378,24 @@ export function EventCreate() {
               </button>
             ))}
           </div>
-          {entryMode !== 'list' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Cupo máximo de personas
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                placeholder="Ej: 200"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Límite de invitados
+            </label>
+            <input
+              type="number"
+              required
+              min="1"
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              placeholder="Ej: 200"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Total de personas permitidas (invitados + acompañantes).
+              {entryMode === 'list' && ' En lista cerrada es solo informativo: no bloquea que agregues invitados manualmente.'}
+            </p>
+          </div>
         </div>
 
         {/* Cobro de entrada */}
@@ -341,7 +461,16 @@ export function EventCreate() {
           mientras damos a conocer el servicio.
         </p>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <div className="text-sm text-red-600">
+            <p>{error}</p>
+            {networkRetry && (
+              <button type="button" onClick={() => void submitEvent()} className="mt-1 font-medium underline">
+                Reintentar ahora
+              </button>
+            )}
+          </div>
+        )}
 
         <button
           type="submit"

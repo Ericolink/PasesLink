@@ -1,12 +1,36 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { updateEventDetails } from '../firebase/events'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
+import { useFormDraft } from '../hooks/useFormDraft'
 import { optimizedImageUrl } from '../utils/cloudinary'
+import { isNetworkError } from '../utils/network'
+import { parseCapacity } from '../utils/validationRules'
 import { ImageCropModal } from './ImageCropModal'
 import { CustomFieldsBuilder } from './CustomFieldsBuilder'
 import { TemplatePicker } from './TemplatePicker'
+import { DraftRecoveryModal } from './DraftRecoveryModal'
 import { getTemplate } from '../templates/registry'
 import type { CustomField, EntryMode, EventData, TemplateId } from '../types'
+
+interface EventEditDraftFields {
+  name: string
+  date: string
+  location: string
+  description: string
+  templateId: TemplateId
+  accentColor: string
+  welcomeMessage: string
+  mapsUrl: string
+  capacity: string
+  customFields: CustomField[]
+  requiresPayment: boolean
+  ticketPrice: string
+  currency: string
+  paymentInstructions: string
+  coverImage: string
+}
+
+const DRAFT_SAVE_INTERVAL_MS = 5000
 
 export function EditEventForm({ event, onDone }: { event: EventData; onDone: () => void }) {
   const {
@@ -20,6 +44,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     onCropConfirmed: onCoverCropConfirmed,
     onCropCancelled: onCoverCropCancelled,
     clearCover,
+    setCoverImage,
   } = useCoverPhoto(event.coverImage || '')
 
   const [name, setName] = useState(event.name)
@@ -41,10 +66,59 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [currency, setCurrency] = useState(event.currency || '$')
   const [paymentInstructions, setPaymentInstructions] = useState(event.paymentInstructions || '')
   const [saving, setSaving] = useState(false)
+  const [networkRetry, setNetworkRetry] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  const [capacityError, setCapacityError] = useState('')
+
+  const draftKey = `eventDraft_${event.ownerId}_${event.id}`
+  const { pendingDraft, saveDraft, clearDraft, dismissPrompt } = useFormDraft<EventEditDraftFields>(draftKey)
+
+  function applyDraft(fields: EventEditDraftFields) {
+    setName(fields.name)
+    setDate(fields.date)
+    setLocation(fields.location)
+    setDescription(fields.description)
+    setTemplateId(fields.templateId)
+    setAccentColor(fields.accentColor)
+    setWelcomeMessage(fields.welcomeMessage)
+    setMapsUrl(fields.mapsUrl)
+    setCapacity(fields.capacity)
+    setCustomFields(fields.customFields)
+    setRequiresPayment(fields.requiresPayment)
+    setTicketPrice(fields.ticketPrice)
+    setCurrency(fields.currency)
+    setPaymentInstructions(fields.paymentInstructions)
+    if (fields.coverImage) setCoverImage(fields.coverImage)
+  }
+
+  // Autoguardado del borrador c/5s mientras haya cambios sin guardar — protege
+  // ediciones largas de un cierre accidental de pestaña o un fallo de red.
+  useEffect(() => {
+    if (pendingDraft) return
+    const id = setInterval(() => {
+      saveDraft({
+        name, date, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
+        capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
+      })
+    }, DRAFT_SAVE_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [
+    pendingDraft, name, date, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
+    capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
+    saveDraft,
+  ])
+
+  async function submitEvent() {
     if (!name.trim() || !date || !location.trim()) return
+    const { value: parsedCapacity, error: capacityValidationError } = parseCapacity(capacity)
+    if (capacityValidationError) {
+      setCapacityError(capacityValidationError)
+      return
+    }
+    setCapacityError('')
+    setSubmitError('')
+    setNetworkRetry(false)
     setSaving(true)
     try {
       await updateEventDetails(event.id, {
@@ -58,21 +132,41 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         welcomeMessage: welcomeMessage.trim(),
         mapsUrl: mapsUrl.trim() || undefined,
         entryMode,
-        capacity: capacity ? parseInt(capacity, 10) : undefined,
+        capacity: parsedCapacity,
         customFields,
         requiresPayment,
         ticketPrice: requiresPayment ? parseFloat(ticketPrice) || 0 : 0,
         currency: requiresPayment ? currency.trim() : '',
         paymentInstructions: requiresPayment ? paymentInstructions.trim() : '',
       })
+      clearDraft()
       onDone()
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setSubmitError('Guardado localmente. Reintentando...')
+        setNetworkRetry(true)
+      } else {
+        setSubmitError('No pudimos guardar los cambios. Intenta de nuevo.')
+      }
     } finally {
       setSaving(false)
     }
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    void submitEvent()
+  }
+
   return (
     <>
+    {pendingDraft && (
+      <DraftRecoveryModal
+        savedAt={pendingDraft.savedAt}
+        onContinue={() => { applyDraft(pendingDraft.fields); dismissPrompt() }}
+        onStartOver={() => { clearDraft(); dismissPrompt() }}
+      />
+    )}
     {coverRawImage && (
       <ImageCropModal
         imageSrc={coverRawImage}
@@ -120,7 +214,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           placeholder="https://maps.google.com/maps?q=..."
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         <p className="text-xs text-gray-400 mt-1">
-          Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto). El botón "Cómo llegar" funciona con cualquier link.
+          Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto).
         </p>
       </div>
 
@@ -205,13 +299,16 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             </div>
           ))}
         </div>
-        {entryMode !== 'list' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cupo máximo de personas</label>
-            <input type="number" min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)}
-              placeholder="Ej: 200" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-          </div>
-        )}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Límite de invitados</label>
+          <input type="number" required min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)}
+            placeholder="Ej: 200" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          <p className="text-xs text-gray-400 mt-1">
+            Total de personas permitidas (invitados + acompañantes).
+            {entryMode === 'list' && ' En lista cerrada es solo informativo: no bloquea que agregues invitados manualmente.'}
+          </p>
+          {capacityError && <p className="text-xs text-red-500 mt-1">{capacityError}</p>}
+        </div>
       </div>
 
       {/* Cobro de entrada */}
@@ -266,6 +363,17 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           </>
         )}
       </div>
+
+      {submitError && (
+        <div className="text-sm text-red-600">
+          <p>{submitError}</p>
+          {networkRetry && (
+            <button type="button" onClick={() => void submitEvent()} className="mt-1 font-medium underline">
+              Reintentar ahora
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={saving || coverUploading}

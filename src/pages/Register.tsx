@@ -1,9 +1,14 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { loginWithGoogle, registerWithEmail } from '../firebase/auth'
+import { checkEmailVerified, loginWithGoogle, registerWithEmail, resendVerificationEmail } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
+import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { useAuth } from '../hooks/useAuth'
 import { uploadImage } from '../utils/cloudinary'
+import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
+import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
+
+const DEV_AUTO_SKIP_MS = 30000
 
 export function Register() {
   const { user } = useAuth()
@@ -15,11 +20,26 @@ export function Register() {
   const [password, setPassword]   = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
-  const [error, setError]   = useState('')
+  const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const [loading, setLoading] = useState(false)
+  const [awaitingVerification, setAwaitingVerification] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [verifyHint, setVerifyHint] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  if (user) return <Navigate to="/dashboard" replace />
+  // No redirige mientras se espera la verificación: createUserWithEmailAndPassword
+  // ya deja a `user` autenticado al instante, pero la pantalla de "verifica tu
+  // correo" debe mostrarse antes de mandarlo al dashboard.
+  const showVerificationGate = awaitingVerification && !!user
+
+  useEffect(() => {
+    if (!showVerificationGate || !import.meta.env.DEV) return
+    const id = setTimeout(() => navigate('/dashboard'), DEV_AUTO_SKIP_MS)
+    return () => clearTimeout(id)
+  }, [showVerificationGate, navigate])
+
+  if (user && !awaitingVerification) return <Navigate to="/dashboard" replace />
 
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -30,22 +50,27 @@ export function Register() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
+    setErrorInfo(null)
+    const passwordError = getPasswordError(password)
+    if (passwordError) {
+      setErrorInfo({ message: passwordError })
+      return
+    }
     setLoading(true)
     try {
       let photoURL: string | undefined
       if (photoFile) photoURL = await uploadImage(photoFile)
       await registerWithEmail(email, password, firstName, lastName, birthDate, photoURL)
-      navigate('/dashboard')
-    } catch {
-      setError('No pudimos crear la cuenta. Verifica que el email no esté en uso.')
+      setAwaitingVerification(true)
+    } catch (err) {
+      setErrorInfo(getAuthErrorInfo(err, 'No pudimos crear la cuenta. Intenta de nuevo.'))
     } finally {
       setLoading(false)
     }
   }
 
   async function handleGoogle() {
-    setError('')
+    setErrorInfo(null)
     setLoading(true)
     try {
       const u = await loginWithGoogle()
@@ -54,11 +79,73 @@ export function Register() {
       const complete = await isGoogleProfileComplete(u.uid)
       navigate(complete ? '/dashboard' : '/complete-profile')
     } catch (err) {
+      if (isAuthCancellation(err)) return
       console.error('Error en login con Google:', err)
-      setError('No pudimos iniciar sesión con Google.')
+      setErrorInfo(getAuthErrorInfo(err, 'No pudimos iniciar sesión con Google.'))
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleCheckVerified() {
+    setChecking(true)
+    setVerifyHint('')
+    try {
+      const verified = await checkEmailVerified()
+      if (verified) {
+        navigate('/dashboard')
+      } else {
+        setVerifyHint('Aún no detectamos la verificación. Revisa tu bandeja de entrada (o spam) e intenta de nuevo.')
+      }
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  async function handleResend() {
+    setResending(true)
+    setVerifyHint('')
+    try {
+      await resendVerificationEmail()
+      setVerifyHint('Te reenviamos el email de verificación.')
+    } catch (err) {
+      setVerifyHint(getAuthErrorInfo(err, 'No pudimos reenviar el email. Intenta de nuevo.').message)
+    } finally {
+      setResending(false)
+    }
+  }
+
+  if (showVerificationGate) {
+    return (
+      <AuthLayout>
+        <h1 className="text-2xl font-semibold text-gray-900 mb-2 text-center">Verifica tu correo</h1>
+        <p className="text-sm text-gray-600 text-center mb-6">
+          Te enviamos un email a <span className="font-medium">{email}</span>. Verifica tu correo antes de continuar.
+        </p>
+        {verifyHint && <p className="text-sm text-amber-600 text-center mb-4">{verifyHint}</p>}
+        <div className="space-y-2">
+          <button
+            onClick={handleCheckVerified}
+            disabled={checking}
+            className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+          >
+            {checking ? 'Comprobando...' : 'Ya verifiqué mi correo'}
+          </button>
+          <button
+            onClick={handleResend}
+            disabled={resending}
+            className="w-full border border-gray-300 rounded-md py-2 font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {resending ? 'Enviando...' : 'Reenviar email'}
+          </button>
+        </div>
+        {import.meta.env.DEV && (
+          <p className="text-xs text-gray-400 text-center mt-4">
+            Modo desarrollo: continuará automáticamente en 30s sin verificar.
+          </p>
+        )}
+      </AuthLayout>
+    )
   }
 
   return (
@@ -106,10 +193,11 @@ export function Register() {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña *</label>
-          <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)}
+          <input type="password" required minLength={PASSWORD_MIN_LENGTH} value={password} onChange={(e) => setPassword(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
         </div>
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {errorInfo && <AuthErrorMessage info={errorInfo} />}
         <button type="submit" disabled={loading}
           className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
           {loading ? 'Creando cuenta...' : 'Crear cuenta'}

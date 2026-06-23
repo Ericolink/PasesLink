@@ -17,28 +17,29 @@ import { db } from './config'
 import { getEvent } from './events'
 import { getUserProfile } from './userProfile'
 import { sendCheckinSummaryEmail } from '../utils/emailjs'
-import type { GuestData, GuestPaymentStatus, RsvpStatus } from '../types'
+import type { CompanionData, GuestData, GuestPaymentStatus, RsvpStatus } from '../types'
 
 export interface NewGuestInput {
   name: string
-  email?: string
+  lastName?: string
   phone?: string
-  companions?: number
+  companions?: CompanionData[]
 }
 
 function generateQrToken(): string {
   return crypto.randomUUID().replace(/-/g, '')
 }
 
-// `email`/`phone` NUNCA se guardan en el documento de `guests`: ese documento es
+// `phone` NUNCA se guarda en el documento de `guests`: ese documento es
 // legible públicamente (necesario para que el pase /pass/:eventId/:qrToken
-// funcione sin login) y esos dos campos son PII. Viven aparte, en
-// `guestContacts/{guestId}`, cuya regla de Firestore solo permite lectura al
-// organizador/co-organizador/admin. Ver firestore.rules.
-function buildNewGuestPayload(input: { name: string; companions?: number }) {
+// funcione sin login) y es PII. Vive aparte, en `guestContacts/{guestId}`,
+// cuya regla de Firestore solo permite lectura al organizador/co-organizador/
+// admin. Ver firestore.rules.
+function buildNewGuestPayload(input: { name: string; lastName?: string; companions?: CompanionData[] }) {
   return {
     name: input.name,
-    companions: input.companions || 0,
+    lastName: input.lastName || '',
+    companions: input.companions || [],
     rsvpStatus: 'pending' as const,
     qrToken: generateQrToken(),
     status: 'invited' as const,
@@ -53,10 +54,6 @@ function buildNewGuestPayload(input: { name: string; companions?: number }) {
   }
 }
 
-function hasContactInfo(email?: string, phone?: string): boolean {
-  return !!(email?.trim() || phone?.trim())
-}
-
 function contactRef(eventId: string, guestId: string) {
   return doc(db, 'events', eventId, 'guestContacts', guestId)
 }
@@ -65,11 +62,8 @@ export async function addGuest(eventId: string, input: NewGuestInput) {
   const batch = writeBatch(db)
   const guestRef = doc(collection(db, 'events', eventId, 'guests'))
   batch.set(guestRef, buildNewGuestPayload(input))
-  if (hasContactInfo(input.email, input.phone)) {
-    batch.set(contactRef(eventId, guestRef.id), {
-      email: input.email?.trim() || '',
-      phone: input.phone?.trim() || '',
-    })
+  if (input.phone?.trim()) {
+    batch.set(contactRef(eventId, guestRef.id), { phone: input.phone.trim() })
   }
   batch.update(doc(db, 'events', eventId), { guestCount: increment(1) })
   await batch.commit()
@@ -98,23 +92,19 @@ export async function addGuestsBulk(eventId: string, names: string[]) {
 
 export interface UpdateGuestInput {
   name?: string
-  email?: string
+  lastName?: string
   phone?: string
-  companions?: number
+  companions?: CompanionData[]
 }
 
 export async function updateGuest(eventId: string, guestId: string, input: UpdateGuestInput) {
-  const { email, phone, ...guestFields } = input
+  const { phone, ...guestFields } = input
   const batch = writeBatch(db)
   if (Object.keys(guestFields).length > 0) {
     batch.update(doc(db, 'events', eventId, 'guests', guestId), { ...guestFields })
   }
-  if (email !== undefined || phone !== undefined) {
-    batch.set(
-      contactRef(eventId, guestId),
-      { ...(email !== undefined && { email }), ...(phone !== undefined && { phone }) },
-      { merge: true },
-    )
+  if (phone !== undefined) {
+    batch.set(contactRef(eventId, guestId), { phone }, { merge: true })
   }
   await batch.commit()
 }
@@ -131,25 +121,24 @@ export async function deleteGuest(eventId: string, guestId: string, wasCheckedIn
   await batch.commit()
 }
 
-// El organizador necesita email/phone junto con el resto del invitado (lista,
-// CSV, recordatorios), pero esos campos viven en `guestContacts` (ver
-// buildNewGuestPayload). Se suscribe a ambas colecciones y se fusionan por id
-// antes de emitir, así el resto de la app sigue recibiendo el mismo
-// `GuestData[]` de siempre sin saber que los datos vienen de dos lugares.
+// El organizador necesita el teléfono junto con el resto del invitado (lista,
+// CSV), pero ese campo vive en `guestContacts` (ver buildNewGuestPayload). Se
+// suscribe a ambas colecciones y se fusionan por id antes de emitir, así el
+// resto de la app sigue recibiendo el mismo `GuestData[]` de siempre sin saber
+// que los datos vienen de dos lugares.
 export function subscribeToGuests(
   eventId: string,
   callback: (guests: GuestData[]) => void,
   onError?: (error: Error) => void,
 ) {
   let baseGuests: GuestData[] | null = null
-  let contacts: Record<string, { email: string; phone: string }> | null = null
+  let contacts: Record<string, { phone: string }> | null = null
 
   function emitIfReady() {
     if (baseGuests === null || contacts === null) return
     callback(
       baseGuests.map((g) => ({
         ...g,
-        email: contacts![g.id]?.email || g.email,
         phone: contacts![g.id]?.phone || g.phone,
       })),
     )
@@ -170,7 +159,7 @@ export function subscribeToGuests(
     (snapshot) => {
       contacts = {}
       snapshot.docs.forEach((d) => {
-        contacts![d.id] = { email: (d.data().email as string) || '', phone: (d.data().phone as string) || '' }
+        contacts![d.id] = { phone: (d.data().phone as string) || '' }
       })
       emitIfReady()
     },
@@ -426,15 +415,34 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// Compatibilidad con invitados creados antes de este cambio, donde
+// `companions` se guardaba como un número (cantidad) en vez de un array de
+// datos por acompañante: se traduce a un array de ese largo sin datos, para
+// que el resto de la app pueda seguir usando `companions.length` sin importar
+// cuándo se creó el invitado.
+function normalizeCompanions(value: unknown): CompanionData[] {
+  if (Array.isArray(value)) {
+    return value.map((c) => ({
+      name: (c as CompanionData)?.name || '',
+      lastName: (c as CompanionData)?.lastName || '',
+      phone: (c as CompanionData)?.phone || '',
+    }))
+  }
+  if (typeof value === 'number' && value > 0) {
+    return Array.from({ length: value }, () => ({}))
+  }
+  return []
+}
+
 function mapGuest(id: string, data: Record<string, unknown>): GuestData {
   return {
     id,
     name: data.name as string,
-    email: (data.email as string) || '',
+    lastName: (data.lastName as string) || '',
     phone: (data.phone as string) || '',
     qrToken: data.qrToken as string,
     status: data.status as GuestData['status'],
-    companions: (data.companions as number) || 0,
+    companions: normalizeCompanions(data.companions),
     rsvpStatus: (data.rsvpStatus as GuestData['rsvpStatus']) || 'pending',
     checkedInAt: toMillisOrNull(data.checkedInAt),
     checkedInBy: (data.checkedInBy as string) || null,
