@@ -27,6 +27,7 @@ import {
   IconX,
 } from '../components/Icons'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
+import { ThemeSeal } from '../components/ThemeSeal'
 import type { EventData, WallMessage, WallMessageType } from '../types'
 
 interface TypeConfig {
@@ -224,8 +225,8 @@ export function EventWall() {
         </form>
       </div>
     )
-    return event?.templateId === 'cowboy' ? (
-      <InvitationThemeRoot templateId="cowboy" accentOverride={event.accentColor} className="min-h-screen flex items-center justify-center p-4">
+    return event?.templateId === 'cowboy' || event?.templateId === 'graduation' ? (
+      <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="min-h-screen flex items-center justify-center p-4">
         {nameGateContent}
       </InvitationThemeRoot>
     ) : (
@@ -352,6 +353,7 @@ export function EventWall() {
                   : 'border-gray-200 dark:border-gray-700'
               }`}
             >
+              {msg.pinned && <ThemeSeal templateId={event?.templateId} />}
               {/* Header */}
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex items-start gap-2 flex-1 min-w-0">
@@ -477,8 +479,8 @@ export function EventWall() {
     </>
   )
 
-  return event?.templateId === 'cowboy' ? (
-    <InvitationThemeRoot templateId="cowboy" accentOverride={event.accentColor} className="max-w-xl mx-auto px-4 py-6 min-h-screen">
+  return event?.templateId === 'cowboy' || event?.templateId === 'graduation' ? (
+    <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="max-w-xl mx-auto px-4 py-6 min-h-screen">
       {content}
     </InvitationThemeRoot>
   ) : (

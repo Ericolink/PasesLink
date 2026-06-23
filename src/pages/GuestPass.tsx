@@ -12,6 +12,7 @@ import { EventMap } from '../components/EventMap'
 import { InvitationCard } from '../components/InvitationCard'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
+import { ThemeSeal } from '../components/ThemeSeal'
 import { InviteDivider } from '../components/InviteDivider'
 import { getTemplate } from '../templates/registry'
 
@@ -146,6 +147,7 @@ function GuestPassInner() {
 
           {event.requiresPayment && (
             <div className="mt-4 flex flex-col items-center gap-2">
+              {guest.paymentStatus === 'paid' && <ThemeSeal templateId={event.templateId} />}
               <span
                 className={`inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full font-medium ${
                   guest.paymentStatus === 'paid' ? 'invite-badge-positive bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
@@ -177,6 +179,7 @@ function GuestPassInner() {
           <div className="mt-8">
             {checkInState === 'done' && (
               <div className="flex flex-col items-center gap-3">
+                <ThemeSeal templateId={event.templateId} />
                 <span className="invite-badge-icon">
                   <IconCheckCircle className="w-16 h-16 text-green-500" />
                 </span>
@@ -275,9 +278,12 @@ function GuestPassInner() {
             </div>
 
             {guest.status === 'checked_in' ? (
-              <p className="invite-badge-positive mt-2 inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
-                <IconCheckCircle className="w-4 h-4 text-green-500" /> Asistencia confirmada
-              </p>
+              <span className="mt-2 inline-flex items-center gap-2">
+                <ThemeSeal templateId={event.templateId} />
+                <p className="invite-badge-positive inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
+                  <IconCheckCircle className="w-4 h-4 text-green-500" /> Asistencia confirmada
+                </p>
+              </span>
             ) : (
               <p className="text-sm text-[var(--invite-text-muted)]">Presenta este código QR en la entrada</p>
             )}
@@ -366,13 +372,16 @@ function GuestPassInner() {
               <span className="text-sm">
                 Monto a pagar: <strong>{event.currency}{(event.ticketPrice * (1 + guest.companions)).toLocaleString('es')}</strong>
               </span>
-              <span
-                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
-                  guest.paymentStatus === 'paid' ? 'invite-badge-positive bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
-                }`}
-              >
-                <IconTicket className={`w-3.5 h-3.5 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />
-                {guest.paymentStatus === 'paid' ? 'Pagado' : 'Pendiente'}
+              <span className="inline-flex items-center gap-2 shrink-0">
+                {guest.paymentStatus === 'paid' && <ThemeSeal templateId={event.templateId} />}
+                <span
+                  className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                    guest.paymentStatus === 'paid' ? 'invite-badge-positive bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  <IconTicket className={`w-3.5 h-3.5 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />
+                  {guest.paymentStatus === 'paid' ? 'Pagado' : 'Pendiente'}
+                </span>
               </span>
             </div>
             {event.paymentInstructions && (
@@ -394,7 +403,7 @@ function GuestPassInner() {
         </>
       )}
       {eventId && (
-        <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} />
+        <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} templateId={event.templateId} />
       )}
     </InvitationThemeRoot>
   )

@@ -532,13 +532,14 @@ export function EventDetail() {
     </>
   )
 
-  // Vaquera adopta su propia identidad también en el dashboard del
-  // organizador — condicional explícito (no envolvemos en InvitationThemeRoot
-  // para cualquier templateId) para que los otros 9 temas no cambien ni la
-  // animación de entrada del dashboard, que hoy es fija (animate-fade-in).
-  if (event.templateId === 'cowboy') {
+  // Vaquera y Graduación adoptan su propia identidad también en el
+  // dashboard del organizador — condicional explícito (no envolvemos en
+  // InvitationThemeRoot para cualquier templateId) para que los otros 8
+  // temas no cambien ni la animación de entrada del dashboard, que hoy es
+  // fija (animate-fade-in).
+  if (event.templateId === 'cowboy' || event.templateId === 'graduation') {
     return (
-      <InvitationThemeRoot templateId="cowboy" accentOverride={event.accentColor} className="max-w-3xl mx-auto px-4 py-8">
+      <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="max-w-3xl mx-auto px-4 py-8">
         {content}
       </InvitationThemeRoot>
     )

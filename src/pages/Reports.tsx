@@ -184,8 +184,8 @@ export function Reports() {
     </>
   )
 
-  return event.templateId === 'cowboy' ? (
-    <InvitationThemeRoot templateId="cowboy" accentOverride={event.accentColor} className="max-w-3xl mx-auto px-4 py-8">
+  return event.templateId === 'cowboy' || event.templateId === 'graduation' ? (
+    <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="max-w-3xl mx-auto px-4 py-8">
       {content}
     </InvitationThemeRoot>
   ) : (

@@ -26,7 +26,7 @@ export interface InvitationTemplate {
     // Forma del confetti del check-in (canvas-confetti ya soporta formas
     // nativas). Opcional: sin este campo se usa la mezcla por defecto de la
     // librería (círculos/cuadrados).
-    confettiShape?: 'star'
+    confettiShape?: 'star' | 'square'
   }
 }
 
@@ -102,15 +102,24 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
       accent: '#1e3a8a',
       accentDark: '#152a63',
       accentSoft: '#dbe4f7',
-      pageBg: '#d7e0f3',
-      surface: '#f7f9fd',
+      // Marfil/blanco cálido en vez del blanco azulado anterior — la base
+      // de un documento institucional, no de una tarjeta de "app".
+      pageBg: '#f6f0e1',
+      surface: '#fffdf6',
       text: '#1f2937',
       textMuted: '#4a5568',
-      border: '#cdd6e8',
-      fontFamily: 'inherit',
+      border: '#e3d6b0',
+      // EB Garamond es el fallback real para todo el texto de lectura (RSVP,
+      // muro, instrucciones) — Cinzel queda reservado a títulos/encabezados/
+      // etiquetas ceremoniales vía override puntual en templates.css, nunca
+      // acá: a tamaño de párrafo es una serif de capitales, poco legible.
+      fontFamily: "'EB Garamond', Georgia, serif",
       borderRadius: '0.75rem',
       shadow: '0 2px 8px rgba(30,58,138,.15)',
       enterAnimation: 'animate-slide-in-up',
+      // Confeti cuadrado en vez de la mezcla default de la librería: evoca
+      // papeles/diplomas cayendo sin necesitar una forma custom.
+      confettiShape: 'square',
     },
   },
   {

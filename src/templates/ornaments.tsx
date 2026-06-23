@@ -22,11 +22,15 @@ const CowboyOrnament: FC<OrnamentProps> = ({ className }) => (
   </svg>
 )
 
+// Reemplaza un mortarboard literal (clip-art de "graduación escolar") por
+// un trazo neutro — línea/punto/línea, misma familia minimal que
+// FormalOrnament — para no reforzar la lectura "escuela secundaria" en un
+// tema pensado como documento institucional.
 const GraduationOrnament: FC<OrnamentProps> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-    <path d="M12 4 2 9l10 5 10-5-10-5Z" strokeLinejoin="round" />
-    <path d="M6 11.5V17c0 1 2.7 2 6 2s6-1 6-2v-5.5" />
-    <path d="M22 9v5.5" strokeLinecap="round" />
+  <svg className={className} viewBox="0 0 64 12" fill="none" stroke="currentColor" strokeWidth={1.1}>
+    <line x1="0" y1="6" x2="26" y2="6" />
+    <circle cx="32" cy="6" r="2.6" fill="currentColor" stroke="none" />
+    <line x1="38" y1="6" x2="64" y2="6" />
   </svg>
 )
 

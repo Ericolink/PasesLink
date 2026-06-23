@@ -4,8 +4,9 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { IconThumbsUp, IconThumbsDown, IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown } from './Icons'
+import { ThemeSeal } from './ThemeSeal'
 import { WALL_TEXT_MAX } from '../utils/validation'
-import type { WallMessage, WallMessageType } from '../types'
+import type { TemplateId, WallMessage, WallMessageType } from '../types'
 
 const DEVICE_TOKEN_KEY = 'wall_device_token'
 const GUEST_NAME_KEY   = 'wall_guest_name'
@@ -35,9 +36,9 @@ const TYPE_CONFIG: Record<WallMessageType, { label: string; Icon: React.FC<{clas
   idea:     { label: 'Idea',       Icon: IconLightbulb,      color: 'bg-green-100 text-green-700' },
 }
 
-interface Props { eventId: string; isPremium?: boolean; guestName?: string }
+interface Props { eventId: string; isPremium?: boolean; guestName?: string; templateId?: TemplateId }
 
-export function WallSection({ eventId, isPremium = false, guestName: guestNameProp }: Props) {
+export function WallSection({ eventId, isPremium = false, guestName: guestNameProp, templateId }: Props) {
   const { user }          = useAuth()
   const { profile }       = useUserProfile()
   const [messages, setMessages] = useState<WallMessage[]>([])
@@ -181,6 +182,7 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
               data-pinned={msg.pinned}
               className="invite-wall-message border p-4 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
               style={{ borderColor: msg.pinned ? '#facc15' : 'var(--invite-border)' }}>
+              {msg.pinned && <ThemeSeal templateId={templateId} />}
               <div className="flex items-start gap-2 mb-2">
                 <Avatar name={msg.authorName} photoURL={msg.authorPhotoURL} size={28} />
                 <div className="flex-1 min-w-0">

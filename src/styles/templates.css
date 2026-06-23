@@ -439,16 +439,278 @@
   font-style: italic;
 }
 
-/* ── Graduación: papel rayado / diploma ──────────────────────────── */
+/* ── Graduación: documento institucional enmarcado ───────────────────
+   Identidad: marfil/blanco cálido (pageBg/surface/border, ver
+   registry.ts) + navy (--invite-accent*) + dorado (--invite-grad-gold-*,
+   tokens propios de este tema). Sin textura de papel: la estructura la
+   da un marco, no un patrón repetido — ver el bloque "el marco" más
+   abajo. El glow es ornamentación mínima, nunca el protagonista.
+
+   Cinzel (serif de capitales lapidarias, pensada para grabados/medallas)
+   solo en títulos/encabezados/etiquetas ceremoniales cortas — a tamaño de
+   párrafo es poco legible, por eso nunca es el fontFamily de base
+   (registry.ts usa EB Garamond ahí). El override va acá, mismo mecanismo
+   que vaquera usa para separar el cuerpo (Old Standard TT) de su h1
+   (Rye): esta regla, sin @layer, le gana a la utilidad de Tailwind
+   [font-family:var(--invite-font)] de InvitationCard sin importar
+   especificidad. */
 [data-template='graduation'] {
+  --invite-grad-gold: #b8902f;
+  --invite-grad-gold-dark: #8a6c22;
+  --invite-grad-gold-soft: #f3e6c4;
+  /* Un cuarto tono, más claro, solo para que el dorado del sistema no sea
+     un único color plano repetido en cada línea — variación discreta del
+     mismo metal, no un color nuevo independiente. */
+  --invite-grad-gold-light: #d4af52;
+  /* A nivel raíz (no solo en .invite-card) para que alcance también al
+     muro y al mapa, que son hermanos de la tarjeta dentro de
+     InvitationThemeRoot — mismo mecanismo que usa vaquera con Old
+     Standard TT. */
+  font-family: 'EB Garamond', Georgia, serif;
+  /* Glow navy muy sutil en dos esquinas opuestas — decorativo y mínimo,
+     nunca una textura. Cero líneas, cero patrón repetido. */
   background-image:
-    repeating-linear-gradient(180deg, transparent 0 27px, rgba(30, 58, 138, .10) 27px 28px),
-    linear-gradient(90deg, transparent 0 32px, rgba(157, 23, 77, .22) 32px 33px, transparent 33px);
+    radial-gradient(circle 220px at 4% 4%, rgba(21, 42, 99, .07), transparent 70%),
+    radial-gradient(circle 240px at 96% 97%, rgba(21, 42, 99, .07), transparent 70%);
+}
+[data-template='graduation'] h1,
+[data-template='graduation'] h2 {
+  font-family: 'Cinzel', Georgia, serif;
 }
 [data-template='graduation'] h1 {
   text-transform: uppercase;
   letter-spacing: .08em;
   font-weight: 700;
+  /* Remate tipo título de certificado: una línea fina debajo, ajustada al
+     ancho del texto (inline-block), no de borde a borde — cierra el
+     título en vez de dejarlo flotando sobre espacio vacío. */
+  display: inline-block;
+  padding-bottom: .4em;
+  border-bottom: 1px solid var(--invite-grad-gold-soft);
+}
+
+/* ── Graduación: el marco ─────────────────────────────────────────────
+   Elemento institucional principal del tema — todo el contenido (hero,
+   tarjeta, divisor, mapa, muro) vive dentro de él. El hijo directo de
+   [data-template] es siempre el wrapper de InvitationThemeRoot (ver
+   InvitationThemeRoot.tsx), así que este selector no depende de tocar
+   ese componente ni de condicionales en cada página.
+   Cinco filetes finos en vez de tres — entre los filetes principales se
+   intercalan dos hairlines casi imperceptibles (un solo pixel, tono
+   dorado claro semitransparente) a modo de grabado de seguridad
+   documental, sin llegar a ser un patrón repetido de página completa
+   (eso es justo lo que se eliminó dos vueltas atrás). Todo vía box-shadow
+   inset: ningún layer nuevo, mismo mecanismo ya probado, cero riesgo de
+   volver a la textura de cuaderno. Las rosetas de esquina (radial-
+   gradient, mismo recurso que los remaches de vaquera en EventMap/Cover)
+   marcan los cuatro vértices del marco, igual que el medallón de esquina
+   de un certificado real — quedan fuera del alcance de los filetes
+   (16px) para no competir con ellos. La tarjeta no repite el filete
+   múltiple a su escala (sería marco dentro de marco) — solo toma el
+   dorado como borde simple. */
+[data-template='graduation'] > div {
+  box-shadow:
+    inset 0 0 0 1px var(--invite-grad-gold),
+    inset 0 0 0 2px var(--invite-page-bg),
+    inset 0 0 0 2.5px rgba(184, 144, 47, .4),
+    inset 0 0 0 3.5px var(--invite-page-bg),
+    inset 0 0 0 4.5px var(--invite-grad-gold-soft),
+    inset 0 0 0 5.5px var(--invite-page-bg),
+    inset 0 0 0 6px rgba(184, 144, 47, .4),
+    inset 0 0 0 7px var(--invite-page-bg),
+    inset 0 0 0 8.5px var(--invite-grad-gold-dark);
+  background-image:
+    radial-gradient(circle 2.4px at 16px 16px, var(--invite-grad-gold) 0 1.1px, transparent 1.1px 2.4px),
+    radial-gradient(circle 2.4px at calc(100% - 16px) 16px, var(--invite-grad-gold) 0 1.1px, transparent 1.1px 2.4px),
+    radial-gradient(circle 2.4px at 16px calc(100% - 16px), var(--invite-grad-gold) 0 1.1px, transparent 1.1px 2.4px),
+    radial-gradient(circle 2.4px at calc(100% - 16px) calc(100% - 16px), var(--invite-grad-gold) 0 1.1px, transparent 1.1px 2.4px);
+}
+[data-template='graduation'] .invite-card {
+  border-color: var(--invite-grad-gold) !important;
+}
+
+/* Divisor y arranque del muro: misma familia de filete fino del marco,
+   en vez de la línea gris genérica — marca cada quiebre de sección como
+   una regla de documento, reforzando la lectura vertical de la página. */
+[data-template='graduation'] .invite-divider-line {
+  border-top-color: var(--invite-grad-gold) !important;
+  box-shadow: 0 2px 0 0 var(--invite-grad-gold-soft);
+}
+[data-template='graduation'] .invite-wall-section {
+  border-top-color: var(--invite-grad-gold) !important;
+  box-shadow: 0 2px 0 0 var(--invite-grad-gold-soft);
+}
+
+/* ── Graduación: el sello ─────────────────────────────────────────────
+   Marca de validación secundaria, no protagonista — el marco de arriba
+   es la identidad; esto solo confirma autenticidad junto a un texto de
+   logro real (asistencia/pago/check-in/mensaje fijado). Por eso un solo
+   tamaño, modesto, en toda la app: un sello no "crece" para el momento
+   más importante (ThemeSeal.tsx ya no acepta una prop de escala).
+   Plano, no renderizado: nada de gradiente simulando una esfera 3D, nada
+   de sombra de anclaje, nada de cintas de tela — eso es vocabulario de
+   ícono de UI/medalla deportiva, no de sello de diploma real (foil
+   dorado o emboss, siempre planos sobre el papel). El disco y el anillo
+   se dibujan con paradas de color duras (sin transición suave) para que
+   sean formas planas, no superficies curvas; el repeating-conic-gradient
+   imita la densidad de un texto perimetral grabado sin necesitar
+   tipografía real — es lo que le da legitimidad a un sello, más que
+   cualquier efecto de profundidad. Mismo tamaño y mismas cuatro capas en
+   cada aparición (núcleo, filete interior, anillo, borde): nunca una
+   versión "rica" para un contexto y otra "simple" para otro. */
+[data-template='graduation'] .invite-seal {
+  display: inline-block;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  border: 1px solid var(--invite-grad-gold-dark);
+  background:
+    /* filete interior: separa el núcleo del anillo, lectura "acuñada" */
+    radial-gradient(circle, transparent 0 50%, var(--invite-grad-gold) 50% 54%, transparent 54% 100%),
+    /* núcleo */
+    radial-gradient(circle, var(--invite-accent) 0 50%, transparent 50% 100%),
+    /* anillo: microtexto grabado, tres tonos en vez de dos y período más
+       corto que la versión anterior — más denso, no más voluminoso */
+    repeating-conic-gradient(
+      var(--invite-grad-gold) 0deg 2.5deg,
+      var(--invite-grad-gold-soft) 2.5deg 4deg,
+      var(--invite-grad-gold-dark) 4deg 4.6deg,
+      var(--invite-grad-gold-soft) 4.6deg 6deg
+    );
+}
+
+/* Muro: cada entrada lleva un filete dorado superior — lectura de
+   "anotación de registro", no de tarjeta de feed social. El mensaje
+   fijado, además, pasa su borde completo a dorado (no solo el filete
+   superior) y es el único que lleva el sello — sigue siendo la marca de
+   validación, ahora reforzada por el marco en vez de competir con el
+   resaltado amarillo genérico que usan los otros temas. !important porque
+   WallSection.tsx fija borderColor por inline style (ver ese componente);
+   sin él, este filete perdería contra ese estilo en el borde superior. */
+[data-template='graduation'] .invite-wall-message {
+  border-top-width: 2px !important;
+  border-top-color: var(--invite-grad-gold) !important;
+}
+[data-template='graduation'] .invite-wall-message[data-pinned='true'] {
+  position: relative;
+  border-color: var(--invite-grad-gold) !important;
+  box-shadow: 0 0 0 1px var(--invite-grad-gold-soft) !important;
+}
+[data-template='graduation'] .invite-wall-message[data-pinned='true'] .invite-seal {
+  position: absolute;
+  top: -.7rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+[data-template='graduation'] .invite-pin-label {
+  display: inline-flex;
+}
+/* EventWall.tsx (vista completa del muro, separada del widget de
+   WallSection.tsx) marca "Destacado" y el botón de pin en amarillo
+   plano — acá pasan a dorado institucional, mismo criterio que el resto
+   del sistema de validación. */
+[data-template='graduation'] .text-yellow-500 {
+  color: var(--invite-grad-gold-dark);
+}
+[data-template='graduation'] .hover\:text-yellow-400:hover {
+  color: var(--invite-grad-gold);
+}
+
+/* "Entrada registrada": el sello sustituye el ícono de check genérico
+   (.invite-badge-icon) — mismo criterio que vaquera, que tampoco usa ese
+   hook genérico para su propia credencial. */
+[data-template='graduation'] .invite-badge-icon {
+  display: none;
+}
+
+/* ── Graduación: dashboard del organizador, muro y reportes ───────────
+   Se activa cuando EventDetail.tsx/EventWall.tsx/Reports.tsx envuelven su
+   contenido en InvitationThemeRoot (event.templateId === 'graduation') —
+   mismo condicional explícito que ya usa vaquera en esos tres archivos.
+   Re-pinta las clases de Tailwind que esas páginas YA usan (bg-white,
+   border-gray-*, text-gray-*, bg-primary, text-primary) en vez de tocar
+   GuestList.tsx, EventAnalytics.tsx, GuestAddForm.tsx, EditEventForm.tsx,
+   ConfirmDialog.tsx ni PlanBadge.tsx — funciona por el mismo motivo que
+   vaquera: esta hoja no usa @layer, así que le gana a las utilidades de
+   Tailwind sin importar especificidad. Los colores semánticos (rojo/
+   verde/ámbar de error, éxito, advertencia) no se tocan — mismo criterio
+   de toda la invitación. */
+.dark [data-template='graduation'] .bg-white {
+  background-color: var(--invite-surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.dark [data-template='graduation'] .bg-gray-50,
+.dark [data-template='graduation'] .bg-gray-100,
+.dark [data-template='graduation'] .bg-gray-700\/40,
+.dark [data-template='graduation'] .bg-gray-700\/50 {
+  background-color: var(--invite-accent-soft) !important;
+}
+.dark [data-template='graduation'] .border-gray-100,
+.dark [data-template='graduation'] .border-gray-200,
+.dark [data-template='graduation'] .border-gray-300,
+.dark [data-template='graduation'] .border-gray-400,
+.dark [data-template='graduation'] .border-gray-700 {
+  border-color: var(--invite-border) !important;
+}
+[data-template='graduation'] .divide-gray-100 > * {
+  border-color: var(--invite-border) !important;
+}
+/* Botones secundarios sin relleno ("Muro", "Reportes", "Reactivar
+   evento", etc.): pasan de borde gris invisible a placa con borde dorado
+   propio, mismo criterio que vaquera. */
+.dark [data-template='graduation'] .border-gray-300:not(input):not(textarea):not(select),
+.dark [data-template='graduation'] .border-gray-600:not(input):not(textarea):not(select) {
+  background-color: var(--invite-surface) !important;
+  color: var(--invite-text) !important;
+  border-width: 1px !important;
+  border-color: var(--invite-grad-gold) !important;
+}
+[data-template='graduation'] .border-gray-300:not(input):not(textarea):not(select):hover,
+[data-template='graduation'] .border-gray-600:not(input):not(textarea):not(select):hover {
+  background-color: var(--invite-grad-gold-soft) !important;
+}
+[data-template='graduation'] .text-gray-900,
+[data-template='graduation'] .text-gray-700 {
+  color: var(--invite-text);
+}
+[data-template='graduation'] .text-gray-600,
+[data-template='graduation'] .text-gray-500,
+[data-template='graduation'] .text-gray-400,
+[data-template='graduation'] .text-gray-300 {
+  color: var(--invite-text-muted);
+}
+[data-template='graduation'] .text-primary {
+  color: var(--invite-accent);
+}
+[data-template='graduation'] .bg-primary\/10,
+[data-template='graduation'] .bg-primary\/20 {
+  background-color: var(--invite-accent-soft);
+}
+[data-template='graduation'] .bg-primary {
+  background-color: var(--invite-accent);
+  box-shadow: var(--invite-shadow);
+}
+[data-template='graduation'] .bg-primary:hover {
+  filter: none;
+  box-shadow: var(--invite-shadow);
+}
+[data-template='graduation'] .hover\:bg-primary-dark:hover {
+  background-color: var(--invite-accent-dark);
+}
+
+/* Tarjetas de métrica (StatCard de EventDetail.tsx, Stat de Reports.tsx):
+   "panel de transcripción" en vez de card de analytics — filete dorado
+   superior + la cifra en Cinzel, mismo lenguaje que el resto del sistema.
+   .dark + !important por el mismo empate de especificidad que ya resuelve
+   el border-gray-200 de arriba (también !important). */
+.dark [data-template='graduation'] .invite-stat-card {
+  border-top-width: 2px !important;
+  border-top-style: solid !important;
+  border-top-color: var(--invite-grad-gold) !important;
+}
+[data-template='graduation'] .invite-stat-card p:first-of-type {
+  font-family: 'Cinzel', Georgia, serif;
 }
 
 /* ── Aniversario: resplandores cálidos superpuestos ──────────────── */
