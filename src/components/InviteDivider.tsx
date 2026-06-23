@@ -1,4 +1,4 @@
-import { ORNAMENTS } from '../templates/ornaments'
+import { ORNAMENTS } from '../templates/ornaments.map'
 import { ThemeOrnament } from './ThemeOrnament'
 import type { TemplateId } from '../types'
 

@@ -1,4 +1,4 @@
-import { ORNAMENTS } from '../templates/ornaments'
+import { ORNAMENTS } from '../templates/ornaments.map'
 import type { TemplateId } from '../types'
 
 interface Props {

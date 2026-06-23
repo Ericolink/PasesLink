@@ -1,7 +1,6 @@
 import type { FC } from 'react'
-import type { TemplateId } from '../types'
 
-interface OrnamentProps {
+export interface OrnamentProps {
   className?: string
 }
 
@@ -15,7 +14,7 @@ interface OrnamentProps {
 // suma una vena interior como hairline. El brote final son tres puntos de
 // tamaño y opacidad irregulares (no un trío idéntico) — la misma lógica de
 // "evitar simetría perfecta" que el fondo del tema.
-const WeddingOrnament: FC<OrnamentProps> = ({ className }) => (
+export const WeddingOrnament: FC<OrnamentProps> = ({ className }) => (
   <svg className={className} viewBox="0 0 64 16" fill="none" stroke="currentColor" strokeWidth={0.85}>
     <path d="M1 10.5c8-5.5 16-6.5 23-3.4 4.6 2 6.6 4.7 11 3.6 7-1.8 11-5.8 17.5-5.2" strokeLinecap="round" />
     <path d="M11.5 6.6c1.3-2.3 3.2-3.1 4.8-2-.4 2.3-2.5 3.5-4.8 2Z" opacity=".9" />
@@ -28,7 +27,7 @@ const WeddingOrnament: FC<OrnamentProps> = ({ className }) => (
   </svg>
 )
 
-const CowboyOrnament: FC<OrnamentProps> = ({ className }) => (
+export const CowboyOrnament: FC<OrnamentProps> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor" stroke="none">
     <path d="M12 1.5l2.7 6.4 6.9.6-5.3 4.5 1.7 6.7L12 16.1l-6 3.6 1.7-6.7-5.3-4.5 6.9-.6L12 1.5z" />
   </svg>
@@ -38,7 +37,7 @@ const CowboyOrnament: FC<OrnamentProps> = ({ className }) => (
 // un trazo neutro — línea/punto/línea, misma familia minimal que
 // FormalOrnament — para no reforzar la lectura "escuela secundaria" en un
 // tema pensado como documento institucional.
-const GraduationOrnament: FC<OrnamentProps> = ({ className }) => (
+export const GraduationOrnament: FC<OrnamentProps> = ({ className }) => (
   <svg className={className} viewBox="0 0 64 12" fill="none" stroke="currentColor" strokeWidth={1.1}>
     <line x1="0" y1="6" x2="26" y2="6" />
     <circle cx="32" cy="6" r="2.6" fill="currentColor" stroke="none" />
@@ -50,7 +49,7 @@ const GraduationOrnament: FC<OrnamentProps> = ({ className }) => (
 // templates.css) repetido a escala de ornamento — cuatro puntos de tamaño y
 // opacidad irregulares, sin eje de simetría, para que se sienta liviano y
 // fotografiado en vez de un ícono de UI o un sticker.
-const KidsOrnament: FC<OrnamentProps> = ({ className }) => (
+export const KidsOrnament: FC<OrnamentProps> = ({ className }) => (
   <svg className={className} viewBox="0 0 48 16" fill="currentColor" stroke="none">
     <circle cx="14" cy="8" r="3.4" opacity=".9" />
     <circle cx="24" cy="5.5" r="2" opacity=".7" />
@@ -62,18 +61,10 @@ const KidsOrnament: FC<OrnamentProps> = ({ className }) => (
 // Hairline más fino + rombo en trazo (antes relleno sólido) — la misma
 // composición línea-rombo-línea, ahora más cercana a un monograma grabado
 // que a un ícono de UI. Sin cambiar la forma, solo el peso del trazo.
-const FormalOrnament: FC<OrnamentProps> = ({ className }) => (
+export const FormalOrnament: FC<OrnamentProps> = ({ className }) => (
   <svg className={className} viewBox="0 0 64 12" fill="none" stroke="currentColor" strokeWidth={0.85}>
     <line x1="0" y1="6" x2="26" y2="6" />
     <rect x="29.5" y="3.5" width="5" height="5" transform="rotate(45 32 6)" />
     <line x1="38" y1="6" x2="64" y2="6" />
   </svg>
 )
-
-export const ORNAMENTS: Partial<Record<TemplateId, FC<OrnamentProps>>> = {
-  wedding: WeddingOrnament,
-  cowboy: CowboyOrnament,
-  graduation: GraduationOrnament,
-  kids: KidsOrnament,
-  formal: FormalOrnament,
-}
