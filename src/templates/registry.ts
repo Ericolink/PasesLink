@@ -23,6 +23,10 @@ export interface InvitationTemplate {
     borderRadius: string
     shadow: string
     enterAnimation: EnterAnimation
+    // Forma del confetti del check-in (canvas-confetti ya soporta formas
+    // nativas). Opcional: sin este campo se usa la mezcla por defecto de la
+    // librería (círculos/cuadrados).
+    confettiShape?: 'star'
   }
 }
 
@@ -87,6 +91,7 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
       borderRadius: '0.4rem',
       shadow: '0 2px 0 rgba(74,44,20,.25)',
       enterAnimation: 'animate-bounce-in',
+      confettiShape: 'star',
     },
   },
   {

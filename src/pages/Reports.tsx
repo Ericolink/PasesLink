@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth'
 import type { CheckinLog } from '../types'
 import { RSVP_LABELS } from '../types'
 import { IconCheck, IconCornerUpLeft } from '../components/Icons'
+import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 
 export function Reports() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -80,8 +81,8 @@ export function Reports() {
     URL.revokeObjectURL(url)
   }
 
-  return (
-    <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
+  const content = (
+    <>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Reportes</h1>
@@ -180,13 +181,21 @@ export function Reports() {
           </ul>
         )}
       </div>
-    </div>
+    </>
+  )
+
+  return event.templateId === 'cowboy' ? (
+    <InvitationThemeRoot templateId="cowboy" accentOverride={event.accentColor} className="max-w-3xl mx-auto px-4 py-8">
+      {content}
+    </InvitationThemeRoot>
+  ) : (
+    <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">{content}</div>
   )
 }
 
 function Stat({ label, value, color }: { label: string; value: number | string; color?: string }) {
   return (
-    <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
+    <div className="invite-stat-card border border-gray-200 rounded-lg p-3 bg-white text-center">
       <p className={`text-2xl font-semibold ${color || 'text-gray-900'}`}>{value}</p>
       <p className="text-xs text-gray-500">{label}</p>
     </div>

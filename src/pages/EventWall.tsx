@@ -26,6 +26,7 @@ import {
   IconThumbsUp,
   IconX,
 } from '../components/Icons'
+import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import type { EventData, WallMessage, WallMessageType } from '../types'
 
 interface TypeConfig {
@@ -200,30 +201,35 @@ export function EventWall() {
   }
 
   if (!nameConfirmed && !isOwner && !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-            {event?.name || 'Muro del evento'}
-          </h1>
-          <p className="text-sm text-gray-500 mb-4">¿Cómo te llamas para participar?</p>
-          <form onSubmit={confirmName} className="space-y-3">
-            <input
-              type="text"
-              required
-              maxLength={WALL_NAME_MAX}
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              placeholder="Tu nombre"
-              autoFocus
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            <button type="submit" className="w-full bg-primary text-white rounded-lg py-2.5 text-sm font-semibold">
-              Entrar al muro
-            </button>
-          </form>
-        </div>
+    const nameGateContent = (
+      <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
+        <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+          {event?.name || 'Muro del evento'}
+        </h1>
+        <p className="text-sm text-gray-500 mb-4">¿Cómo te llamas para participar?</p>
+        <form onSubmit={confirmName} className="space-y-3">
+          <input
+            type="text"
+            required
+            maxLength={WALL_NAME_MAX}
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            placeholder="Tu nombre"
+            autoFocus
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <button type="submit" className="w-full bg-primary text-white rounded-lg py-2.5 text-sm font-semibold">
+            Entrar al muro
+          </button>
+        </form>
       </div>
+    )
+    return event?.templateId === 'cowboy' ? (
+      <InvitationThemeRoot templateId="cowboy" accentOverride={event.accentColor} className="min-h-screen flex items-center justify-center p-4">
+        {nameGateContent}
+      </InvitationThemeRoot>
+    ) : (
+      <div className="min-h-screen flex items-center justify-center p-4">{nameGateContent}</div>
     )
   }
 
@@ -243,8 +249,8 @@ export function EventWall() {
     return b.createdAt - a.createdAt
   })
 
-  return (
-    <div className="max-w-xl mx-auto px-4 py-6 min-h-screen">
+  const content = (
+    <>
       {event?.coverImage && (
         <img src={optimizedImageUrl(event.coverImage, 800)} alt="" loading="lazy" className="w-full h-28 object-cover rounded-xl mb-4" />
       )}
@@ -272,7 +278,7 @@ export function EventWall() {
 
       {/* Post form */}
       {!isMinor && (
-        <form onSubmit={handlePost} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-5 space-y-3">
+        <form onSubmit={handlePost} className="invite-wall-form bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-5 space-y-3">
           <div className="flex gap-2 flex-wrap">
             {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
               const cfg = TYPE_CONFIG[t]
@@ -339,7 +345,8 @@ export function EventWall() {
           return (
             <div
               key={msg.id}
-              className={`bg-white dark:bg-gray-800 rounded-xl border p-4 animate-fade-in-up transition-all ${
+              data-pinned={msg.pinned}
+              className={`invite-wall-message bg-white dark:bg-gray-800 rounded-xl border p-4 animate-fade-in-up transition-all ${
                 msg.pinned
                   ? 'border-yellow-400/60 dark:border-yellow-500/40 shadow-[0_0_12px_rgba(250,239,93,.18)]'
                   : 'border-gray-200 dark:border-gray-700'
@@ -467,7 +474,15 @@ export function EventWall() {
           </button>
         </div>
       )}
-    </div>
+    </>
+  )
+
+  return event?.templateId === 'cowboy' ? (
+    <InvitationThemeRoot templateId="cowboy" accentOverride={event.accentColor} className="max-w-xl mx-auto px-4 py-6 min-h-screen">
+      {content}
+    </InvitationThemeRoot>
+  ) : (
+    <div className="max-w-xl mx-auto px-4 py-6 min-h-screen">{content}</div>
   )
 }
 

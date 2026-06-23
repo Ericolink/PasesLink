@@ -13,6 +13,7 @@ import { GuestList } from '../components/GuestList'
 import { EditEventForm } from '../components/EditEventForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EventAnalytics } from '../components/EventAnalytics'
+import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import {
   IconArrowLeft,
   IconCheckCircle,
@@ -231,8 +232,8 @@ export function EventDetail() {
     return g.name.toLowerCase().includes(term) || (g.email || '').toLowerCase().includes(term)
   })
 
-  return (
-    <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
+  const content = (
+    <>
       {checkinToast && (
         <div className="fixed top-16 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse flex items-center gap-2">
           <IconCheckCircle className="w-4 h-4" /> {checkinToast}
@@ -243,11 +244,16 @@ export function EventDetail() {
       </Link>
       <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-semibold text-gray-900">{event.name}</h1>
-            <PlanBadge plan={event.plan} />
+          {/* flex-wrap a propósito: con un nombre de evento muy largo (más
+              notorio con el marco/listón de vaquera), el título pasa a una
+              segunda línea entero en vez de forzar scroll horizontal o
+              aplastar el badge/ícono de edición, que mantienen su tamaño
+              (shrink-0) y siempre quedan junto al final del texto. */}
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h1 className="text-2xl font-semibold text-gray-900 break-words min-w-0">{event.name}</h1>
+            <span className="shrink-0"><PlanBadge plan={event.plan} /></span>
             {isOwner && (
-              <button onClick={() => setEditingEvent((v) => !v)} className="text-gray-400 hover:text-primary transition-colors" title="Editar evento">
+              <button onClick={() => setEditingEvent((v) => !v)} className="shrink-0 text-gray-400 hover:text-primary transition-colors" title="Editar evento">
                 <IconEdit className="w-4 h-4" />
               </button>
             )}
@@ -523,13 +529,27 @@ export function EventDetail() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
-    </div>
+    </>
   )
+
+  // Vaquera adopta su propia identidad también en el dashboard del
+  // organizador — condicional explícito (no envolvemos en InvitationThemeRoot
+  // para cualquier templateId) para que los otros 9 temas no cambien ni la
+  // animación de entrada del dashboard, que hoy es fija (animate-fade-in).
+  if (event.templateId === 'cowboy') {
+    return (
+      <InvitationThemeRoot templateId="cowboy" accentOverride={event.accentColor} className="max-w-3xl mx-auto px-4 py-8">
+        {content}
+      </InvitationThemeRoot>
+    )
+  }
+
+  return <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">{content}</div>
 }
 
 function StatCard({ icon, value, label, valueClass = 'text-gray-900' }: { icon: React.ReactNode; value: number; label: string; valueClass?: string }) {
   return (
-    <div className="card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
+    <div className="invite-stat-card card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
       {icon}
       <p className={`text-2xl font-semibold ${valueClass}`}>{value}</p>
       <p className="text-xs text-gray-500">{label}</p>

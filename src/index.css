@@ -369,6 +369,13 @@ body {
     opacity: 1 !important;
     transform: none !important;
   }
+  /* Hover de "despegar la nota"/balanceo y brillo de la chincheta destacada
+     del tablón vaquero (templates.css) */
+  [data-template='cowboy'] .invite-wall-message,
+  [data-template='cowboy'] .invite-wall-message::before {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 /* ── Card hover ──────────────────────────────────────────────── */

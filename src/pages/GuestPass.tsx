@@ -6,7 +6,6 @@ import { getEvent } from '../firebase/events'
 import { checkInGuest, claimGuestPass, findGuestByToken, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { useAuth } from '../hooks/useAuth'
 import type { EventData, GuestData, RsvpStatus } from '../types'
-import { Logo } from '../components/Logo'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
@@ -107,6 +106,7 @@ function GuestPassInner() {
         spread: 70,
         origin: { y: 0.5 },
         colors: [event!.accentColor || tpl.accent, tpl.accentDark, tpl.accentSoft],
+        shapes: tpl.confettiShape ? [tpl.confettiShape] : undefined,
       })
     } else if (result.status === 'already_checked_in') {
       setCheckInState('already')
@@ -148,7 +148,7 @@ function GuestPassInner() {
             <div className="mt-4 flex flex-col items-center gap-2">
               <span
                 className={`inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full font-medium ${
-                  guest.paymentStatus === 'paid' ? 'bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
+                  guest.paymentStatus === 'paid' ? 'invite-badge-positive bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
                 }`}
               >
                 <IconTicket className={`w-4 h-4 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />
@@ -177,7 +177,9 @@ function GuestPassInner() {
           <div className="mt-8">
             {checkInState === 'done' && (
               <div className="flex flex-col items-center gap-3">
-                <IconCheckCircle className="w-16 h-16 text-green-500" />
+                <span className="invite-badge-icon">
+                  <IconCheckCircle className="w-16 h-16 text-green-500" />
+                </span>
                 <p className="text-lg font-semibold text-[var(--invite-text)]">¡Entrada registrada!</p>
                 {event.welcomeMessage && (
                   <p className="text-sm italic text-[var(--invite-text-muted)]">{event.welcomeMessage}</p>
@@ -235,11 +237,9 @@ function GuestPassInner() {
       accentOverride={event.accentColor}
       className="max-w-sm mx-auto px-4 py-12 text-center"
     >
-      {!event.coverImage && (
-        <div className="flex justify-center mb-6">
-          <Logo />
-        </div>
-      )}
+      {/* La portada es opcional: si no hay imagen, .invite-cover colapsa a 0
+          (ver templates.css) y el título queda como primer elemento visible
+          — sin logo de PaseLink ni ningún otro relleno reservando espacio. */}
       <InvitationCard coverImage={event.coverImage} coverAlt={event.name}>
         <h1 className="text-xl font-semibold">{event.name}</h1>
         <ThemeOrnament templateId={event.templateId} className="w-16 h-6 mx-auto mt-2 text-[var(--invite-accent)]" />
@@ -275,7 +275,7 @@ function GuestPassInner() {
             </div>
 
             {guest.status === 'checked_in' ? (
-              <p className="mt-2 inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
+              <p className="invite-badge-positive mt-2 inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
                 <IconCheckCircle className="w-4 h-4 text-green-500" /> Asistencia confirmada
               </p>
             ) : (
@@ -368,7 +368,7 @@ function GuestPassInner() {
               </span>
               <span
                 className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
-                  guest.paymentStatus === 'paid' ? 'bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
+                  guest.paymentStatus === 'paid' ? 'invite-badge-positive bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
                 }`}
               >
                 <IconTicket className={`w-3.5 h-3.5 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />

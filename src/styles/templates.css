@@ -12,6 +12,17 @@
   transition: background-color 0.3s ease;
 }
 
+/* Contenedor de portada: con foto, ocupa una altura fija; sin foto, colapsa
+   a 0 (mismo resultado que antes, cuando este div ni se renderizaba). Un
+   tema puede pisar el caso ":empty" para mostrar un fondo propio en vez de
+   colapsar — ver vaquera más abajo. */
+.invite-cover {
+  height: 9rem;
+}
+.invite-cover:empty {
+  height: 0;
+}
+
 /* El tema "default" no impone su propia paleta: respeta el modo oscuro de
    la app, igual que antes de que existieran las plantillas. El resto de los
    temas mantiene su identidad propia incluso con el modo oscuro activado —
@@ -29,12 +40,24 @@
 [data-template='cowboy'] {
   background-image:
     repeating-linear-gradient(180deg, rgba(74, 44, 20, .07) 0 3px, transparent 3px 46px),
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, .05) 0 2px, transparent 2px 10px);
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .05) 0 2px, transparent 2px 10px),
+    /* Viñeta de página envejecida: oscurece arriba/abajo, como cuero curtido */
+    linear-gradient(180deg, rgba(40, 20, 5, .16), transparent 110px),
+    linear-gradient(0deg, rgba(40, 20, 5, .14), transparent 110px);
+}
+
+/* Tipografía: Rye solo en el título (es una fuente de cartel, pesada para
+   leer en párrafos). El resto del texto usa una serif de "documento
+   antiguo" — legible y todavía con carácter de época. */
+[data-template='cowboy'] {
+  font-family: 'Old Standard TT', Georgia, serif;
 }
 [data-template='cowboy'] h1 {
+  font-family: 'Rye', Georgia, serif;
   text-transform: uppercase;
   letter-spacing: .05em;
 }
+
 /* Borde superior tipo soga/rawhide trenzada en vez del acento liso */
 [data-template='cowboy'] .invite-card {
   border-top-width: 8px !important;
@@ -43,6 +66,366 @@
     var(--invite-accent) 0 8px,
     var(--invite-accent-dark) 8px 16px
   ) 1 !important;
+}
+
+/* Divisores como soga trenzada (mismo recurso que el borde de la tarjeta) */
+[data-template='cowboy'] .invite-divider-line {
+  border-top: none;
+  height: 6px;
+  border-radius: 3px;
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--invite-accent) 0 8px,
+    var(--invite-accent-dark) 8px 16px
+  );
+}
+
+/* Mapa: el iframe de Google Maps se funde con la paleta cuero/madera en vez
+   de verse como un widget moderno pegado encima. Sigue siendo 100%
+   interactivo, solo cambia el color. */
+[data-template='cowboy'] .invite-map-frame iframe {
+  filter: sepia(.35) saturate(.85) contrast(1.05);
+}
+
+/* ── Hero ──────────────────────────────────────────────────────────
+   La portada es un elemento opcional: si el anfitrión no sube imagen, este
+   bloque no debe reservar espacio ni mostrar ningún relleno (ni logo, ni
+   fondo temático alternativo) — el `:not(:empty)` evita que estas reglas
+   compitan con el colapso a 0 de `.invite-cover:empty` definido arriba.
+   Con foto: más alta que el resto de los temas, viñeta cálida en las
+   esquinas y un viraje de color para que la foto se sienta parte de la
+   misma paleta, con remaches en las cuatro esquinas. */
+[data-template='cowboy'] .invite-cover:not(:empty) {
+  position: relative;
+  height: 14rem;
+}
+[data-template='cowboy'] .invite-cover img {
+  filter: sepia(.35) saturate(.85) contrast(1.05);
+}
+[data-template='cowboy'] .invite-cover:not(:empty)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse at center, transparent 55%, rgba(40, 20, 5, .35) 100%),
+    radial-gradient(circle 3px at 14px 14px, rgba(0,0,0,.55), rgba(0,0,0,.55) 1.4px, rgba(255,255,255,.25) 1.4px, transparent 2.6px),
+    radial-gradient(circle 3px at calc(100% - 14px) 14px, rgba(0,0,0,.55), rgba(0,0,0,.55) 1.4px, rgba(255,255,255,.25) 1.4px, transparent 2.6px),
+    radial-gradient(circle 3px at 14px calc(100% - 14px), rgba(0,0,0,.55), rgba(0,0,0,.55) 1.4px, rgba(255,255,255,.25) 1.4px, transparent 2.6px),
+    radial-gradient(circle 3px at calc(100% - 14px) calc(100% - 14px), rgba(0,0,0,.55), rgba(0,0,0,.55) 1.4px, rgba(255,255,255,.25) 1.4px, transparent 2.6px);
+  background-repeat: no-repeat;
+}
+
+/* Título con fondo tipo letrero de cantina (cinta con puntas en ángulo) en
+   vez de texto plano sobre la madera. */
+[data-template='cowboy'] h1 {
+  display: inline-block;
+  color: #fdf3e2;
+  background-color: var(--invite-accent);
+  padding: .5em 1.3em;
+  clip-path: polygon(0 50%, 14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%);
+}
+
+/* ── Muro como tablón de anuncios ─────────────────────────────────
+   Motivos decorativos de fondo (cactus + herradura) en las esquinas de la
+   sección, CSS/SVG puro vía mask-image: el color sale de un token del tema
+   (no del propio SVG), opacidad muy baja — es ambientación, no íconos que
+   compitan con el contenido. Sin imágenes ni peso de red. */
+[data-template='cowboy'] .invite-wall-section::before,
+[data-template='cowboy'] .invite-wall-section::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  width: 56px;
+  height: 56px;
+  opacity: .08;
+  background-color: var(--invite-text-muted);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  pointer-events: none;
+}
+[data-template='cowboy'] .invite-wall-section::before {
+  left: 0;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 100'%3E%3Crect x='14' y='20' width='12' height='80' rx='6'/%3E%3Crect x='2' y='35' width='12' height='30' rx='6'/%3E%3Crect x='26' y='45' width='12' height='25' rx='6'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 100'%3E%3Crect x='14' y='20' width='12' height='80' rx='6'/%3E%3Crect x='2' y='35' width='12' height='30' rx='6'/%3E%3Crect x='26' y='45' width='12' height='25' rx='6'/%3E%3C/svg%3E");
+}
+[data-template='cowboy'] .invite-wall-section::after {
+  right: 0;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 10C28 10 12 26 12 48c0 14 7 23 16 31l6-10c-7-6-12-13-12-21 0-16 12-28 28-28s28 12 28 28c0 8-5 15-12 21l6 10c9-8 16-17 16-31C88 26 72 10 50 10z'/%3E%3Ccircle cx='28' cy='84' r='4'/%3E%3Ccircle cx='72' cy='84' r='4'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 10C28 10 12 26 12 48c0 14 7 23 16 31l6-10c-7-6-12-13-12-21 0-16 12-28 28-28s28 12 28 28c0 8-5 15-12 21l6 10c9-8 16-17 16-31C88 26 72 10 50 10z'/%3E%3Ccircle cx='28' cy='84' r='4'/%3E%3Ccircle cx='72' cy='84' r='4'/%3E%3C/svg%3E");
+}
+
+/* Textura de papel sutil (≤ .06 de opacidad, no resta contraste al texto),
+   compartida por las notas publicadas y el formulario. */
+[data-template='cowboy'] .invite-wall-message,
+[data-template='cowboy'] .invite-wall-form {
+  position: relative;
+  background-image: repeating-linear-gradient(
+    100deg,
+    rgba(74, 44, 20, .05) 0 2px,
+    transparent 2px 7px
+  );
+}
+
+/* Notas publicadas: leve inclinación alternada — nunca tan recargado como
+   para afectar la lectura (1.5° es casi imperceptible salvo como textura).
+   El origen de la rotación queda en la chincheta (arriba al centro), para
+   que el "swing" del hover gire desde ahí, como si colgara de ella. */
+[data-template='cowboy'] .invite-wall-message {
+  transform: rotate(-1.5deg);
+  transform-origin: top center;
+}
+[data-template='cowboy'] .invite-wall-message:nth-child(even) {
+  transform: rotate(1.5deg);
+}
+
+/* Chincheta metálica: un solo ::before con relieve de luz/sombra, sin SVG. */
+[data-template='cowboy'] .invite-wall-message::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  border-radius: 50%;
+  background-image: radial-gradient(circle at 35% 30%, #fff8 0 2px, var(--invite-accent-dark) 2px 7px, rgba(0,0,0,.5) 7px);
+  box-shadow: 0 2px 2px rgba(0,0,0,.35);
+}
+
+/* Mensaje fijado: se endereza (es "el" mensaje del tablón), chincheta más
+   grande y más visible, y una etiqueta "Destacado" — para que se note
+   incluso escaneando rápido entre muchos mensajes, no solo un detalle de
+   borde que se pierde en una lista larga. */
+[data-template='cowboy'] .invite-wall-message[data-pinned='true'] {
+  transform: rotate(0deg);
+  box-shadow: 0 3px 8px rgba(40, 20, 5, .25);
+}
+[data-template='cowboy'] .invite-wall-message[data-pinned='true']::before {
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  top: -7px;
+  background-image: radial-gradient(circle at 35% 30%, #fff8 0 2.5px, #b91c1c 2.5px 9px, rgba(0,0,0,.5) 9px);
+  animation: invite-pin-glow 2.4s ease-in-out infinite;
+}
+[data-template='cowboy'] .invite-pin-label {
+  display: inline-flex;
+}
+
+/* Brillo sutil y lento de la chincheta del mensaje destacado — un solo
+   elemento de 14px animando box-shadow, costo de repintado insignificante. */
+@keyframes invite-pin-glow {
+  0%, 100% { box-shadow: 0 2px 2px rgba(0,0,0,.35), 0 0 0 0 rgba(220,38,38,0); }
+  50%      { box-shadow: 0 2px 2px rgba(0,0,0,.35), 0 0 6px 2px rgba(220,38,38,.55); }
+}
+
+/* Hover de escritorio: la nota normal se balancea, como si colgara de la
+   chincheta — el mensaje fijado NO se balancea (se mantiene "firme", es el
+   importante del tablón) y solo se eleva un poco. Animación scoped a
+   puntero fino: en touch no hay hover real y se evitaría dejarla "pegada". */
+@media (hover: hover) and (pointer: fine) {
+  [data-template='cowboy'] .invite-wall-message {
+    transition: box-shadow .15s ease;
+  }
+  [data-template='cowboy'] .invite-wall-message:hover {
+    box-shadow: 0 6px 14px rgba(40, 20, 5, .3);
+  }
+  [data-template='cowboy'] .invite-wall-message:not([data-pinned='true']):hover {
+    animation: invite-wall-swing-odd .6s ease-out;
+  }
+  [data-template='cowboy'] .invite-wall-message:nth-child(even):not([data-pinned='true']):hover {
+    animation: invite-wall-swing-even .6s ease-out;
+  }
+  [data-template='cowboy'] .invite-wall-message[data-pinned='true']:hover {
+    transform: translateY(-3px);
+  }
+}
+@keyframes invite-wall-swing-odd {
+  0%, 100% { transform: rotate(-1.5deg) translateY(0); }
+  20%      { transform: rotate(-4.5deg) translateY(-2px); }
+  45%      { transform: rotate(1deg) translateY(-3px); }
+  65%      { transform: rotate(-3deg) translateY(-2px); }
+  85%      { transform: rotate(-0.8deg) translateY(-1px); }
+}
+@keyframes invite-wall-swing-even {
+  0%, 100% { transform: rotate(1.5deg) translateY(0); }
+  20%      { transform: rotate(4.5deg) translateY(-2px); }
+  45%      { transform: rotate(-1deg) translateY(-3px); }
+  65%      { transform: rotate(3deg) translateY(-2px); }
+  85%      { transform: rotate(0.8deg) translateY(-1px); }
+}
+
+/* Formulario: una nota en blanco que todavía no se clavó al tablón — borde
+   punteado (convención visual de "borrador") + chincheta solo delineada
+   (sugiere dónde va a ir, no que ya esté puesta) + sin inclinación, para que
+   escribir siga siendo cómodo y prolijo. */
+[data-template='cowboy'] .invite-wall-form {
+  border-style: dashed;
+}
+[data-template='cowboy'] .invite-wall-form::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--invite-text-muted);
+  background: var(--invite-page-bg);
+}
+
+/* ── Insignias estilo credencial de sheriff ────────────────────────
+   Doble filete (mismo recurso que el marco de "formal") + un realce
+   embebido para que se sienta una credencial oficial troquelada — sin
+   inclinación: la idea es transmitir confianza, no un sello informal. */
+[data-template='cowboy'] .invite-badge-positive,
+[data-template='cowboy'] .invite-badge-icon {
+  box-shadow:
+    0 0 0 2px var(--invite-surface),
+    0 0 0 3px var(--invite-accent),
+    0 0 0 5px var(--invite-surface),
+    0 0 0 6px var(--invite-accent-dark),
+    inset 0 1px 0 rgba(255,255,255,.25),
+    inset 0 -1px 0 rgba(0,0,0,.15);
+}
+[data-template='cowboy'] .invite-badge-positive {
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+[data-template='cowboy'] .invite-badge-icon {
+  display: inline-flex;
+  border-radius: 50%;
+  padding: .6rem;
+}
+
+/* ── Vaquera: dashboard del organizador ─────────────────────────────
+   Solo se activa cuando EventDetail.tsx envuelve su contenido en
+   InvitationThemeRoot (evento con templateId === 'cowboy'). Re-pinta las
+   clases de Tailwind que el dashboard YA usa (bg-white, border-gray-*,
+   text-gray-*, bg-primary, text-primary) en vez de tocar GuestList.tsx,
+   EventAnalytics.tsx, GuestAddForm.tsx, EditEventForm.tsx, ConfirmDialog.tsx
+   ni PlanBadge.tsx — ningún componente de ese árbol necesita saber que
+   existe un tema. Esto funciona porque esta hoja de estilos no usa
+   @layer: cualquier CSS sin capa le gana a las utilidades de Tailwind
+   (que sí viven en @layer utilities) sin importar especificidad.
+
+   Las clases bg-white/bg-gray-50/bg-gray-100/border-gray-100..700 SÍ tienen
+   un override de modo oscuro compitiendo en index.css (algunos con
+   !important) — ahí se agrega el prefijo ".dark" + "!important" para
+   ganar esa pelea puntual, igual que ya se resolvió para los inputs del
+   muro. Las clases de la familia "primary" no tienen ningún override
+   compitiendo, así que no necesitan ese refuerzo. Los colores semánticos
+   (rojo/verde/ámbar de error, éxito, advertencia) no se tocan — mismo
+   criterio de toda la invitación. */
+.dark [data-template='cowboy'] .bg-white {
+  background-color: var(--invite-surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.dark [data-template='cowboy'] .bg-gray-50,
+.dark [data-template='cowboy'] .bg-gray-100 {
+  background-color: var(--invite-accent-soft) !important;
+}
+.dark [data-template='cowboy'] .border-gray-100,
+.dark [data-template='cowboy'] .border-gray-200,
+.dark [data-template='cowboy'] .border-gray-300,
+.dark [data-template='cowboy'] .border-gray-400,
+.dark [data-template='cowboy'] .border-gray-700 {
+  border-color: var(--invite-border) !important;
+}
+
+/* Botones secundarios sin relleno ("Muro", "Reportes", "Copiar link" en
+   EventDetail.tsx, y cualquier botón outline equivalente en EventWall.tsx/
+   Reports.tsx una vez envueltos en el tema): hoy son solo un borde
+   (border-gray-300) sin fondo propio ni color de texto explícito — heredan
+   el texto casi blanco de toda la app, casi invisibles sobre el fondo claro
+   de madera. El :not() los distingue de los campos de formulario (que ya
+   tienen su propio tratamiento) sin agregar ninguna clase nueva a cada
+   botón. Pasan a leerse como una placa/cartel propio: relleno + texto
+   explícito + borde en el acento en vez del tono neutro de los paneles. */
+.dark [data-template='cowboy'] .border-gray-300:not(input):not(textarea):not(select),
+.dark [data-template='cowboy'] .border-gray-600:not(input):not(textarea):not(select) {
+  background-color: var(--invite-surface) !important;
+  color: var(--invite-text) !important;
+  border-width: 2px !important;
+  border-color: var(--invite-accent) !important;
+}
+[data-template='cowboy'] .border-gray-300:not(input):not(textarea):not(select):hover,
+[data-template='cowboy'] .border-gray-600:not(input):not(textarea):not(select):hover {
+  background-color: var(--invite-accent-soft) !important;
+}
+
+[data-template='cowboy'] .text-gray-900,
+[data-template='cowboy'] .text-gray-700 {
+  color: var(--invite-text);
+}
+[data-template='cowboy'] .text-gray-600,
+[data-template='cowboy'] .text-gray-500,
+[data-template='cowboy'] .text-gray-400,
+[data-template='cowboy'] .text-gray-300 {
+  color: var(--invite-text-muted);
+}
+[data-template='cowboy'] .text-primary {
+  color: var(--invite-accent);
+}
+/* Avatar sin foto de EventWall.tsx (no reutiliza el Avatar ya tematizado de
+   WallSection.tsx) — el modificador de opacidad de Tailwind genera una
+   clase con nombre propio, no la cubre el selector ".bg-primary" de abajo. */
+[data-template='cowboy'] .bg-primary\/20 {
+  background-color: var(--invite-accent-soft);
+}
+[data-template='cowboy'] .bg-primary {
+  background-color: var(--invite-accent);
+  /* El glow neón rosa (index.css ".bg-primary") es parte de la identidad
+     visual base de PaseLink — no del cuero/madera de vaquera. */
+  box-shadow: var(--invite-shadow);
+}
+[data-template='cowboy'] .bg-primary:hover {
+  filter: none;
+  box-shadow: var(--invite-shadow);
+}
+[data-template='cowboy'] .hover\:bg-primary-dark:hover {
+  background-color: var(--invite-accent-dark);
+}
+/* El foco de los inputs (búsqueda de invitados, email de co-organizador,
+   etc.) ya queda cubierto por la regla genérica
+   ".dark [data-template] input:focus" agregada en index.css en una vuelta
+   anterior — no hace falta repetirla acá. */
+
+/* Tipografía: mismo criterio que la invitación (Rye en encabezados, serif
+   legible en el resto — ver el bloque de tipografía de vaquera, arriba). */
+[data-template='cowboy'] h2 {
+  font-family: 'Rye', Georgia, serif;
+  letter-spacing: .03em;
+}
+
+/* Tarjetas de métricas: "ficha de rancho", no cartel roto — prioriza
+   legibilidad profesional sobre el efecto Wanted. Textura de papel sutil
+   (mismo recurso que las notas del muro) + borde superior en el acento +
+   el número con un leve relieve. */
+[data-template='cowboy'] .invite-stat-card {
+  position: relative;
+  background-image: repeating-linear-gradient(
+    100deg,
+    rgba(74, 44, 20, .05) 0 2px,
+    transparent 2px 7px
+  );
+}
+/* Misma especificidad que el override de .border-gray-200 de arriba (que
+   también es !important) — sin el prefijo ".dark" perdería ese empate y el
+   borde superior quedaría en --invite-border en vez de --invite-accent. */
+.dark [data-template='cowboy'] .invite-stat-card {
+  border-top-width: 3px !important;
+  border-top-style: solid !important;
+  border-top-color: var(--invite-accent) !important;
+}
+[data-template='cowboy'] .invite-stat-card p:first-of-type {
+  font-family: 'Rye', Georgia, serif;
+  text-shadow: 0 1px 0 rgba(255,255,255,.4);
 }
 
 /* ── Boda: floral disperso, cálido ───────────────────────────────── */

@@ -23,7 +23,7 @@ export function EventMap({ location, mapsUrl }: Props) {
     <div className="mt-4 space-y-3">
       {showMap && (
         <div
-          className="overflow-hidden rounded-xl border transition-all duration-500"
+          className="invite-map-frame overflow-hidden rounded-xl border transition-all duration-500"
           style={{ height: mapLoaded ? 220 : 0, opacity: mapLoaded ? 1 : 0, borderColor: 'var(--invite-border)' }}
         >
           <iframe

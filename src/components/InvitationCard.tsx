@@ -22,11 +22,11 @@ export function InvitationCard({ coverImage, coverAlt, children }: InvitationCar
         borderTopWidth: '4px',
       }}
     >
-      {coverImage && (
-        <div className="w-full h-36 overflow-hidden">
+      <div className="invite-cover w-full overflow-hidden">
+        {coverImage && (
           <img src={optimizedImageUrl(coverImage, 800)} alt={coverAlt || ''} loading="lazy" className="w-full h-full object-cover" />
-        </div>
-      )}
+        )}
+      </div>
       <div className="p-6">{children}</div>
     </div>
   )

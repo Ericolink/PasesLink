@@ -103,7 +103,7 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
   const canPost = user ? !isMinor : !!resolvedGuestName
 
   return (
-    <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
+    <div className="invite-wall-section relative mt-8 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
       <h2 className="text-lg font-bold mb-4 text-[var(--invite-text)]">Muro del evento</h2>
 
       {/* Age restriction notice */}
@@ -117,7 +117,7 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
       {canPost && (
         <form
           onSubmit={handlePost}
-          className="border p-4 mb-4 space-y-3 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
+          className="invite-wall-form border p-4 mb-4 space-y-3 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
           style={{ borderColor: 'var(--invite-border)' }}
         >
           <div className="flex gap-2 flex-wrap">
@@ -178,24 +178,35 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
           const disliked  = msg.dislikedBy.includes(token)
           return (
             <div key={msg.id}
-              className="border p-4 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
+              data-pinned={msg.pinned}
+              className="invite-wall-message border p-4 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
               style={{ borderColor: msg.pinned ? '#facc15' : 'var(--invite-border)' }}>
               <div className="flex items-start gap-2 mb-2">
                 <Avatar name={msg.authorName} photoURL={msg.authorPhotoURL} size={28} />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`flex items-center gap-1 text-xs rounded-full px-2 py-0.5 font-medium ${cfg.color}`}>
+                  {/* Sin flex-wrap a propósito: con un nombre muy largo, el
+                      badge de tipo y "Destacado" (tamaño fijo, shrink-0)
+                      nunca se aplastan ni saltan de línea — el nombre es lo
+                      único que cede espacio, con ellipsis prolijo en vez de
+                      un wrap tosco en pantallas angostas. */}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`shrink-0 flex items-center gap-1 text-xs rounded-full px-2 py-0.5 font-medium ${cfg.color}`}>
                       <cfg.Icon className="w-3 h-3" />
                       {cfg.label}
                     </span>
+                    {msg.pinned && (
+                      <span className="invite-pin-label hidden shrink-0 text-[10px] uppercase tracking-wide font-bold rounded-full px-2 py-0.5 bg-[var(--invite-accent)] text-white">
+                        Destacado
+                      </span>
+                    )}
                     {isOwnerMsg && isPremium
-                      ? <span className="inline-flex items-center gap-1 text-xs font-bold"
+                      ? <span className="min-w-0 inline-flex items-center gap-1 text-xs font-bold"
                           style={{ color: '#FAEF5D', textShadow: '0 0 8px rgba(250,239,93,.8)' }}>
-                          <IconCrown className="w-3 h-3" />{msg.authorName}
+                          <IconCrown className="w-3 h-3 shrink-0" /><span className="min-w-0 truncate">{msg.authorName}</span>
                         </span>
                       : isOwnerMsg
-                        ? <span className="text-xs font-bold text-[var(--invite-accent)]">{msg.authorName}</span>
-                        : <span className="text-xs font-semibold text-[var(--invite-text)]">{msg.authorName}</span>
+                        ? <span className="min-w-0 truncate text-xs font-bold text-[var(--invite-accent)]">{msg.authorName}</span>
+                        : <span className="min-w-0 truncate text-xs font-semibold text-[var(--invite-text)]">{msg.authorName}</span>
                     }
                   </div>
                 </div>
