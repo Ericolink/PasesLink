@@ -143,7 +143,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       onDone()
     } catch (err) {
       if (isNetworkError(err)) {
-        setSubmitError('Guardado localmente. Reintentando...')
+        setSubmitError('Guardado localmente. Reintentando…')
         setNetworkRetry(true)
       } else {
         setSubmitError('No pudimos guardar los cambios. Intenta de nuevo.')
@@ -178,8 +178,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       <h2 className="font-medium text-gray-900 dark:text-white">Editar evento</h2>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del evento</label>
+        <label htmlFor="edit-event-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del evento</label>
         <input
+          id="edit-event-name"
           type="text"
           required
           value={name}
@@ -190,27 +191,27 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
-          <input type="date" required value={date} onChange={(e) => setDate(e.target.value)}
+          <label htmlFor="edit-event-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
+          <input id="edit-event-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
-          <input type="text" required value={location} onChange={(e) => setLocation(e.target.value)}
+          <label htmlFor="edit-event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
+          <input id="edit-event-location" type="text" required value={location} onChange={(e) => setLocation(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+        <label htmlFor="edit-event-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
+        <textarea id="edit-event-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label htmlFor="edit-event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span>
         </label>
-        <input type="url" value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)}
+        <input id="edit-event-maps-url" type="url" value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)}
           placeholder="https://maps.google.com/maps?q=..."
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         <p className="text-xs text-gray-400 mt-1">
@@ -233,8 +234,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Personalización del pase</p>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Imagen de portada</label>
-          <input ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
+          <label htmlFor="edit-event-cover-image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Imagen de portada</label>
+          <input id="edit-event-cover-image" ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
           {coverImage ? (
             <div className="relative rounded-lg overflow-hidden h-28 bg-gray-100">
               <img src={optimizedImageUrl(coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-full object-cover" />
@@ -245,7 +246,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           ) : (
             <button type="button" onClick={openCoverPicker} disabled={coverUploading}
               className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-4 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
-              {coverUploading ? 'Subiendo...' : '+ Subir imagen de portada'}
+              {coverUploading ? 'Subiendo…' : '+ Subir imagen de portada'}
             </button>
           )}
           {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
@@ -253,16 +254,16 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
+            <label htmlFor="edit-event-accent-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
             <div className="flex items-center gap-2">
-              <input type="color" value={accentColor || getTemplate(templateId).vars.accent} onChange={(e) => setAccentColor(e.target.value)}
+              <input id="edit-event-accent-color" type="color" value={accentColor || getTemplate(templateId).vars.accent} onChange={(e) => setAccentColor(e.target.value)}
                 className="h-9 w-12 border border-gray-300 rounded-md cursor-pointer" />
               <span className="text-sm text-gray-500">{accentColor || `${getTemplate(templateId).vars.accent} (de la plantilla)`}</span>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mensaje de bienvenida</label>
-            <input type="text" value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)}
+            <label htmlFor="edit-event-welcome-message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mensaje de bienvenida</label>
+            <input id="edit-event-welcome-message" type="text" value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)}
               placeholder="¡Te esperamos!" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
         </div>
@@ -300,8 +301,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           ))}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Límite de invitados</label>
-          <input type="number" required min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)}
+          <label htmlFor="edit-event-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Límite de invitados</label>
+          <input id="edit-event-capacity" type="number" required min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)}
             placeholder="Ej: 200" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <p className="text-xs text-gray-400 mt-1">
             Total de personas permitidas (invitados + acompañantes).
@@ -328,8 +329,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio por persona</label>
+                <label htmlFor="edit-event-ticket-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio por persona</label>
                 <input
+                  id="edit-event-ticket-price"
                   type="number"
                   min="0"
                   step="0.01"
@@ -340,8 +342,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Moneda</label>
+                <label htmlFor="edit-event-currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Moneda</label>
                 <input
+                  id="edit-event-currency"
                   type="text"
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
@@ -351,8 +354,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instrucciones de pago</label>
+              <label htmlFor="edit-event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instrucciones de pago</label>
               <textarea
+                id="edit-event-payment-instructions"
                 value={paymentInstructions}
                 onChange={(e) => setPaymentInstructions(e.target.value)}
                 rows={3}
@@ -378,7 +382,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={saving || coverUploading}
           className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
-          {saving ? 'Guardando...' : 'Guardar cambios'}
+          {saving ? 'Guardando…' : 'Guardar cambios'}
         </button>
         <button type="button" onClick={onDone}
           className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors">

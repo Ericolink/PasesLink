@@ -129,14 +129,14 @@ export function Register() {
             disabled={checking}
             className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
           >
-            {checking ? 'Comprobando...' : 'Ya verifiqué mi correo'}
+            {checking ? 'Comprobando…' : 'Ya verifiqué mi correo'}
           </button>
           <button
             onClick={handleResend}
             disabled={resending}
             className="w-full border border-gray-300 rounded-md py-2 font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            {resending ? 'Enviando...' : 'Reenviar email'}
+            {resending ? 'Enviando…' : 'Reenviar email'}
           </button>
         </div>
         {import.meta.env.DEV && (
@@ -157,6 +157,7 @@ export function Register() {
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
+          aria-label="Elegir foto de perfil"
           className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-dashed border-gray-300 hover:border-primary transition-colors flex items-center justify-center bg-gray-100 dark:bg-gray-800"
         >
           {photoPreview
@@ -170,37 +171,37 @@ export function Register() {
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-            <input type="text" required value={firstName} onChange={(e) => setFirstName(e.target.value)}
+            <label htmlFor="register-first-name" className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+            <input id="register-first-name" type="text" required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
-            <input type="text" required value={lastName} onChange={(e) => setLastName(e.target.value)}
+            <label htmlFor="register-last-name" className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
+            <input id="register-last-name" type="text" required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de nacimiento *</label>
-          <input type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
+          <label htmlFor="register-birth-date" className="block text-sm font-medium text-gray-700 mb-1">Fecha de nacimiento *</label>
+          <input id="register-birth-date" type="date" required autoComplete="bday" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
             max={new Date().toISOString().split('T')[0]}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+          <label htmlFor="register-email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+          <input id="register-email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña *</label>
-          <input type="password" required minLength={PASSWORD_MIN_LENGTH} value={password} onChange={(e) => setPassword(e.target.value)}
+          <label htmlFor="register-password" className="block text-sm font-medium text-gray-700 mb-1">Contraseña *</label>
+          <input id="register-password" type="password" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={password} onChange={(e) => setPassword(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
         </div>
         {errorInfo && <AuthErrorMessage info={errorInfo} />}
         <button type="submit" disabled={loading}
           className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
-          {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+          {loading ? 'Creando cuenta…' : 'Crear cuenta'}
         </button>
       </form>
 

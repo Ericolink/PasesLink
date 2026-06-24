@@ -131,7 +131,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {loading && <p className="text-gray-500 text-sm">Cargando eventos...</p>}
+      {loading && <p className="text-gray-500 text-sm">Cargando eventos…</p>}
 
       {/* Empty state */}
       {!loading && events.length === 0 && (
@@ -207,7 +207,7 @@ export function Dashboard() {
         danger
         title={`Eliminar "${eventToDelete?.name ?? ''}"`}
         message="Se borrarán todos los invitados y el historial de check-ins. Esta acción no se puede deshacer."
-        confirmLabel={actionLoading ? 'Eliminando...' : 'Sí, eliminar'}
+        confirmLabel={actionLoading ? 'Eliminando…' : 'Sí, eliminar'}
         cancelLabel="Cancelar"
         onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
         onCancel={() => setConfirmDeleteId(null)}
@@ -351,7 +351,7 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
                 color: '#FF004D',
               }}
             >
-              {isLoading ? '...' : 'Eliminar'}
+              {isLoading ? '…' : 'Eliminar'}
             </button>
           </div>
         </div>

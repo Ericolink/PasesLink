@@ -42,7 +42,7 @@ export const EventAnalytics = memo(function EventAnalytics({ guests, loading = f
           <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Premium</span>
         </div>
         {loading
-          ? <LoadingInline label="Cargando asistentes..." />
+          ? <LoadingInline label="Cargando asistentes…" />
           : <p className="text-sm text-gray-400 mt-3 text-center py-4">Aún no hay check-ins registrados.</p>}
       </div>
     )

@@ -44,7 +44,7 @@ export function Reports() {
   }, [eventId])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
+  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
   if (!event) return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
   if (user && event.ownerId !== user.uid) {
     return <p className="text-center text-gray-500 mt-16">No tienes acceso a este evento.</p>
@@ -117,7 +117,7 @@ export function Reports() {
       <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
         <h2 className="font-medium text-gray-900 mb-3">Llegadas por hora</h2>
         {checkinsLoading ? (
-          <LoadingInline label="Cargando asistentes..." />
+          <LoadingInline label="Cargando asistentes…" />
         ) : hourEntries.length === 0 ? (
           <p className="text-sm text-gray-500">Aún no hay check-ins registrados.</p>
         ) : (
@@ -145,7 +145,7 @@ export function Reports() {
             Exportar CSV
           </button>
         </div>
-        {guestsLoading && <LoadingInline label="Cargando asistentes..." />}
+        {guestsLoading && <LoadingInline label="Cargando asistentes…" />}
         <div className="divide-y divide-gray-100">
           {!guestsLoading && guests.map((guest) => (
             <div key={guest.id} className="flex items-center justify-between py-2 text-sm gap-2">
@@ -172,7 +172,7 @@ export function Reports() {
       <div className="border border-gray-200 rounded-lg bg-white p-4">
         <h2 className="font-medium text-gray-900 mb-3">Línea de tiempo</h2>
         {checkinsLoading ? (
-          <LoadingInline label="Cargando asistentes..." />
+          <LoadingInline label="Cargando asistentes…" />
         ) : checkins.length === 0 ? (
           <p className="text-sm text-gray-500">Aún no hay check-ins registrados.</p>
         ) : (

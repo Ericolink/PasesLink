@@ -57,7 +57,7 @@ export function ForgotPassword() {
               disabled={loading}
               className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
             >
-              {loading ? 'Enviando...' : 'Enviar enlace'}
+              {loading ? 'Enviando…' : 'Enviar enlace'}
             </button>
           </form>
         </>

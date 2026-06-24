@@ -129,7 +129,7 @@ export function EventDetail() {
     [guests, search],
   )
 
-  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
+  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
   if (error) return <p className="text-center text-red-500 mt-16">{error}</p>
   if (!event) return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
 
@@ -326,7 +326,7 @@ export function EventDetail() {
             <h1 className="text-2xl font-semibold text-gray-900 break-words min-w-0">{event.name}</h1>
             <span className="shrink-0"><PlanBadge plan={event.plan} /></span>
             {isOwner && (
-              <button onClick={() => setEditingEvent((v) => !v)} className="shrink-0 text-gray-400 hover:text-primary transition-colors" title="Editar evento">
+              <button onClick={() => setEditingEvent((v) => !v)} className="shrink-0 text-gray-400 hover:text-primary transition-colors" title="Editar evento" aria-label="Editar evento">
                 <IconEdit className="w-4 h-4" />
               </button>
             )}
@@ -433,7 +433,7 @@ export function EventDetail() {
                     disabled={promotingId === entry.id}
                     className="text-xs shrink-0 bg-primary text-white rounded-md px-3 py-1.5 font-medium hover:opacity-90 disabled:opacity-50"
                   >
-                    {promotingId === entry.id ? 'Promoviendo...' : 'Promover'}
+                    {promotingId === entry.id ? 'Promoviendo…' : 'Promover'}
                   </button>
                 ) : (
                   <span className="text-xs shrink-0 text-green-600 font-medium">Promovido ✓</span>
@@ -484,7 +484,7 @@ export function EventDetail() {
         {exportPdfError && <p className="text-xs text-red-500 mb-2">{exportPdfError}</p>}
         {guests.length > 0 && (
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o apellido..."
+            placeholder="Buscar por nombre o apellido…"
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary" />
         )}
         <GuestList
@@ -510,7 +510,7 @@ export function EventDetail() {
           </p>
           <button onClick={handleSendCheckinSummary} disabled={summarySending}
             className="text-sm bg-primary text-white rounded-md px-4 py-2 font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
-            {summarySending ? 'Enviando...' : 'Enviar resumen de check-ins'}
+            {summarySending ? 'Enviando…' : 'Enviar resumen de check-ins'}
           </button>
         </div>
       )}
@@ -529,7 +529,7 @@ export function EventDetail() {
               {Object.entries(coOrgsMap).map(([uid, email]) => (
                 <div key={uid} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
                   <span className="text-sm text-gray-700 dark:text-gray-300">{email}</span>
-                  <button onClick={() => handleRemoveCoOrg(uid)} className="text-gray-400 hover:text-red-500 transition-colors">
+                  <button onClick={() => handleRemoveCoOrg(uid)} aria-label={`Quitar a ${email} como co-organizador`} className="text-gray-400 hover:text-red-500 transition-colors">
                     <IconX className="w-4 h-4" />
                   </button>
                 </div>
@@ -547,7 +547,7 @@ export function EventDetail() {
             />
             <button type="submit" disabled={coOrgLoading || !coOrgEmail.trim()}
               className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50">
-              {coOrgLoading ? '...' : 'Agregar'}
+              {coOrgLoading ? '…' : 'Agregar'}
             </button>
           </form>
           {coOrgError && <p className="text-xs text-red-500 mt-1">{coOrgError}</p>}
@@ -588,7 +588,7 @@ export function EventDetail() {
             </p>
             <button onClick={() => setConfirmDelete(true)} disabled={deleting}
               className="text-sm border border-red-300 text-red-600 rounded-md px-3 py-1.5 font-medium hover:bg-red-50 disabled:opacity-50">
-              {deleting ? 'Eliminando...' : 'Eliminar evento definitivamente'}
+              {deleting ? 'Eliminando…' : 'Eliminar evento definitivamente'}
             </button>
           </div>
         </>
@@ -599,7 +599,7 @@ export function EventDetail() {
         danger
         title={`Eliminar "${event.name}"`}
         message="Se borrarán todos los invitados y el historial de check-ins. Esta acción no se puede deshacer."
-        confirmLabel={deleting ? 'Eliminando...' : 'Sí, eliminar'}
+        confirmLabel={deleting ? 'Eliminando…' : 'Sí, eliminar'}
         cancelLabel="Cancelar"
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}

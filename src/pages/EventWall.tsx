@@ -304,7 +304,7 @@ export function EventWall() {
               ref={textareaRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}...`}
+              placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
               rows={2}
               maxLength={WALL_TEXT_MAX}
               className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
@@ -320,14 +320,14 @@ export function EventWall() {
               disabled={posting || !text.trim()}
               className="bg-primary text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-40"
             >
-              {posting ? 'Publicando...' : 'Publicar'}
+              {posting ? 'Publicando…' : 'Publicar'}
             </button>
           </div>
           {postError && <p className="text-xs text-red-500">{postError}</p>}
         </form>
       )}
 
-      {loading && <p className="text-center text-gray-400 text-sm">Cargando mensajes...</p>}
+      {loading && <p className="text-center text-gray-400 text-sm">Cargando mensajes…</p>}
 
       {wallError && (
         <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2 mb-4">
@@ -378,6 +378,7 @@ export function EventWall() {
                     <button
                       onClick={() => handlePin(msg)}
                       title={msg.pinned ? 'Quitar destacado' : 'Destacar mensaje'}
+                      aria-label={msg.pinned ? 'Quitar destacado' : 'Destacar mensaje'}
                       className={`text-xs transition-colors ${msg.pinned ? 'text-yellow-500 hover:text-yellow-400' : 'text-gray-400 hover:text-yellow-500'}`}
                     >
                       <IconPin className="w-3.5 h-3.5" />
@@ -445,7 +446,7 @@ export function EventWall() {
                     type="text"
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Escribe tu respuesta..."
+                    placeholder="Escribe tu respuesta…"
                     maxLength={WALL_TEXT_MAX}
                     autoFocus
                     className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
@@ -454,7 +455,7 @@ export function EventWall() {
                   <button onClick={() => handleReply(msg)} className="bg-primary text-white rounded-md px-3 py-1.5 text-xs font-medium">
                     Enviar
                   </button>
-                  <button onClick={() => setReplyingTo(null)} className="flex items-center text-gray-400 hover:text-gray-600">
+                  <button onClick={() => setReplyingTo(null)} aria-label="Cancelar respuesta" className="flex items-center text-gray-400 hover:text-gray-600">
                     <IconX className="w-4 h-4" />
                   </button>
                 </div>
@@ -472,7 +473,7 @@ export function EventWall() {
             disabled={loadingOlder}
             className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-50"
           >
-            {loadingOlder ? 'Cargando...' : 'Cargar mensajes anteriores'}
+            {loadingOlder ? 'Cargando…' : 'Cargar mensajes anteriores'}
           </button>
         </div>
       )}

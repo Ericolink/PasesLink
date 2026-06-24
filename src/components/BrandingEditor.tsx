@@ -68,7 +68,7 @@ export function BrandingEditor({
           disabled={saving}
           className="text-sm bg-primary text-white rounded-md px-3 py-1.5 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
         >
-          {saving ? 'Guardando...' : 'Guardar personalización'}
+          {saving ? 'Guardando…' : 'Guardar personalización'}
         </button>
         {saved && <span className="text-sm text-green-600">Guardado</span>}
       </div>

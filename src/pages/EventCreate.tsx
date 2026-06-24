@@ -152,7 +152,7 @@ export function EventCreate() {
       setCreatedEventId(eventId)
     } catch (err) {
       if (isNetworkError(err)) {
-        setError('Guardado localmente. Reintentando...')
+        setError('Guardado localmente. Reintentando…')
         setNetworkRetry(true)
       } else {
         setError('No pudimos crear el evento. Intenta de nuevo.')
@@ -212,8 +212,9 @@ export function EventCreate() {
 
         {/* Datos del evento */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del evento</label>
+          <label htmlFor="event-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del evento</label>
           <input
+            id="event-name"
             type="text"
             required
             value={name}
@@ -224,8 +225,9 @@ export function EventCreate() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
+            <label htmlFor="event-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
             <input
+              id="event-date"
               type="date"
               required
               value={date}
@@ -234,8 +236,9 @@ export function EventCreate() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
+            <label htmlFor="event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
             <input
+              id="event-location"
               type="text"
               required
               value={location}
@@ -246,8 +249,9 @@ export function EventCreate() {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
+          <label htmlFor="event-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
           <textarea
+            id="event-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
@@ -255,10 +259,11 @@ export function EventCreate() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label htmlFor="event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span>
           </label>
           <input
+            id="event-maps-url"
             type="url"
             value={mapsUrl}
             onChange={(e) => setMapsUrl(e.target.value)}
@@ -288,8 +293,8 @@ export function EventCreate() {
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Personalización del pase</h2>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Imagen de portada</label>
-            <input ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
+            <label htmlFor="event-cover-image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Imagen de portada</label>
+            <input id="event-cover-image" ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
             {coverImage ? (
               <div className="relative rounded-lg overflow-hidden h-32 bg-gray-100">
                 <img src={optimizedImageUrl(coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-full object-cover" />
@@ -304,7 +309,7 @@ export function EventCreate() {
                 disabled={coverUploading}
                 className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-6 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
               >
-                {coverUploading ? 'Subiendo...' : '+ Subir imagen de portada'}
+                {coverUploading ? 'Subiendo…' : '+ Subir imagen de portada'}
               </button>
             )}
             {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
@@ -312,9 +317,10 @@ export function EventCreate() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
+              <label htmlFor="event-accent-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
               <div className="flex items-center gap-2">
                 <input
+                  id="event-accent-color"
                   type="color"
                   value={accentColor || getTemplate(templateId).vars.accent}
                   onChange={(e) => setAccentColor(e.target.value)}
@@ -326,8 +332,9 @@ export function EventCreate() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mensaje de bienvenida</label>
+              <label htmlFor="event-welcome-message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mensaje de bienvenida</label>
               <input
+                id="event-welcome-message"
                 type="text"
                 value={welcomeMessage}
                 onChange={(e) => setWelcomeMessage(e.target.value)}
@@ -379,10 +386,11 @@ export function EventCreate() {
             ))}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor="event-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Límite de invitados
             </label>
             <input
+              id="event-capacity"
               type="number"
               required
               min="1"
@@ -419,8 +427,9 @@ export function EventCreate() {
               </p>
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio por persona</label>
+                  <label htmlFor="event-ticket-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio por persona</label>
                   <input
+                    id="event-ticket-price"
                     type="number"
                     min="0"
                     step="0.01"
@@ -431,8 +440,9 @@ export function EventCreate() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Moneda</label>
+                  <label htmlFor="event-currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Moneda</label>
                   <input
+                    id="event-currency"
                     type="text"
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
@@ -442,8 +452,9 @@ export function EventCreate() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instrucciones de pago</label>
+                <label htmlFor="event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instrucciones de pago</label>
                 <textarea
+                  id="event-payment-instructions"
                   value={paymentInstructions}
                   onChange={(e) => setPaymentInstructions(e.target.value)}
                   rows={3}
@@ -477,7 +488,7 @@ export function EventCreate() {
           disabled={loading || coverUploading}
           className="w-full bg-primary text-white rounded-md py-2.5 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-md"
         >
-          {loading ? 'Creando...' : 'Crear evento'}
+          {loading ? 'Creando…' : 'Crear evento'}
         </button>
       </form>
     </div>

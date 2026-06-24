@@ -57,26 +57,30 @@ function EditNameModal({
       <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 animate-fade-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">Editar nombre</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} aria-label="Cerrar" className="text-gray-400 hover:text-white transition-colors">
             <IconX className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Nombre *</label>
+            <label htmlFor="edit-name-first" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Nombre *</label>
             <input
+              id="edit-name-first"
               type="text"
               required
               autoFocus
+              autoComplete="given-name"
               value={first}
               onChange={(e) => setFirst(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Apellido</label>
+            <label htmlFor="edit-name-last" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Apellido</label>
             <input
+              id="edit-name-last"
               type="text"
+              autoComplete="family-name"
               value={last}
               onChange={(e) => setLast(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
@@ -412,8 +416,10 @@ export function Profile() {
                 <input
                   type="password"
                   required
+                  autoComplete="new-password"
                   minLength={PASSWORD_MIN_LENGTH}
                   placeholder="Nueva contraseña"
+                  aria-label="Nueva contraseña"
                   value={newLinkPassword}
                   onChange={(e) => setNewLinkPassword(e.target.value)}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
@@ -422,8 +428,10 @@ export function Profile() {
                 <input
                   type="password"
                   required
+                  autoComplete="new-password"
                   minLength={PASSWORD_MIN_LENGTH}
                   placeholder="Confirmar contraseña"
+                  aria-label="Confirmar contraseña"
                   value={confirmLinkPassword}
                   onChange={(e) => setConfirmLinkPassword(e.target.value)}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
@@ -489,19 +497,19 @@ export function Profile() {
           <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Cambiar contraseña</h2>
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña actual</label>
-              <input type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+              <label htmlFor="change-password-current" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña actual</label>
+              <input id="change-password-current" type="password" required autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
-              <input type="password" required minLength={PASSWORD_MIN_LENGTH} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+              <label htmlFor="change-password-new" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
+              <input id="change-password-new" type="password" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
               <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
-              <input type="password" required minLength={PASSWORD_MIN_LENGTH} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+              <label htmlFor="change-password-confirm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
+              <input id="change-password-confirm" type="password" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             {passwordError   && <p className="text-sm text-red-500">{passwordError}</p>}

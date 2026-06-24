@@ -56,7 +56,7 @@ export function ResetPassword() {
     <AuthLayout>
       <h1 className="text-2xl font-semibold text-gray-900 mb-2 text-center">Restablecer contraseña</h1>
 
-      {status === 'checking' && <p className="text-sm text-gray-500 text-center mt-6">Verificando enlace...</p>}
+      {status === 'checking' && <p className="text-sm text-gray-500 text-center mt-6">Verificando enlace…</p>}
 
       {status === 'invalid' && (
         <div className="text-center py-4">
@@ -77,10 +77,12 @@ export function ResetPassword() {
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña</label>
+              <label htmlFor="reset-password" className="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña</label>
               <input
+                id="reset-password"
                 type="password"
                 required
+                autoComplete="new-password"
                 minLength={PASSWORD_MIN_LENGTH}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -89,10 +91,12 @@ export function ResetPassword() {
               <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+              <label htmlFor="reset-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
               <input
+                id="reset-confirm-password"
                 type="password"
                 required
+                autoComplete="new-password"
                 minLength={PASSWORD_MIN_LENGTH}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -105,7 +109,7 @@ export function ResetPassword() {
               disabled={loading}
               className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
             >
-              {loading ? 'Guardando...' : 'Restablecer contraseña'}
+              {loading ? 'Guardando…' : 'Restablecer contraseña'}
             </button>
           </form>
         </>

@@ -31,7 +31,7 @@ const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => (
 const MyEvents        = lazy(() => import('./pages/MyEvents').then((m) => ({ default: m.MyEvents })))
 
 function PageFallback() {
-  return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando...</div>
+  return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando…</div>
 }
 
 function App() {

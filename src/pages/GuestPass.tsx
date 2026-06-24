@@ -85,7 +85,7 @@ function GuestPassInner() {
       .finally(() => setLoading(false))
   }, [eventId, qrToken, user, authLoading])
 
-  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
+  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
   if (error || !event || !guest || !eventId || !qrToken) {
     return <p className="text-center text-gray-500 mt-16">Pase no encontrado.</p>
   }
@@ -173,7 +173,9 @@ function GuestPassInner() {
           {checkInState !== 'done' && (
             <div className="flex justify-center my-6">
               <div className="p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
-                <QRCodeCanvas value={passUrl} size={180} marginSize={2} />
+                <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40">
+                  <QRCodeCanvas value={passUrl} size={240} marginSize={2} className="w-full h-full" />
+                </div>
               </div>
             </div>
           )}
@@ -207,7 +209,7 @@ function GuestPassInner() {
                 disabled={checkInState === 'loading' || (event.requiresPayment && guest.paymentStatus !== 'paid')}
                 className="w-full text-white rounded-xl py-4 text-lg font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 bg-[var(--invite-accent)]"
               >
-                {checkInState === 'loading' ? 'Registrando...' : 'Registrar entrada'}
+                {checkInState === 'loading' ? 'Registrando…' : 'Registrar entrada'}
               </button>
             )}
           </div>
@@ -284,7 +286,9 @@ function GuestPassInner() {
 
             <div className="flex justify-center my-6" ref={qrWrapperRef}>
               <div className="p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
-                <QRCodeCanvas value={passUrl} size={220} marginSize={2} />
+                <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40">
+                  <QRCodeCanvas value={passUrl} size={240} marginSize={2} className="w-full h-full" />
+                </div>
               </div>
             </div>
 

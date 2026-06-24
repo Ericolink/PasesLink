@@ -141,7 +141,7 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
               ref={textareaRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}...`}
+              placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
               rows={2}
               maxLength={WALL_TEXT_MAX}
               className="flex-1 border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 bg-transparent text-[var(--invite-text)] focus:ring-[var(--invite-accent)]"
@@ -153,14 +153,14 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
             <span className="text-xs text-[var(--invite-text-muted)]">{text.length}/{WALL_TEXT_MAX}</span>
             <button type="submit" disabled={posting || !text.trim()}
               className="text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 bg-[var(--invite-accent)]">
-              {posting ? 'Publicando...' : 'Publicar'}
+              {posting ? 'Publicando…' : 'Publicar'}
             </button>
           </div>
           {postError && <p className="text-xs text-red-500">{postError}</p>}
         </form>
       )}
 
-      {loading && <p className="text-center text-sm py-4 text-[var(--invite-text-muted)]">Cargando mensajes...</p>}
+      {loading && <p className="text-center text-sm py-4 text-[var(--invite-text-muted)]">Cargando mensajes…</p>}
       {wallError && (
         <p className="text-xs text-red-500 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2 mb-3">
           {wallError}
@@ -216,11 +216,13 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
               <p className="text-sm mb-3 ml-9 text-[var(--invite-text)]">{msg.text}</p>
               <div className="flex items-center gap-3 ml-9">
                 <button onClick={() => handleLike(msg)}
+                  aria-label="Me gusta"
                   className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'font-medium text-[var(--invite-accent)]' : 'text-gray-400 hover:text-[var(--invite-accent)]'}`}>
                   <IconThumbsUp className="w-3.5 h-3.5" />
                   {msg.likedBy.length > 0 && <span>{msg.likedBy.length}</span>}
                 </button>
                 <button onClick={() => handleDislike(msg)}
+                  aria-label="No me gusta"
                   className={`flex items-center gap-1 text-xs transition-colors ${disliked ? 'text-red-500 font-medium' : 'text-gray-400 hover:text-red-400'}`}>
                   <IconThumbsDown className="w-3.5 h-3.5" />
                   {msg.dislikedBy.length > 0 && <span>{msg.dislikedBy.length}</span>}

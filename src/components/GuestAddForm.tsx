@@ -164,7 +164,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
             disabled={loading}
             className="w-full bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
           >
-            {loading ? 'Agregando...' : 'Agregar invitado'}
+            {loading ? 'Agregando…' : 'Agregar invitado'}
           </button>
         </form>
       ) : (
@@ -181,7 +181,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
             disabled={loading}
             className="w-full bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
           >
-            {loading ? 'Agregando...' : 'Agregar lista de invitados'}
+            {loading ? 'Agregando…' : 'Agregar lista de invitados'}
           </button>
         </form>
       )}

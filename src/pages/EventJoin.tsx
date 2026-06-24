@@ -246,7 +246,7 @@ export function EventJoin() {
                 {wlError && <p className="text-xs text-red-500">{wlError}</p>}
                 <button type="submit" disabled={wlSubmitting}
                   className="w-full text-white rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]">
-                  {wlSubmitting ? 'Anotando...' : 'Unirme a la lista'}
+                  {wlSubmitting ? 'Anotando…' : 'Unirme a la lista'}
                 </button>
               </form>
             </InvitationCard>
@@ -407,7 +407,7 @@ export function EventJoin() {
               disabled={state === 'submitting'}
               className="w-full text-white rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
             >
-              {state === 'submitting' ? 'Registrando...' : 'Obtener mi pase'}
+              {state === 'submitting' ? 'Registrando…' : 'Obtener mi pase'}
             </button>
           </form>
         </InvitationCard>

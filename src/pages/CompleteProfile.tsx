@@ -67,7 +67,7 @@ export function CompleteProfile() {
 
         {/* Avatar */}
         <div className="flex justify-center mb-5">
-          <button type="button" onClick={() => fileRef.current?.click()}
+          <button type="button" onClick={() => fileRef.current?.click()} aria-label="Elegir foto de perfil"
             className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-dashed border-gray-300 hover:border-primary transition-colors bg-gray-100 dark:bg-gray-800">
             {photoPreview
               ? <img src={photoPreview} alt="" className="w-full h-full object-cover" />
@@ -80,26 +80,26 @@ export function CompleteProfile() {
         <form onSubmit={handleSubmit} className="space-y-3 bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
-              <input type="text" required value={firstName} onChange={(e) => setFirstName(e.target.value)}
+              <label htmlFor="complete-profile-first-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
+              <input id="complete-profile-first-name" type="text" required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido *</label>
-              <input type="text" required value={lastName} onChange={(e) => setLastName(e.target.value)}
+              <label htmlFor="complete-profile-last-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido *</label>
+              <input id="complete-profile-last-name" type="text" required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha de nacimiento *</label>
-            <input type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
+            <label htmlFor="complete-profile-birth-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha de nacimiento *</label>
+            <input id="complete-profile-birth-date" type="date" required autoComplete="bday" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
               max={new Date().toISOString().split('T')[0]}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
           {errorInfo && <AuthErrorMessage info={errorInfo} />}
           <button type="submit" disabled={loading}
             className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
-            {loading ? 'Guardando...' : 'Guardar y entrar'}
+            {loading ? 'Guardando…' : 'Guardar y entrar'}
           </button>
         </form>
       </div>

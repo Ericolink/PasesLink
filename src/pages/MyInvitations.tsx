@@ -35,7 +35,7 @@ export function MyInvitations() {
     <div className="max-w-lg mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Mis invitaciones</h1>
 
-      {loading && <p className="text-gray-400 text-center py-8">Cargando...</p>}
+      {loading && <p className="text-gray-400 text-center py-8">Cargando…</p>}
 
       {!loading && invitations.length === 0 && (
         <div className="text-center py-16">

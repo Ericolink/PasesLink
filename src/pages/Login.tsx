@@ -52,10 +52,12 @@ export function Login() {
       <h1 className="text-2xl font-semibold text-gray-900 mb-6 text-center">Iniciar sesión</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
           <input
+            id="login-email"
             type="email"
             required
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -63,14 +65,16 @@ export function Login() {
         </div>
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-gray-700">Contraseña</label>
+            <label htmlFor="login-password" className="block text-sm font-medium text-gray-700">Contraseña</label>
             <Link to="/forgot-password" className="text-xs text-primary font-medium">
               ¿Olvidaste tu contraseña?
             </Link>
           </div>
           <input
+            id="login-password"
             type="password"
             required
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -82,7 +86,7 @@ export function Login() {
           disabled={loading}
           className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
         >
-          {loading ? 'Ingresando...' : 'Ingresar'}
+          {loading ? 'Ingresando…' : 'Ingresar'}
         </button>
       </form>
       <div className="my-4 flex items-center gap-2">

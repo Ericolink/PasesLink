@@ -70,7 +70,7 @@ export function AdminDashboard() {
     }
   }
 
-  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando...</p>
+  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
   if (loadError) return <p className="text-center text-red-500 mt-16">{loadError}</p>
 
   return (
@@ -172,7 +172,7 @@ export function AdminDashboard() {
         open={!!deletingEvent}
         title="Eliminar evento"
         message={`¿Eliminar "${deletingEvent?.name}" definitivamente? Se borrarán todos sus invitados y el historial de check-ins. Esta acción no se puede deshacer.`}
-        confirmLabel={deleting ? 'Eliminando...' : 'Eliminar'}
+        confirmLabel={deleting ? 'Eliminando…' : 'Eliminar'}
         danger
         onConfirm={confirmDeleteEvent}
         onCancel={() => setDeletingEvent(null)}

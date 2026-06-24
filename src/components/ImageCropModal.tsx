@@ -40,7 +40,7 @@ export function ImageCropModal({ imageSrc, onCrop, onCancel }: Props) {
           disabled={processing}
           className="text-sm font-semibold text-primary hover:text-primary-dark disabled:opacity-50"
         >
-          {processing ? 'Procesando...' : 'Usar imagen'}
+          {processing ? 'Procesando…' : 'Usar imagen'}
         </button>
       </div>
 

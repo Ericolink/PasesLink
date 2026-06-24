@@ -64,7 +64,7 @@ export function MyEvents() {
         </Link>
       </div>
 
-      {loading && <p className="text-gray-400 text-center py-8">Cargando...</p>}
+      {loading && <p className="text-gray-400 text-center py-8">Cargando…</p>}
 
       {!loading && events.length === 0 && (
         <div className="text-center py-16">

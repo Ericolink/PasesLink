@@ -79,6 +79,7 @@ export function PaletteSwitcher() {
       <button
         onClick={() => setOpen((v) => !v)}
         title="Cambiar paleta de colores"
+        aria-label="Cambiar paleta de colores"
         className="w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-white/20"
         style={{
           background: palette

@@ -63,6 +63,7 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
           <button
             type="button"
             onClick={() => removeField(field.id)}
+            aria-label="Eliminar campo"
             className="text-gray-400 hover:text-red-500 transition-colors shrink-0 text-lg leading-none"
           >
             ×

@@ -39,7 +39,7 @@ export function WelcomeMessageEditor({ eventId, welcomeMessage }: { eventId: str
           disabled={saving}
           className="text-sm bg-primary text-white rounded-md px-3 py-1.5 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
         >
-          {saving ? 'Guardando...' : 'Guardar mensaje'}
+          {saving ? 'Guardando…' : 'Guardar mensaje'}
         </button>
         {saved && <span className="text-sm text-green-600">Guardado</span>}
       </div>
