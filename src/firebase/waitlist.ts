@@ -8,6 +8,7 @@ import {
   doc,
   serverTimestamp,
 } from 'firebase/firestore'
+import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { registerWalkInGuest } from './capacity'
 import { requireMaxLength, requireNonEmpty, WAITLIST_NAME_MAX, WAITLIST_PHONE_MAX } from '../utils/validation'
@@ -36,7 +37,7 @@ export async function addToWaitlist(
 export function subscribeToWaitlist(
   eventId: string,
   callback: (entries: WaitlistEntry[]) => void,
-) {
+): Unsubscribe {
   const q = query(
     collection(db, 'events', eventId, 'waitlist'),
     orderBy('createdAt', 'asc'),

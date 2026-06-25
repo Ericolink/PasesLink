@@ -15,6 +15,7 @@ import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { InviteDivider } from '../components/InviteDivider'
 import { getTemplate } from '../templates/registry'
+import { buildPassUrl } from '../utils/qrUrl'
 
 // El navegador reutiliza la misma instancia de GuestPass al navegar entre dos
 // URLs /pass/:eventId/:qrToken distintas (mismo patrón de ruta) — sin esta key,
@@ -94,7 +95,7 @@ function GuestPassInner() {
     user.uid === event.ownerId ||
     !!(event.coOrganizersMap && user.uid in event.coOrganizersMap)
   )
-  const passUrl = `${window.location.origin}/pass/${eventId}/${qrToken}`
+  const passUrl = buildPassUrl(eventId, qrToken)
 
   async function handleCheckIn() {
     if (!eventId || !qrToken || !user) return
@@ -172,10 +173,11 @@ function GuestPassInner() {
 
           {checkInState !== 'done' && (
             <div className="flex justify-center my-6">
-              <div className="p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
-                <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40">
-                  <QRCodeCanvas value={passUrl} size={240} marginSize={2} className="w-full h-full" />
-                </div>
+              <div
+                className="p-4 border rounded-lg max-w-[250px] max-h-[250px] overflow-hidden flex items-center justify-center"
+                style={{ borderColor: 'var(--invite-border)' }}
+              >
+                <QRCodeCanvas value={passUrl} size={200} marginSize={2} />
               </div>
             </div>
           )}
@@ -261,6 +263,7 @@ function GuestPassInner() {
         <ThemeOrnament templateId={event.templateId} className="w-16 h-6 mx-auto mt-2 text-[var(--invite-accent)]" />
         <p className="text-sm mt-1 text-[var(--invite-text-muted)]">
           {event.date} · {event.location}
+          {event.startTime && <> · ⏰ {event.startTime}{event.endTime && `–${event.endTime}`}</>}
         </p>
 
         {locked && (
@@ -285,10 +288,11 @@ function GuestPassInner() {
             )}
 
             <div className="flex justify-center my-6" ref={qrWrapperRef}>
-              <div className="p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
-                <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40">
-                  <QRCodeCanvas value={passUrl} size={240} marginSize={2} className="w-full h-full" />
-                </div>
+              <div
+                className="p-4 border rounded-lg max-w-[250px] max-h-[250px] overflow-hidden flex items-center justify-center"
+                style={{ borderColor: 'var(--invite-border)' }}
+              >
+                <QRCodeCanvas value={passUrl} size={200} marginSize={2} />
               </div>
             </div>
 
@@ -296,7 +300,7 @@ function GuestPassInner() {
               <span className="mt-2 inline-flex items-center gap-2">
                 <ThemeSeal templateId={event.templateId} />
                 <p className="invite-badge-positive inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
-                  <IconCheckCircle className="w-4 h-4 text-green-500" /> Asistencia confirmada
+                  <IconCheckCircle className="w-4 h-4 text-green-500" /> Entrada registrada
                 </p>
               </span>
             ) : (
@@ -311,14 +315,24 @@ function GuestPassInner() {
                 {downloaded ? <IconCheckCircle className="w-4 h-4" /> : <IconDownload className="w-4 h-4" />}
                 {downloaded ? 'Descargado' : 'Descargar QR'}
               </button>
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(`Aquí está mi pase para ${event.name}: ${passUrl}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                <IconWhatsApp className="w-4 h-4" /> Compartir
-              </a>
+              {guest.companions.length > 0 ? (
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Aquí está mi pase para ${event.name}: ${passUrl}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Comparte con tus acompañantes"
+                  className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  <IconWhatsApp className="w-4 h-4" /> Compartir
+                </a>
+              ) : (
+                <span
+                  title="Este pase es personal — compartilo solo si tienes acompañantes"
+                  className="inline-flex items-center justify-center gap-2 bg-gray-200 text-gray-400 rounded-md px-4 py-2 text-sm font-medium cursor-not-allowed"
+                >
+                  <IconWhatsApp className="w-4 h-4" /> Compartir
+                </span>
+              )}
             </div>
           </>
         )}
@@ -420,7 +434,20 @@ function GuestPassInner() {
         </>
       )}
       {eventId && (
-        <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} templateId={event.templateId} />
+        guest.rsvpStatus === 'yes' ? (
+          <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} templateId={event.templateId} />
+        ) : !locked && (
+          <div className="mt-8 pt-6 border-t text-center" style={{ borderColor: 'var(--invite-border)' }}>
+            <p className="text-sm mb-3 text-[var(--invite-text-muted)]">Confirma tu asistencia para ver el muro del evento.</p>
+            <button
+              onClick={() => handleRsvp('yes')}
+              disabled={rsvpSaving}
+              className="text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
+            >
+              Confirmar asistencia
+            </button>
+          </div>
+        )
       )}
     </InvitationThemeRoot>
   )

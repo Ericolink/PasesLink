@@ -49,6 +49,22 @@ describe('guests.ts', () => {
     expect(guest?.checkedInBy).toBe(OWNER_UID)
   })
 
+  it('should sum companions into checkedInCount on check-in (and not get blocked by the security rule)', async () => {
+    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
+    await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Uno' }, { name: 'Dos' }, { name: 'Tres' }],
+    })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    const result = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
+
+    expect(result.status).toBe('success')
+    // 1 (el invitado) + 3 acompañantes = 4, en una sola escritura.
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.checkedInCount).toBe(4)
+  })
+
   it('should reject a duplicate check-in for the same guest', async () => {
     await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
     await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })

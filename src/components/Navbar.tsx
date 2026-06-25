@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { logout } from '../firebase/auth'
 import { useAuth } from '../hooks/useAuth'
-import { isAdminEmail } from '../config/admin'
+import { useIsAdmin } from '../hooks/useIsAdmin'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { Logo } from './Logo'
 import { IconMenu, IconX } from './Icons'
 
 export function Navbar() {
   const { user } = useAuth()
+  const { isAdmin } = useIsAdmin()
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -63,7 +64,7 @@ export function Navbar() {
         {user ? (
           <>
             <div className="flex items-center gap-1 text-sm">
-              {isAdminEmail(user.email) && (
+              {isAdmin && (
                 <Link to="/admin" className={desktopLinkClass('/admin')}>
                   Admin
                 </Link>
@@ -125,7 +126,7 @@ export function Navbar() {
                   borderColor: 'rgba(42,58,106,0.7)',
                 }}
               >
-                {isAdminEmail(user.email) && (
+                {isAdmin && (
                   <Link to="/admin" onClick={closeMobileMenu} className={mobileLinkClass('/admin')}>
                     Admin
                   </Link>

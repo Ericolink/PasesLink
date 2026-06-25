@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useModalA11y } from '../hooks/useModalA11y'
 
 interface Props {
   open: boolean
@@ -23,18 +24,16 @@ export function ConfirmDialog({
 }: Props) {
   const confirmRef = useRef<HTMLButtonElement>(null)
 
+  // Foco intencional en "Confirmar" (no en "Cancelar", que aparece primero
+  // en el DOM). Se declara ANTES de useModalA11y a propósito: los efectos
+  // corren en orden de declaración, así este foco explícito ya está puesto
+  // cuando el hook revisa si hace falta su fallback (focar el primer
+  // elemento enfocable) — evitando que el hook enfoque "Cancelar" primero.
   useEffect(() => {
     if (open) confirmRef.current?.focus()
   }, [open])
 
-  useEffect(() => {
-    if (!open) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onCancel])
+  const dialogRef = useModalA11y<HTMLDivElement>(open, onCancel)
 
   if (!open) return null
 
@@ -43,7 +42,13 @@ export function ConfirmDialog({
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm animate-bounce-in">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm animate-bounce-in"
+      >
         {danger && (
           <div className="flex items-center justify-center pt-6 pb-2">
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">

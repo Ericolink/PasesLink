@@ -14,12 +14,16 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore'
+import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import type { CustomField, EntryMode, EventData, EventStatus, TemplateId } from '../types'
+import { EventSchema, warnIfInvalidShape } from '../types/schemas'
 
 export interface NewEventInput {
   name: string
   date: string
+  startTime?: string
+  endTime?: string
   location: string
   description?: string
   coverImage?: string
@@ -41,6 +45,8 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     ownerId,
     name: input.name,
     date: input.date,
+    startTime: input.startTime || '',
+    endTime: input.endTime || '',
     location: input.location,
     description: input.description || '',
     coverImage: input.coverImage || '',
@@ -72,7 +78,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
 export function subscribeToUserEvents(
   ownerId: string,
   callback: (events: EventData[]) => void,
-) {
+): Unsubscribe {
   const q = query(
     collection(db, 'events'),
     where('ownerId', '==', ownerId),
@@ -88,7 +94,7 @@ export function subscribeToEvent(
   eventId: string,
   callback: (event: EventData | null) => void,
   onError?: (error: Error) => void,
-) {
+): Unsubscribe {
   return onSnapshot(
     doc(db, 'events', eventId),
     (snapshot) => {
@@ -118,6 +124,8 @@ export async function setEventStatus(eventId: string, status: EventStatus) {
 export interface UpdateEventInput {
   name: string
   date: string
+  startTime?: string
+  endTime?: string
   location: string
   description?: string
   coverImage?: string
@@ -138,6 +146,8 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
   await updateDoc(doc(db, 'events', eventId), {
     name: input.name,
     date: input.date,
+    startTime: input.startTime || '',
+    endTime: input.endTime || '',
     location: input.location,
     description: input.description || '',
     coverImage: input.coverImage ?? '',
@@ -210,12 +220,24 @@ export async function deleteEvent(eventId: string) {
   await deleteDoc(doc(db, 'events', eventId))
 }
 
+// ownerId/name/date/location/plan/paymentStatus/status se castean sin
+// fallback (a diferencia del resto de campos, que sí tienen `|| valor` por
+// defecto). Hoy no es un bug porque createEvent() siempre los escribe y nada
+// los borra — el riesgo es ante un documento editado a mano o una migración
+// de esquema futura. No se le agregó un fallback mecánico: inventar un valor
+// (ej. status por defecto) sería una decisión de producto, no un fix de
+// tipos, y para campos como ownerId enmascararía un documento corrupto en
+// vez de hacerlo visible. En su lugar, `warnIfInvalidShape` valida la forma
+// final con Zod y loguea un error claro si algo no calza — sin cambiar el
+// valor devuelto ni el tipo de retorno de esta función.
 export function mapEvent(id: string, data: Record<string, unknown>): EventData {
-  return {
+  const event: EventData = {
     id,
     ownerId: data.ownerId as string,
     name: data.name as string,
     date: data.date as string,
+    startTime: (data.startTime as string) || '',
+    endTime: (data.endTime as string) || '',
     location: data.location as string,
     description: (data.description as string) || '',
     coverImage: (data.coverImage as string) || '',
@@ -239,6 +261,8 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
   }
+  warnIfInvalidShape(EventSchema, 'Event', event)
+  return event
 }
 
 function toMillis(value: unknown): number {

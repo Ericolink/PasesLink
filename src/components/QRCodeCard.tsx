@@ -1,8 +1,9 @@
 import { QRCodeSVG } from 'qrcode.react'
 import type { GuestData } from '../types'
+import { buildPassUrl } from '../utils/qrUrl'
 
 export function QRCodeCard({ eventId, guest }: { eventId: string; guest: GuestData }) {
-  const passUrl = `${window.location.origin}/pass/${eventId}/${guest.qrToken}`
+  const passUrl = buildPassUrl(eventId, guest.qrToken)
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-white flex flex-col items-center text-center">

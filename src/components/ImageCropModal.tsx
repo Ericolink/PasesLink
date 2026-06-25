@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import Cropper, { type Area } from 'react-easy-crop'
+import { useModalA11y } from '../hooks/useModalA11y'
 
 interface Props {
   imageSrc: string
@@ -12,6 +13,9 @@ export function ImageCropModal({ imageSrc, onCrop, onCancel }: Props) {
   const [zoom, setZoom] = useState(1)
   const [croppedArea, setCroppedArea] = useState<Area | null>(null)
   const [processing, setProcessing] = useState(false)
+  // El padre monta/desmonta este componente en vez de pasar un flag `open`
+  // interno — el montaje ya equivale a "abierto", por eso `true` fijo.
+  const dialogRef = useModalA11y<HTMLDivElement>(true, onCancel)
 
   const onCropComplete = useCallback((_: Area, areaPixels: Area) => {
     setCroppedArea(areaPixels)
@@ -29,7 +33,13 @@ export function ImageCropModal({ imageSrc, onCrop, onCancel }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black">
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Recortar imagen"
+      className="fixed inset-0 z-50 flex flex-col bg-black"
+    >
       <div className="flex items-center justify-between px-4 py-3 bg-black/80">
         <button onClick={onCancel} className="text-sm text-gray-300 hover:text-white">
           Cancelar

@@ -1,3 +1,7 @@
+export function buildPassUrl(eventId: string, qrToken: string): string {
+  return `${window.location.origin}/pass/${eventId}/${qrToken}`
+}
+
 export function isArriveQr(decodedText: string, eventId: string): boolean {
   try {
     const url = new URL(decodedText)

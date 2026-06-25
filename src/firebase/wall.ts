@@ -15,6 +15,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
+import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import {
   requireMaxLength,
@@ -26,6 +27,7 @@ import {
   WALL_TYPES,
 } from '../utils/validation'
 import type { WallMessage, WallMessageType, WallReply } from '../types'
+import { WallMessageSchema, warnIfInvalidShape } from '../types/schemas'
 
 export const DEFAULT_WALL_LIVE_LIMIT = 50
 
@@ -35,12 +37,19 @@ export const DEFAULT_WALL_LIVE_LIMIT = 50
 // una ventana reciente (`liveLimit`) más los mensajes destacados (`pinned`,
 // que pueden ser viejos y deben seguir visibles arriba). El historial más
 // antiguo se carga aparte, a pedido, con `getOlderWallMessages` — ver ahí.
+//
+// TODO Fase 3+: esta función sigue siendo 2 listeners en tiempo real
+// (`recent` + `pinned`) por cada llamador. GuestPass.tsx (vía WallSection) la
+// monta en una página 100% pública sin login — cada invitado con su pase
+// abierto paga esos 2 listeners. En un evento concurrido esto puede agotar
+// la cuota gratuita de Firestore rápido. Posible solución: polling/refresh
+// manual en el pase individual, o tiempo real solo para EventWall.
 export function subscribeToWall(
   eventId: string,
   callback: (messages: WallMessage[]) => void,
   onError?: (error: Error) => void,
   liveLimit: number = DEFAULT_WALL_LIVE_LIMIT,
-) {
+): Unsubscribe {
   let recent: WallMessage[] | null = null
   let pinned: WallMessage[] | null = null
 
@@ -83,6 +92,34 @@ export function subscribeToWall(
     unsubRecent()
     unsubPinned()
   }
+}
+
+// Variante sin listener: una sola lectura (recent + pinned, mismo criterio
+// que subscribeToWall) en vez de una suscripción permanente. Pensada para
+// widgets embebidos en páginas públicas de alto tráfico (WallSection en
+// GuestPass/EventJoin) donde un listener en vivo por visitante es el patrón
+// de mayor riesgo de costo del proyecto (ver TODO más arriba). El llamador
+// decide cuándo volver a pedir datos (ej. al montar, o con un botón
+// "Actualizar"), en vez de recibir actualizaciones automáticas.
+export async function fetchWallMessages(
+  eventId: string,
+  liveLimit: number = DEFAULT_WALL_LIVE_LIMIT,
+): Promise<WallMessage[]> {
+  const recentQuery = query(
+    collection(db, 'events', eventId, 'wall'),
+    orderBy('createdAt', 'desc'),
+    limit(liveLimit),
+  )
+  const pinnedQuery = query(
+    collection(db, 'events', eventId, 'wall'),
+    where('pinned', '==', true),
+  )
+  const [recentSnap, pinnedSnap] = await Promise.all([getDocs(recentQuery), getDocs(pinnedQuery)])
+
+  const byId = new Map<string, WallMessage>()
+  for (const d of recentSnap.docs) byId.set(d.id, mapMessage(d.id, d.data()))
+  for (const d of pinnedSnap.docs) byId.set(d.id, mapMessage(d.id, d.data()))
+  return Array.from(byId.values()).filter((m) => !m.deleted)
 }
 
 // Carga histórica a pedido (NO en vivo): una sola lectura por página, usada
@@ -208,7 +245,7 @@ export async function hardDeleteWallMessage(eventId: string, messageId: string) 
 }
 
 function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
-  return {
+  const message: WallMessage = {
     id,
     text: data.text as string,
     type: (data.type as WallMessageType) || 'comment',
@@ -223,6 +260,8 @@ function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
     pinned: (data.pinned as boolean) || false,
     createdAt: toMillis(data.createdAt),
   }
+  warnIfInvalidShape(WallMessageSchema, 'WallMessage', message)
+  return message
 }
 
 function toMillis(value: unknown): number {

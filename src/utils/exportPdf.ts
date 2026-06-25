@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import QRCode from 'qrcode'
 import type { EventData, GuestData } from '../types'
+import { buildPassUrl } from './qrUrl'
 
 export interface ExportPdfOptions {
   onProgress?: (done: number, total: number) => void
@@ -8,6 +9,9 @@ export interface ExportPdfOptions {
 }
 
 export type ExportPdfResult = 'completed' | 'cancelled'
+
+const NAVY: [number, number, number] = [26, 58, 92] // #1A3A5C
+const GOLD: [number, number, number] = [200, 169, 110] // #C8A96E
 
 // Generar 1 página + 1 QR por invitado es CPU-intensivo (QRCode.toDataURL y
 // jsPDF dibujan de forma síncrona, pese al `await`: solo libera un microtask,
@@ -38,26 +42,49 @@ export async function exportGuestPassesPdf(
     const guest = guests[i]
     if (i > 0) doc.addPage()
 
-    const passUrl = `${window.location.origin}/pass/${event.id}/${guest.qrToken}`
+    const passUrl = buildPassUrl(event.id, guest.qrToken)
     const qrDataUrl = await QRCode.toDataURL(passUrl, { width: 300, margin: 1 })
 
-    doc.setFontSize(18)
-    doc.text(event.name, pageWidth / 2, 30, { align: 'center' })
+    // Encabezado: banda navy de ancho completo con el nombre del evento en
+    // blanco y un filete dorado debajo, separando la identidad del evento del
+    // resto del pase (antes era texto plano negro sin jerarquía visual).
+    const headerHeight = 32
+    doc.setFillColor(...NAVY)
+    doc.rect(0, 0, pageWidth, headerHeight, 'F')
+    doc.setFillColor(...GOLD)
+    doc.rect(0, headerHeight, pageWidth, 1.5, 'F')
 
-    doc.setFontSize(14)
-    doc.text(`${event.date}  ·  ${event.location}`, pageWidth / 2, 40, { align: 'center' })
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(20)
+    doc.text(event.name, pageWidth / 2, headerHeight / 2 + 3, { align: 'center' })
+
+    doc.setTextColor(...NAVY)
+    doc.setFontSize(12)
+    const timeLabel = event.startTime ? `  ·  ⏰ ${event.startTime}${event.endTime ? `–${event.endTime}` : ''}` : ''
+    doc.text(`${event.date}  ·  ${event.location}${timeLabel}`, pageWidth / 2, headerHeight + 14, { align: 'center' })
 
     const qrSize = 80
-    doc.addImage(qrDataUrl, 'PNG', (pageWidth - qrSize) / 2, (pageHeight - qrSize) / 2 - 10, qrSize, qrSize)
+    const qrY = (pageHeight - qrSize) / 2 - 5
+    // Marco dorado alrededor del QR en vez de pegarlo directo a la hoja.
+    doc.setDrawColor(...GOLD)
+    doc.setLineWidth(1)
+    doc.rect((pageWidth - qrSize) / 2 - 4, qrY - 4, qrSize + 8, qrSize + 8)
+    doc.addImage(qrDataUrl, 'PNG', (pageWidth - qrSize) / 2, qrY, qrSize, qrSize)
 
+    doc.setTextColor(...NAVY)
     doc.setFontSize(16)
-    doc.text(guest.name, pageWidth / 2, (pageHeight + qrSize) / 2 + 5, { align: 'center' })
+    doc.text(guest.name, pageWidth / 2, qrY + qrSize + 14, { align: 'center' })
 
     doc.setFontSize(10)
     doc.setTextColor(120)
-    doc.text('Presenta este código QR en la entrada', pageWidth / 2, (pageHeight + qrSize) / 2 + 12, {
+    doc.text('Presenta este código QR en la entrada', pageWidth / 2, qrY + qrSize + 21, {
       align: 'center',
     })
+
+    // Pie de página dorado, ancla visual consistente con el encabezado en
+    // cada página del PDF (uno por invitado).
+    doc.setFillColor(...GOLD)
+    doc.rect(0, pageHeight - 4, pageWidth, 4, 'F')
     doc.setTextColor(0)
 
     onProgress?.(i + 1, guests.length)

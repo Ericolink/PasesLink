@@ -26,6 +26,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
   const [bulkNames, setBulkNames] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [waitlistedMsg, setWaitlistedMsg] = useState('')
   const [pendingDuplicate, setPendingDuplicate] = useState<PendingDuplicate | null>(null)
 
   // Nombre completo normalizado de cada invitado ya cargado — usado para
@@ -50,8 +51,13 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
   async function submitSingleGuest() {
     setLoading(true)
     setError('')
+    setWaitlistedMsg('')
     try {
-      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions })
+      const fullName = `${name.trim()} ${lastName.trim()}`
+      const result = await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions })
+      if (result.status === 'waitlisted') {
+        setWaitlistedMsg(`El cupo está lleno — ${fullName} se agregó a la lista de espera en vez de a los invitados.`)
+      }
       setName('')
       setLastName('')
       setPhone('')
@@ -128,6 +134,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
       </div>
 
       {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+      {waitlistedMsg && <p className="text-xs text-amber-600 mb-3">{waitlistedMsg}</p>}
 
       {mode === 'single' ? (
         <form onSubmit={handleSingleSubmit} className="space-y-3">

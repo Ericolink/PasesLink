@@ -4,10 +4,10 @@ import { Html5Qrcode } from 'html5-qrcode'
 import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEventOnly } from '../hooks/useEventOnly'
-import { checkInGuest } from '../firebase/guests'
+import { checkInGuest, checkOutGuest } from '../firebase/guests'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
-import { extractQrToken, isArriveQr } from '../utils/qrUrl'
+import { buildPassUrl, extractQrToken, isArriveQr } from '../utils/qrUrl'
 import { isNetworkError } from '../utils/network'
 
 export type ScanFeedback = {
@@ -16,6 +16,9 @@ export type ScanFeedback = {
   detail?: string
   checkedInAt?: number | null
   checkedInByEmail?: string | null
+  // Solo se usa para el botón de check-out del ScanResultModal (ver
+  // handleCheckout) — no se muestra en pantalla.
+  qrToken?: string
 }
 
 const AUTO_CLOSE_MS = 3500
@@ -39,6 +42,7 @@ export function Scanner() {
   const [manualValue, setManualValue] = useState('')
 
   const scannerRef = useRef<Html5Qrcode | null>(null)
+  const startingRef = useRef(false)
   const cooldownRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const eventRef = useRef(event)
@@ -57,6 +61,11 @@ export function Scanner() {
   }
 
   async function startScanning() {
+    // Evita inicializar dos instancias de Html5Qrcode en paralelo si el
+    // usuario pulsa "Reintentar"/"Activar cámara" varias veces antes de que
+    // la primera llamada a scanner.start() resuelva (sea éxito o error).
+    if (startingRef.current) return
+    startingRef.current = true
     setCameraError(null)
     const scanner = new Html5Qrcode('qr-reader', { verbose: false })
     scannerRef.current = scanner
@@ -77,6 +86,8 @@ export function Scanner() {
       setCameraError('Cámara no disponible. Intenta reiniciar la app.')
       try { scanner.clear() } catch { /* ignore */ }
       scannerRef.current = null
+    } finally {
+      startingRef.current = false
     }
   }
 
@@ -89,7 +100,7 @@ export function Scanner() {
     // crudo; si no parece una URL, se reconstruye la URL de pase esperada para
     // poder reusar el mismo extractQrToken() que usa el flujo de cámara.
     const looksLikeUrl = /^https?:\/\//i.test(value)
-    void processQr(looksLikeUrl ? value : `${window.location.origin}/pass/${eventId}/${value}`)
+    void processQr(looksLikeUrl ? value : buildPassUrl(eventId, value))
   }
 
   async function stopScanning() {
@@ -145,6 +156,7 @@ export function Scanner() {
           guestName: result.guest.name,
           checkedInAt: result.guest.checkedInAt,
           checkedInByEmail: result.guest.checkedInByEmail,
+          qrToken,
         })
       } else if (result.status === 'payment_required') {
         showFeedback({ type: 'invalid', guestName: result.guest.name, detail: 'Debe pagar la entrada antes de ingresar.' })
@@ -153,6 +165,25 @@ export function Scanner() {
       }
     } catch (err) {
       await handleProcessError(err, attempt, () => processQr(decodedText, attempt + 1))
+    }
+  }
+
+  async function handleCheckout(qrToken: string) {
+    if (!eventId || !user) return
+    try {
+      const result = await checkOutGuest(eventId, qrToken, user.uid, user.email)
+      if (result.status === 'success') {
+        showFeedback({ type: 'checkout', guestName: result.guest.name, detail: 'Salida registrada' })
+      } else if (result.status === 'already_checked_out') {
+        showFeedback({ type: 'already_out', guestName: result.guest.name })
+      } else if (result.status === 'not_checked_in') {
+        showFeedback({ type: 'not_checked_in' })
+      } else {
+        showFeedback({ type: 'not_found', detail: 'Este código no corresponde a ningún invitado de este evento.' })
+      }
+    } catch (err) {
+      console.error('Error registrando check-out:', err)
+      showFeedback({ type: 'error', detail: 'No se pudo registrar la salida. Intenta de nuevo.' })
     }
   }
 
@@ -174,15 +205,25 @@ export function Scanner() {
 
   async function handleWalkIn() {
     if (!eventId) return
-    const result = await walkIn(eventId)
-    setWalkInMsg(result)
-    if (result === 'success') confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } })
-    setTimeout(() => setWalkInMsg(null), 2000)
+    try {
+      const result = await walkIn(eventId)
+      setWalkInMsg(result)
+      if (result === 'success') confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } })
+      setTimeout(() => setWalkInMsg(null), 2000)
+    } catch (err) {
+      console.error('Error registrando walk-in:', err)
+      showFeedback({ type: 'error', detail: 'No se pudo registrar el ingreso. Intenta de nuevo.' })
+    }
   }
 
   async function handleWalkOut() {
     if (!eventId) return
-    await walkOut(eventId)
+    try {
+      await walkOut(eventId)
+    } catch (err) {
+      console.error('Error registrando walk-out:', err)
+      showFeedback({ type: 'error', detail: 'No se pudo registrar la salida. Intenta de nuevo.' })
+    }
   }
 
   if (eventLoading) {
@@ -315,7 +356,13 @@ export function Scanner() {
         </button>
       )}
 
-      {feedback && <ScanResultModal feedback={feedback} onClose={() => setFeedback(null)} />}
+      {feedback && (
+        <ScanResultModal
+          feedback={feedback}
+          onClose={() => setFeedback(null)}
+          onCheckout={feedback.qrToken ? () => handleCheckout(feedback.qrToken!) : undefined}
+        />
+      )}
 
       {/* Barra de progreso */}
       {event && (

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { getEvent } from '../firebase/events'
 import {
   deleteWallMessage,
@@ -28,6 +28,7 @@ import {
 } from '../components/Icons'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeSeal } from '../components/ThemeSeal'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { EventData, WallMessage, WallMessageType } from '../types'
 
 interface TypeConfig {
@@ -86,6 +87,7 @@ export function EventWall() {
   const [postError, setPostError]   = useState('')
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [replyText, setReplyText]   = useState('')
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isOwner    = !!(user && event && user.uid === event.ownerId)
@@ -179,9 +181,10 @@ export function EventWall() {
     }
   }
 
-  async function handleDelete(messageId: string) {
-    if (!id) return
-    await deleteWallMessage(id, messageId)
+  async function confirmDeleteMessage() {
+    if (!id || !deletingMessageId) return
+    await deleteWallMessage(id, deletingMessageId)
+    setDeletingMessageId(null)
   }
 
   async function handlePin(msg: WallMessage) {
@@ -200,6 +203,24 @@ export function EventWall() {
     const token = getDeviceToken()
     await dislikeWallMessage(id, msg.id, token, msg.dislikedBy.includes(token))
   }
+
+  // Mensajes en vivo (recientes + destacados) + históricos cargados a pedido,
+  // sin duplicar (un mensaje destacado viejo puede llegar por ambas vías).
+  // Memoizado porque sin esto se reconstruía el Map y se reordenaba la lista
+  // completa en cada render — incluido cada tecla escrita en el textarea del
+  // formulario de post, que no tiene relación con `messages`/`olderMessages`.
+  const sorted = useMemo(() => {
+    const allMessagesById = new Map<string, WallMessage>()
+    for (const m of messages) allMessagesById.set(m.id, m)
+    for (const m of olderMessages) allMessagesById.set(m.id, m)
+
+    /* Pinned first, then by date desc */
+    return Array.from(allMessagesById.values()).sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1
+      if (!a.pinned && b.pinned) return 1
+      return b.createdAt - a.createdAt
+    })
+  }, [messages, olderMessages])
 
   if (!nameConfirmed && !isOwner && !user) {
     const nameGateContent = (
@@ -237,23 +258,15 @@ export function EventWall() {
   const postLabel = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
   const postPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
 
-  /* Mensajes en vivo (recientes + destacados) + históricos cargados a pedido,
-     sin duplicar (un mensaje destacado viejo puede llegar por ambas vías). */
-  const allMessagesById = new Map<string, WallMessage>()
-  for (const m of messages) allMessagesById.set(m.id, m)
-  for (const m of olderMessages) allMessagesById.set(m.id, m)
-
-  /* Pinned first, then by date desc */
-  const sorted = Array.from(allMessagesById.values()).sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1
-    if (!a.pinned && b.pinned) return 1
-    return b.createdAt - a.createdAt
-  })
-
   const content = (
     <>
       {event?.coverImage && (
         <img src={optimizedImageUrl(event.coverImage, 800)} alt="" loading="lazy" className="w-full h-28 object-cover rounded-xl mb-4" />
+      )}
+      {isOwner && (
+        <Link to={`/events/${id}`} className="text-sm text-gray-500 hover:text-primary transition-colors inline-flex items-center gap-1 mb-3">
+          ← Volver a detalles
+        </Link>
       )}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -384,7 +397,7 @@ export function EventWall() {
                       <IconPin className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => handleDelete(msg.id)}
+                      onClick={() => setDeletingMessageId(msg.id)}
                       className="text-xs text-red-400 hover:text-red-600"
                     >
                       Eliminar
@@ -477,6 +490,16 @@ export function EventWall() {
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deletingMessageId}
+        title="Eliminar mensaje"
+        message="¿Borrar este mensaje? No se puede deshacer."
+        confirmLabel="Eliminar"
+        danger
+        onConfirm={confirmDeleteMessage}
+        onCancel={() => setDeletingMessageId(null)}
+      />
     </>
   )
 

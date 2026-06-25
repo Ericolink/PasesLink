@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore'
-import { db } from '../firebase/config'
+import { subscribeToCheckins } from '../firebase/reports'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import type { CheckinLog } from '../types'
@@ -23,22 +22,8 @@ export function Reports() {
   useEffect(() => {
     if (!eventId) return
     setCheckinsLoading(true)
-    const q = query(collection(db, 'events', eventId, 'checkins'), orderBy('timestamp', 'asc'))
-    return onSnapshot(q, (snapshot) => {
-      setCheckins(
-        snapshot.docs.map((d) => {
-          const data = d.data()
-          return {
-            id: d.id,
-            guestId: data.guestId,
-            guestName: data.guestName,
-            type: (data.type as CheckinLog['type']) || 'check_in',
-            scannedBy: data.scannedBy,
-            scannedByEmail: data.scannedByEmail || null,
-            timestamp: data.timestamp?.toMillis ? data.timestamp.toMillis() : 0,
-          }
-        }),
-      )
+    return subscribeToCheckins(eventId, (data) => {
+      setCheckins(data)
       setCheckinsLoading(false)
     })
   }, [eventId])

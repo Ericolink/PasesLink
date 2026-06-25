@@ -18,6 +18,8 @@ import type { CustomField, EntryMode, TemplateId } from '../types'
 interface EventDraftFields {
   name: string
   date: string
+  startTime: string
+  endTime: string
   location: string
   description: string
   templateId: TemplateId
@@ -55,6 +57,8 @@ export function EventCreate() {
 
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [location, setLocation] = useState('')
   const [description, setDescription] = useState('')
   const [templateId, setTemplateId] = useState<TemplateId>('default')
@@ -83,6 +87,8 @@ export function EventCreate() {
   function applyDraft(fields: EventDraftFields) {
     setName(fields.name)
     setDate(fields.date)
+    setStartTime(fields.startTime)
+    setEndTime(fields.endTime)
     setLocation(fields.location)
     setDescription(fields.description)
     setTemplateId(fields.templateId)
@@ -108,13 +114,13 @@ export function EventCreate() {
       const hasContent = name.trim() || date || location.trim() || description.trim()
       if (!hasContent) return
       saveDraft({
-        name, date, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
+        name, date, startTime, endTime, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
         entryMode, capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
       })
     }, DRAFT_SAVE_INTERVAL_MS)
     return () => clearInterval(id)
   }, [
-    draftKey, pendingDraft, name, date, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
+    draftKey, pendingDraft, name, date, startTime, endTime, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
     entryMode, capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
     saveDraft,
   ])
@@ -133,6 +139,8 @@ export function EventCreate() {
       const eventId = await createEvent(user.uid, {
         name,
         date,
+        startTime,
+        endTime,
         location,
         description,
         coverImage,
@@ -244,6 +252,32 @@ export function EventCreate() {
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Salón Los Olivos"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="event-start-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Hora de inicio <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              id="event-start-time"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div>
+            <label htmlFor="event-end-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Hora de fin <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              id="event-end-time"
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -400,8 +434,8 @@ export function EventCreate() {
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <p className="text-xs text-gray-400 mt-1">
-              Total de personas permitidas (invitados + acompañantes).
-              {entryMode === 'list' && ' En lista cerrada es solo informativo: no bloquea que agregues invitados manualmente.'}
+              Total de personas permitidas (invitados + acompañantes). Si se llena el cupo, los
+              invitados nuevos se agregan automáticamente a la lista de espera.
             </p>
           </div>
         </div>

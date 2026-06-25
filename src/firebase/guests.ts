@@ -13,11 +13,14 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore'
+import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { getEvent } from './events'
+import { addToWaitlist } from './waitlist'
 import { getUserProfile } from './userProfile'
 import { sendCheckinSummaryEmail } from '../utils/emailjs'
 import type { CompanionData, GuestData, GuestPaymentStatus, RsvpStatus } from '../types'
+import { GuestSchema, warnIfInvalidShape } from '../types/schemas'
 
 export interface NewGuestInput {
   name: string
@@ -58,7 +61,22 @@ function contactRef(eventId: string, guestId: string) {
   return doc(db, 'events', eventId, 'guestContacts', guestId)
 }
 
-export async function addGuest(eventId: string, input: NewGuestInput) {
+export type AddGuestResult = { status: 'added'; id: string } | { status: 'waitlisted' }
+
+// Si el cupo ya está lleno, el invitado no se rechaza: se manda directo a la
+// lista de espera (misma colección/flujo que usa el organizador para
+// promover manualmente, ver firebase/waitlist.ts) en vez de devolver un
+// error sin alternativa. Chequeo no transaccional a propósito: este flujo lo
+// dispara un organizador escribiendo en su propio formulario (baja
+// concurrencia), a diferencia de registerWalkInGuest (registro público,
+// donde sí hace falta una transacción por el volumen de tráfico concurrente).
+export async function addGuest(eventId: string, input: NewGuestInput): Promise<AddGuestResult> {
+  const event = await getEvent(eventId)
+  if (event && event.capacity > 0 && event.guestCount >= event.capacity) {
+    await addToWaitlist(eventId, input.name, input.lastName || '', input.phone || '')
+    return { status: 'waitlisted' }
+  }
+
   const batch = writeBatch(db)
   const guestRef = doc(collection(db, 'events', eventId, 'guests'))
   batch.set(guestRef, buildNewGuestPayload(input))
@@ -67,7 +85,7 @@ export async function addGuest(eventId: string, input: NewGuestInput) {
   }
   batch.update(doc(db, 'events', eventId), { guestCount: increment(1) })
   await batch.commit()
-  return guestRef.id
+  return { status: 'added', id: guestRef.id }
 }
 
 // Firestore rechaza batches de más de 500 operaciones; se reparte en chunks de
@@ -126,11 +144,26 @@ export async function deleteGuest(eventId: string, guestId: string, wasCheckedIn
 // suscribe a ambas colecciones y se fusionan por id antes de emitir, así el
 // resto de la app sigue recibiendo el mismo `GuestData[]` de siempre sin saber
 // que los datos vienen de dos lugares.
+//
+// TODO Fase 4+: ambas queries son sin `limit()` — en un evento de miles de
+// invitados, cada organizador/co-organizador con el dashboard abierto
+// descarga la colección completa en tiempo real. NO se le agregó un
+// `limit()` simple en Subfase 3.2 a propósito: `guests` (el array completo)
+// alimenta hoy 4 cosas que necesitan el TOTAL, no una página — la
+// exportación CSV/PDF de EventDetail, las 6 estadísticas derivadas
+// (totalPeople, rsvpYes/No, etc., ver useMemo en EventDetail.tsx) y la
+// búsqueda/filtro de GuestList. Un `limit(50)` silencioso habría hecho que
+// el CSV/PDF exportado, las estadísticas mostradas y la búsqueda dejaran de
+// reflejar invitados reales en cualquier evento de más de 50 personas —
+// una regresión funcional real, no un cambio "transparente". Requiere
+// paginación cursor-based real en GuestList (con una query separada, sin
+// límite, para export/stats) — cambio de mayor alcance que queda fuera de
+// esta subfase.
 export function subscribeToGuests(
   eventId: string,
   callback: (guests: GuestData[]) => void,
   onError?: (error: Error) => void,
-) {
+): Unsubscribe {
   let baseGuests: GuestData[] | null = null
   let contacts: Record<string, { phone: string }> | null = null
 
@@ -279,7 +312,10 @@ export async function checkInGuest(
       checkedOutAt: null,
       checkedOutByEmail: null,
     })
-    transaction.update(eventRef, { checkedInCount: increment(1) })
+    // checkedInCount cuenta personas, no invitados escaneados: un check-in
+    // con acompañantes suma 1 (el invitado) + companions.length de una sola
+    // vez, así el contador refleja cuánta gente entró realmente.
+    transaction.update(eventRef, { checkedInCount: increment(1 + guest.companions.length) })
 
     const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
     transaction.set(checkinRef, {
@@ -434,8 +470,14 @@ function normalizeCompanions(value: unknown): CompanionData[] {
   return []
 }
 
+// name/qrToken/status se castean sin fallback (ver mismo comentario en
+// mapEvent, events.ts). Para qrToken en particular, fabricar un token nuevo
+// si faltara sería activamente peligroso: invalidaría el pase ya compartido
+// con el invitado. En su lugar, `warnIfInvalidShape` valida la forma final
+// con Zod y loguea un error claro si algo no calza, sin cambiar el valor
+// devuelto ni el tipo de retorno de esta función.
 function mapGuest(id: string, data: Record<string, unknown>): GuestData {
-  return {
+  const guest: GuestData = {
     id,
     name: data.name as string,
     lastName: (data.lastName as string) || '',
@@ -453,6 +495,8 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     paymentStatus: (data.paymentStatus as GuestData['paymentStatus']) || 'unpaid',
     createdAt: toMillisOrNull(data.createdAt) || 0,
   }
+  warnIfInvalidShape(GuestSchema, 'Guest', guest)
+  return guest
 }
 
 function toMillisOrNull(value: unknown): number | null {

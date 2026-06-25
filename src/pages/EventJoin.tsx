@@ -28,6 +28,7 @@ import {
   IconSparkles,
 } from '../components/Icons'
 import type { EventData } from '../types'
+import { buildPassUrl } from '../utils/qrUrl'
 
 type State = 'loading' | 'form' | 'submitting' | 'success' | 'full' | 'not_found' | 'error'
 type WaitlistState = 'idle' | 'form' | 'submitting' | 'joined'
@@ -107,7 +108,7 @@ export function EventJoin() {
 
   useEffect(() => {
     if (state === 'success' && qrToken && canvasRef.current && id) {
-      const passUrl = `${window.location.origin}/pass/${id}/${qrToken}`
+      const passUrl = buildPassUrl(id, qrToken)
       QRCode.toCanvas(canvasRef.current, passUrl, { width: 200, margin: 2 })
     }
   }, [state, qrToken, id])
@@ -268,7 +269,15 @@ export function EventJoin() {
           <h1 className="text-xl font-bold text-[var(--invite-text)] mb-2">Cupo agotado</h1>
           <p className="mb-5 text-[var(--invite-text-muted)]">El evento ya alcanzó su capacidad máxima.</p>
           <button
-            onClick={() => setWaitlistState('form')}
+            onClick={() => {
+              // El nombre/apellido/teléfono ya se escribieron en el formulario de
+              // registro de arriba (el que descubrió que el cupo estaba lleno) —
+              // se reutilizan acá para no pedirlos de nuevo.
+              setWlName(name)
+              setWlLastName(lastName)
+              setWlPhone(phone)
+              setWaitlistState('form')
+            }}
             className="inline-flex items-center gap-2 text-white rounded-lg px-5 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
           >
             <IconListOrdered className="w-4 h-4" />
@@ -339,7 +348,10 @@ export function EventJoin() {
         <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
           <h1 className="text-xl font-bold mb-1">{event?.name}</h1>
           <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-2 text-[var(--invite-accent)]" />
-          <p className="text-sm mb-4 text-[var(--invite-text-muted)]">{event?.date} · {event?.location}</p>
+          <p className="text-sm mb-4 text-[var(--invite-text-muted)]">
+            {event?.date} · {event?.location}
+            {event?.startTime && <> · ⏰ {event.startTime}{event.endTime && `–${event.endTime}`}</>}
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-3 text-left">
             <div className="grid grid-cols-2 gap-2">

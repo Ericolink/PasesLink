@@ -37,6 +37,8 @@ export interface EventData {
   ownerId: string
   name: string
   date: string
+  startTime?: string // 'HH:MM', opcional
+  endTime?: string   // 'HH:MM', opcional
   location: string
   description?: string
   coverImage?: string

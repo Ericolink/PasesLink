@@ -15,6 +15,8 @@ import type { CustomField, EntryMode, EventData, TemplateId } from '../types'
 interface EventEditDraftFields {
   name: string
   date: string
+  startTime: string
+  endTime: string
   location: string
   description: string
   templateId: TemplateId
@@ -49,6 +51,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
   const [name, setName] = useState(event.name)
   const [date, setDate] = useState(event.date)
+  const [startTime, setStartTime] = useState(event.startTime || '')
+  const [endTime, setEndTime] = useState(event.endTime || '')
   const [location, setLocation] = useState(event.location)
   const [description, setDescription] = useState(event.description || '')
   const [templateId, setTemplateId] = useState<TemplateId>(event.templateId || 'default')
@@ -77,6 +81,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   function applyDraft(fields: EventEditDraftFields) {
     setName(fields.name)
     setDate(fields.date)
+    setStartTime(fields.startTime)
+    setEndTime(fields.endTime)
     setLocation(fields.location)
     setDescription(fields.description)
     setTemplateId(fields.templateId)
@@ -98,13 +104,13 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if (pendingDraft) return
     const id = setInterval(() => {
       saveDraft({
-        name, date, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
+        name, date, startTime, endTime, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
         capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
       })
     }, DRAFT_SAVE_INTERVAL_MS)
     return () => clearInterval(id)
   }, [
-    pendingDraft, name, date, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
+    pendingDraft, name, date, startTime, endTime, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
     capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
     saveDraft,
   ])
@@ -124,6 +130,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       await updateEventDetails(event.id, {
         name: name.trim(),
         date,
+        startTime,
+        endTime,
         location: location.trim(),
         description: description.trim(),
         coverImage,
@@ -198,6 +206,23 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <div>
           <label htmlFor="edit-event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
           <input id="edit-event-location" type="text" required value={location} onChange={(e) => setLocation(e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="edit-event-start-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Hora de inicio <span className="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <input id="edit-event-start-time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+        </div>
+        <div>
+          <label htmlFor="edit-event-end-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Hora de fin <span className="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <input id="edit-event-end-time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
       </div>
@@ -305,8 +330,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <input id="edit-event-capacity" type="number" required min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)}
             placeholder="Ej: 200" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <p className="text-xs text-gray-400 mt-1">
-            Total de personas permitidas (invitados + acompañantes).
-            {entryMode === 'list' && ' En lista cerrada es solo informativo: no bloquea que agregues invitados manualmente.'}
+            Total de personas permitidas (invitados + acompañantes). Si se llena el cupo, los
+            invitados nuevos se agregan automáticamente a la lista de espera.
           </p>
           {capacityError && <p className="text-xs text-red-500 mt-1">{capacityError}</p>}
         </div>

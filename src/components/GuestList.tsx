@@ -18,6 +18,17 @@ import {
 } from './Icons'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CompanionFieldsEditor } from './CompanionFields'
+import { buildPassUrl } from '../utils/qrUrl'
+
+// Paginación de RENDERIZADO, no de datos: `guests` ya llega completo a este
+// componente (EventDetail lo carga entero vía useEvent/subscribeToGuests,
+// que también alimenta las estadísticas, la búsqueda y el export CSV/PDF —
+// truncar esa fuente rompería las tres). Lo único que escala mal en eventos
+// grandes es el DOM: cada fila tiene varios botones/badges, y renderizar
+// cientos de filas de una sola vez es el costo real. `visibleCount` solo
+// limita cuántas de las filas YA CARGADAS se pintan, sin ninguna lectura
+// adicional a Firestore.
+const GUEST_LIST_PAGE_SIZE = 50
 
 function GuestStatusBadge({ guest }: { guest: GuestData }) {
   const { label, classes, Icon } = guest.status === 'checked_in'
@@ -54,6 +65,7 @@ export const GuestList = memo(function GuestList({
   const [deletingGuest, setDeletingGuest] = useState<GuestData | null>(null)
   const [unlockingGuest, setUnlockingGuest] = useState<GuestData | null>(null)
   const [actionError, setActionError] = useState('')
+  const [visibleCount, setVisibleCount] = useState(GUEST_LIST_PAGE_SIZE)
 
   if (guests.length === 0) {
     return (
@@ -111,7 +123,7 @@ export const GuestList = memo(function GuestList({
   }
 
   async function handleShare(guest: GuestData) {
-    const url = `${window.location.origin}/pass/${eventId}/${guest.qrToken}`
+    const url = buildPassUrl(eventId, guest.qrToken)
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Tu invitación', text: `Aquí está tu invitación, ${guest.name}`, url })
@@ -130,12 +142,15 @@ export const GuestList = memo(function GuestList({
     }
   }
 
+  const visibleGuests = guests.slice(0, visibleCount)
+  const hasMoreToShow = guests.length > visibleCount
+
   return (
     <div className="space-y-2">
       {actionError && (
         <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-md px-3 py-2">{actionError}</p>
       )}
-      {guests.map((guest) =>
+      {visibleGuests.map((guest) =>
         editingId === guest.id ? (
           <EditGuestRow key={guest.id} eventId={eventId} guest={guest} onDone={() => setEditingId(null)} />
         ) : (
@@ -232,6 +247,14 @@ export const GuestList = memo(function GuestList({
             </div>
           </div>
         ),
+      )}
+      {hasMoreToShow && (
+        <button
+          onClick={() => setVisibleCount((c) => c + GUEST_LIST_PAGE_SIZE)}
+          className="w-full text-sm text-primary font-medium py-2.5 hover:underline"
+        >
+          Cargar más invitados ({guests.length - visibleCount} restantes)
+        </button>
       )}
       <ConfirmDialog
         open={!!deletingGuest}

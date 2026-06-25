@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
-import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -23,10 +22,19 @@ export const facebookProvider = new FacebookAuthProvider()
 // Requiere: crear una clave reCAPTCHA v3 en https://www.google.com/recaptcha/admin
 // y registrarla en Firebase Console > App Check > Firestore, antes de forzar
 // la verificación ("Enforce") ahí — sin eso, esta inicialización no hace nada.
+//
+// Import dinámico (no estático arriba) a propósito: 'firebase/app-check' +
+// el script de reCAPTCHA v3 que carga son el bulto más pesado del bundle
+// inicial. Separarlo en su propio chunk deja que el navegador lo baje en
+// paralelo en vez de bloquear el parseo/ejecución del bundle principal antes
+// del primer render — la protección sigue activándose de inmediato (no se
+// espera a un login ni a una acción del usuario), solo deja de viajar inline.
 const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY
 if (recaptchaSiteKey) {
-  initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider(recaptchaSiteKey),
-    isTokenAutoRefreshEnabled: true,
+  import('firebase/app-check').then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(recaptchaSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    })
   })
 }

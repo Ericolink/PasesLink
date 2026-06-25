@@ -1,13 +1,23 @@
 import { useState } from 'react'
 import type { ScanFeedback } from '../pages/Scanner'
 import { IconAlertTriangle, IconCheckCircle, IconCopy, IconHelpCircle, IconLogOut, IconUsers, IconXCircle } from './Icons'
+import { useModalA11y } from '../hooks/useModalA11y'
 
 function formatTimestamp(ms: number): string {
   return new Date(ms).toLocaleString('es', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-export function ScanResultModal({ feedback, onClose }: { feedback: ScanFeedback; onClose: () => void }) {
+export function ScanResultModal({
+  feedback,
+  onClose,
+  onCheckout,
+}: {
+  feedback: ScanFeedback
+  onClose: () => void
+  onCheckout?: () => void
+}) {
   const [showFirstCheckIn, setShowFirstCheckIn] = useState(false)
+  const [checkingOut, setCheckingOut] = useState(false)
 
   const styles = {
     success: { bg: 'bg-green-600', icon: IconCheckCircle, title: 'Bienvenido/a' },
@@ -22,10 +32,17 @@ export function ScanResultModal({ feedback, onClose }: { feedback: ScanFeedback;
   }[feedback.type]
 
   const Icon = styles.icon
+  // El padre monta/desmonta este componente (`{feedback && <ScanResultModal .../>}`)
+  // en vez de un flag `open` interno — el montaje ya equivale a "abierto".
+  const dialogRef = useModalA11y<HTMLDivElement>(true, onClose)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={styles.title}
         className={`${styles.bg} text-white rounded-2xl shadow-xl max-w-sm w-full p-8 text-center animate-bounce-in`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -50,6 +67,17 @@ export function ScanResultModal({ feedback, onClose }: { feedback: ScanFeedback;
               </p>
             )}
           </div>
+        )}
+
+        {feedback.type === 'already' && onCheckout && (
+          <button
+            onClick={() => { setCheckingOut(true); onCheckout() }}
+            disabled={checkingOut}
+            className="mt-4 inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            <IconLogOut className="w-4 h-4" />
+            {checkingOut ? 'Registrando salida…' : '¿Salió del evento?'}
+          </button>
         )}
 
         <button

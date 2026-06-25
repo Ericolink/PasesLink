@@ -12,6 +12,7 @@ import {
 import { saveUserProfile } from '../firebase/userProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
+import { useModalA11y } from '../hooks/useModalA11y'
 import {
   IconBell,
   IconCheckCircle,
@@ -36,6 +37,9 @@ function EditNameModal({
   const [last, setLast]   = useState(initial.lastName)
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
+  // El padre monta/desmonta este componente en vez de un flag `open`
+  // interno — el montaje ya equivale a "abierto".
+  const dialogRef = useModalA11y<HTMLDivElement>(true, onClose)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -54,7 +58,13 @@ function EditNameModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 animate-fade-in">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Editar nombre"
+        className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 animate-fade-in"
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">Editar nombre</h3>
           <button onClick={onClose} aria-label="Cerrar" className="text-gray-400 hover:text-white transition-colors">

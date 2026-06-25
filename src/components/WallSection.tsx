@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { likeWallMessage, dislikeWallMessage, postWallMessage, subscribeToWall } from '../firebase/wall'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { likeWallMessage, dislikeWallMessage, postWallMessage, fetchWallMessages } from '../firebase/wall'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
@@ -43,6 +43,7 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
   const { profile }       = useUserProfile()
   const [messages, setMessages] = useState<WallMessage[]>([])
   const [loading, setLoading]   = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [wallError, setWallError] = useState('')
   const [text, setText]         = useState('')
   const [type, setType]         = useState<WallMessageType>('comment')
@@ -57,21 +58,41 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
   const authorName  = user ? (profile?.displayName || user.displayName || 'Anfitrión') : resolvedGuestName
   const authorPhoto = user ? (profile?.photoURL || user.photoURL || undefined) : undefined
 
-  useEffect(() => {
-    const unsub = subscribeToWall(eventId, (msgs) => {
+  // Sin listener permanente a propósito: este widget se monta en páginas
+  // 100% públicas de alto tráfico (GuestPass, EventJoin). Un onSnapshot por
+  // visitante ahí es el patrón de mayor riesgo de costo del proyecto. Se
+  // carga una vez al montar y se vuelve a pedir solo ante una acción
+  // explícita (botón "Actualizar", o la propia publicación/like/dislike del
+  // usuario) — ver EventWall.tsx para la vista con tiempo real real.
+  // `loading` solo cubre la primera carga (controla el placeholder inicial,
+  // antes de tener ningún mensaje); `refreshing` cubre cualquier llamada
+  // posterior (botón, post, like/dislike) — separados para no hacer
+  // reaparecer "Cargando mensajes…" encima de la lista ya renderizada cada
+  // vez que alguien da like.
+  const loadMessages = useCallback(async () => {
+    setRefreshing(true)
+    setWallError('')
+    try {
+      const msgs = await fetchWallMessages(eventId, WALL_SECTION_LIVE_LIMIT)
       setMessages(msgs.sort((a, b) => {
         if (a.pinned && !b.pinned) return -1
         if (!a.pinned && b.pinned) return 1
         return b.createdAt - a.createdAt
       }))
-      setLoading(false)
-    }, (err) => {
+    } catch (err) {
       console.error('Error loading wall section:', err)
       setWallError('No se pudieron cargar los mensajes del muro.')
+    } finally {
+      setRefreshing(false)
       setLoading(false)
-    }, WALL_SECTION_LIVE_LIMIT)
-    return unsub
+    }
   }, [eventId])
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    loadMessages()
+  }, [loadMessages])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault()
@@ -83,6 +104,10 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
       await postWallMessage(eventId, text, type, authorName, token, 'guest', authorPhoto)
       setText('')
       textareaRef.current?.focus()
+      // Sin esto, el propio mensaje publicado no aparecería hasta que el
+      // usuario presione "Actualizar" — la pérdida de tiempo real es
+      // aceptada para mensajes de otros, no para la propia acción.
+      await loadMessages()
     } catch (err) {
       console.error('Error posting wall message:', err)
       setPostError(err instanceof Error ? err.message : 'No se pudo publicar el mensaje. Intenta de nuevo.')
@@ -94,18 +119,29 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
   async function handleLike(msg: WallMessage) {
     const token = getDeviceToken()
     await likeWallMessage(eventId, msg.id, token, msg.likedBy.includes(token))
+    await loadMessages()
   }
 
   async function handleDislike(msg: WallMessage) {
     const token = getDeviceToken()
     await dislikeWallMessage(eventId, msg.id, token, msg.dislikedBy.includes(token))
+    await loadMessages()
   }
 
   const canPost = user ? !isMinor : !!resolvedGuestName
 
   return (
     <div className="invite-wall-section relative mt-8 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
-      <h2 className="text-lg font-bold mb-4 text-[var(--invite-text)]">Muro del evento</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold text-[var(--invite-text)]">Muro del evento</h2>
+        <button
+          onClick={loadMessages}
+          disabled={refreshing}
+          className="text-xs font-medium disabled:opacity-50 text-[var(--invite-accent)]"
+        >
+          {refreshing ? 'Actualizando…' : 'Actualizar muro'}
+        </button>
+      </div>
 
       {/* Age restriction notice */}
       {user && isMinor && (

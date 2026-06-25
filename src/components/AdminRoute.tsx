@@ -1,16 +1,17 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { isAdminEmail } from '../config/admin'
+import { useIsAdmin } from '../hooks/useIsAdmin'
 
 export function AdminRoute({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth()
+  const { user, loading: authLoading } = useAuth()
+  const { isAdmin, loading: adminLoading } = useIsAdmin()
 
-  if (loading) {
+  if (authLoading || adminLoading) {
     return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando…</div>
   }
 
-  if (!user || !isAdminEmail(user.email)) {
+  if (!user || !isAdmin) {
     return <Navigate to="/dashboard" replace />
   }
 

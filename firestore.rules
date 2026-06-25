@@ -19,8 +19,16 @@ service cloud.firestore {
       return isOwner(eventId) || isCoOrganizer(eventId);
     }
 
+    // Admin = tener un documento propio en /admins/{uid}. Se eligió esta
+    // colección en vez de customClaims (Fase 4D) porque asignar customClaims
+    // requiere el Admin SDK, que en este proyecto solo está disponible vía
+    // Cloud Functions — y este proyecto está deliberadamente en el plan
+    // Spark (gratis), sin Blaze. Agregar/quitar admins se hace a mano desde
+    // la consola de Firebase (Firestore → admins), nunca desde la app: ver
+    // `allow write: if false` en el match de abajo.
     function isAdmin() {
-      return request.auth != null && request.auth.token.email == 'ericmunoz441@gmail.com';
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
     function isOpenEvent(eventId) {
@@ -66,6 +74,16 @@ service cloud.firestore {
         && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30));
     }
 
+    // Sin alta pública ni desde la app: la única forma de agregar/quitar un
+    // admin es a mano desde la consola de Firebase (que opera con acceso de
+    // propietario del proyecto y no pasa por estas reglas). `allow read`
+    // solo le permite a cada usuario confirmar si ES admin — no listar ni
+    // ver el resto de la colección.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
       // El admin puede listar todos los usuarios (AdminDashboard). Cualquier otro usuario
@@ -83,11 +101,16 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
       allow update: if isOwner(eventId) || isAdmin()
         // Check-in/checkout individual o contador walk-in (Opciones A y C): solo
-        // organizador/co-org, y de a 1 en 1 — nunca un salto arbitrario.
+        // organizador/co-org. -1 es siempre walkOut (Opción A). Un check-in con
+        // acompañantes suma (1 + companions.length) de una sola vez (ver
+        // checkInGuest en guests.ts) en vez de exactamente 1 — el tope de +50
+        // sigue bloqueando un salto arbitrario sin atarse a un límite exacto de
+        // acompañantes, que la UI no impone.
         || (isOwnerOrCoOrg(eventId)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount'])
-            && (request.resource.data.checkedInCount == resource.data.checkedInCount + 1
-                || request.resource.data.checkedInCount == resource.data.checkedInCount - 1))
+            && (request.resource.data.checkedInCount == resource.data.checkedInCount - 1
+                || (request.resource.data.checkedInCount > resource.data.checkedInCount
+                    && request.resource.data.checkedInCount <= resource.data.checkedInCount + 50)))
         // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1 en 1.
         || (resource.data.entryMode in ['open', 'hybrid']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount'])
@@ -132,6 +155,13 @@ service cloud.firestore {
       match /wall/{messageId} {
         allow read: if true;
         allow create: if isValidWallMessage();
+        // TODO Fase 3+: esta rama no verifica que el token agregado a
+        // likedBy/dislikedBy sea el propio del dispositivo que hace la
+        // petición — solo limita qué claves se tocan y el tamaño máximo de
+        // los arrays. Un cliente que hable directo con Firestore (evitando
+        // src/firebase/wall.ts) puede votar repetidamente simulando tokens
+        // distintos. Solución robusta: mover el voto a una subcolección
+        // wall/{id}/votes/{token} con un doc por voto.
         allow update: if isOwner(eventId) || isAdmin()
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy'])
               && request.resource.data.likedBy.size() <= 5000

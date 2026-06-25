@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useCheckinToast } from '../hooks/useCheckinToast'
-import { deleteEvent, setEventStatus, addCoOrganizer, removeCoOrganizer } from '../firebase/events'
-import { getUserByEmail, getUserProfile } from '../firebase/userProfile'
-import { subscribeToWaitlist, promoteFromWaitlist } from '../firebase/waitlist'
-import { sendCheckinSummary, type CheckinSummaryEntry } from '../firebase/guests'
+import { useEventExport } from '../hooks/useEventExport'
+import { useWaitlistPanel } from '../hooks/useWaitlistPanel'
+import { useCoOrganizers } from '../hooks/useCoOrganizers'
+import { useGuestStats } from '../hooks/useGuestStats'
+import { useCheckinSessionAccumulator } from '../hooks/useCheckinSessionAccumulator'
+import { useModalA11y } from '../hooks/useModalA11y'
+import { deleteEvent, setEventStatus } from '../firebase/events'
 import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
@@ -29,7 +32,6 @@ import {
   IconWhatsApp,
   IconX,
 } from '../components/Icons'
-import type { WaitlistEntry } from '../types'
 
 export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -37,73 +39,35 @@ export function EventDetail() {
   const navigate = useNavigate()
   const location = useLocation()
   const { event, guests, loading, guestsLoading, error } = useEvent(eventId)
-  const [exporting, setExporting] = useState(false)
-  const [exportProgress, setExportProgress] = useState<{ done: number; total: number } | null>(null)
-  const [exportPdfError, setExportPdfError] = useState('')
-  const exportCancelledRef = useRef(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [actionError, setActionError] = useState('')
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'scanned' | 'declined' | 'pending'>('all')
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'az' | 'za'>('newest')
   const [editingEvent, setEditingEvent] = useState(false)
-  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([])
-  const [promotingId, setPromotingId] = useState<string | null>(null)
-  const [coOrgEmail, setCoOrgEmail] = useState('')
-  const [coOrgLoading, setCoOrgLoading] = useState(false)
-  const [coOrgError, setCoOrgError] = useState('')
+  const [removingCoOrg, setRemovingCoOrg] = useState<{ uid: string; email: string } | null>(null)
   const checkinToast = useCheckinToast(eventId)
+  const { exporting, exportProgress, exportPdfError, handleExportPdf, handleCancelExportPdf, handleExportCsv } =
+    useEventExport(event, guests)
+  const {
+    waitlist,
+    waitingEntries,
+    promotedEntries,
+    promotingId,
+    promoteResult,
+    promoteLinkCopied,
+    handlePromote,
+    handleCopyPromoteLink,
+    setPromoteResult,
+  } = useWaitlistPanel(eventId)
+  const promoteDialogRef = useModalA11y<HTMLDivElement>(!!promoteResult, () => setPromoteResult(null))
+  const { coOrgEmail, setCoOrgEmail, coOrgLoading, coOrgError, setCoOrgError, handleAddCoOrg, handleRemoveCoOrg } =
+    useCoOrganizers(eventId, event?.ownerId)
 
-  // Acumulador de check-ins "de esta sesión" para el resumen por email
-  // (Prioridad 1). Se deriva de `guests` (ya en tiempo real vía useEvent) en
-  // vez de abrir un segundo listener a `checkins` — useCheckinToast ya cubre
-  // ese rol para el toast in-app y no se toca. seenCheckedInIds guarda los
-  // ids ya vistos como checked_in; null significa "todavía no se fijó la
-  // base" (primer render de este eventId), así los check-ins de ANTES de
-  // abrir esta página no cuentan como "de esta sesión".
-  const [checkinsThisSession, setCheckinsThisSession] = useState<CheckinSummaryEntry[]>([])
-  const seenCheckedInIds = useRef<Set<string> | null>(null)
-  const sessionEventIdRef = useRef<string | undefined>(undefined)
-  const [organizerNotifyEnabled, setOrganizerNotifyEnabled] = useState(false)
-  const [summarySending, setSummarySending] = useState(false)
-  const [summaryToast, setSummaryToast] = useState<string | null>(null)
-  const [promoteResult, setPromoteResult] = useState<{ name: string; phone: string; passUrl: string } | null>(null)
-  const [promoteLinkCopied, setPromoteLinkCopied] = useState(false)
-
-  useEffect(() => {
-    if (!eventId) return
-    return subscribeToWaitlist(eventId, setWaitlist)
-  }, [eventId])
-
-  useEffect(() => {
-    // Reinicia el acumulador si se navega a otro evento sin desmontar el
-    // componente — la comparación contra el ref (no solo el array de deps)
-    // es lo que evita que este reset se mezcle con el cálculo de abajo en
-    // cada actualización de `guests` del MISMO evento.
-    if (sessionEventIdRef.current !== eventId) {
-      sessionEventIdRef.current = eventId
-      seenCheckedInIds.current = null
-      setCheckinsThisSession([])
-    }
-    const checkedInNow = guests.filter((g) => g.status === 'checked_in')
-    if (seenCheckedInIds.current === null) {
-      seenCheckedInIds.current = new Set(checkedInNow.map((g) => g.id))
-      return
-    }
-    const seen = seenCheckedInIds.current
-    const newlyCheckedIn = checkedInNow.filter((g) => !seen.has(g.id))
-    if (newlyCheckedIn.length === 0) return
-    newlyCheckedIn.forEach((g) => seen.add(g.id))
-    setCheckinsThisSession((prev) => [
-      ...prev,
-      ...newlyCheckedIn.map((g) => ({ name: g.name, checkInTime: g.checkedInAt ?? Date.now(), status: 'checked_in' as const })),
-    ])
-  }, [eventId, guests])
-
-  useEffect(() => {
-    if (!user) return
-    getUserProfile(user.uid).then((profile) => setOrganizerNotifyEnabled(profile?.notifyOnCheckin === true))
-  }, [user])
+  const { checkinsThisSession, organizerNotifyEnabled, summarySending, summaryToast, handleSendCheckinSummary } =
+    useCheckinSessionAccumulator(eventId, guests, user)
 
   // Permite que el CTA del modal de éxito de EventCreate (u otros enlaces)
   // lleve directo a una sección con #hash — React Router no hace scroll a
@@ -116,18 +80,31 @@ export function EventDetail() {
   }, [event, location.hash])
 
   // Memoizado para que GuestList (React.memo) reciba la misma referencia de
-  // array entre renders en los que `guests`/`search` no cambiaron — si no,
-  // cualquier re-render de EventDetail por estado no relacionado (toasts,
-  // exportPdf, etc.) invalidaría el memo de GuestList sin motivo real.
-  const filteredGuests = useMemo(
-    () =>
-      guests.filter((g) => {
-        const term = search.trim().toLowerCase()
-        if (!term) return true
-        return g.name.toLowerCase().includes(term) || (g.lastName || '').toLowerCase().includes(term)
-      }),
-    [guests, search],
-  )
+  // array entre renders en los que `guests`/`search`/`statusFilter`/`sortBy`
+  // no cambiaron — si no, cualquier re-render de EventDetail por estado no
+  // relacionado (toasts, exportPdf, etc.) invalidaría el memo de GuestList
+  // sin motivo real.
+  const filteredGuests = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    const filtered = guests.filter((g) => {
+      if (term && !g.name.toLowerCase().includes(term) && !(g.lastName || '').toLowerCase().includes(term)) {
+        return false
+      }
+      if (statusFilter === 'confirmed') return g.rsvpStatus === 'yes'
+      if (statusFilter === 'scanned') return g.status === 'checked_in'
+      if (statusFilter === 'declined') return g.rsvpStatus === 'no'
+      if (statusFilter === 'pending') return g.rsvpStatus === 'pending' && g.status !== 'checked_in'
+      return true
+    })
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'az') return `${a.name} ${a.lastName || ''}`.localeCompare(`${b.name} ${b.lastName || ''}`)
+      if (sortBy === 'za') return `${b.name} ${b.lastName || ''}`.localeCompare(`${a.name} ${a.lastName || ''}`)
+      if (sortBy === 'oldest') return a.createdAt - b.createdAt
+      return b.createdAt - a.createdAt // newest
+    })
+  }, [guests, search, statusFilter, sortBy])
+
+  const { totalPeople, totalCollected, peopleInside, rsvpYes, rsvpNo } = useGuestStats(guests, event?.ticketPrice ?? 0)
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
   if (error) return <p className="text-center text-red-500 mt-16">{error}</p>
@@ -140,60 +117,6 @@ export function EventDetail() {
 
   if (user && !hasAccess) {
     return <p className="text-center text-gray-500 mt-16">No tienes acceso a este evento.</p>
-  }
-
-  async function handleExportPdf() {
-    setExporting(true)
-    setExportPdfError('')
-    setExportProgress({ done: 0, total: guests.length })
-    exportCancelledRef.current = false
-    try {
-      const { exportGuestPassesPdf } = await import('../utils/exportPdf')
-      const result = await exportGuestPassesPdf(event!, guests, {
-        onProgress: (done, total) => setExportProgress({ done, total }),
-        isCancelled: () => exportCancelledRef.current,
-      })
-      if (result === 'cancelled') {
-        setExportPdfError('Exportación cancelada.')
-      }
-    } catch (err) {
-      console.error('Error exporting guest passes PDF:', err)
-      setExportPdfError('No se pudo generar el PDF. Intenta de nuevo.')
-    } finally {
-      setExporting(false)
-      setExportProgress(null)
-    }
-  }
-
-  function handleCancelExportPdf() {
-    exportCancelledRef.current = true
-  }
-
-  function handleExportCsv() {
-    const rows = [
-      [
-        'Nombre', 'Apellido', 'Teléfono', 'Acompañantes', 'Estado', 'Confirmación', 'Check-in',
-        ...(event!.requiresPayment ? ['Pago'] : []),
-      ],
-      ...guests.map((g) => [
-        g.name,
-        g.lastName || '',
-        g.phone || '',
-        String(g.companions.length),
-        g.status === 'checked_in' ? 'Asistió' : 'Invitado',
-        g.rsvpStatus === 'yes' ? 'Sí' : g.rsvpStatus === 'no' ? 'No' : 'Pendiente',
-        g.checkedInAt ? new Date(g.checkedInAt).toLocaleString('es') : '',
-        ...(event!.requiresPayment ? [g.paymentStatus === 'paid' ? 'Pagó' : 'Pendiente'] : []),
-      ]),
-    ]
-    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `invitados-${event!.name.replace(/\s+/g, '_')}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   async function handleStatusChange(status: 'cancelled' | 'archived' | 'active') {
@@ -223,82 +146,6 @@ export function EventDetail() {
       setDeleting(false)
     }
   }
-
-  async function handlePromote(entry: WaitlistEntry) {
-    if (!eventId) return
-    setPromotingId(entry.id)
-    try {
-      const qrToken = await promoteFromWaitlist(eventId, entry.id, entry.name, entry.lastName, entry.phone)
-      if (qrToken) {
-        const passUrl = `${window.location.origin}/pass/${eventId}/${qrToken}`
-        setPromoteLinkCopied(false)
-        setPromoteResult({ name: `${entry.name} ${entry.lastName}`, phone: entry.phone, passUrl })
-      }
-    } finally {
-      setPromotingId(null)
-    }
-  }
-
-  function handleCopyPromoteLink() {
-    if (!promoteResult) return
-    navigator.clipboard.writeText(promoteResult.passUrl).then(() => {
-      setPromoteLinkCopied(true)
-      setTimeout(() => setPromoteLinkCopied(false), 2000)
-    }).catch(() => {})
-  }
-
-  async function handleSendCheckinSummary() {
-    if (!eventId || !user || checkinsThisSession.length === 0) return
-    setSummarySending(true)
-    try {
-      await sendCheckinSummary(eventId, user.uid, checkinsThisSession)
-      setCheckinsThisSession([])
-      setSummaryToast('Resumen de check-ins enviado.')
-      setTimeout(() => setSummaryToast(null), 4000)
-    } finally {
-      setSummarySending(false)
-    }
-  }
-
-  async function handleAddCoOrg(e: React.FormEvent) {
-    e.preventDefault()
-    if (!eventId || !coOrgEmail.trim()) return
-    setCoOrgLoading(true)
-    setCoOrgError('')
-    try {
-      const found = await getUserByEmail(coOrgEmail)
-      if (!found) {
-        setCoOrgError('Usuario no encontrado. Debe estar registrado en la app.')
-        return
-      }
-      if (found.uid === event?.ownerId) {
-        setCoOrgError('Ese usuario ya es el organizador principal.')
-        return
-      }
-      await addCoOrganizer(eventId, found.uid, found.email)
-      setCoOrgEmail('')
-    } catch {
-      setCoOrgError('Error al agregar co-organizador.')
-    } finally {
-      setCoOrgLoading(false)
-    }
-  }
-
-  async function handleRemoveCoOrg(uid: string) {
-    if (!eventId) return
-    await removeCoOrganizer(eventId, uid)
-  }
-
-  const totalPeople = guests.reduce((sum, g) => sum + 1 + g.companions.length, 0)
-  const totalCollected = guests
-    .filter((g) => g.paymentStatus === 'paid')
-    .reduce((sum, g) => sum + event.ticketPrice * (1 + g.companions.length), 0)
-  const insideGuests = guests.filter((g) => g.status === 'checked_in' && !g.checkedOutAt)
-  const peopleInside = insideGuests.reduce((sum, g) => sum + 1 + g.companions.length, 0)
-  const rsvpYes = guests.filter((g) => g.rsvpStatus === 'yes').length
-  const rsvpNo = guests.filter((g) => g.rsvpStatus === 'no').length
-  const waitingEntries = waitlist.filter((e) => e.status === 'waiting')
-  const promotedEntries = waitlist.filter((e) => e.status === 'promoted')
 
   const content = (
     <>
@@ -331,7 +178,10 @@ export function EventDetail() {
               </button>
             )}
           </div>
-          <p className="text-sm text-gray-500">{event.date} · {event.location}</p>
+          <p className="text-sm text-gray-500">
+            {event.date} · {event.location}
+            {event.startTime && <> · ⏰ {event.startTime}{event.endTime && `–${event.endTime}`}</>}
+          </p>
         </div>
         <div className="flex gap-2">
           <Link to={`/events/${event.id}/scan`} className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
@@ -357,7 +207,7 @@ export function EventDetail() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-6">
         <StatCard icon={<IconUsers className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={event.guestCount} label={`Invitados (${totalPeople} personas)`} />
-        <StatCard icon={<IconCheckCircle className="w-5 h-5 mb-1 mx-auto text-green-600" />} value={event.checkedInCount} label="Confirmados" valueClass="text-green-600" />
+        <StatCard icon={<IconCheckCircle className="w-5 h-5 mb-1 mx-auto text-green-600" />} value={event.checkedInCount} label="Asistentes escaneados" valueClass="text-green-600" />
         <StatCard icon={<IconClock className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={event.guestCount - event.checkedInCount} label="Pendientes" />
         <StatCard icon={<IconHome className="w-5 h-5 mb-1 mx-auto text-primary" />} value={peopleInside} label="Personas dentro ahora" valueClass="text-primary" />
         <StatCard icon={<IconThumbsUp className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={rsvpYes} label="Asistirán" />
@@ -377,8 +227,9 @@ export function EventDetail() {
         <EventAnalytics guests={guests} loading={guestsLoading} />
       )}
 
-      {/* Límite de invitados: visible para todos los modos de ingreso. En
-          lista cerrada es solo informativo (no bloquea agregar invitados). */}
+      {/* Límite de invitados: visible para todos los modos de ingreso. addGuest()
+          bloquea por cantidad de invitados (sin contar acompañantes) — por eso
+          el total de personas (sí los cuenta) puede superar el cupo igual. */}
       {event.capacity > 0 && (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
           <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
@@ -388,8 +239,8 @@ export function EventDetail() {
           <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
             <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, (totalPeople / event.capacity) * 100)}%` }} />
           </div>
-          {event.entryMode === 'list' && totalPeople > event.capacity && (
-            <p className="text-xs text-amber-600 mt-1.5">Superaste el límite configurado — es solo informativo en lista cerrada, no bloquea seguir agregando invitados.</p>
+          {totalPeople > event.capacity && (
+            <p className="text-xs text-amber-600 mt-1.5">Los acompañantes hacen que el total de personas supere el cupo configurado.</p>
           )}
         </div>
       )}
@@ -483,9 +334,34 @@ export function EventDetail() {
         )}
         {exportPdfError && <p className="text-xs text-red-500 mb-2">{exportPdfError}</p>}
         {guests.length > 0 && (
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o apellido…"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary" />
+          <>
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre o apellido…"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary" />
+            <div className="flex gap-2 mb-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="all">Todos</option>
+                <option value="confirmed">Confirmados (asistirán)</option>
+                <option value="scanned">Ya escaneados</option>
+                <option value="declined">No asistirán</option>
+                <option value="pending">Pendientes</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="newest">Más nuevos primero</option>
+                <option value="oldest">Más antiguos primero</option>
+                <option value="az">Nombre A-Z</option>
+                <option value="za">Nombre Z-A</option>
+              </select>
+            </div>
+          </>
         )}
         <GuestList
           eventId={event.id}
@@ -529,7 +405,7 @@ export function EventDetail() {
               {Object.entries(coOrgsMap).map(([uid, email]) => (
                 <div key={uid} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
                   <span className="text-sm text-gray-700 dark:text-gray-300">{email}</span>
-                  <button onClick={() => handleRemoveCoOrg(uid)} aria-label={`Quitar a ${email} como co-organizador`} className="text-gray-400 hover:text-red-500 transition-colors">
+                  <button onClick={() => setRemovingCoOrg({ uid, email })} aria-label={`Quitar a ${email} como co-organizador`} className="text-gray-400 hover:text-red-500 transition-colors">
                     <IconX className="w-4 h-4" />
                   </button>
                 </div>
@@ -605,6 +481,16 @@ export function EventDetail() {
         onCancel={() => setConfirmDelete(false)}
       />
 
+      <ConfirmDialog
+        open={!!removingCoOrg}
+        title="Quitar co-organizador"
+        message={`¿Quitar a ${removingCoOrg?.email} como co-organizador? Ya no podrá escanear pases ni ver este evento.`}
+        confirmLabel="Quitar"
+        danger
+        onConfirm={() => { if (removingCoOrg) handleRemoveCoOrg(removingCoOrg.uid); setRemovingCoOrg(null) }}
+        onCancel={() => setRemovingCoOrg(null)}
+      />
+
       {/* Promover de lista de espera (Prioridad 2): mismo overlay/card/
           animate-bounce-in que ConfirmDialog, inline porque acá hace falta
           dos acciones (WhatsApp + copiar) en vez de un solo confirmar/
@@ -614,7 +500,13 @@ export function EventDetail() {
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
           onClick={(e) => { if (e.target === e.currentTarget) setPromoteResult(null) }}
         >
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm animate-bounce-in p-6">
+          <div
+            ref={promoteDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Invitado promovido"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm animate-bounce-in p-6"
+          >
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Invitado promovido</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-4">
               {promoteResult.name} ya tiene su pase. Avisale por WhatsApp o copiá el enlace.
