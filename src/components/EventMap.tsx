@@ -40,6 +40,12 @@ export function EventMap({ mapsUrl }: Props) {
         </div>
       )}
 
+      {!coords && (
+        <p className="text-xs text-center" style={{ color: 'var(--invite-text-muted)' }}>
+          No pudimos mostrar una vista previa del mapa, pero el botón abre la ubicación igual.
+        </p>
+      )}
+
       <a
         href={mapsUrl}
         target="_blank"

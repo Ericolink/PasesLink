@@ -1,40 +1,37 @@
 import { useEffect, useState } from 'react'
-import { subscribeToEvent } from '../firebase/events'
 import { subscribeToGuests } from '../firebase/guests'
-import type { EventData, GuestData } from '../types'
+import { useEventOnly } from './useEventOnly'
+import type { GuestData } from '../types'
 
+// Compone useEventOnly (suscripción al doc del evento) y le agrega la
+// suscripción a `guests` encima — evita mantener dos copias del mismo bloque
+// de suscripción al evento (antes useEvent reimplementaba el de
+// useEventOnly de forma casi idéntica, así que un fix a uno no llegaba al otro).
 export function useEvent(eventId: string | undefined) {
-  const [event, setEvent] = useState<EventData | null>(null)
+  const { event, loading, error: eventError } = useEventOnly(eventId)
   const [guests, setGuests] = useState<GuestData[]>([])
-  const [loading, setLoading] = useState(true)
   // Separado de `loading`: el doc del evento y la lista de invitados son dos
   // suscripciones independientes que pueden resolver en momentos distintos —
   // sin esto, una pantalla que solo mira `loading` puede confundir "todavía
   // no llegaron los invitados" con "el evento no tiene invitados".
   const [guestsLoading, setGuestsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [guestsError, setGuestsError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!eventId) return
-    function handleError() {
-      setError('No se pudo cargar el evento. Verifica tu conexión o que sigas teniendo acceso.')
-      setLoading(false)
-      setGuestsLoading(false)
-    }
-    const unsubEvent = subscribeToEvent(eventId, (data) => {
-      setEvent(data)
-      setLoading(false)
-      setError(null)
-    }, handleError)
-    const unsubGuests = subscribeToGuests(eventId, (data) => {
-      setGuests(data)
-      setGuestsLoading(false)
-    }, handleError)
-    return () => {
-      unsubEvent()
-      unsubGuests()
-    }
+    const unsubGuests = subscribeToGuests(
+      eventId,
+      (data) => {
+        setGuests(data)
+        setGuestsLoading(false)
+      },
+      () => {
+        setGuestsError('No se pudo cargar el evento. Verifica tu conexión o que sigas teniendo acceso.')
+        setGuestsLoading(false)
+      },
+    )
+    return unsubGuests
   }, [eventId])
 
-  return { event, guests, loading, guestsLoading, error }
+  return { event, guests, loading, guestsLoading, error: eventError || guestsError }
 }

@@ -7,8 +7,10 @@ import { addToWaitlist } from '../firebase/waitlist'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
+import { sendGuestPassEmail } from '../utils/emailjs'
 import {
   GUEST_CUSTOM_FIELD_VALUE_MAX,
+  GUEST_EMAIL_MAX,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
   WAITLIST_NAME_MAX,
@@ -37,6 +39,7 @@ interface SavedReg {
   name: string
   lastName: string
   phone: string
+  email?: string
   qrToken: string
   customValues: Record<string, string>
 }
@@ -54,6 +57,7 @@ export function EventJoin() {
   const [name, setName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [qrToken, setQrToken] = useState('')
   const [waitlistState, setWaitlistState] = useState<WaitlistState>('idle')
@@ -80,6 +84,7 @@ export function EventJoin() {
           setName(reg.name)
           setLastName(reg.lastName || '')
           setPhone(reg.phone)
+          setEmail(reg.email || '')
           setCustomValues(reg.customValues || {})
           setQrToken(reg.qrToken)
           setState('success')
@@ -126,9 +131,19 @@ export function EventJoin() {
       } else {
         const token = result.qrToken!
         setQrToken(token)
-        localStorage.setItem(regKey(id), JSON.stringify({ name, lastName, phone, qrToken: token, customValues }))
+        localStorage.setItem(
+          regKey(id),
+          JSON.stringify({ name, lastName, phone, email, qrToken: token, customValues }),
+        )
         localStorage.setItem('wall_guest_name', fullName)
         setState('success')
+        // Best-effort: si no hay plantilla de EmailJS configurada, no hace
+        // nada (ver sendGuestPassEmail) — el pase sigue funcionando solo con
+        // localStorage, esto es una red de seguridad adicional para cuando el
+        // invitado pierde el link guardado en el navegador.
+        if (email.trim() && event) {
+          void sendGuestPassEmail(email.trim(), event.name, buildPassUrl(id, token))
+        }
         if (user && id && event) {
           void saveUserInvitation(user.uid, {
             eventId: id,
@@ -388,6 +403,19 @@ export function EventJoin() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+1 234 567 8900"
+                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">
+                Email <span className="font-normal">(opcional, para recibir tu pase por correo)</span>
+              </label>
+              <input
+                type="email"
+                maxLength={GUEST_EMAIL_MAX}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@email.com"
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
               />
             </div>

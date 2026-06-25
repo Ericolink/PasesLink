@@ -49,6 +49,15 @@ export async function walkOut(eventId: string): Promise<void> {
  * combinado por el llamador (EventJoin) como "Nombre Apellido" — por eso se
  * valida contra el máximo combinado, no el de una sola parte. Mismos límites
  * que firestore.rules (ver isValidPublicGuestRegistration ahí).
+ *
+ * ADVERTENCIA: esta función abre su propia runTransaction — no se puede
+ * llamar desde dentro de otra runTransaction (p.ej. una de guests.ts), eso
+ * falla en runtime y TypeScript no lo detecta porque ambas son simplemente
+ * funciones que devuelven una Promise. Además, el largo POR VALOR de cada
+ * campo de `customData` se valida SOLO acá (el bucle de abajo) — firestore.rules
+ * no puede iterar un mapa para revisar el largo de cada valor individual, así
+ * que esta es la única barrera real para ese caso. No la quites sin agregar
+ * una equivalente en otro lado.
  */
 export async function registerWalkInGuest(
   eventId: string,

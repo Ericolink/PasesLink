@@ -76,7 +76,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [capacityError, setCapacityError] = useState('')
 
   const draftKey = `eventDraft_${event.ownerId}_${event.id}`
-  const { pendingDraft, saveDraft, clearDraft, dismissPrompt } = useFormDraft<EventEditDraftFields>(draftKey)
+  const { pendingDraft, saveDraft, clearDraft, dismissPrompt } = useFormDraft<EventEditDraftFields>(draftKey, event.updatedAt)
 
   function applyDraft(fields: EventEditDraftFields) {
     setName(fields.name)

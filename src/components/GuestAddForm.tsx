@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { addGuest, addGuestsBulk } from '../firebase/guests'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
+import { GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
 import type { CompanionData, GuestData } from '../types'
 
 function normalizeName(value: string): string {
@@ -62,8 +63,8 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
       setLastName('')
       setPhone('')
       setCompanions([])
-    } catch {
-      setError('No se pudo agregar el invitado. Intenta de nuevo.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo agregar el invitado. Intenta de nuevo.')
     } finally {
       setLoading(false)
     }
@@ -85,8 +86,12 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
     try {
       await addGuestsBulk(eventId, names)
       setBulkNames('')
-    } catch {
-      setError('Ocurrió un error agregando la lista. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Ocurrió un error agregando la lista. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.',
+      )
     } finally {
       setLoading(false)
     }
@@ -142,6 +147,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
             <input
               type="text"
               required
+              maxLength={GUEST_NAME_PART_MAX}
               placeholder="Nombre"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -150,6 +156,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
             <input
               type="text"
               required
+              maxLength={GUEST_NAME_PART_MAX}
               placeholder="Apellido"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
@@ -157,6 +164,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
             />
             <input
               type="tel"
+              maxLength={GUEST_PHONE_MAX}
               placeholder="Teléfono (opcional)"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}

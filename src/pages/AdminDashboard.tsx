@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { subscribeToAllEvents, subscribeToAllUsers, type AdminUser } from '../firebase/admin'
 import { deleteEvent, setEventStatus } from '../firebase/events'
@@ -37,11 +37,18 @@ export function AdminDashboard() {
     }
   }, [])
 
-  const usersById = new Map(users.map((u) => [u.id, u]))
-  const eventCountByUser = new Map<string, number>()
-  for (const event of events) {
-    eventCountByUser.set(event.ownerId, (eventCountByUser.get(event.ownerId) || 0) + 1)
-  }
+  // Memoizado: antes se reconstruían en cada render (incluso por estado no
+  // relacionado, como abrir/cerrar el diálogo de eliminar) — intrascendente
+  // hoy, pero un recorrido O(eventos+usuarios) en cada click deja de serlo
+  // con miles de eventos/usuarios.
+  const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
+  const eventCountByUser = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const event of events) {
+      counts.set(event.ownerId, (counts.get(event.ownerId) || 0) + 1)
+    }
+    return counts
+  }, [events])
 
   const activeEvents = events.filter((e) => e.status === 'active').length
 
@@ -171,7 +178,7 @@ export function AdminDashboard() {
       <ConfirmDialog
         open={!!deletingEvent}
         title="Eliminar evento"
-        message={`¿Eliminar "${deletingEvent?.name}" definitivamente? Se borrarán todos sus invitados y el historial de check-ins. Esta acción no se puede deshacer.`}
+        message={`¿Eliminar "${deletingEvent?.name}" definitivamente? Se borrarán todos sus invitados y el historial de check-ins. Esta acción no se puede deshacer. Si el evento tiene muchos invitados, puede tardar varios segundos — no cierres esta ventana.`}
         confirmLabel={deleting ? 'Eliminando…' : 'Eliminar'}
         danger
         onConfirm={confirmDeleteEvent}

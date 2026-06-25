@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { partySize } from '../firebase/guests'
 import type { GuestData } from '../types'
 
 // Extraído de EventDetail.tsx (Subfase 3.3): agrupados en un solo useMemo
@@ -10,11 +11,11 @@ export function useGuestStats(guests: GuestData[], ticketPrice: number) {
   return useMemo(() => {
     const insideGuests = guests.filter((g) => g.status === 'checked_in' && !g.checkedOutAt)
     return {
-      totalPeople: guests.reduce((sum, g) => sum + 1 + g.companions.length, 0),
+      totalPeople: guests.reduce((sum, g) => sum + partySize(g), 0),
       totalCollected: guests
         .filter((g) => g.paymentStatus === 'paid')
-        .reduce((sum, g) => sum + ticketPrice * (1 + g.companions.length), 0),
-      peopleInside: insideGuests.reduce((sum, g) => sum + 1 + g.companions.length, 0),
+        .reduce((sum, g) => sum + ticketPrice * partySize(g), 0),
+      peopleInside: insideGuests.reduce((sum, g) => sum + partySize(g), 0),
       rsvpYes: guests.filter((g) => g.rsvpStatus === 'yes').length,
       rsvpNo: guests.filter((g) => g.rsvpStatus === 'no').length,
     }

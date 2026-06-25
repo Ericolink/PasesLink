@@ -21,6 +21,13 @@ import { getUserProfile } from './userProfile'
 import { sendCheckinSummaryEmail } from '../utils/emailjs'
 import type { CompanionData, GuestData, GuestPaymentStatus, RsvpStatus } from '../types'
 import { GuestSchema, warnIfInvalidShape } from '../types/schemas'
+import {
+  GUEST_FULL_NAME_MAX,
+  GUEST_NAME_PART_MAX,
+  GUEST_PHONE_MAX,
+  requireMaxLength,
+  requireNonEmpty,
+} from '../utils/validation'
 
 export interface NewGuestInput {
   name: string
@@ -31,6 +38,14 @@ export interface NewGuestInput {
 
 function generateQrToken(): string {
   return crypto.randomUUID().replace(/-/g, '')
+}
+
+// Cuántas personas representa un invitado (él + sus acompañantes). Única
+// fuente de verdad para esta cuenta — antes estaba reimplementada por
+// separado en checkInGuest y dos veces en useGuestStats.ts; cambiarla en un
+// solo lugar y no en otro desincronizaba el conteo de checkedInCount/stats.
+export function partySize(guest: { companions: CompanionData[] }): number {
+  return 1 + guest.companions.length
 }
 
 // `phone` NUNCA se guarda en el documento de `guests`: ese documento es
@@ -71,17 +86,23 @@ export type AddGuestResult = { status: 'added'; id: string } | { status: 'waitli
 // concurrencia), a diferencia de registerWalkInGuest (registro público,
 // donde sí hace falta una transacción por el volumen de tráfico concurrente).
 export async function addGuest(eventId: string, input: NewGuestInput): Promise<AddGuestResult> {
+  const name = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
+  const lastName = input.lastName
+    ? requireMaxLength(input.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
+    : ''
+  const phone = input.phone ? requireMaxLength(input.phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
+
   const event = await getEvent(eventId)
   if (event && event.capacity > 0 && event.guestCount >= event.capacity) {
-    await addToWaitlist(eventId, input.name, input.lastName || '', input.phone || '')
+    await addToWaitlist(eventId, name, lastName, phone)
     return { status: 'waitlisted' }
   }
 
   const batch = writeBatch(db)
   const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-  batch.set(guestRef, buildNewGuestPayload(input))
-  if (input.phone?.trim()) {
-    batch.set(contactRef(eventId, guestRef.id), { phone: input.phone.trim() })
+  batch.set(guestRef, buildNewGuestPayload({ ...input, name, lastName }))
+  if (phone) {
+    batch.set(contactRef(eventId, guestRef.id), { phone })
   }
   batch.update(doc(db, 'events', eventId), { guestCount: increment(1) })
   await batch.commit()
@@ -96,8 +117,15 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<A
 const BULK_CHUNK_SIZE = 450
 
 export async function addGuestsBulk(eventId: string, names: string[]) {
-  for (let i = 0; i < names.length; i += BULK_CHUNK_SIZE) {
-    const slice = names.slice(i, i + BULK_CHUNK_SIZE)
+  // Se valida la lista completa ANTES de escribir el primer chunk: si un solo
+  // nombre es inválido, ningún chunk se guarda — evita el caso de un alta
+  // parcial (algunos guests ya creados) por un error en una línea cualquiera
+  // de la lista pegada.
+  const trimmedNames = names.map((name) =>
+    requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre'),
+  )
+  for (let i = 0; i < trimmedNames.length; i += BULK_CHUNK_SIZE) {
+    const slice = trimmedNames.slice(i, i + BULK_CHUNK_SIZE)
     const batch = writeBatch(db)
     for (const name of slice) {
       const guestRef = doc(collection(db, 'events', eventId, 'guests'))
@@ -313,9 +341,9 @@ export async function checkInGuest(
       checkedOutByEmail: null,
     })
     // checkedInCount cuenta personas, no invitados escaneados: un check-in
-    // con acompañantes suma 1 (el invitado) + companions.length de una sola
-    // vez, así el contador refleja cuánta gente entró realmente.
-    transaction.update(eventRef, { checkedInCount: increment(1 + guest.companions.length) })
+    // con acompañantes suma partySize() (el invitado + companions) de una
+    // sola vez, así el contador refleja cuánta gente entró realmente.
+    transaction.update(eventRef, { checkedInCount: increment(partySize(guest)) })
 
     const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
     transaction.set(checkinRef, {
@@ -470,6 +498,13 @@ function normalizeCompanions(value: unknown): CompanionData[] {
   return []
 }
 
+// ADVERTENCIA para cambios futuros (incluidos los hechos por IA): NO agregues
+// un fallback `|| ''`/`|| algo` a qrToken como tienen los demás campos acá
+// abajo — fabricar uno nuevo si faltara invalidaría el pase ya compartido con
+// el invitado. Y `partySize()` (arriba en este archivo) es la única fuente de
+// verdad para "invitado + acompañantes" — si necesitas ese cálculo en otro
+// archivo, importala de acá, no la reimplementes.
+//
 // name/qrToken/status se castean sin fallback (ver mismo comentario en
 // mapEvent, events.ts). Para qrToken en particular, fabricar un token nuevo
 // si faltara sería activamente peligroso: invalidaría el pase ya compartido

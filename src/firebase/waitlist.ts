@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -60,6 +61,13 @@ export function subscribeToWaitlist(
   })
 }
 
+// No se puede envolver en una sola transacción: registerWalkInGuest ya abre y
+// cierra la suya (runTransaction no admite anidarse). Por eso esta función
+// hace 2 escrituras separadas — para que un fallo de red entre ambas no deje
+// un invitado real duplicado, se re-verifica el estado del entry ANTES de
+// volver a registrar (si ya está 'promoted', se devuelve su qrToken existente
+// en vez de crear un segundo invitado), y si falla el segundo paso (marcar el
+// entry), se loguea con el qrToken ya generado para no perder el rastro.
 export async function promoteFromWaitlist(
   eventId: string,
   entryId: string,
@@ -67,13 +75,28 @@ export async function promoteFromWaitlist(
   lastName: string,
   phone: string,
 ): Promise<string | null> {
+  const entryRef = doc(db, 'events', eventId, 'waitlist', entryId)
+  const entrySnap = await getDoc(entryRef)
+  const existingStatus = entrySnap.data()?.status as WaitlistEntry['status'] | undefined
+  if (existingStatus === 'promoted') {
+    return (entrySnap.data()?.qrToken as string | undefined) || null
+  }
+
   const fullName = `${name.trim()} ${lastName.trim()}`
   const result = await registerWalkInGuest(eventId, fullName, undefined, phone)
   if (result.status !== 'success' || !result.qrToken) return null
 
-  await updateDoc(doc(db, 'events', eventId, 'waitlist', entryId), {
-    status: 'promoted',
-    qrToken: result.qrToken,
-  })
+  try {
+    await updateDoc(entryRef, {
+      status: 'promoted',
+      qrToken: result.qrToken,
+    })
+  } catch (err) {
+    console.error(
+      'promoteFromWaitlist: el invitado ya se creó pero no se pudo marcar el entry como promovido. Revisar a mano.',
+      { eventId, entryId, qrToken: result.qrToken, err },
+    )
+    throw err
+  }
   return result.qrToken
 }

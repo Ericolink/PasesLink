@@ -15,6 +15,14 @@
 // guests.ts para el alcance completo de ese cambio mayor, deliberadamente no
 // incluido en esta subfase.
 import { z } from 'zod'
+import { WALL_TYPES } from '../utils/validation'
+import { INVITATION_TEMPLATES } from '../templates/registry'
+import type { TemplateId } from './index'
+
+// Derivados de su única fuente de verdad (WALL_TYPES / INVITATION_TEMPLATES) en
+// vez de tipear los mismos valores a mano por 3ra/4ta vez — agregar un tipo de
+// mensaje o una plantilla nueva ya no requiere recordar actualizar este archivo.
+const templateIds = INVITATION_TEMPLATES.map((t) => t.id) as [TemplateId, ...TemplateId[]]
 
 const CustomFieldSchema = z.object({
   id: z.string(),
@@ -34,7 +42,7 @@ export const EventSchema = z.object({
   description: z.string(),
   coverImage: z.string(),
   accentColor: z.string(),
-  templateId: z.enum(['default', 'wedding', 'cowboy', 'graduation', 'formal', 'kids']),
+  templateId: z.enum(templateIds),
   welcomeMessage: z.string(),
   mapsUrl: z.string(),
   entryMode: z.enum(['list', 'open', 'hybrid']),
@@ -102,7 +110,7 @@ const WallReplySchema = z.object({
 export const WallMessageSchema = z.object({
   id: z.string().min(1),
   text: z.string(),
-  type: z.enum(['comment', 'question', 'music', 'idea']),
+  type: z.enum(WALL_TYPES),
   authorName: z.string(),
   authorToken: z.string(),
   authorRole: z.enum(['owner', 'guest']),

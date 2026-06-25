@@ -4,6 +4,7 @@ import { emitEmailNotification } from './emailNotifications'
 const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID
 const WELCOME_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_WELCOME
 const CHECKIN_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CHECKIN
+const PASS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_PASS
 const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
 
 const RETRY_DELAYS_MS = [1000, 2000, 4000]
@@ -46,6 +47,28 @@ export async function sendWelcomeEmail(toEmail: string, toName: string) {
     ),
     'No se envió el email de bienvenida. Intentaremos de nuevo.',
     'Error sending welcome email',
+  )
+}
+
+/**
+ * Envía el pase (link con el QR) al email que el invitado dejó al autoregistrarse
+ * en /events/:id/join. Es opcional en el formulario — si no se completó, esta
+ * función ni se llama. Si no hay plantilla configurada (VITE_EMAILJS_TEMPLATE_ID_PASS),
+ * no hace nada en vez de romper el registro, igual que sendWelcomeEmail.
+ * Sin esto, un invitado anónimo que pierde el link (borra el navegador, cambia
+ * de celular) no tiene forma de recuperar su pase.
+ */
+export async function sendGuestPassEmail(toEmail: string, eventName: string, passUrl: string) {
+  if (!SERVICE_ID || !PASS_TEMPLATE_ID || !PUBLIC_KEY) return
+  await sendWithRetry(
+    () => emailjs.send(
+      SERVICE_ID,
+      PASS_TEMPLATE_ID,
+      { to_email: toEmail, event_name: eventName, pass_url: passUrl },
+      { publicKey: PUBLIC_KEY },
+    ),
+    'No se envió el email con tu pase. Intentaremos de nuevo.',
+    'Error sending guest pass email',
   )
 }
 
