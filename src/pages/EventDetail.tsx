@@ -17,6 +17,7 @@ import { EditEventForm } from '../components/EditEventForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EventAnalytics } from '../components/EventAnalytics'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
+import { EventCountdown } from '../components/EventCountdown'
 import {
   IconArrowLeft,
   IconCheckCircle,
@@ -180,8 +181,18 @@ export function EventDetail() {
           </div>
           <p className="text-sm text-gray-500">
             {event.date} · {event.location}
-            {event.startTime && <> · ⏰ {event.startTime}{event.endTime && `–${event.endTime}`}</>}
           </p>
+          {event.startTime && (
+            <p className="text-lg font-bold mt-0.5 text-primary">
+              {event.startTime}{event.endTime && ` – ${event.endTime}`}
+            </p>
+          )}
+          <EventCountdown
+            date={event.date}
+            startTime={event.startTime}
+            endTime={event.endTime}
+            className="text-sm font-medium mt-0.5 text-gray-500"
+          />
         </div>
         <div className="flex gap-2">
           <Link to={`/events/${event.id}/scan`} className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">

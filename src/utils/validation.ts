@@ -23,6 +23,11 @@ export const GUEST_EMAIL_MAX = 120
 // para su evento (texto/número/email/teléfono), llenados por el público.
 export const GUEST_CUSTOM_FIELD_VALUE_MAX = 300
 export const GUEST_CUSTOM_FIELD_MAX_COUNT = 30
+// Tope de "¿cuántos vienen?" en el autoregistro público (EventJoin) — antes
+// de este campo, esa vía nunca exponía cantidad de acompañantes (eso lo
+// controlaba solo el organizador autenticado vía CompanionFieldsEditor), así
+// que no existía ningún límite explícito para una entrada anónima.
+export const GUEST_MAX_PARTY_SIZE = 10
 
 export function requireNonEmpty(value: string, label: string): string {
   const trimmed = value.trim()

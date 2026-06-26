@@ -11,17 +11,27 @@ import { sendGuestPassEmail } from '../utils/emailjs'
 import {
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_EMAIL_MAX,
+  GUEST_MAX_PARTY_SIZE,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
   WAITLIST_NAME_MAX,
   WAITLIST_PHONE_MAX,
 } from '../utils/validation'
+
+// Look del formulario de cara al invitado: inputs en pill (forma fija, no
+// depende del --invite-radius de cada tema — el objetivo es que se vea
+// "amigable" en las 6 plantillas por igual) y labels en mayúscula con
+// tracking. Colores (foco, texto, fondo) sí siguen el tema vía --invite-*.
+const labelClass = 'block text-xs font-bold uppercase tracking-wide mb-1.5 text-[var(--invite-text-muted)]'
+const inputClass =
+  'w-full rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { InviteDivider } from '../components/InviteDivider'
+import { EventCountdown } from '../components/EventCountdown'
 import {
   IconBan,
   IconCheckCircle,
@@ -40,6 +50,7 @@ interface SavedReg {
   lastName: string
   phone: string
   email?: string
+  partySize?: number
   qrToken: string
   customValues: Record<string, string>
 }
@@ -58,6 +69,7 @@ export function EventJoin() {
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+  const [partySize, setPartySize] = useState(1)
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [qrToken, setQrToken] = useState('')
   const [waitlistState, setWaitlistState] = useState<WaitlistState>('idle')
@@ -85,6 +97,7 @@ export function EventJoin() {
           setLastName(reg.lastName || '')
           setPhone(reg.phone)
           setEmail(reg.email || '')
+          setPartySize(reg.partySize || 1)
           setCustomValues(reg.customValues || {})
           setQrToken(reg.qrToken)
           setState('success')
@@ -125,7 +138,7 @@ export function EventJoin() {
     setRegError('')
     try {
       const fullName = `${name.trim()} ${lastName.trim()}`
-      const result = await registerWalkInGuest(id, fullName, undefined, phone, customValues)
+      const result = await registerWalkInGuest(id, fullName, undefined, phone, customValues, partySize)
       if (result.status === 'full') {
         setState('full')
       } else {
@@ -133,7 +146,7 @@ export function EventJoin() {
         setQrToken(token)
         localStorage.setItem(
           regKey(id),
-          JSON.stringify({ name, lastName, phone, email, qrToken: token, customValues }),
+          JSON.stringify({ name, lastName, phone, email, partySize, qrToken: token, customValues }),
         )
         localStorage.setItem('wall_guest_name', fullName)
         setState('success')
@@ -241,27 +254,27 @@ export function EventJoin() {
               <form onSubmit={handleWaitlist} className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Nombre *</label>
+                    <label className={labelClass}>Nombre *</label>
                     <input type="text" required maxLength={WAITLIST_NAME_MAX} value={wlName} onChange={(e) => setWlName(e.target.value)}
                       placeholder="Ana"
-                      className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2" />
+                      className={inputClass} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Apellido *</label>
+                    <label className={labelClass}>Apellido *</label>
                     <input type="text" required maxLength={WAITLIST_NAME_MAX} value={wlLastName} onChange={(e) => setWlLastName(e.target.value)}
                       placeholder="García"
-                      className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2" />
+                      className={inputClass} />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Teléfono <span className="font-normal">(opcional)</span></label>
+                  <label className={labelClass}>Teléfono <span className="font-normal normal-case">(opcional)</span></label>
                   <input type="tel" maxLength={WAITLIST_PHONE_MAX} value={wlPhone} onChange={(e) => setWlPhone(e.target.value)}
                     placeholder="+1 234 567 8900"
-                    className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2" />
+                    className={inputClass} />
                 </div>
                 {wlError && <p className="text-xs text-red-500">{wlError}</p>}
                 <button type="submit" disabled={wlSubmitting}
-                  className="w-full text-white rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]">
+                  className="w-full text-white rounded-full py-3.5 font-bold text-base hover:opacity-90 active:scale-[.98] transition-all disabled:opacity-50 bg-[var(--invite-accent)]">
                   {wlSubmitting ? 'Anotando…' : 'Unirme a la lista'}
                 </button>
               </form>
@@ -319,6 +332,9 @@ export function EventJoin() {
               Hola, {name} {lastName}
             </h1>
             <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-2 text-[var(--invite-accent)]" />
+            {partySize > 1 && (
+              <p className="text-sm text-[var(--invite-text-muted)]">+{partySize - 1} acompañante(s)</p>
+            )}
             <p className="text-sm mb-4 text-[var(--invite-text-muted)]">Este es tu pase de entrada. Guárdalo.</p>
             <div className="flex justify-center mb-4">
               <canvas ref={canvasRef} className="rounded-lg" />
@@ -363,15 +379,27 @@ export function EventJoin() {
         <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
           <h1 className="text-xl font-bold mb-1">{event?.name}</h1>
           <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-2 text-[var(--invite-accent)]" />
-          <p className="text-sm mb-4 text-[var(--invite-text-muted)]">
+          <p className={`text-sm text-[var(--invite-text-muted)] ${event?.startTime ? '' : 'mb-4'}`}>
             {event?.date} · {event?.location}
-            {event?.startTime && <> · ⏰ {event.startTime}{event.endTime && `–${event.endTime}`}</>}
           </p>
+          {event?.startTime && (
+            <p className="text-2xl font-bold mt-1 text-[var(--invite-accent)]">
+              {event.startTime}{event.endTime && ` – ${event.endTime}`}
+            </p>
+          )}
+          {event && (
+            <EventCountdown
+              date={event.date}
+              startTime={event.startTime}
+              endTime={event.endTime}
+              className="text-sm font-medium mt-1 mb-4 text-[var(--invite-text-muted)]"
+            />
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-3 text-left">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Nombre *</label>
+                <label className={labelClass}>Tu nombre *</label>
                 <input
                   type="text"
                   required
@@ -379,11 +407,11 @@ export function EventJoin() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ana"
-                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  className={inputClass}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Apellido *</label>
+                <label className={labelClass}>Apellido *</label>
                 <input
                   type="text"
                   required
@@ -391,24 +419,35 @@ export function EventJoin() {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="García"
-                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  className={inputClass}
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">Teléfono <span className="font-normal">(opcional)</span></label>
+              <label className={labelClass}>¿Cuántos vienen? <span className="font-normal normal-case">(incluyéndote)</span></label>
+              <input
+                type="number"
+                min={1}
+                max={GUEST_MAX_PARTY_SIZE}
+                value={partySize}
+                onChange={(e) => setPartySize(Math.min(Math.max(Number(e.target.value) || 1, 1), GUEST_MAX_PARTY_SIZE))}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Teléfono <span className="font-normal normal-case">(opcional)</span></label>
               <input
                 type="tel"
                 maxLength={GUEST_PHONE_MAX}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+1 234 567 8900"
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">
-                Email <span className="font-normal">(opcional, para recibir tu pase por correo)</span>
+              <label className={labelClass}>
+                Email <span className="font-normal normal-case">(opcional, para recibir tu pase por correo)</span>
               </label>
               <input
                 type="email"
@@ -416,13 +455,13 @@ export function EventJoin() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="tu@email.com"
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                className={inputClass}
               />
             </div>
 
             {customFields.map((field) => (
               <div key={field.id}>
-                <label className="block text-sm font-medium mb-1 text-[var(--invite-text-muted)]">
+                <label className={labelClass}>
                   {field.label}{field.required ? ' *' : ''}
                 </label>
                 <input
@@ -431,7 +470,7 @@ export function EventJoin() {
                   maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
                   value={customValues[field.id] || ''}
                   onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
-                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  className={inputClass}
                 />
               </div>
             ))}
@@ -445,9 +484,9 @@ export function EventJoin() {
             <button
               type="submit"
               disabled={state === 'submitting'}
-              className="w-full text-white rounded-lg py-2.5 font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
+              className="w-full text-white rounded-full py-3.5 font-bold text-base hover:opacity-90 active:scale-[.98] transition-all disabled:opacity-50 bg-[var(--invite-accent)]"
             >
-              {state === 'submitting' ? 'Registrando…' : 'Obtener mi pase'}
+              {state === 'submitting' ? 'Registrando…' : 'Confirmar asistencia'}
             </button>
           </form>
         </InvitationCard>

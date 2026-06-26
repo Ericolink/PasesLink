@@ -14,6 +14,7 @@ import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { InviteDivider } from '../components/InviteDivider'
+import { EventCountdown } from '../components/EventCountdown'
 import { getTemplate } from '../templates/registry'
 import { buildPassUrl } from '../utils/qrUrl'
 
@@ -263,8 +264,18 @@ function GuestPassInner() {
         <ThemeOrnament templateId={event.templateId} className="w-16 h-6 mx-auto mt-2 text-[var(--invite-accent)]" />
         <p className="text-sm mt-1 text-[var(--invite-text-muted)]">
           {event.date} · {event.location}
-          {event.startTime && <> · ⏰ {event.startTime}{event.endTime && `–${event.endTime}`}</>}
         </p>
+        {event.startTime && (
+          <p className="text-2xl font-bold mt-1 text-[var(--invite-accent)]">
+            {event.startTime}{event.endTime && ` – ${event.endTime}`}
+          </p>
+        )}
+        <EventCountdown
+          date={event.date}
+          startTime={event.startTime}
+          endTime={event.endTime}
+          className="text-sm font-medium mt-1 text-[var(--invite-text-muted)]"
+        />
 
         {locked && (
           <div className="py-8">

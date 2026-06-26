@@ -11,6 +11,7 @@ import {
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_EMAIL_MAX,
   GUEST_FULL_NAME_MAX,
+  GUEST_MAX_PARTY_SIZE,
   GUEST_PHONE_MAX,
   requireMaxLength,
   requireNonEmpty,
@@ -65,10 +66,15 @@ export async function registerWalkInGuest(
   email?: string,
   phone?: string,
   customData?: Record<string, string>,
+  partySize?: number,
 ): Promise<{ status: 'success' | 'full'; qrToken?: string }> {
   const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
   const trimmedEmail = email?.trim() ? requireMaxLength(email.trim(), GUEST_EMAIL_MAX, 'El email') : ''
   const trimmedPhone = phone?.trim() ? requireMaxLength(phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
+  // Clampeado, no rechazado: un valor fuera de rango (incluido undefined, el
+  // caso normal para llamadores que no piden acompañantes) cae a un tamaño
+  // de grupo válido en vez de romper el registro.
+  const clampedPartySize = Math.min(Math.max(Math.trunc(partySize || 1), 1), GUEST_MAX_PARTY_SIZE)
   const customEntries = Object.entries(customData || {})
   if (customEntries.length > GUEST_CUSTOM_FIELD_MAX_COUNT) {
     throw new Error('El formulario tiene demasiados campos.')
@@ -94,7 +100,9 @@ export async function registerWalkInGuest(
       qrToken,
       status: 'invited',
       rsvpStatus: 'yes',
-      companions: 0,
+      // Formato numérico legacy (no array de CompanionData) — normalizeCompanions
+      // en guests.ts ya sabe traducirlo a `companions.length` al leerlo.
+      companions: clampedPartySize - 1,
       checkedInAt: null,
       checkedInBy: null,
       checkedInByEmail: null,

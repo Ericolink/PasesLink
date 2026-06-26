@@ -5,6 +5,7 @@ import { getEvent } from '../firebase/events'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
+import { EventCountdown } from '../components/EventCountdown'
 import { IconBan } from '../components/Icons'
 import type { EventData } from '../types'
 
@@ -66,7 +67,22 @@ export function EventArrive() {
         <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
           <h1 className="text-xl font-bold mb-1">{event?.name}</h1>
           <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-2 text-[var(--invite-accent)]" />
-          <p className="text-sm mb-4 text-[var(--invite-text-muted)]">{event?.date} · {event?.location}</p>
+          <p className={`text-sm text-[var(--invite-text-muted)] ${event?.startTime ? '' : 'mb-4'}`}>
+            {event?.date} · {event?.location}
+          </p>
+          {event?.startTime && (
+            <p className="text-2xl font-bold mt-1 text-[var(--invite-accent)]">
+              {event.startTime}{event.endTime && ` – ${event.endTime}`}
+            </p>
+          )}
+          {event && (
+            <EventCountdown
+              date={event.date}
+              startTime={event.startTime}
+              endTime={event.endTime}
+              className="text-sm font-medium mt-1 mb-4 text-[var(--invite-text-muted)]"
+            />
+          )}
 
           <div className="flex justify-center mb-4">
             <canvas ref={canvasRef} className="rounded-lg" />
