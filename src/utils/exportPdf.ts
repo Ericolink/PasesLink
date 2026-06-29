@@ -2,6 +2,7 @@ import jsPDF from 'jspdf'
 import QRCode from 'qrcode'
 import type { EventData, GuestData } from '../types'
 import { buildPassUrl } from './qrUrl'
+import { formatTime12h } from './time'
 
 export interface ExportPdfOptions {
   onProgress?: (done: number, total: number) => void
@@ -60,7 +61,7 @@ export async function exportGuestPassesPdf(
 
     doc.setTextColor(...NAVY)
     doc.setFontSize(12)
-    const timeLabel = event.startTime ? `  ·  ⏰ ${event.startTime}${event.endTime ? `–${event.endTime}` : ''}` : ''
+    const timeLabel = event.startTime ? `  ·  ⏰ ${formatTime12h(event.startTime)}${event.endTime ? `–${formatTime12h(event.endTime)}` : ''}` : ''
     doc.text(`${event.date}  ·  ${event.location}${timeLabel}`, pageWidth / 2, headerHeight + 14, { align: 'center' })
 
     const qrSize = 80

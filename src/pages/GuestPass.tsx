@@ -15,6 +15,7 @@ import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
+import { formatTime12h } from '../utils/time'
 import { getTemplate } from '../templates/registry'
 import { buildPassUrl } from '../utils/qrUrl'
 
@@ -267,7 +268,7 @@ function GuestPassInner() {
         </p>
         {event.startTime && (
           <p className="text-2xl font-bold mt-1 text-[var(--invite-accent)]">
-            {event.startTime}{event.endTime && ` – ${event.endTime}`}
+            {formatTime12h(event.startTime)}{event.endTime && ` – ${formatTime12h(event.endTime)}`}
           </p>
         )}
         <EventCountdown
@@ -326,7 +327,7 @@ function GuestPassInner() {
                 {downloaded ? <IconCheckCircle className="w-4 h-4" /> : <IconDownload className="w-4 h-4" />}
                 {downloaded ? 'Descargado' : 'Descargar QR'}
               </button>
-              {guest.companions.length > 0 ? (
+              {guest.companions.length > 0 && (
                 <a
                   href={`https://wa.me/?text=${encodeURIComponent(`Aquí está mi pase para ${event.name}: ${passUrl}`)}`}
                   target="_blank"
@@ -336,13 +337,6 @@ function GuestPassInner() {
                 >
                   <IconWhatsApp className="w-4 h-4" /> Compartir
                 </a>
-              ) : (
-                <span
-                  title="Este pase es personal — compartilo solo si tienes acompañantes"
-                  className="inline-flex items-center justify-center gap-2 bg-gray-200 text-gray-400 rounded-md px-4 py-2 text-sm font-medium cursor-not-allowed"
-                >
-                  <IconWhatsApp className="w-4 h-4" /> Compartir
-                </span>
               )}
             </div>
           </>
@@ -449,14 +443,7 @@ function GuestPassInner() {
           <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} templateId={event.templateId} />
         ) : !locked && (
           <div className="mt-8 pt-6 border-t text-center" style={{ borderColor: 'var(--invite-border)' }}>
-            <p className="text-sm mb-3 text-[var(--invite-text-muted)]">Confirma tu asistencia para ver el muro del evento.</p>
-            <button
-              onClick={() => handleRsvp('yes')}
-              disabled={rsvpSaving}
-              className="text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
-            >
-              Confirmar asistencia
-            </button>
+            <p className="text-sm text-[var(--invite-text-muted)]">Confirma tu asistencia para ver el muro del evento.</p>
           </div>
         )
       )}

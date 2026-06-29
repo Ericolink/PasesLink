@@ -18,6 +18,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EventAnalytics } from '../components/EventAnalytics'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { EventCountdown } from '../components/EventCountdown'
+import { formatTime12h } from '../utils/time'
 import {
   IconArrowLeft,
   IconCheckCircle,
@@ -184,7 +185,7 @@ export function EventDetail() {
           </p>
           {event.startTime && (
             <p className="text-lg font-bold mt-0.5 text-primary">
-              {event.startTime}{event.endTime && ` – ${event.endTime}`}
+              {formatTime12h(event.startTime)}{event.endTime && ` – ${formatTime12h(event.endTime)}`}
             </p>
           )}
           <EventCountdown

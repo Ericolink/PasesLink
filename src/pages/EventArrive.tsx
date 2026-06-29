@@ -6,6 +6,7 @@ import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { EventCountdown } from '../components/EventCountdown'
+import { formatTime12h } from '../utils/time'
 import { IconBan } from '../components/Icons'
 import type { EventData } from '../types'
 
@@ -72,7 +73,7 @@ export function EventArrive() {
           </p>
           {event?.startTime && (
             <p className="text-2xl font-bold mt-1 text-[var(--invite-accent)]">
-              {event.startTime}{event.endTime && ` – ${event.endTime}`}
+              {formatTime12h(event.startTime)}{event.endTime && ` – ${formatTime12h(event.endTime)}`}
             </p>
           )}
           {event && (
