@@ -10,6 +10,7 @@ import { useGuestStats } from '../hooks/useGuestStats'
 import { useCheckinSessionAccumulator } from '../hooks/useCheckinSessionAccumulator'
 import { useModalA11y } from '../hooks/useModalA11y'
 import { deleteEvent, setEventStatus } from '../firebase/events'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
@@ -21,16 +22,12 @@ import { EventCountdown } from '../components/EventCountdown'
 import { formatDate, formatTime12h } from '../utils/time'
 import {
   IconArrowLeft,
+  IconCalendar,
   IconCheckCircle,
-  IconClock,
   IconEdit,
-  IconHome,
   IconListOrdered,
-  IconThumbsDown,
-  IconThumbsUp,
-  IconTicket,
+  IconMapPin,
   IconUserPlus,
-  IconUsers,
   IconWhatsApp,
   IconX,
 } from '../components/Icons'
@@ -67,25 +64,19 @@ export function EventDetail() {
   const promoteDialogRef = useModalA11y<HTMLDivElement>(!!promoteResult, () => setPromoteResult(null))
   const { coOrgEmail, setCoOrgEmail, coOrgLoading, coOrgError, setCoOrgError, handleAddCoOrg, handleRemoveCoOrg } =
     useCoOrganizers(eventId, event?.ownerId)
-
   const { checkinsThisSession, organizerNotifyEnabled, summarySending, summaryToast, handleSendCheckinSummary } =
     useCheckinSessionAccumulator(eventId, guests, user)
 
   // Permite que el CTA del modal de éxito de EventCreate (u otros enlaces)
-  // lleve directo a una sección con #hash — React Router no hace scroll a
-  // anclas por sí solo en una SPA, así que se resuelve a mano una vez que el
-  // contenido del evento ya está en el DOM.
+  // lleve directo a una sección con #hash.
   useEffect(() => {
     if (!event || !location.hash) return
     const id = location.hash.slice(1)
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [event, location.hash])
 
-  // Memoizado para que GuestList (React.memo) reciba la misma referencia de
-  // array entre renders en los que `guests`/`search`/`statusFilter`/`sortBy`
-  // no cambiaron — si no, cualquier re-render de EventDetail por estado no
-  // relacionado (toasts, exportPdf, etc.) invalidaría el memo de GuestList
-  // sin motivo real.
+  // Memoizado para que GuestList (React.memo) reciba la misma referencia entre
+  // renders en los que guests/search/statusFilter/sortBy no cambiaron.
   const filteredGuests = useMemo(() => {
     const term = search.trim().toLowerCase()
     const filtered = guests.filter((g) => {
@@ -102,7 +93,7 @@ export function EventDetail() {
       if (sortBy === 'az') return `${a.name} ${a.lastName || ''}`.localeCompare(`${b.name} ${b.lastName || ''}`)
       if (sortBy === 'za') return `${b.name} ${b.lastName || ''}`.localeCompare(`${a.name} ${a.lastName || ''}`)
       if (sortBy === 'oldest') return a.createdAt - b.createdAt
-      return b.createdAt - a.createdAt // newest
+      return b.createdAt - a.createdAt
     })
   }, [guests, search, statusFilter, sortBy])
 
@@ -113,7 +104,7 @@ export function EventDetail() {
     return (
       <div className="text-center mt-16 px-4">
         <p className="text-red-500">{error}</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
           ← Volver al Dashboard
         </Link>
       </div>
@@ -123,7 +114,7 @@ export function EventDetail() {
     return (
       <div className="text-center mt-16 px-4">
         <p className="text-gray-500">Evento no encontrado.</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
           ← Volver al Dashboard
         </Link>
       </div>
@@ -139,7 +130,7 @@ export function EventDetail() {
     return (
       <div className="text-center mt-16 px-4">
         <p className="text-gray-500">No tienes acceso a este evento.</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
           ← Volver al Dashboard
         </Link>
       </div>
@@ -176,6 +167,7 @@ export function EventDetail() {
 
   const content = (
     <>
+      {/* Toasts flotantes */}
       {checkinToast && (
         <div className="fixed top-16 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse flex items-center gap-2">
           <IconCheckCircle className="w-4 h-4" /> {checkinToast}
@@ -186,327 +178,505 @@ export function EventDetail() {
           <IconCheckCircle className="w-4 h-4" /> {summaryToast}
         </div>
       )}
-      <Link to="/dashboard" className="text-sm text-gray-500 hover:text-primary transition-colors inline-flex items-center gap-1 mb-3">
+
+      {/* Navegación */}
+      <Link to="/dashboard" className="text-sm text-gray-500 hover:text-primary transition-colors inline-flex items-center gap-1.5 mb-5">
         <IconArrowLeft className="w-4 h-4" /> Mis eventos
       </Link>
-      <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
-        <div>
-          {/* flex-wrap a propósito: con un nombre de evento muy largo (más
-              notorio con el marco/listón de vaquera), el título pasa a una
-              segunda línea entero en vez de forzar scroll horizontal o
-              aplastar el badge/ícono de edición, que mantienen su tamaño
-              (shrink-0) y siempre quedan junto al final del texto. */}
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h1 className="text-2xl font-semibold text-gray-900 break-words min-w-0">{event.name}</h1>
-            <span className="shrink-0"><PlanBadge plan={event.plan} /></span>
+
+      {/* ── HERO DEL EVENTO ── */}
+      <div className="rounded-2xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mb-5">
+        {event.coverImage && (
+          <div className="h-44 sm:h-56 overflow-hidden">
+            <img
+              src={optimizedImageUrl(event.coverImage, 800)}
+              alt="Portada del evento"
+              loading="lazy"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+        <div className="p-5">
+          {/* Estado + plan */}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <StatusPill status={event.status} />
+            <PlanBadge plan={event.plan} />
+          </div>
+
+          {/* Nombre + botón editar */}
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight break-words min-w-0">
+              {event.name}
+            </h1>
             {isOwner && (
-              <button onClick={() => setEditingEvent((v) => !v)} className="shrink-0 text-gray-400 hover:text-primary transition-colors" title="Editar evento" aria-label="Editar evento">
+              <button
+                onClick={() => setEditingEvent((v) => !v)}
+                aria-label="Editar evento"
+                className={`shrink-0 p-2 rounded-lg transition-colors ${
+                  editingEvent
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
                 <IconEdit className="w-4 h-4" />
               </button>
             )}
           </div>
-          <p className="text-sm text-gray-500">
-            {formatDate(event.date)} · {event.location}
-          </p>
-          {event.startTime && (
-            <p className="text-lg font-bold mt-0.5 text-primary">
-              {formatTime12h(event.startTime)}{event.endTime && ` – ${formatTime12h(event.endTime)}`}
-            </p>
-          )}
+
+          {/* Fecha, hora y lugar */}
+          <div className="mt-3 space-y-1.5">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <IconCalendar className="w-4 h-4 shrink-0" />
+              <span>
+                {formatDate(event.date)}
+                {event.startTime && (
+                  <> · {formatTime12h(event.startTime)}{event.endTime && ` – ${formatTime12h(event.endTime)}`}</>
+                )}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <IconMapPin className="w-4 h-4 shrink-0" />
+              <span>{event.location}</span>
+            </div>
+          </div>
+
           <EventCountdown
             date={event.date}
             startTime={event.startTime}
             endTime={event.endTime}
-            className="text-sm font-medium mt-0.5 text-gray-500"
+            className="mt-3 text-sm font-semibold text-primary"
           />
-        </div>
-        <div className="flex gap-2">
-          <Link to={`/events/${event.id}/scan`} className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
-            Escanear QR
-          </Link>
-          <Link to={`/events/${event.id}/wall`} className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors">
-            Muro
-          </Link>
-          {event.plan === 'premium' && (
-            <Link to={`/events/${event.id}/reports`} className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors">
-              Reportes
-            </Link>
-          )}
         </div>
       </div>
 
+      {/* Formulario de edición (inline, visible al hacer clic en el lápiz) */}
       {isOwner && editingEvent && (
-        <div className="mt-3">
+        <div className="mb-5">
           <EditEventForm event={event} onDone={() => setEditingEvent(false)} />
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-6">
-        <StatCard icon={<IconUsers className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={event.guestCount} label={`Invitados (${totalPeople} personas)`} />
-        <StatCard icon={<IconCheckCircle className="w-5 h-5 mb-1 mx-auto text-green-600" />} value={event.checkedInCount} label="Asistentes escaneados" valueClass="text-green-600" />
-        <StatCard icon={<IconClock className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={event.guestCount - event.checkedInCount} label="Pendientes" />
-        <StatCard icon={<IconHome className="w-5 h-5 mb-1 mx-auto text-primary" />} value={peopleInside} label="Personas dentro ahora" valueClass="text-primary" />
-        <StatCard icon={<IconThumbsUp className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={rsvpYes} label="Asistirán" />
-        <StatCard icon={<IconThumbsDown className="w-5 h-5 mb-1 mx-auto text-gray-400" />} value={rsvpNo} label="No asistirán" />
-        {event.requiresPayment && (
-          <StatCard
-            icon={<IconTicket className="w-5 h-5 mb-1 mx-auto text-green-600" />}
-            value={totalCollected}
-            label={`Recaudado (${event.currency})`}
-            valueClass="text-green-600"
-          />
+      {/* ── ACCIONES PRIMARIAS ── */}
+      <div className="flex gap-2.5 mb-5">
+        <Link
+          to={`/events/${event.id}/scan`}
+          className="flex-1 flex items-center justify-center bg-primary text-white rounded-xl py-3.5 text-sm font-semibold hover:bg-primary-dark transition-colors"
+        >
+          Escanear pases
+        </Link>
+        <Link
+          to={`/events/${event.id}/wall`}
+          className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
+        >
+          Muro
+        </Link>
+        {event.plan === 'premium' && (
+          <Link
+            to={`/events/${event.id}/reports`}
+            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
+          >
+            Reportes
+          </Link>
         )}
       </div>
 
-      {/* Analytics (premium) */}
-      {event.plan === 'premium' && (
-        <EventAnalytics guests={guests} loading={guestsLoading} />
-      )}
+      {/* ── ESTADÍSTICAS PRINCIPALES ── */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <MetricCard
+          label="Invitados"
+          value={event.guestCount}
+          sub={`${totalPeople} personas en total`}
+        />
+        <MetricCard
+          label="Escaneados"
+          value={event.checkedInCount}
+          sub={event.guestCount > 0
+            ? `${Math.round((event.checkedInCount / event.guestCount) * 100)}% del total`
+            : undefined}
+          valueClass="text-green-600 dark:text-green-400"
+        />
+        <MetricCard
+          label="Dentro ahora"
+          value={peopleInside}
+          valueClass="text-primary"
+        />
+        <MetricCard
+          label="Pendientes"
+          value={event.guestCount - event.checkedInCount}
+        />
+      </div>
 
-      {/* Límite de invitados: visible para todos los modos de ingreso. addGuest()
-          bloquea por cantidad de invitados (sin contar acompañantes) — por eso
-          el total de personas (sí los cuenta) puede superar el cupo igual. */}
-      {event.capacity > 0 && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
-          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
-            <span>Límite de invitados</span>
-            <span className="font-medium">{totalPeople} / {event.capacity}</span>
+      {/* Estadísticas secundarias + cupo (colapsable) */}
+      <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 mb-5">
+        <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none list-none text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+          <span className="font-medium">Más estadísticas</span>
+          <span className="text-xs opacity-60">
+            <span className="group-open:hidden">▾ Ver</span>
+            <span className="hidden group-open:inline">▴ Ocultar</span>
+          </span>
+        </summary>
+        <div className="border-t border-gray-100 dark:border-gray-700 p-4">
+          <div className="grid grid-cols-2 gap-3">
+            <MetricCard label="Asistirán" value={rsvpYes} />
+            <MetricCard label="No asistirán" value={rsvpNo} />
+            {event.requiresPayment && (
+              <MetricCard
+                label={`Recaudado (${event.currency})`}
+                value={totalCollected}
+                valueClass="text-green-600 dark:text-green-400"
+              />
+            )}
           </div>
-          <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, (totalPeople / event.capacity) * 100)}%` }} />
-          </div>
-          {totalPeople > event.capacity && (
-            <p className="text-xs text-amber-600 mt-1.5">Los acompañantes hacen que el total de personas supere el cupo configurado.</p>
+          {event.capacity > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+                <span>Cupo del evento</span>
+                <span className="font-semibold">{totalPeople} / {event.capacity}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.min(100, (totalPeople / event.capacity) * 100)}%` }}
+                />
+              </div>
+              {totalPeople > event.capacity && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
+                  Los acompañantes hacen que el total supere el cupo configurado.
+                </p>
+              )}
+            </div>
           )}
         </div>
-      )}
+      </details>
 
-      {/* Open/hybrid entry links */}
-      {event.entryMode !== 'list' && (
-        <div id="open-entry-links" className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-medium text-gray-900 dark:text-white">Ingreso libre</h2>
-            {event.entryMode === 'hybrid' && (
-              <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Mixto</span>
-            )}
-          </div>
-          <div className="space-y-2">
-            <PublicLink label="Auto-registro" desc="Los asistentes se registran y obtienen su QR propio" path={`/events/${event.id}/join`} />
-            <PublicLink label="Ingreso directo" desc="Solo confirman llegada — sin QR individual" path={`/events/${event.id}/arrive`} />
-          </div>
-        </div>
-      )}
-
-      {/* Waitlist */}
+      {/* ── LISTA DE ESPERA ── */}
       {waitlist.length > 0 && (
-        <div className="border border-amber-200 dark:border-amber-700/50 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3">
+        <div className="border border-amber-200 dark:border-amber-700/50 rounded-xl bg-white dark:bg-gray-800 overflow-hidden mb-5">
+          <div className="flex items-center gap-2 px-5 pt-5 pb-3">
             <IconListOrdered className="w-4 h-4 text-amber-500" />
-            <h2 className="font-medium text-gray-900 dark:text-white">Lista de espera</h2>
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Lista de espera</h2>
             {waitingEntries.length > 0 && (
-              <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-medium">{waitingEntries.length} esperando</span>
+              <span className="ml-auto text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 rounded-full px-2 py-0.5 font-medium">
+                {waitingEntries.length} esperando
+              </span>
             )}
           </div>
-          <div className="space-y-2">
+          <div className="px-5 pb-5 space-y-2">
             {waitlist.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between gap-2 bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
+              <div key={entry.id} className="flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2.5">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{entry.name} {entry.lastName}</p>
-                  {entry.phone && <p className="text-xs text-gray-500">{entry.phone}</p>}
+                  {entry.phone && <p className="text-xs text-gray-500 dark:text-gray-400">{entry.phone}</p>}
                 </div>
                 {entry.status === 'waiting' ? (
                   <button
                     onClick={() => handlePromote(entry)}
                     disabled={promotingId === entry.id}
-                    className="text-xs shrink-0 bg-primary text-white rounded-md px-3 py-1.5 font-medium hover:opacity-90 disabled:opacity-50"
+                    className="text-xs shrink-0 bg-primary text-white rounded-lg px-3 py-1.5 font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
                   >
                     {promotingId === entry.id ? 'Promoviendo…' : 'Promover'}
                   </button>
                 ) : (
-                  <span className="text-xs shrink-0 text-green-600 font-medium">Promovido ✓</span>
+                  <span className="text-xs shrink-0 text-green-600 dark:text-green-400 font-medium">Promovido ✓</span>
                 )}
               </div>
             ))}
-          </div>
-          {promotedEntries.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2">Los promovidos ya tienen su pase generado. Al promover, se muestra el enlace para avisarles por WhatsApp.</p>
-          )}
-        </div>
-      )}
-
-      {isOwner && event.entryMode !== 'open' && (
-        <div id="add-guests" className="mb-4">
-          <GuestAddForm eventId={event.id} guests={guests} />
-        </div>
-      )}
-
-      {/* Guest list */}
-      <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
-        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-          <h2 className="font-medium text-gray-900">Invitados</h2>
-          <div className="flex items-center gap-2">
-            <button onClick={handleExportCsv} disabled={guests.length === 0} className="text-sm text-primary font-medium disabled:opacity-40 hover:underline">
-              CSV
-            </button>
-            <span className="text-gray-300">|</span>
-            {exporting ? (
-              <button onClick={handleCancelExportPdf} className="text-sm text-red-500 font-medium hover:underline">
-                Cancelar {exportProgress ? `(${exportProgress.done}/${exportProgress.total})` : ''}
-              </button>
-            ) : (
-              <button onClick={handleExportPdf} disabled={guests.length === 0} className="text-sm text-primary font-medium disabled:opacity-40">
-                PDF
-              </button>
+            {promotedEntries.length > 0 && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">
+                Los promovidos ya tienen su pase. Al promover, se muestra el enlace para avisarles por WhatsApp.
+              </p>
             )}
           </div>
         </div>
-        {exporting && exportProgress && exportProgress.total > 0 && (
-          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden mb-2">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${(exportProgress.done / exportProgress.total) * 100}%` }}
-            />
+      )}
+
+      {/* ── GESTIÓN DE INVITADOS ── */}
+      <div id="add-guests" className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden mb-5">
+        {/* Formulario de agregar (solo propietario en modo lista o mixto) */}
+        {isOwner && event.entryMode !== 'open' && (
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700">
+            <GuestAddForm eventId={event.id} guests={guests} />
           </div>
         )}
-        {exportPdfError && <p className="text-xs text-red-500 mb-2">{exportPdfError}</p>}
-        {guests.length > 0 && (
-          <>
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre o apellido…"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary" />
-            <div className="flex gap-2 mb-2">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+
+        <div className="p-5">
+          {/* Encabezado + exportar */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+              Invitados
+            </h2>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportCsv}
+                disabled={guests.length === 0}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
               >
-                <option value="all">Todos</option>
-                <option value="confirmed">Confirmados (asistirán)</option>
-                <option value="scanned">Ya escaneados</option>
-                <option value="declined">No asistirán</option>
-                <option value="pending">Pendientes</option>
-              </select>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="newest">Más nuevos primero</option>
-                <option value="oldest">Más antiguos primero</option>
-                <option value="az">Nombre A-Z</option>
-                <option value="za">Nombre Z-A</option>
-              </select>
+                CSV
+              </button>
+              <span className="text-gray-200 dark:text-gray-600 select-none">|</span>
+              {exporting ? (
+                <button onClick={handleCancelExportPdf} className="text-xs text-red-500 font-medium hover:underline">
+                  Cancelar {exportProgress ? `(${exportProgress.done}/${exportProgress.total})` : ''}
+                </button>
+              ) : (
+                <button
+                  onClick={handleExportPdf}
+                  disabled={guests.length === 0}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
+                >
+                  PDF
+                </button>
+              )}
             </div>
-          </>
-        )}
-        <GuestList
-          eventId={event.id}
-          guests={filteredGuests}
-          requiresPayment={event.requiresPayment}
-          ticketPrice={event.ticketPrice}
-          currency={event.currency}
-        />
+          </div>
+
+          {/* Barra de progreso de exportación PDF */}
+          {exporting && exportProgress && exportProgress.total > 0 && (
+            <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden mb-3">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${(exportProgress.done / exportProgress.total) * 100}%` }}
+              />
+            </div>
+          )}
+          {exportPdfError && <p className="text-xs text-red-500 mb-3">{exportPdfError}</p>}
+
+          {/* Búsqueda y filtros */}
+          {guests.length > 0 && (
+            <>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por nombre o apellido…"
+                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm mb-3 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
+              />
+              <div className="flex gap-2 mb-4">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                  className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="all">Todos</option>
+                  <option value="confirmed">Confirmados</option>
+                  <option value="scanned">Ya escaneados</option>
+                  <option value="declined">No asistirán</option>
+                  <option value="pending">Pendientes</option>
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="newest">Más nuevos</option>
+                  <option value="oldest">Más antiguos</option>
+                  <option value="az">A–Z</option>
+                  <option value="za">Z–A</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          <GuestList
+            eventId={event.id}
+            guests={filteredGuests}
+            requiresPayment={event.requiresPayment}
+            ticketPrice={event.ticketPrice}
+            currency={event.currency}
+          />
+        </div>
       </div>
 
-      {/* Resumen de check-ins (Prioridad 1 — "Email por check-in" reparado).
-          Solo visible si el organizador activó el toggle en /profile Y hay
-          al menos un check-in acumulado desde que se abrió esta página. */}
-      {isOwner && organizerNotifyEnabled && checkinsThisSession.length > 0 && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <IconCheckCircle className="w-4 h-4 text-primary" />
-            <h2 className="font-medium text-gray-900 dark:text-white">Resumen de check-ins</h2>
+      {/* ── INGRESO LIBRE / MIXTO ── */}
+      {event.entryMode !== 'list' && (
+        <details
+          id="open-entry-links"
+          className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 mb-5"
+          open
+        >
+          <summary className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                {event.entryMode === 'hybrid' ? 'Ingreso mixto' : 'Ingreso libre'}
+              </h2>
+              {event.entryMode === 'hybrid' && (
+                <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Mixto</span>
+              )}
+            </div>
+            <span className="text-xs text-gray-400">
+              <span className="group-open:hidden">▾</span>
+              <span className="hidden group-open:inline">▴</span>
+            </span>
+          </summary>
+          <div className="border-t border-gray-100 dark:border-gray-700 p-5 space-y-3">
+            <PublicLink
+              label="Auto-registro"
+              desc="Los asistentes se registran y obtienen su QR propio"
+              path={`/events/${event.id}/join`}
+            />
+            <PublicLink
+              label="Ingreso directo"
+              desc="Solo confirman llegada — sin QR individual"
+              path={`/events/${event.id}/arrive`}
+            />
           </div>
-          <p className="text-sm text-gray-500 mb-3">
+        </details>
+      )}
+
+      {/* ── ANALÍTICA (premium, colapsable) ── */}
+      {event.plan === 'premium' && (
+        <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 mb-5">
+          <summary className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+              Analítica
+            </span>
+            <span className="text-xs text-gray-400">
+              <span className="group-open:hidden">▾ Ver</span>
+              <span className="hidden group-open:inline">▴ Ocultar</span>
+            </span>
+          </summary>
+          <div className="border-t border-gray-100 dark:border-gray-700 p-5">
+            <EventAnalytics guests={guests} loading={guestsLoading} />
+          </div>
+        </details>
+      )}
+
+      {/* ── RESUMEN DE CHECK-INS ── */}
+      {isOwner && organizerNotifyEnabled && checkinsThisSession.length > 0 && (
+        <div className="border border-primary/20 bg-primary/5 dark:bg-primary/10 rounded-xl p-5 mb-5">
+          <div className="flex items-center gap-2 mb-1">
+            <IconCheckCircle className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Resumen de check-ins</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
             {checkinsThisSession.length} check-in{checkinsThisSession.length !== 1 ? 's' : ''} desde que abriste esta página.
           </p>
-          <button onClick={handleSendCheckinSummary} disabled={summarySending}
-            className="text-sm bg-primary text-white rounded-md px-4 py-2 font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
-            {summarySending ? 'Enviando…' : 'Enviar resumen de check-ins'}
+          <button
+            onClick={handleSendCheckinSummary}
+            disabled={summarySending}
+            className="text-sm bg-primary text-white rounded-xl px-4 py-2.5 font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {summarySending ? 'Enviando…' : 'Enviar resumen por email'}
           </button>
         </div>
       )}
 
-      {/* Co-organizadores */}
+      {/* ── GESTIÓN DEL EVENTO (solo propietario, colapsable) ── */}
       {isOwner && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <IconUserPlus className="w-4 h-4 text-primary" />
-            <h2 className="font-medium text-gray-900 dark:text-white">Co-organizadores</h2>
-          </div>
-          <p className="text-sm text-gray-500 mb-3">Permite a otras personas escanear pases y ver el evento.</p>
+        <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mb-5">
+          <summary className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+            <span className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+              Gestión del evento
+            </span>
+            <span className="text-xs text-gray-400">
+              <span className="group-open:hidden">▾</span>
+              <span className="hidden group-open:inline">▴</span>
+            </span>
+          </summary>
 
-          {Object.entries(coOrgsMap).length > 0 && (
-            <div className="space-y-2 mb-3">
-              {Object.entries(coOrgsMap).map(([uid, email]) => (
-                <div key={uid} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{email}</span>
-                  <button onClick={() => setRemovingCoOrg({ uid, email })} aria-label={`Quitar a ${email} como co-organizador`} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <IconX className="w-4 h-4" />
-                  </button>
+          <div className="bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+
+            {/* Co-organizadores */}
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <IconUserPlus className="w-4 h-4 text-gray-400" />
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Co-organizadores</h3>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Permite a otras personas escanear pases y ver el evento.
+              </p>
+              {Object.entries(coOrgsMap).length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {Object.entries(coOrgsMap).map(([uid, email]) => (
+                    <div key={uid} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{email}</span>
+                      <button
+                        onClick={() => setRemovingCoOrg({ uid, email })}
+                        aria-label={`Quitar a ${email} como co-organizador`}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <IconX className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              <form onSubmit={handleAddCoOrg} className="flex gap-2">
+                <input
+                  type="email"
+                  value={coOrgEmail}
+                  onChange={(e) => { setCoOrgEmail(e.target.value); setCoOrgError('') }}
+                  placeholder="email@ejemplo.com"
+                  className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={coOrgLoading || !coOrgEmail.trim()}
+                  className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  {coOrgLoading ? '…' : 'Agregar'}
+                </button>
+              </form>
+              {coOrgError && <p className="text-xs text-red-500 mt-1.5">{coOrgError}</p>}
             </div>
-          )}
 
-          <form onSubmit={handleAddCoOrg} className="flex gap-2">
-            <input
-              type="email"
-              value={coOrgEmail}
-              onChange={(e) => { setCoOrgEmail(e.target.value); setCoOrgError('') }}
-              placeholder="email@ejemplo.com"
-              className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            <button type="submit" disabled={coOrgLoading || !coOrgEmail.trim()}
-              className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50">
-              {coOrgLoading ? '…' : 'Agregar'}
-            </button>
-          </form>
-          {coOrgError && <p className="text-xs text-red-500 mt-1">{coOrgError}</p>}
-        </div>
-      )}
+            {/* Estado del evento */}
+            <div className="p-5">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Estado del evento</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Estado actual: <span className="font-semibold">{statusLabel(event.status)}</span>
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {event.status === 'active' ? (
+                  <button
+                    onClick={() => handleStatusChange('cancelled')}
+                    disabled={updatingStatus}
+                    className="text-sm border border-red-200 text-red-600 dark:border-red-700/60 dark:text-red-400 rounded-lg px-4 py-2 font-medium hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
+                  >
+                    Cancelar evento
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleStatusChange('active')}
+                    disabled={updatingStatus}
+                    className="text-sm border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg px-4 py-2 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                  >
+                    Reactivar evento
+                  </button>
+                )}
+                <Link
+                  to="/events/new"
+                  className="text-sm border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg px-4 py-2 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Crear nuevo evento
+                </Link>
+              </div>
+            </div>
 
-      {isOwner && (
-        <>
-          {actionError && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4">{actionError}</p>
-          )}
-          <div className="border border-gray-200 rounded-lg bg-white p-4">
-            <h2 className="font-medium text-gray-900 mb-2">Estado del evento</h2>
-            <p className="text-sm text-gray-500 mb-3">Estado actual: <span className="font-medium">{statusLabel(event.status)}</span></p>
-            <div className="flex gap-2 flex-wrap">
-              {event.status === 'active' && (
-                <button onClick={() => handleStatusChange('cancelled')} disabled={updatingStatus}
-                  className="text-sm border border-red-300 text-red-600 rounded-md px-3 py-1.5 font-medium hover:bg-red-50 disabled:opacity-50">
-                  Cancelar evento
-                </button>
+            {/* Zona peligrosa */}
+            <div className="p-5 bg-red-50/40 dark:bg-red-900/10">
+              <h3 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">Zona peligrosa</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Borra el evento, sus invitados y el historial de check-ins de forma permanente. No se puede deshacer.
+              </p>
+              {actionError && (
+                <p className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-lg px-3 py-2 mb-3">
+                  {actionError}
+                </p>
               )}
-              {event.status !== 'active' && (
-                <button onClick={() => handleStatusChange('active')} disabled={updatingStatus}
-                  className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50 disabled:opacity-50">
-                  Reactivar evento
-                </button>
-              )}
-              <Link to="/events/new" className="text-sm border border-gray-300 text-gray-600 rounded-md px-3 py-1.5 font-medium hover:bg-gray-50">
-                Crear nuevo evento
-              </Link>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleting}
+                className="text-sm border border-red-300 dark:border-red-700/60 text-red-600 dark:text-red-400 rounded-lg px-4 py-2 font-medium hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? 'Eliminando…' : 'Eliminar evento definitivamente'}
+              </button>
             </div>
           </div>
-
-          <div className="border border-red-200 rounded-lg bg-white p-4 mt-4">
-            <h2 className="font-medium text-red-700 mb-1">Eliminar evento</h2>
-            <p className="text-sm text-gray-500 mb-3">
-              Borra el evento, sus invitados y el historial de check-ins de forma permanente. No se puede deshacer.
-            </p>
-            <button onClick={() => setConfirmDelete(true)} disabled={deleting}
-              className="text-sm border border-red-300 text-red-600 rounded-md px-3 py-1.5 font-medium hover:bg-red-50 disabled:opacity-50">
-              {deleting ? 'Eliminando…' : 'Eliminar evento definitivamente'}
-            </button>
-          </div>
-        </>
+        </details>
       )}
 
+      {/* Diálogos de confirmación */}
       <ConfirmDialog
         open={confirmDelete}
         danger
@@ -517,7 +687,6 @@ export function EventDetail() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
-
       <ConfirmDialog
         open={!!removingCoOrg}
         title="Quitar co-organizador"
@@ -528,13 +697,11 @@ export function EventDetail() {
         onCancel={() => setRemovingCoOrg(null)}
       />
 
-      {/* Promover de lista de espera (Prioridad 2): mismo overlay/card/
-          animate-bounce-in que ConfirmDialog, inline porque acá hace falta
-          dos acciones (WhatsApp + copiar) en vez de un solo confirmar/
-          cancelar — ConfirmDialog no soporta eso sin cambiar su contrato. */}
+      {/* Diálogo de promover desde lista de espera — tiene dos acciones
+          (WhatsApp + copiar enlace) que no encajan en ConfirmDialog. */}
       {promoteResult && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-black/50 backdrop-blur-sm"
           onClick={(e) => { if (e.target === e.currentTarget) setPromoteResult(null) }}
         >
           <div
@@ -561,7 +728,9 @@ export function EventDetail() {
                   <IconWhatsApp className="w-4 h-4" /> Abrir WhatsApp
                 </a>
               ) : (
-                <p className="text-xs text-amber-600">Este invitado no tiene teléfono registrado — solo podés copiar el enlace.</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Este invitado no tiene teléfono registrado — solo podés copiar el enlace.
+                </p>
               )}
               <button
                 onClick={handleCopyPromoteLink}
@@ -571,7 +740,10 @@ export function EventDetail() {
               </button>
             </div>
             <p className="text-xs text-gray-400 mt-3 break-all">{promoteResult.passUrl}</p>
-            <button onClick={() => setPromoteResult(null)} className="w-full text-sm text-gray-500 mt-4 hover:text-gray-700">
+            <button
+              onClick={() => setPromoteResult(null)}
+              className="w-full text-sm text-gray-500 dark:text-gray-400 mt-4 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
               Cerrar
             </button>
           </div>
@@ -580,11 +752,9 @@ export function EventDetail() {
     </>
   )
 
-  // Vaquera y Graduación adoptan su propia identidad también en el
-  // dashboard del organizador — condicional explícito (no envolvemos en
-  // InvitationThemeRoot para cualquier templateId) para que los otros 8
-  // temas no cambien ni la animación de entrada del dashboard, que hoy es
-  // fija (animate-fade-in).
+  // Vaquera y Graduación adoptan su propia identidad en el dashboard
+  // del organizador — condicional explícito para que los otros temas
+  // no cambien la animación de entrada.
   if (event.templateId === 'cowboy' || event.templateId === 'graduation') {
     return (
       <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="max-w-3xl mx-auto px-4 py-8">
@@ -596,13 +766,50 @@ export function EventDetail() {
   return <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">{content}</div>
 }
 
-function StatCard({ icon, value, label, valueClass = 'text-gray-900' }: { icon: React.ReactNode; value: number; label: string; valueClass?: string }) {
+// Tarjeta de métrica: etiqueta arriba, número grande abajo.
+function MetricCard({
+  label,
+  value,
+  sub,
+  valueClass = 'text-gray-900 dark:text-white',
+}: {
+  label: string
+  value: number
+  sub?: string
+  valueClass?: string
+}) {
   return (
-    <div className="invite-stat-card card-hover border border-gray-200 rounded-lg p-3 bg-white text-center">
-      {icon}
-      <p className={`text-2xl font-semibold ${valueClass}`}>{value}</p>
-      <p className="text-xs text-gray-500">{label}</p>
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <p className={`text-2xl font-bold tabular-nums ${valueClass}`}>{value}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{label}</p>
+      {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 leading-tight">{sub}</p>}
     </div>
+  )
+}
+
+// Píldora de estado con punto de color.
+function StatusPill({ status }: { status: string }) {
+  if (status === 'active') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full px-2.5 py-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+        Activo
+      </span>
+    )
+  }
+  if (status === 'cancelled') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full px-2.5 py-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+        Cancelado
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full px-2.5 py-1">
+      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block" />
+      Archivado
+    </span>
   )
 }
 
@@ -621,10 +828,13 @@ function PublicLink({ label, desc, path }: { label: string; desc: string; path: 
     <div className="flex items-start justify-between gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
-        <p className="text-xs text-gray-500 truncate">{desc}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
       </div>
-      <button onClick={copy} className="text-xs shrink-0 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-        {copied ? 'Copiado' : 'Copiar link'}
+      <button
+        onClick={copy}
+        className="text-xs shrink-0 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-2.5 py-1.5 font-medium hover:bg-white dark:hover:bg-gray-600 transition-colors"
+      >
+        {copied ? 'Copiado ✓' : 'Copiar link'}
       </button>
     </div>
   )

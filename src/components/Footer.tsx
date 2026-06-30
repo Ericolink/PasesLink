@@ -4,7 +4,7 @@ import { Logo } from './Logo'
 export function Footer() {
   return (
     <footer
-      className="relative mt-12"
+      className="relative z-0 mt-12"
       style={{
         background: 'rgba(16,10,22,0.92)',
         backdropFilter: 'blur(12px)',
