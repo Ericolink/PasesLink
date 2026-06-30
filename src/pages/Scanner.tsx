@@ -7,6 +7,7 @@ import { useEventOnly } from '../hooks/useEventOnly'
 import { checkInGuest, checkOutGuest } from '../firebase/guests'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
+import { CameraPermissionHandler } from '../components/Scanner'
 import { buildPassUrl, extractQrToken, isArriveQr } from '../utils/qrUrl'
 import { isNetworkError } from '../utils/network'
 
@@ -45,12 +46,24 @@ export function Scanner() {
   const startingRef = useRef(false)
   const cooldownRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasAutoStartedRef = useRef(false)
   const eventRef = useRef(event)
   useEffect(() => { eventRef.current = event }, [event])
 
   useEffect(() => {
     return () => { void stopScanning() }
   }, [])
+
+  // Auto-start camera when the event is loaded and the viewer has access.
+  // hasAutoStartedRef prevents re-firing when event state updates.
+  useEffect(() => {
+    if (!event || !user || hasAutoStartedRef.current) return
+    const coOrgsMap = event.coOrganizersMap || {}
+    if (!(user.uid === event.ownerId || user.uid in coOrgsMap)) return
+    hasAutoStartedRef.current = true
+    void startScanning()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event, user])
 
   function showFeedback(value: ScanFeedback) {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
@@ -83,7 +96,7 @@ export function Scanner() {
       )
       setScanning(true)
     } catch {
-      setCameraError('Cámara no disponible. Intenta reiniciar la app.')
+      setCameraError('camera_unavailable')
       try { scanner.clear() } catch { /* ignore */ }
       scannerRef.current = null
     } finally {
@@ -230,15 +243,36 @@ export function Scanner() {
     return <p className="text-center text-gray-500 mt-16">Cargando…</p>
   }
   if (eventError) {
-    return <p className="text-center text-red-500 mt-16">{eventError}</p>
+    return (
+      <div className="text-center mt-16 px-4">
+        <p className="text-red-500">{eventError}</p>
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+          ← Volver al Dashboard
+        </Link>
+      </div>
+    )
   }
   if (!event) {
-    return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
+    return (
+      <div className="text-center mt-16 px-4">
+        <p className="text-gray-500">Evento no encontrado.</p>
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+          ← Volver al Dashboard
+        </Link>
+      </div>
+    )
   }
   const coOrgsMap = event.coOrganizersMap || {}
   const hasAccess = !!user && (user.uid === event.ownerId || user.uid in coOrgsMap)
   if (!hasAccess) {
-    return <p className="text-center text-gray-500 mt-16">No tienes acceso a este evento.</p>
+    return (
+      <div className="text-center mt-16 px-4">
+        <p className="text-gray-500">No tienes acceso a este evento.</p>
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
+          ← Volver al Dashboard
+        </Link>
+      </div>
+    )
   }
 
   return (
@@ -273,64 +307,63 @@ export function Scanner() {
         {!scanning && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-gray-900 rounded-2xl">
             {cameraError ? (
-              <div className="flex flex-col items-center gap-3 px-4 w-full">
-                <p className="text-red-400 text-sm text-center">{cameraError}</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={startScanning}
-                    className="min-h-12 bg-primary text-white rounded-xl px-6 py-3 text-sm font-semibold hover:opacity-90"
-                  >
-                    Reintentar
-                  </button>
-                  <button
-                    onClick={() => setManualOpen((v) => !v)}
-                    className="min-h-12 bg-gray-800 text-white rounded-xl px-6 py-3 text-sm font-semibold hover:bg-gray-700"
-                  >
-                    Ingreso manual
-                  </button>
-                </div>
-                {manualOpen && (
-                  <form
-                    onSubmit={(e) => { e.preventDefault(); handleManualSubmit() }}
-                    className="w-full max-w-xs flex flex-col gap-2 mt-1"
-                  >
-                    <input
-                      type="text"
-                      value={manualValue}
-                      onChange={(e) => setManualValue(e.target.value)}
-                      placeholder="Pega el enlace o código del pase"
-                      autoFocus
-                      className="min-h-12 w-full bg-gray-800 text-white placeholder:text-gray-500 rounded-lg px-3 py-3 text-sm border border-gray-700 focus:outline-none focus:border-primary"
-                    />
-                    <button
-                      type="submit"
-                      className="min-h-12 bg-primary text-white rounded-lg py-3 text-sm font-semibold hover:opacity-90"
-                    >
-                      Procesar código
-                    </button>
-                  </form>
-                )}
-              </div>
+              <CameraPermissionHandler
+                onRetry={() => { setCameraError(null); void startScanning() }}
+                onManual={() => setManualOpen((v) => !v)}
+              />
             ) : (
+              /* Estado de espera mientras la cámara arranca automáticamente */
               <>
-                {/* Icono de visor QR */}
-                <div className="w-32 h-32 relative opacity-40">
+                <div className="w-32 h-32 relative opacity-30">
                   <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-white rounded-tl" />
                   <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-white rounded-tr" />
                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-white rounded-bl" />
                   <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-white rounded-br" />
                 </div>
                 <div className="text-center">
+                  <p className="text-sm text-gray-400">Iniciando cámara…</p>
                   <button
                     onClick={startScanning}
-                    className="block bg-primary text-white rounded-xl px-10 py-3 text-base font-semibold hover:bg-primary-dark transition-colors active:scale-95 mb-2"
+                    className="mt-3 text-xs text-gray-500 hover:text-gray-300 underline underline-offset-2"
                   >
-                    Activar cámara
+                    Reintentar
                   </button>
-                  <p className="text-xs text-gray-500">Apunta al código QR del invitado</p>
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* Formulario manual — se muestra encima del overlay cuando está activo */}
+        {!scanning && manualOpen && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900 rounded-2xl px-5">
+            <p className="text-sm font-medium text-gray-300">Ingresar código manualmente</p>
+            <form
+              onSubmit={(e) => { e.preventDefault(); handleManualSubmit() }}
+              className="w-full max-w-xs flex flex-col gap-2"
+            >
+              <input
+                type="text"
+                value={manualValue}
+                onChange={(e) => setManualValue(e.target.value)}
+                placeholder="Pega el enlace o código del pase"
+                autoFocus
+                className="min-h-12 w-full bg-gray-800 text-white placeholder:text-gray-500 rounded-lg px-3 py-3 text-sm border border-gray-700 focus:outline-none focus:border-primary"
+              />
+              <button
+                type="submit"
+                className="min-h-12 bg-primary text-white rounded-lg py-3 text-sm font-semibold hover:opacity-90"
+              >
+                Procesar código
+              </button>
+              <button
+                type="button"
+                onClick={() => setManualOpen(false)}
+                className="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-2 mt-1"
+              >
+                Cancelar
+              </button>
+            </form>
           </div>
         )}
 

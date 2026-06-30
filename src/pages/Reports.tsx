@@ -30,9 +30,25 @@ export function Reports() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
-  if (!event) return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
+  if (!event) {
+    return (
+      <div className="text-center mt-16 px-4">
+        <p className="text-gray-500">Evento no encontrado.</p>
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
+          ← Volver al Dashboard
+        </Link>
+      </div>
+    )
+  }
   if (user && event.ownerId !== user.uid) {
-    return <p className="text-center text-gray-500 mt-16">No tienes acceso a este evento.</p>
+    return (
+      <div className="text-center mt-16 px-4">
+        <p className="text-gray-500">No tienes acceso a este evento.</p>
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
+          ← Volver al Dashboard
+        </Link>
+      </div>
+    )
   }
   if (event.plan !== 'premium') {
     return <Navigate to={`/events/${event.id}`} replace />

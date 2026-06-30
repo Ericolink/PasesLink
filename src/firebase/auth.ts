@@ -38,7 +38,6 @@ export async function registerWithEmail(
   password: string,
   firstName: string,
   lastName: string,
-  birthDate: string,
   photoURL?: string,
 ) {
   const displayName = `${firstName} ${lastName}`.trim()
@@ -49,7 +48,6 @@ export async function registerWithEmail(
     displayName,
     firstName,
     lastName,
-    birthDate,
     photoURL: photoURL || null,
     createdAt: serverTimestamp(),
   })
@@ -165,5 +163,5 @@ export async function isGoogleProfileComplete(uid: string): Promise<boolean> {
   const snap = await getDoc(doc(db, 'users', uid))
   if (!snap.exists()) return false
   const data = snap.data()
-  return !!(data.birthDate)
+  return !!(data.firstName)
 }

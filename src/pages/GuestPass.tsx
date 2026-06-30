@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
@@ -15,7 +15,7 @@ import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
-import { formatTime12h } from '../utils/time'
+import { formatDate, formatTime12h } from '../utils/time'
 import { getTemplate } from '../templates/registry'
 import { buildPassUrl } from '../utils/qrUrl'
 
@@ -40,6 +40,7 @@ function GuestPassInner() {
   const [rsvpError, setRsvpError] = useState<string | null>(null)
   const [downloaded, setDownloaded] = useState(false)
   const [showMaybeMessage, setShowMaybeMessage] = useState(false)
+  const [showDeclineModal, setShowDeclineModal] = useState(false)
   const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required'>('idle')
   const [paymentSaving, setPaymentSaving] = useState(false)
   const qrWrapperRef = useRef<HTMLDivElement>(null)
@@ -90,7 +91,14 @@ function GuestPassInner() {
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
   if (error || !event || !guest || !eventId || !qrToken) {
-    return <p className="text-center text-gray-500 mt-16">Pase no encontrado.</p>
+    return (
+      <div className="text-center mt-16 px-4">
+        <p className="text-gray-500">Pase no encontrado.</p>
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
+          ← Volver al Dashboard
+        </Link>
+      </div>
+    )
   }
 
   const isOrg = !!user && (
@@ -264,7 +272,7 @@ function GuestPassInner() {
         <h1 className="text-xl font-semibold">{event.name}</h1>
         <ThemeOrnament templateId={event.templateId} className="w-16 h-6 mx-auto mt-2 text-[var(--invite-accent)]" />
         <p className="text-sm mt-1 text-[var(--invite-text-muted)]">
-          {event.date} · {event.location}
+          {formatDate(event.date)} · {event.location}
         </p>
         {event.startTime && (
           <p className="text-2xl font-bold mt-1 text-[var(--invite-accent)]">
@@ -279,66 +287,89 @@ function GuestPassInner() {
         />
 
         {locked && (
-          <div className="py-8">
-            <IconAlertTriangle className="w-10 h-10 mx-auto mb-3 text-amber-400" />
-            <p className="font-medium">Esta invitación ya fue abierta</p>
-            <p className="text-sm mt-2 text-[var(--invite-text-muted)]">
-              Por seguridad, este pase solo puede abrirse desde el dispositivo donde se usó por primera vez. Si crees
-              que es un error, contacta al organizador del evento.
-            </p>
+          <div className="py-6 text-left">
+            <div className="flex items-start gap-3 mb-4">
+              <IconAlertTriangle className="w-8 h-8 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-[var(--invite-text)]">Pase abierto en otro dispositivo</p>
+                <p className="text-sm mt-1 text-[var(--invite-text-muted)]">
+                  Por seguridad, cada pase solo funciona desde el primer dispositivo donde se abre.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2 text-sm border-t pt-4" style={{ borderColor: 'var(--invite-border)' }}>
+              <p className="font-medium text-[var(--invite-text)]">¿Qué hacer?</p>
+              <p className="text-[var(--invite-text-muted)]">1. Abre este enlace desde el dispositivo original.</p>
+              <p className="text-[var(--invite-text-muted)]">2. Si ya no tienes ese dispositivo, contacta al organizador para que te genere un nuevo pase.</p>
+            </div>
           </div>
         )}
 
-        {/* El invitado solo ve su propio QR después de confirmar que asistirá.
-            El organizador puede verlo/escanearlo igual desde su propia vista
-            (más abajo en este archivo), sin depender del RSVP del invitado. */}
-        {!locked && guest.rsvpStatus === 'yes' && (
+        {/* QR siempre visible para el invitado — borroso si RSVP pendiente
+            (incentivo visual para confirmar), claro una vez que confirma. */}
+        {!locked && guest.rsvpStatus !== 'no' && (
           <>
             <p className="text-lg font-medium mt-6">{guest.name}</p>
             {guest.companions.length > 0 && (
               <p className="text-sm text-[var(--invite-text-muted)]">+ {guest.companions.length} acompañante(s)</p>
             )}
 
-            <div className="flex justify-center my-6" ref={qrWrapperRef}>
+            <div className="relative flex justify-center my-6" ref={qrWrapperRef}>
               <div
-                className="p-4 border rounded-lg max-w-[250px] max-h-[250px] overflow-hidden flex items-center justify-center"
-                style={{ borderColor: 'var(--invite-border)' }}
+                className="p-4 border rounded-lg max-w-[250px] max-h-[250px] overflow-hidden flex items-center justify-center transition-all duration-500"
+                style={{
+                  borderColor: 'var(--invite-border)',
+                  filter: guest.rsvpStatus === 'pending' ? 'blur(6px)' : 'none',
+                }}
               >
                 <QRCodeCanvas value={passUrl} size={200} marginSize={2} />
               </div>
-            </div>
 
-            {guest.status === 'checked_in' ? (
-              <span className="mt-2 inline-flex items-center gap-2">
-                <ThemeSeal templateId={event.templateId} />
-                <p className="invite-badge-positive inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
-                  <IconCheckCircle className="w-4 h-4 text-green-500" /> Entrada registrada
-                </p>
-              </span>
-            ) : (
-              <p className="text-sm text-[var(--invite-text-muted)]">Presenta este código QR en la entrada</p>
-            )}
-
-            <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
-              <button
-                onClick={handleDownload}
-                className="inline-flex items-center justify-center gap-2 text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
-              >
-                {downloaded ? <IconCheckCircle className="w-4 h-4" /> : <IconDownload className="w-4 h-4" />}
-                {downloaded ? 'Descargado' : 'Descargar QR'}
-              </button>
-              {guest.companions.length > 0 && (
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent(`Aquí está mi pase para ${event.name}: ${passUrl}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Comparte con tus acompañantes"
-                  className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-                >
-                  <IconWhatsApp className="w-4 h-4" /> Compartir
-                </a>
+              {guest.rsvpStatus === 'pending' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                  <IconAlertTriangle className="w-8 h-8 text-[var(--invite-accent)]" />
+                  <p className="text-xs font-semibold text-[var(--invite-text)] text-center px-6 leading-snug">
+                    Confirma tu asistencia para desbloquear tu pase
+                  </p>
+                </div>
               )}
             </div>
+
+            {guest.rsvpStatus === 'yes' && (
+              <>
+                {guest.status === 'checked_in' ? (
+                  <span className="mt-2 inline-flex items-center gap-2">
+                    <ThemeSeal templateId={event.templateId} />
+                    <p className="invite-badge-positive inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
+                      <IconCheckCircle className="w-4 h-4 text-green-500" /> Entrada registrada
+                    </p>
+                  </span>
+                ) : (
+                  <p className="text-sm text-[var(--invite-text-muted)]">Presenta este código QR en la entrada</p>
+                )}
+
+                <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
+                  <button
+                    onClick={handleDownload}
+                    className="inline-flex items-center justify-center gap-2 text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
+                  >
+                    {downloaded ? <IconCheckCircle className="w-4 h-4" /> : <IconDownload className="w-4 h-4" />}
+                    {downloaded ? 'Descargado' : 'Descargar QR'}
+                  </button>
+                  {guest.companions.length > 0 && (
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(`Aquí está mi pase para ${event.name}: ${passUrl}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Comparte con tus acompañantes"
+                      className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+                    >
+                      <IconWhatsApp className="w-4 h-4" /> Compartir
+                    </a>
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
 
@@ -354,12 +385,8 @@ function GuestPassInner() {
         )}
 
         {!locked && guest.rsvpStatus === 'pending' && !showMaybeMessage && (
-          <div className="mt-6 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
-            <p className="text-lg font-medium mb-1">{guest.name}</p>
-            {guest.companions.length > 0 && (
-              <p className="text-sm mb-3 text-[var(--invite-text-muted)]">+ {guest.companions.length} acompañante(s)</p>
-            )}
-            <p className="text-sm font-medium mb-3 mt-3">¿Asistirás a este evento?</p>
+          <div className="mt-2 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
+            <p className="text-sm font-medium mb-3">¿Asistirás a este evento?</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => handleRsvp('yes')}
@@ -369,22 +396,50 @@ function GuestPassInner() {
                 Sí, asistiré
               </button>
               <button
-                onClick={() => handleRsvp('no')}
+                onClick={() => setShowMaybeMessage(true)}
                 disabled={rsvpSaving}
                 className="border rounded-md px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
                 style={{ borderColor: 'var(--invite-border)' }}
               >
-                No podré asistir
+                No estoy seguro
               </button>
               <button
-                onClick={() => setShowMaybeMessage(true)}
+                onClick={() => setShowDeclineModal(true)}
                 disabled={rsvpSaving}
-                className="text-sm font-medium transition-colors disabled:opacity-50 text-[var(--invite-text-muted)] hover:text-[var(--invite-text)]"
+                className="text-xs transition-colors disabled:opacity-50 text-[var(--invite-text-muted)] hover:text-[var(--invite-text)] underline underline-offset-2 mt-1"
               >
-                Aún no lo sé
+                No podré asistir
               </button>
             </div>
             {rsvpError && <p className="text-sm text-red-500 mt-3">{rsvpError}</p>}
+
+            {/* Modal de confirmación para declinar */}
+            {showDeclineModal && (
+              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                <div className="bg-[var(--invite-surface)] rounded-2xl shadow-2xl w-full max-w-sm p-6 text-left">
+                  <h2 className="text-base font-semibold mb-2 text-[var(--invite-text)]">¿Seguro que no podrás asistir?</h2>
+                  <p className="text-sm text-[var(--invite-text-muted)] mb-5">
+                    Si cambias de opinión, contáctale al organizador.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => setShowDeclineModal(false)}
+                      className="w-full border rounded-md px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+                      style={{ borderColor: 'var(--invite-border)' }}
+                    >
+                      Volver
+                    </button>
+                    <button
+                      onClick={() => { setShowDeclineModal(false); void handleRsvp('no') }}
+                      disabled={rsvpSaving}
+                      className="w-full text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
+                    >
+                      Sí, no asistiré
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -15,7 +15,6 @@ export function Register() {
   const navigate = useNavigate()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName]   = useState('')
-  const [birthDate, setBirthDate] = useState('')
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -60,7 +59,7 @@ export function Register() {
     try {
       let photoURL: string | undefined
       if (photoFile) photoURL = await uploadImage(photoFile)
-      await registerWithEmail(email, password, firstName, lastName, birthDate, photoURL)
+      await registerWithEmail(email, password, firstName, lastName, photoURL)
       setAwaitingVerification(true)
     } catch (err) {
       setErrorInfo(getAuthErrorInfo(err, 'No pudimos crear la cuenta. Intenta de nuevo.'))
@@ -74,7 +73,6 @@ export function Register() {
     setLoading(true)
     try {
       const u = await loginWithGoogle()
-      // Check if profile is already complete (has birthDate)
       const { isGoogleProfileComplete } = await import('../firebase/auth')
       const complete = await isGoogleProfileComplete(u.uid)
       navigate(complete ? '/dashboard' : '/complete-profile')
@@ -180,12 +178,6 @@ export function Register() {
             <input id="register-last-name" type="text" required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
-        </div>
-        <div>
-          <label htmlFor="register-birth-date" className="block text-sm font-medium text-gray-700 mb-1">Fecha de nacimiento *</label>
-          <input id="register-birth-date" type="date" required autoComplete="bday" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
-            max={new Date().toISOString().split('T')[0]}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
         <div>
           <label htmlFor="register-email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>

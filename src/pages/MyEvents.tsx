@@ -5,6 +5,8 @@ import { useAuth } from '../hooks/useAuth'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { IconCalendar, IconTicket, IconUsers } from '../components/Icons'
 import type { EventData } from '../types'
+import { LoadingInline } from '../components/LoadingInline'
+import { EmptyState } from '../components/Empty'
 
 const STATUS_LABEL: Record<EventData['status'], string> = {
   active:    'Activo',
@@ -64,22 +66,16 @@ export function MyEvents() {
         </Link>
       </div>
 
-      {loading && <p className="text-gray-400 text-center py-8">Cargando…</p>}
+      {loading && <LoadingInline label="Cargando eventos…" />}
 
       {!loading && events.length === 0 && (
-        <div className="text-center py-16">
-          <IconCalendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">Aún no has creado ningún evento.</p>
-          <p className="text-xs text-gray-400 mt-1 mb-5">
-            Crea tu primer evento y empieza a gestionar invitados con QR.
-          </p>
-          <Link
-            to="/events/new"
-            className="inline-block bg-primary text-white rounded-md px-5 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
-          >
-            Crear evento
-          </Link>
-        </div>
+        <EmptyState
+          icon={<IconCalendar className="w-12 h-12" />}
+          title="Aún no has creado ningún evento"
+          description="Crea tu primer evento y empieza a gestionar invitados con pases QR."
+          ctaText="Crear evento"
+          to="/events/new"
+        />
       )}
 
       <div className="space-y-3">

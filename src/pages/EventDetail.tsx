@@ -18,7 +18,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EventAnalytics } from '../components/EventAnalytics'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { EventCountdown } from '../components/EventCountdown'
-import { formatTime12h } from '../utils/time'
+import { formatDate, formatTime12h } from '../utils/time'
 import {
   IconArrowLeft,
   IconCheckCircle,
@@ -109,8 +109,26 @@ export function EventDetail() {
   const { totalPeople, totalCollected, peopleInside, rsvpYes, rsvpNo } = useGuestStats(guests, event?.ticketPrice ?? 0)
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
-  if (error) return <p className="text-center text-red-500 mt-16">{error}</p>
-  if (!event) return <p className="text-center text-gray-500 mt-16">Evento no encontrado.</p>
+  if (error) {
+    return (
+      <div className="text-center mt-16 px-4">
+        <p className="text-red-500">{error}</p>
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
+          ← Volver al Dashboard
+        </Link>
+      </div>
+    )
+  }
+  if (!event) {
+    return (
+      <div className="text-center mt-16 px-4">
+        <p className="text-gray-500">Evento no encontrado.</p>
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
+          ← Volver al Dashboard
+        </Link>
+      </div>
+    )
+  }
 
   const coOrgsMap = event.coOrganizersMap || {}
   const isOwner = user?.uid === event.ownerId
@@ -118,7 +136,14 @@ export function EventDetail() {
   const hasAccess = isOwner || isCoOrg
 
   if (user && !hasAccess) {
-    return <p className="text-center text-gray-500 mt-16">No tienes acceso a este evento.</p>
+    return (
+      <div className="text-center mt-16 px-4">
+        <p className="text-gray-500">No tienes acceso a este evento.</p>
+        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
+          ← Volver al Dashboard
+        </Link>
+      </div>
+    )
   }
 
   async function handleStatusChange(status: 'cancelled' | 'archived' | 'active') {
@@ -181,7 +206,7 @@ export function EventDetail() {
             )}
           </div>
           <p className="text-sm text-gray-500">
-            {event.date} · {event.location}
+            {formatDate(event.date)} · {event.location}
           </p>
           {event.startTime && (
             <p className="text-lg font-bold mt-0.5 text-primary">

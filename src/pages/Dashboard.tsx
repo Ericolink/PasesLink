@@ -6,6 +6,8 @@ import type { EventData } from '../types'
 import { PlanBadge } from '../components/PlanBadge'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { IconCalendar, IconStar, IconTicket, IconUsers } from '../components/Icons'
+import { LoadingInline } from '../components/LoadingInline'
+import { formatDate } from '../utils/time'
 
 function isEventPast(date: string): boolean {
   const today = new Date()
@@ -131,7 +133,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {loading && <p className="text-gray-500 text-sm">Cargando eventos…</p>}
+      {loading && <LoadingInline label="Cargando eventos…" />}
 
       {/* Empty state */}
       {!loading && events.length === 0 && (
@@ -275,7 +277,7 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
             </div>
           </div>
 
-          <p className="text-sm text-gray-500 mb-3">{event.date} · {event.location}</p>
+          <p className="text-sm text-gray-500 mb-3">{formatDate(event.date)} · {event.location}</p>
 
           {/* Progress */}
           <div>

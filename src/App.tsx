@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
 import { Background } from './components/Background'
@@ -7,7 +7,9 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { GlobalToastHost } from './components/GlobalToastHost'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
+import { LoadingInline } from './components/LoadingInline'
 import { Landing } from './pages/Landing'
+import { NotFound } from './pages/NotFound'
 
 const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })))
 const Register = lazy(() => import('./pages/Register').then((m) => ({ default: m.Register })))
@@ -31,7 +33,11 @@ const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => (
 const MyEvents        = lazy(() => import('./pages/MyEvents').then((m) => ({ default: m.MyEvents })))
 
 function PageFallback() {
-  return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando…</div>
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <LoadingInline label="Cargando…" />
+    </div>
+  )
 }
 
 function App() {
@@ -117,7 +123,7 @@ function App() {
         <Route path="/my-invitations" element={<MyInvitations />} />
         <Route path="/my-events" element={<MyEvents />} />
 
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
       </Suspense>
       </ErrorBoundary>
