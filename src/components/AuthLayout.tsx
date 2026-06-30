@@ -8,8 +8,8 @@ export function AuthLayout({ children }: { children: ReactNode }) {
       <div
         className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12 text-center relative overflow-hidden"
         style={{
-          background: 'linear-gradient(145deg, #1A0818 0%, #131D3A 60%, #1A2548 100%)',
-          borderRight: '1px solid rgba(255,0,77,.15)',
+          background: 'linear-gradient(145deg, #160A1E 0%, #150D1C 60%, #1E1428 100%)',
+          borderRight: '1px solid rgba(255,20,100,.15)',
         }}
       >
         {/* Glow de fondo */}
@@ -19,7 +19,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             width: '500px', height: '500px',
             top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
-            background: 'radial-gradient(circle, rgba(255,0,77,.1) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(255,20,100,.1) 0%, transparent 70%)',
           }}
         />
 
@@ -28,7 +28,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           <img
             src="/Icon.png"
             alt="PaseLink icon"
-            className="h-30 w-auto mx-auto mb-6 animate-float"
+            className="h-24 w-auto mx-auto mb-6 animate-float logo-glow"
           />
 
           <h2 className="text-2xl font-bold text-white mt-2 max-w-sm">
@@ -45,9 +45,9 @@ export function AuthLayout({ children }: { children: ReactNode }) {
                 key={i}
                 className="w-10 h-10 rounded-xl flex items-center justify-center"
                 style={{
-                  background: 'rgba(255,0,77,.1)',
-                  border: '1px solid rgba(255,0,77,.25)',
-                  boxShadow: '0 0 10px rgba(255,0,77,.12)',
+                  background: 'rgba(255,20,100,.1)',
+                  border: '1px solid rgba(255,20,100,.25)',
+                  boxShadow: '0 0 10px rgba(255,20,100,.12)',
                 }}
               >
                 <Icon className="w-5 h-5 text-primary" />

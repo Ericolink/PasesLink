@@ -3,7 +3,7 @@ export function Logo({ className = '' }: { className?: string }) {
     <img
       src="/Logo.png"
       alt="PaseLink"
-      className={`h-30 w-auto ${className}`}
+      className={`h-9 w-auto logo-glow ${className}`}
     />
   )
 }

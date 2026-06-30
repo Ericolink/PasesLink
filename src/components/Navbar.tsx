@@ -50,10 +50,10 @@ export function Navbar() {
     <header
       className="sticky top-0 z-40 border-b"
       style={{
-        background: 'rgba(19,29,58,0.82)',
+        background: 'rgba(21,13,28,0.82)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        borderColor: 'rgba(42,58,106,0.7)',
+        borderColor: 'rgba(74,50,92,0.7)',
       }}
     >
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -91,11 +91,11 @@ export function Navbar() {
                 onClick={handleLogout}
                 className="hidden sm:inline-block ml-1 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors"
                 style={{
-                  borderColor: 'rgba(255,0,77,0.4)',
-                  color: '#FF004D',
+                  borderColor: 'rgba(255,20,100,0.4)',
+                  color: '#FF1464',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,0,77,0.12)'
+                  e.currentTarget.style.background = 'rgba(255,20,100,0.12)'
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent'
@@ -121,9 +121,9 @@ export function Navbar() {
               <div
                 className="sm:hidden absolute top-14 left-0 right-0 border-b px-4 py-3 flex flex-col gap-1 text-sm animate-fade-in"
                 style={{
-                  background: 'rgba(19,29,58,0.97)',
+                  background: 'rgba(21,13,28,0.97)',
                   backdropFilter: 'blur(16px)',
-                  borderColor: 'rgba(42,58,106,0.7)',
+                  borderColor: 'rgba(74,50,92,0.7)',
                 }}
               >
                 {isAdmin && (
@@ -143,7 +143,7 @@ export function Navbar() {
                 <button
                   onClick={handleLogout}
                   className="text-left px-3 py-2.5 rounded-md font-medium transition-colors"
-                  style={{ color: '#FF004D' }}
+                  style={{ color: '#FF1464' }}
                 >
                   Cerrar sesión
                 </button>

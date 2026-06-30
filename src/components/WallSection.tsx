@@ -239,7 +239,7 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
                     )}
                     {isOwnerMsg && isPremium
                       ? <span className="min-w-0 inline-flex items-center gap-1 text-xs font-bold"
-                          style={{ color: '#FAEF5D', textShadow: '0 0 8px rgba(250,239,93,.8)' }}>
+                          style={{ color: '#E8B84B', textShadow: '0 0 8px rgba(232,184,75,.8)' }}>
                           <IconCrown className="w-3 h-3 shrink-0" /><span className="min-w-0 truncate">{msg.authorName}</span>
                         </span>
                       : isOwnerMsg

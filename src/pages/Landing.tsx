@@ -65,7 +65,7 @@ export function Landing() {
         <div
           className="pointer-events-none absolute inset-0"
           style={{
-            background: 'radial-gradient(ellipse at 50% 0%, rgba(255,0,77,.1) 0%, transparent 60%)',
+            background: 'radial-gradient(ellipse at 50% 0%, rgba(255,20,100,.1) 0%, transparent 60%)',
           }}
         />
 
@@ -74,9 +74,9 @@ export function Landing() {
           <span
             className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-6"
             style={{
-              background: 'rgba(255,0,77,.12)',
-              border: '1px solid rgba(255,0,77,.35)',
-              color: '#FF004D',
+              background: 'rgba(255,20,100,.12)',
+              border: '1px solid rgba(255,20,100,.35)',
+              color: '#FF1464',
             }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
@@ -88,12 +88,12 @@ export function Landing() {
             Gestiona tus invitados{' '}
             <span
               className="relative inline-block"
-              style={{ color: '#FAEF5D', textShadow: '0 0 24px rgba(250,239,93,.45)' }}
+              style={{ color: '#E8B84B', textShadow: '0 0 24px rgba(232,184,75,.45)' }}
             >
               sin complicaciones
               <span
                 className="absolute -bottom-1 left-0 w-full h-0.5 rounded-full"
-                style={{ background: 'linear-gradient(90deg, #FF004D, #FAEF5D)' }}
+                style={{ background: 'linear-gradient(90deg, #FF1464, #E8B84B)' }}
               />
             </span>
           </h1>
@@ -118,7 +118,7 @@ export function Landing() {
               style={{
                 background: 'rgba(255,255,255,.06)',
                 border: '1px solid rgba(255,255,255,.15)',
-                color: '#C4CEEA',
+                color: '#C9C3D8',
               }}
             >
               Iniciar sesión
@@ -133,9 +133,9 @@ export function Landing() {
                 className="w-11 h-11 rounded-xl flex items-center justify-center animate-float"
                 style={{
                   animationDelay: `${i * 0.4}s`,
-                  background: 'rgba(26,37,72,.9)',
-                  border: '1px solid rgba(255,0,77,.25)',
-                  boxShadow: '0 0 10px rgba(255,0,77,.15)',
+                  background: 'rgba(30,20,40,.9)',
+                  border: '1px solid rgba(255,20,100,.25)',
+                  boxShadow: '0 0 10px rgba(255,20,100,.15)',
                 }}
               >
                 <Icon className="w-5 h-5 text-primary" />
@@ -161,8 +161,8 @@ export function Landing() {
               <div
                 className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
                 style={{
-                  background: 'rgba(255,0,77,.12)',
-                  boxShadow: '0 0 16px rgba(255,0,77,.2)',
+                  background: 'rgba(255,20,100,.12)',
+                  boxShadow: '0 0 16px rgba(255,20,100,.2)',
                 }}
               >
                 <feature.icon className="w-5 h-5 text-primary" />
@@ -177,7 +177,7 @@ export function Landing() {
       {/* ── Steps ─────────────────────────────────────────────── */}
       <section
         className="py-20"
-        style={{ background: 'linear-gradient(180deg, transparent, rgba(255,0,77,.04), transparent)' }}
+        style={{ background: 'linear-gradient(180deg, transparent, rgba(255,20,100,.04), transparent)' }}
       >
         <div className="max-w-4xl mx-auto px-4">
           <div className="text-center mb-12">
@@ -190,7 +190,7 @@ export function Landing() {
             <div
               className="hidden sm:block absolute top-6 left-1/6 right-1/6 h-px"
               style={{
-                background: 'linear-gradient(90deg, transparent, rgba(255,0,77,.3) 20%, rgba(255,0,77,.3) 80%, transparent)',
+                background: 'linear-gradient(90deg, transparent, rgba(255,20,100,.3) 20%, rgba(255,20,100,.3) 80%, transparent)',
               }}
             />
 
@@ -199,10 +199,10 @@ export function Landing() {
                 <div
                   className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-sm relative z-10"
                   style={{
-                    background: 'rgba(255,0,77,.15)',
-                    border: '2px solid #FF004D',
-                    color: '#FF004D',
-                    boxShadow: '0 0 16px rgba(255,0,77,.35)',
+                    background: 'rgba(255,20,100,.15)',
+                    border: '2px solid #FF1464',
+                    color: '#FF1464',
+                    boxShadow: '0 0 16px rgba(255,20,100,.35)',
                   }}
                 >
                   {step.number}
@@ -219,11 +219,11 @@ export function Landing() {
       <section className="max-w-2xl mx-auto px-4 py-20">
         <div
           className="card-hover glass rounded-2xl p-8 text-center relative overflow-hidden"
-          style={{ border: '1px solid rgba(255,0,77,.5)', boxShadow: '0 0 28px rgba(255,0,77,.15), inset 0 0 40px rgba(255,0,77,.03)' }}
+          style={{ border: '1px solid rgba(255,20,100,.5)', boxShadow: '0 0 28px rgba(255,20,100,.15), inset 0 0 40px rgba(255,20,100,.03)' }}
         >
           <span
             className="absolute top-4 right-4 text-xs font-bold px-2 py-0.5 rounded-full"
-            style={{ background: '#FF004D', color: '#fff' }}
+            style={{ background: '#FF1464', color: '#fff' }}
           >
             LANZAMIENTO
           </span>
@@ -247,7 +247,7 @@ export function Landing() {
           <Link
             to="/register"
             className="inline-block rounded-lg px-8 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5"
-            style={{ background: '#FF004D', color: '#fff', boxShadow: '0 0 14px rgba(255,0,77,.45)' }}
+            style={{ background: '#FF1464', color: '#fff', boxShadow: '0 0 14px rgba(255,20,100,.45)' }}
           >
             Crear mi evento gratis
           </Link>
@@ -255,7 +255,7 @@ export function Landing() {
       </section>
 
       {/* ── Bottom CTA ────────────────────────────────────────── */}
-      <section className="bg-grid border-t py-20" style={{ borderColor: 'rgba(42,58,106,.5)' }}>
+      <section className="bg-grid border-t py-20" style={{ borderColor: 'rgba(74,50,92,.5)' }}>
         <div className="max-w-xl mx-auto px-4 text-center animate-fade-in-up">
           <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">
             ¿Listo para tu próximo evento?

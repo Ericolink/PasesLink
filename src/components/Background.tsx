@@ -9,6 +9,9 @@ export function Background() {
         <div className="orb orb-4" />
       </div>
 
+      {/* Grano sutil: la niebla ligera del exterior del evento */}
+      <div className="app-grain" aria-hidden="true" />
+
       {/* Vignette: oscurece bordes sin afectar el contenido */}
       <div className="app-vignette" aria-hidden="true" />
     </>

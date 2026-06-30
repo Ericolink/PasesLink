@@ -103,7 +103,7 @@ export function Dashboard() {
       {actionError && (
         <p
           className="text-sm rounded-lg px-3 py-2 mb-4"
-          style={{ background: 'rgba(255,0,77,.1)', border: '1px solid rgba(255,0,77,.3)', color: '#FF004D' }}
+          style={{ background: 'rgba(255,20,100,.1)', border: '1px solid rgba(255,20,100,.3)', color: '#FF1464' }}
         >
           {actionError}
         </p>
@@ -121,8 +121,8 @@ export function Dashboard() {
               key={label}
               className="rounded-xl p-3 text-center"
               style={{
-                background: 'rgba(26,37,72,.7)',
-                border: '1px solid rgba(42,58,106,.8)',
+                background: 'rgba(30,20,40,.7)',
+                border: '1px solid rgba(74,50,92,.8)',
               }}
             >
               <Icon className="w-4 h-4 text-primary mx-auto mb-1" />
@@ -139,11 +139,11 @@ export function Dashboard() {
       {!loading && events.length === 0 && (
         <div
           className="text-center rounded-2xl py-16 animate-fade-in-up"
-          style={{ background: 'rgba(26,37,72,.5)', border: '1px dashed rgba(42,58,106,.9)' }}
+          style={{ background: 'rgba(30,20,40,.5)', border: '1px dashed rgba(74,50,92,.9)' }}
         >
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: 'rgba(255,0,77,.1)', border: '1px solid rgba(255,0,77,.2)' }}
+            style={{ background: 'rgba(255,20,100,.1)', border: '1px solid rgba(255,20,100,.2)' }}
           >
             <IconCalendar className="w-6 h-6 text-primary" />
           </div>
@@ -236,8 +236,8 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
     <div
       style={{
         animationDelay: `${Math.min(index, 6) * 0.06}s`,
-        borderLeft: past ? undefined : '3px solid #FF004D',
-        boxShadow: past ? undefined : '0 0 20px rgba(255,0,77,.06)',
+        borderLeft: past ? undefined : '3px solid #FF1464',
+        boxShadow: past ? undefined : '0 0 20px rgba(255,20,100,.06)',
       }}
       className={`card-hover animate-fade-in-up rounded-xl overflow-hidden ${
         past ? 'opacity-70' : ''
@@ -245,9 +245,9 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
     >
       <div
         style={{
-          background: 'rgba(26,37,72,.8)',
-          border: '1px solid rgba(42,58,106,.7)',
-          borderLeft: past ? '1px solid rgba(42,58,106,.7)' : 'none',
+          background: 'rgba(30,20,40,.8)',
+          border: '1px solid rgba(74,50,92,.7)',
+          borderLeft: past ? '1px solid rgba(74,50,92,.7)' : 'none',
         }}
       >
         {/* Clickable body */}
@@ -266,9 +266,9 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
                 <span
                   className="text-xs px-2 py-0.5 rounded-full font-medium"
                   style={{
-                    background: event.status === 'cancelled' ? 'rgba(255,0,77,.15)' : 'rgba(42,58,106,.8)',
-                    color: event.status === 'cancelled' ? '#FF004D' : '#7B8DB0',
-                    border: `1px solid ${event.status === 'cancelled' ? 'rgba(255,0,77,.3)' : 'rgba(42,58,106,.9)'}`,
+                    background: event.status === 'cancelled' ? 'rgba(255,20,100,.15)' : 'rgba(74,50,92,.8)',
+                    color: event.status === 'cancelled' ? '#FF1464' : '#9C8FA8',
+                    border: `1px solid ${event.status === 'cancelled' ? 'rgba(255,20,100,.3)' : 'rgba(74,50,92,.9)'}`,
                   }}
                 >
                   {STATUS_LABELS[event.status]}
@@ -287,13 +287,13 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
                 <span className="text-gray-600">cap. {event.capacity}</span>
               )}
             </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(42,58,106,.8)' }}>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(74,50,92,.8)' }}>
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${progress}%`,
-                  background: progress > 0 ? 'linear-gradient(90deg, #FF004D, #CC003E)' : 'transparent',
-                  boxShadow: progress > 0 ? '0 0 6px rgba(255,0,77,.5)' : 'none',
+                  background: progress > 0 ? 'linear-gradient(90deg, #FF1464, #D40E52)' : 'transparent',
+                  boxShadow: progress > 0 ? '0 0 6px rgba(255,20,100,.5)' : 'none',
                 }}
               />
             </div>
@@ -303,7 +303,7 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
         {/* Action row */}
         <div
           className="px-4 pb-3 pt-2 flex items-center justify-between gap-2"
-          style={{ borderTop: '1px solid rgba(42,58,106,.5)' }}
+          style={{ borderTop: '1px solid rgba(74,50,92,.5)' }}
         >
           {!past ? (
             <Link
@@ -321,9 +321,9 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
                 disabled={isLoading}
                 className="text-xs px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
                 style={{
-                  background: 'rgba(42,58,106,.5)',
-                  border: '1px solid rgba(42,58,106,.9)',
-                  color: '#A0AEC8',
+                  background: 'rgba(74,50,92,.5)',
+                  border: '1px solid rgba(74,50,92,.9)',
+                  color: '#A89FB3',
                 }}
               >
                 Cancelar
@@ -348,9 +348,9 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
               disabled={isLoading}
               className="text-xs px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
               style={{
-                background: 'rgba(255,0,77,.1)',
-                border: '1px solid rgba(255,0,77,.3)',
-                color: '#FF004D',
+                background: 'rgba(255,20,100,.1)',
+                border: '1px solid rgba(255,20,100,.3)',
+                color: '#FF1464',
               }}
             >
               {isLoading ? '…' : 'Eliminar'}

@@ -362,7 +362,7 @@ export function EventWall() {
               data-pinned={msg.pinned}
               className={`invite-wall-message bg-white dark:bg-gray-800 rounded-xl border p-4 animate-fade-in-up transition-all ${
                 msg.pinned
-                  ? 'border-yellow-400/60 dark:border-yellow-500/40 shadow-[0_0_12px_rgba(250,239,93,.18)]'
+                  ? 'border-yellow-400/60 dark:border-yellow-500/40 shadow-[0_0_12px_rgba(232,184,75,.18)]'
                   : 'border-gray-200 dark:border-gray-700'
               }`}
             >
@@ -547,8 +547,8 @@ function AuthorName({
       <span
         className={`inline-flex items-center gap-1 text-xs font-bold ${inline ? '' : ''}`}
         style={{
-          color: '#FAEF5D',
-          textShadow: '0 0 8px rgba(250,239,93,.8), 0 0 16px rgba(250,239,93,.4)',
+          color: '#E8B84B',
+          textShadow: '0 0 8px rgba(232,184,75,.8), 0 0 16px rgba(232,184,75,.4)',
         }}
       >
         <IconCrown className="w-3 h-3" />

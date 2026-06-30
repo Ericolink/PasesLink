@@ -6,7 +6,7 @@ export function Footer() {
     <footer
       className="relative mt-12"
       style={{
-        background: 'rgba(14,22,40,0.92)',
+        background: 'rgba(16,10,22,0.92)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
       }}
@@ -18,7 +18,7 @@ export function Footer() {
           position: 'absolute',
           top: 0, left: '8%', right: '8%',
           height: '1px',
-          background: 'linear-gradient(90deg, transparent, rgba(255,0,77,.5) 30%, rgba(250,239,93,.3) 70%, transparent)',
+          background: 'linear-gradient(90deg, transparent, rgba(255,20,100,.5) 30%, rgba(232,184,75,.3) 70%, transparent)',
         }}
       />
 

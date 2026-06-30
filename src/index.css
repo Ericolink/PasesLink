@@ -3,31 +3,37 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ── Pico-8 Retro theme ──────────────────────────────────────── */
+/* ── "Puerta de terciopelo" — identidad nocturna alrededor del
+   nuevo logo (corona + ticket, negro puro). El negro del logo solo
+   destaca sobre un fondo casi negro con luces de neón encima, así
+   que la marca vive en la iluminación: magenta de letrero de
+   entrada, violeta de reflector y un dorado cálido para los
+   acentos "VIP" que hacen eco de la corona. ────────────────────── */
 @theme {
-  --color-primary:       #FF004D;
-  --color-primary-dark:  #CC003E;
-  --color-primary-light: #2A0A15;
+  --color-primary:       #FF1464;
+  --color-primary-dark:  #D40E52;
+  --color-primary-light: #2B0A1C;
+  --color-violet:        #8B5CF6;
+  --color-gold:          #E8B84B;
   --font-sans: 'Space Grotesk', system-ui, 'Segoe UI', sans-serif;
 }
 
 /* ── Base: html lleva el color oscuro, body queda transparente
    para que los orbs del fondo (z-index: -1) sean visibles ──── */
 html {
-  background-color: #131D3A;
+  background-color: #150D1C;
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
   background: transparent;
-  /* Puntos de la cuadrícula: 1 px cada 48 px */
+  /* Resplandor ambiental: como si la luz cayera desde un letrero
+     sobre la entrada, con un eco cálido abajo (piso iluminado). */
   background-image:
-    radial-gradient(circle, rgba(42,58,106,.55) 1px, transparent 1px),
-    linear-gradient(rgba(42,58,106,.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(42,58,106,.12) 1px, transparent 1px);
-  background-size: 48px 48px, 48px 48px, 48px 48px;
-  color: #F0F4FF;
+    radial-gradient(ellipse 70% 45% at 50% -5%, rgba(139,92,246,.10) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 35% at 50% 105%, rgba(232,184,75,.05) 0%, transparent 65%);
+  color: #F6F4F9;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -61,44 +67,44 @@ body {
   filter: blur(70px);
 }
 
-/* Orb 1 – rojo primario, esquina superior-izquierda */
+/* Orb 1 – magenta de letrero, esquina superior-izquierda */
 .orb-1 {
   width: 680px;
   height: 680px;
   top: -18%;
   left: -12%;
-  background: radial-gradient(circle, rgba(255,0,77,.13) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,20,100,.14) 0%, transparent 70%);
   animation: orb-move-1 22s ease-in-out infinite;
 }
 
-/* Orb 2 – magenta, esquina inferior-derecha */
+/* Orb 2 – reflector violeta, esquina inferior-derecha */
 .orb-2 {
   width: 580px;
   height: 580px;
   bottom: -15%;
   right: -12%;
-  background: radial-gradient(circle, rgba(126,37,83,.16) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(139,92,246,.15) 0%, transparent 70%);
   animation: orb-move-2 28s ease-in-out infinite;
 }
 
-/* Orb 3 – amarillo muy tenue, centro */
+/* Orb 3 – dorado muy tenue, centro */
 .orb-3 {
   width: 420px;
   height: 420px;
   top: 32%;
   left: 42%;
-  background: radial-gradient(circle, rgba(250,239,93,.045) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(232,184,75,.05) 0%, transparent 70%);
   animation: orb-move-3 19s ease-in-out infinite;
   animation-delay: -6s;
 }
 
-/* Orb 4 – rojo tenue, esquina superior-derecha */
+/* Orb 4 – magenta tenue, esquina superior-derecha */
 .orb-4 {
   width: 500px;
   height: 500px;
   top: -8%;
   right: -5%;
-  background: radial-gradient(circle, rgba(255,0,77,.07) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,20,100,.07) 0%, transparent 70%);
   animation: orb-move-4 24s ease-in-out infinite;
   animation-delay: -12s;
 }
@@ -111,9 +117,22 @@ body {
   background: radial-gradient(
     ellipse 90% 80% at 50% 50%,
     transparent 40%,
-    rgba(8, 12, 26, 0.55) 100%
+    rgba(6, 3, 10, 0.6) 100%
   );
   z-index: -1;
+}
+
+/* Grano muy sutil: la "niebla ligera" del exterior del club. Ruido
+   estático generado con SVG (sin pedir una imagen extra) y mezclado
+   por encima de los orbs para romper la planitud del degradado. */
+.app-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: .025;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 @keyframes orb-move-1 {
@@ -141,21 +160,24 @@ body {
   70%       { transform: translate(38px,  18px); }
 }
 
-/* ── Dark mode Pico-8 palette ───────────────────────────────── */
+/* ── Dark mode "puerta de terciopelo" ──────────────────────────
+   Fondos casi negros con matiz violeta (en vez del azul marino
+   anterior) para que el negro del logo se lea como una decisión
+   de marca, no como un error de contraste. */
 .dark {
   /* Fondos y bordes (oscuros) */
-  --color-gray-50:  #0E1628;
-  --color-gray-100: #131D3A;
-  --color-gray-200: #1A2548;
+  --color-gray-50:  #100A16;
+  --color-gray-100: #150D1C;
+  --color-gray-200: #1E1428;
   /* Texto — todos con contraste suficiente sobre fondo oscuro */
-  --color-gray-300: #B0C0DC;   /* labels / texto secundario  (~7.5:1) */
-  --color-gray-400: #90A2C8;   /* texto muted               (~5.5:1) */
-  --color-gray-500: #7888B4;   /* texto más muted            (~4.3:1) */
-  --color-gray-600: #BCCCE8;   /* texto secundario claro     (~8.5:1) */
-  --color-gray-700: #CDD8F0;   /* texto principal secundario (~10:1)  */
-  --color-gray-800: #DDE6FF;   /* texto principal            (~12:1)  */
-  --color-gray-900: #F0F4FF;   /* texto máximo brillo        (~14:1)  */
-  --color-primary-light: #2A0A15;
+  --color-gray-300: #C7BFD0;   /* labels / texto secundario  (~7.5:1) */
+  --color-gray-400: #A89FB3;   /* texto muted               (~5.5:1) */
+  --color-gray-500: #8D8298;   /* texto más muted            (~4.3:1) */
+  --color-gray-600: #D2CCDA;   /* texto secundario claro     (~8.5:1) */
+  --color-gray-700: #DED9E6;   /* texto principal secundario (~10:1)  */
+  --color-gray-800: #E9E5EF;   /* texto principal            (~12:1)  */
+  --color-gray-900: #F6F4F9;   /* texto máximo brillo        (~14:1)  */
+  --color-primary-light: #2B0A1C;
 }
 
 /* Los bordes usan gray-200/300/400 como clase pero deben
@@ -165,41 +187,41 @@ body {
 .dark .border-gray-300,
 .dark .border-gray-400,
 .dark .border-gray-700 {
-  border-color: rgba(42, 58, 106, 0.65) !important;
+  border-color: rgba(74, 50, 92, 0.65) !important;
 }
 
 .dark .divide-gray-100,
 .dark .divide-gray-200,
 .dark .divide-gray-300 {
-  border-color: rgba(42, 58, 106, 0.45) !important;
+  border-color: rgba(74, 50, 92, 0.45) !important;
 }
 
 /* Cards, inputs, superficies */
 .dark .bg-white {
-  background-color: rgba(26, 37, 72, 0.88);
+  background-color: rgba(30, 20, 40, 0.88);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
 
 .dark .bg-gray-50 {
-  background-color: rgba(14, 22, 40, 0.85) !important;
+  background-color: rgba(16, 10, 22, 0.85) !important;
 }
 
 .dark .bg-gray-100 {
-  background-color: rgba(19, 29, 58, 0.8) !important;
+  background-color: rgba(21, 13, 28, 0.8) !important;
 }
 
 .dark input,
 .dark select,
 .dark textarea {
-  background-color: rgba(19, 29, 58, 0.9);
-  color: #F0F4FF;
-  border-color: #2A3A6A;
+  background-color: rgba(21, 13, 28, 0.9);
+  color: #F6F4F9;
+  border-color: #3A2A4A;
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #7B8DB0;
+  color: #9C8FA8;
 }
 
 /* La regla de arriba (.dark input/select/textarea) es CSS sin @layer, así
@@ -233,11 +255,11 @@ body {
 
 /* Sutil text-shadow en títulos para el efecto neon */
 .dark h1 {
-  text-shadow: 0 0 40px rgba(255,0,77,.12);
+  text-shadow: 0 0 40px rgba(255,20,100,.14);
 }
 
 .dark h2 {
-  text-shadow: 0 0 30px rgba(255,0,77,.08);
+  text-shadow: 0 0 30px rgba(255,20,100,.09);
 }
 
 /* Scanner tiene su propio sub-tema oscuro */
@@ -252,7 +274,7 @@ body {
   --color-gray-700: #374151;
   --color-gray-800: #1f2937;
   --color-gray-900: #111827;
-  --color-primary-light: #2A0A15;
+  --color-primary-light: #2B0A1C;
   color: var(--color-gray-900);
 }
 
@@ -268,40 +290,48 @@ body {
 
 /* Glass card */
 .glass {
-  background: rgba(26, 37, 72, 0.75);
+  background: rgba(30, 20, 40, 0.75);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(42, 58, 106, 0.7);
+  border: 1px solid rgba(74, 50, 92, 0.7);
 }
 
-/* Hero background con gradiente + cuadrícula (para páginas que lo necesiten) */
+/* Hero: reflectores de entrada en vez de la cuadrícula anterior —
+   un haz cenital (como el letrero sobre la puerta) más manchas de
+   color a los lados (para páginas que lo necesiten). */
 .bg-grid {
   background-image:
-    radial-gradient(ellipse at 15% 60%, rgba(255,0,77,.07) 0%, transparent 55%),
-    radial-gradient(ellipse at 85% 20%, rgba(126,37,83,.09) 0%, transparent 50%),
-    linear-gradient(rgba(42,58,106,.35) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(42,58,106,.35) 1px, transparent 1px);
-  background-size: auto, auto, 48px 48px, 48px 48px;
+    radial-gradient(ellipse 60% 50% at 50% -10%, rgba(255,20,100,.16) 0%, transparent 60%),
+    radial-gradient(ellipse at 15% 70%, rgba(255,20,100,.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgba(139,92,246,.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 100%, rgba(232,184,75,.05) 0%, transparent 60%);
 }
 
 /* Neon glow text */
 .neon-text {
-  color: #FF004D;
-  text-shadow: 0 0 10px rgba(255,0,77,.7), 0 0 22px rgba(255,0,77,.35);
+  color: #FF1464;
+  text-shadow: 0 0 10px rgba(255,20,100,.7), 0 0 22px rgba(255,20,100,.35);
 }
 
-/* Colores de acento */
-.text-accent { color: #FAEF5D; }
-.bg-accent    { background-color: #FAEF5D; }
+/* Colores de acento — dorado, eco de la corona del logo */
+.text-accent { color: #E8B84B; }
+.bg-accent    { background-color: #E8B84B; }
 
 /* Botones primarios siempre con neon glow */
 .bg-primary {
-  box-shadow: 0 0 12px rgba(255,0,77,.5), 0 0 24px rgba(255,0,77,.2);
+  box-shadow: 0 0 12px rgba(255,20,100,.5), 0 0 24px rgba(255,20,100,.2);
   transition: box-shadow 0.2s ease, filter 0.2s ease, transform 0.15s ease;
 }
 .bg-primary:hover {
   filter: brightness(1.1);
-  box-shadow: 0 0 18px rgba(255,0,77,.65), 0 0 36px rgba(255,0,77,.28);
+  box-shadow: 0 0 18px rgba(255,20,100,.65), 0 0 36px rgba(255,20,100,.28);
+}
+
+/* Logo/ícono: son negro puro sobre transparencia, así que sobre la
+   interfaz oscura se invierten a blanco y se les da un halo suave,
+   como el letrero de neón a la entrada del evento. */
+.logo-glow {
+  filter: brightness(0) invert(1) drop-shadow(0 0 10px rgba(255,20,100,.35));
 }
 
 /* Focus rings con el color de la paleta */
@@ -309,8 +339,8 @@ body {
 .dark select:focus,
 .dark textarea:focus {
   outline: none;
-  border-color: #FF004D !important;
-  box-shadow: 0 0 0 3px rgba(255,0,77,.22) !important;
+  border-color: #FF1464 !important;
+  box-shadow: 0 0 0 3px rgba(255,20,100,.22) !important;
 }
 
 /* Dentro de una invitación temática (formulario del muro, etc.) el foco usa
@@ -384,12 +414,12 @@ body {
 }
 .card-hover:hover {
   transform: translateY(-4px);
-  border-color: rgba(255, 0, 77, 0.45) !important;
-  box-shadow: 0 0 0 1px rgba(255,0,77,.2), 0 12px 32px -8px rgba(0,0,0,.5);
+  border-color: rgba(255, 20, 100, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(255,20,100,.2), 0 12px 32px -8px rgba(0,0,0,.5);
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────── */
 ::-webkit-scrollbar          { width: 6px; }
 ::-webkit-scrollbar-track    { background: transparent; }
-::-webkit-scrollbar-thumb    { background: #2A3A6A; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #FF004D; }
+::-webkit-scrollbar-thumb    { background: #3A2A4A; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #FF1464; }
