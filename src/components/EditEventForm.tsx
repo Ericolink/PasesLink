@@ -207,12 +207,12 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
+        <div className="min-w-0">
           <label htmlFor="edit-event-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
           <input id="edit-event-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            className="w-full min-w-0 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
-        <div>
+        <div className="min-w-0">
           <label htmlFor="edit-event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
           <input id="edit-event-location" type="text" required value={location} onChange={(e) => setLocation(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
