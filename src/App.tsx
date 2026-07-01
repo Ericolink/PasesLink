@@ -31,6 +31,7 @@ const EventWall = lazy(() => import('./pages/EventWall').then((m) => ({ default:
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile').then((m) => ({ default: m.CompleteProfile })))
 const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => ({ default: m.MyInvitations })))
 const MyEvents        = lazy(() => import('./pages/MyEvents').then((m) => ({ default: m.MyEvents })))
+const Feedback        = lazy(() => import('./pages/Feedback').then((m) => ({ default: m.Feedback })))
 
 function PageFallback() {
   return (
@@ -57,6 +58,7 @@ function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/terminos" element={<Terms />} />
         <Route path="/privacidad" element={<Privacy />} />
+        <Route path="/feedback" element={<Feedback />} />
         <Route path="/pass/:eventId/:qrToken" element={<GuestPass />} />
         <Route path="/events/:id/arrive" element={<EventArrive />} />
         <Route path="/events/:id/join" element={<EventJoin />} />

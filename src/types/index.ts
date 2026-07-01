@@ -180,3 +180,56 @@ export interface UserInvitation {
   registeredAt: number
 }
 
+export type FeedbackCategory = 'suggestion' | 'bug' | 'comment' | 'question' | 'inappropriate' | 'feature_request' | 'other'
+
+export type FeedbackStatus = 'new' | 'in_review' | 'planned' | 'resolved' | 'closed'
+
+export type FeedbackPriority = 'low' | 'normal' | 'high' | 'urgent'
+
+// Buzón de feedback: solo el administrador puede leer estos documentos (ver
+// firestore.rules) — ni siquiera el propio autor puede releer lo que envió.
+// userId/userEmail son mutuamente excluyentes: userId cuando hay sesión,
+// userEmail cuando el envío es anónimo (ver src/firebase/feedback.ts).
+export interface Feedback {
+  id: string
+  userId: string | null
+  userEmail: string | null
+  userDisplayName: string | null
+  subject: string
+  message: string
+  category: FeedbackCategory
+  status: FeedbackStatus
+  priority: FeedbackPriority
+  tags: string[]
+  adminNotes: string
+  favorite: boolean
+  read: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export const FEEDBACK_CATEGORY_LABELS: Record<FeedbackCategory, string> = {
+  suggestion: 'Sugerencia',
+  bug: 'Reportar un error',
+  comment: 'Comentario',
+  question: 'Duda',
+  inappropriate: 'Comportamiento inapropiado',
+  feature_request: 'Solicitud de nueva función',
+  other: 'Otro',
+}
+
+export const FEEDBACK_STATUS_LABELS: Record<FeedbackStatus, string> = {
+  new: 'Nuevo',
+  in_review: 'En revisión',
+  planned: 'Planeado',
+  resolved: 'Resuelto',
+  closed: 'Cerrado',
+}
+
+export const FEEDBACK_PRIORITY_LABELS: Record<FeedbackPriority, string> = {
+  low: 'Baja',
+  normal: 'Normal',
+  high: 'Alta',
+  urgent: 'Urgente',
+}
+

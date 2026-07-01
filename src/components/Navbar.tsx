@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { logout } from '../firebase/auth'
 import { useAuth } from '../hooks/useAuth'
 import { useIsAdmin } from '../hooks/useIsAdmin'
+import { useUnreadFeedbackCount } from '../hooks/useUnreadFeedbackCount'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { Logo } from './Logo'
 import { IconMenu, IconX } from './Icons'
@@ -10,6 +11,7 @@ import { IconMenu, IconX } from './Icons'
 export function Navbar() {
   const { user } = useAuth()
   const { isAdmin } = useIsAdmin()
+  const unreadFeedback = useUnreadFeedbackCount()
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -65,8 +67,13 @@ export function Navbar() {
           <>
             <div className="flex items-center gap-1 text-sm">
               {isAdmin && (
-                <Link to="/admin" className={desktopLinkClass('/admin')}>
+                <Link to="/admin" className={`${desktopLinkClass('/admin', 'flex')} items-center gap-1.5`}>
                   Admin
+                  {unreadFeedback > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-white text-[10px] font-bold leading-none">
+                      {unreadFeedback > 99 ? '99+' : unreadFeedback}
+                    </span>
+                  )}
                 </Link>
               )}
               <Link to="/my-events" className={desktopLinkClass('/my-events')}>
@@ -127,8 +134,13 @@ export function Navbar() {
                 }}
               >
                 {isAdmin && (
-                  <Link to="/admin" onClick={closeMobileMenu} className={mobileLinkClass('/admin')}>
+                  <Link to="/admin" onClick={closeMobileMenu} className={`${mobileLinkClass('/admin')} flex items-center gap-1.5`}>
                     Admin
+                    {unreadFeedback > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-white text-[10px] font-bold leading-none">
+                        {unreadFeedback > 99 ? '99+' : unreadFeedback}
+                      </span>
+                    )}
                   </Link>
                 )}
                 <Link to="/my-events" onClick={closeMobileMenu} className={mobileLinkClass('/my-events')}>

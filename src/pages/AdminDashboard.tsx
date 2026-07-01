@@ -7,15 +7,27 @@ import {
   type AdminAuditLogEntry,
   type AdminUser,
 } from '../firebase/admin'
+import {
+  deleteFeedback,
+  markFeedbackRead,
+  subscribeToAllFeedback,
+  toggleFeedbackFavorite,
+  updateFeedbackNotes,
+  updateFeedbackPriority,
+  updateFeedbackStatus,
+  updateFeedbackTags,
+} from '../firebase/feedback'
 import { useAuth } from '../hooks/useAuth'
 import { deleteEvent, setEventStatus } from '../firebase/events'
-import type { EventData, EventStatus } from '../types'
+import type { EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { AdminStatCard, AdminStatCardSkeleton } from '../components/Admin/AdminStatCard'
 import { AdminActivityChart } from '../components/Admin/AdminActivityChart'
 import { AdminEventsTable } from '../components/Admin/AdminEventsTable'
 import { AdminUsersTable } from '../components/Admin/AdminUsersTable'
 import { AdminActivityLog } from '../components/Admin/AdminActivityLog'
+import { AdminFeedbackTable } from '../components/Admin/AdminFeedbackTable'
+import { AdminFeedbackDetail } from '../components/Admin/AdminFeedbackDetail'
 import {
   IconBarChart,
   IconBarChart2,
@@ -32,7 +44,7 @@ const STATUS_LABELS: Record<EventStatus, string> = {
   archived: 'Archivado',
 }
 
-type Tab = 'events' | 'users' | 'activity'
+type Tab = 'events' | 'users' | 'activity' | 'feedback'
 type BulkAction = 'archive' | 'cancel' | 'delete'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
@@ -41,14 +53,22 @@ export function AdminDashboard() {
   const { user } = useAuth()
   const [events, setEvents] = useState<EventData[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
+  const [feedback, setFeedback] = useState<Feedback[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
   const [tab, setTab] = useState<Tab>('events')
   const [eventsSearch, setEventsSearch] = useState('')
+  const [feedbackSearch, setFeedbackSearch] = useState('')
 
   const [deletingEvent, setDeletingEvent] = useState<EventData | null>(null)
   const [bulkAction, setBulkAction] = useState<{ events: EventData[]; action: BulkAction } | null>(null)
+  // Se guarda el id (no el objeto) para que el modal de detalle y el diálogo
+  // de borrado siempre reflejen la versión más reciente del doc — la
+  // suscripción en vivo puede actualizar `feedback` mientras el admin lo
+  // tiene abierto (ej. después de cambiar su propio estado/prioridad).
+  const [openFeedbackId, setOpenFeedbackId] = useState<string | null>(null)
+  const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
@@ -64,9 +84,11 @@ export function AdminDashboard() {
       setLoading(false)
     }, handleLoadError)
     const unsubUsers = subscribeToAllUsers(setUsers, handleLoadError)
+    const unsubFeedback = subscribeToAllFeedback(setFeedback, handleLoadError)
     return () => {
       unsubEvents()
       unsubUsers()
+      unsubFeedback()
     }
   }, [])
 
@@ -81,6 +103,7 @@ export function AdminDashboard() {
     }
     return counts
   }, [events])
+  const unreadFeedbackCount = useMemo(() => feedback.filter((f) => !f.read).length, [feedback])
 
   // Fijado al montar (no en cada render) para que el cálculo de "nuevos en
   // 7 días" sea puro dentro del useMemo de abajo.
@@ -182,6 +205,78 @@ export function AdminDashboard() {
     setEventsSearch(owner.email || owner.id)
   }
 
+  const openFeedbackItem = feedback.find((f) => f.id === openFeedbackId) || null
+  const deletingFeedbackItem = feedback.find((f) => f.id === deletingFeedbackId) || null
+
+  function handleOpenFeedback(item: Feedback) {
+    setOpenFeedbackId(item.id)
+    if (!item.read) {
+      markFeedbackRead(item.id).catch((err) => console.error('Error marcando feedback como leído:', err))
+    }
+  }
+
+  async function handleFeedbackStatusChange(id: string, status: FeedbackStatus) {
+    try {
+      await updateFeedbackStatus(id, status)
+    } catch (err) {
+      console.error('Error actualizando estado del feedback:', err)
+      setActionError('No se pudo actualizar el estado del mensaje. Intenta de nuevo.')
+    }
+  }
+
+  async function handleFeedbackPriorityChange(id: string, priority: FeedbackPriority) {
+    try {
+      await updateFeedbackPriority(id, priority)
+    } catch (err) {
+      console.error('Error actualizando prioridad del feedback:', err)
+      setActionError('No se pudo actualizar la prioridad del mensaje. Intenta de nuevo.')
+    }
+  }
+
+  async function handleSaveFeedbackTags(id: string, tags: string[]) {
+    try {
+      await updateFeedbackTags(id, tags)
+    } catch (err) {
+      console.error('Error actualizando etiquetas del feedback:', err)
+      setActionError('No se pudieron actualizar las etiquetas. Intenta de nuevo.')
+    }
+  }
+
+  async function handleSaveFeedbackNotes(id: string, notes: string) {
+    try {
+      await updateFeedbackNotes(id, notes)
+    } catch (err) {
+      console.error('Error guardando notas del feedback:', err)
+      setActionError('No se pudieron guardar las notas. Intenta de nuevo.')
+    }
+  }
+
+  async function handleToggleFeedbackFavorite(item: Feedback) {
+    try {
+      await toggleFeedbackFavorite(item.id, item.favorite)
+    } catch (err) {
+      console.error('Error actualizando favorito del feedback:', err)
+      setActionError('No se pudo actualizar el favorito. Intenta de nuevo.')
+    }
+  }
+
+  async function confirmDeleteFeedback() {
+    if (!deletingFeedbackItem) return
+    setActionBusy(true)
+    setActionError('')
+    try {
+      await deleteFeedback(deletingFeedbackItem.id)
+      setActionMessage('El mensaje fue eliminado.')
+      if (openFeedbackId === deletingFeedbackItem.id) setOpenFeedbackId(null)
+    } catch (err) {
+      console.error('Error eliminando feedback:', err)
+      setActionError('No se pudo eliminar el mensaje. Intenta de nuevo.')
+    } finally {
+      setActionBusy(false)
+      setDeletingFeedbackId(null)
+    }
+  }
+
   const bulkActionCopy: Record<BulkAction, { title: string; verb: string; danger: boolean }> = {
     archive: { title: 'Archivar eventos', verb: 'archivar', danger: false },
     cancel: { title: 'Cancelar eventos', verb: 'cancelar', danger: false },
@@ -227,6 +322,7 @@ export function AdminDashboard() {
       <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 mb-4">
         <TabButton label="Eventos" count={events.length} active={tab === 'events'} onClick={() => setTab('events')} />
         <TabButton label="Clientes" count={users.length} active={tab === 'users'} onClick={() => setTab('users')} />
+        <TabButton label="Buzón" unreadCount={unreadFeedbackCount} active={tab === 'feedback'} onClick={() => setTab('feedback')} />
         <TabButton label="Actividad" active={tab === 'activity'} onClick={() => setTab('activity')} />
       </div>
 
@@ -252,6 +348,18 @@ export function AdminDashboard() {
         />
       )}
 
+      {tab === 'feedback' && (
+        <AdminFeedbackTable
+          items={feedback}
+          loading={loading}
+          search={feedbackSearch}
+          onSearchChange={setFeedbackSearch}
+          onOpen={handleOpenFeedback}
+          onToggleFavorite={handleToggleFeedbackFavorite}
+          onRequestDelete={(item) => setDeletingFeedbackId(item.id)}
+        />
+      )}
+
       {tab === 'activity' && <ActivityTab />}
 
       <ConfirmDialog
@@ -272,6 +380,27 @@ export function AdminDashboard() {
         danger={bulkAction ? bulkActionCopy[bulkAction.action].danger : false}
         onConfirm={confirmBulkAction}
         onCancel={() => setBulkAction(null)}
+      />
+
+      <ConfirmDialog
+        open={!!deletingFeedbackItem}
+        title="Eliminar mensaje"
+        message={`¿Eliminar "${deletingFeedbackItem?.subject}" definitivamente? Esta acción no se puede deshacer.`}
+        confirmLabel={actionBusy ? 'Eliminando…' : 'Eliminar'}
+        danger
+        onConfirm={confirmDeleteFeedback}
+        onCancel={() => setDeletingFeedbackId(null)}
+      />
+
+      <AdminFeedbackDetail
+        feedback={openFeedbackItem}
+        onClose={() => setOpenFeedbackId(null)}
+        onStatusChange={handleFeedbackStatusChange}
+        onPriorityChange={handleFeedbackPriorityChange}
+        onSaveTags={handleSaveFeedbackTags}
+        onSaveNotes={handleSaveFeedbackNotes}
+        onToggleFavorite={handleToggleFeedbackFavorite}
+        onRequestDelete={(item) => setDeletingFeedbackId(item.id)}
       />
     </div>
   )
@@ -297,7 +426,19 @@ function ActivityTab() {
   return <AdminActivityLog entries={entries} loading={loading} />
 }
 
-function TabButton({ label, count, active, onClick }: { label: string; count?: number; active: boolean; onClick: () => void }) {
+function TabButton({
+  label,
+  count,
+  unreadCount,
+  active,
+  onClick,
+}: {
+  label: string
+  count?: number
+  unreadCount?: number
+  active: boolean
+  onClick: () => void
+}) {
   return (
     <button
       onClick={onClick}
@@ -309,6 +450,11 @@ function TabButton({ label, count, active, onClick }: { label: string; count?: n
     >
       {label}
       {count !== undefined && <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">{count}</span>}
+      {!!unreadCount && (
+        <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-white text-[10px] font-bold leading-none">
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      )}
     </button>
   )
 }

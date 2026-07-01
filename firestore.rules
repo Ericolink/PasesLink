@@ -84,6 +84,50 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Buzón de feedback (src/pages/Feedback.tsx). Solo el admin puede leer —
+    // ni siquiera el propio autor puede releer lo que envió (pedido
+    // explícito: "no permitir que usuarios lean comentarios de otros").
+    // Los campos gestionados por el admin (status/priority/tags/adminNotes/
+    // favorite/read) deben llegar en sus valores por defecto en el create —
+    // si no, cualquier cliente podría auto-marcarse "resuelto" o inyectar
+    // notas privadas desde el primer envío.
+    function isValidFeedbackCreate() {
+      let d = request.resource.data;
+      return d.subject is string && d.subject.size() > 0 && d.subject.size() <= 100
+        && d.message is string && d.message.size() >= 10 && d.message.size() <= 2000
+        && d.category in ['suggestion', 'bug', 'comment', 'question', 'inappropriate', 'feature_request', 'other']
+        && d.status == 'new' && d.priority == 'normal'
+        && d.tags == [] && d.adminNotes == '' && d.favorite == false && d.read == false
+        && (
+          (request.auth != null && d.userId == request.auth.uid && d.userEmail == null)
+          || (request.auth == null && d.userId == null
+              && d.userEmail is string && d.userEmail.size() > 0 && d.userEmail.size() <= 120)
+        );
+    }
+
+    // Cooldown real (server-verificado) solo es posible para usuarios
+    // logueados, porque solo ahí request.auth.uid no se puede falsificar.
+    // Un envío anónimo no tiene una identidad que las reglas puedan atar a
+    // esta clave — se compensa del lado cliente (ver submitFeedback), mismo
+    // criterio ya aceptado en este archivo para los votos del muro (abajo).
+    function feedbackCooldownOk() {
+      let rl = /databases/$(database)/documents/feedbackRateLimits/$(request.auth.uid);
+      return !exists(rl) || request.time > get(rl).data.lastAt + duration.value(45, 's');
+    }
+
+    match /feedback/{feedbackId} {
+      allow read, list: if isAdmin();
+      allow create: if isValidFeedbackCreate()
+        && (request.auth == null || feedbackCooldownOk());
+      allow update, delete: if isAdmin();
+    }
+
+    match /feedbackRateLimits/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.lastAt == request.time;
+    }
+
     // Bitácora de acciones del admin (AdminDashboard). Solo el admin puede
     // leerla o crear entradas — nunca editarla ni borrarla, para que quede
     // como un registro confiable de qué se hizo y quién lo hizo.

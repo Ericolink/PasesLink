@@ -29,6 +29,15 @@ export const GUEST_CUSTOM_FIELD_MAX_COUNT = 30
 // que no existía ningún límite explícito para una entrada anónima.
 export const GUEST_MAX_PARTY_SIZE = 10
 
+// Buzón de feedback (src/pages/Feedback.tsx, src/firebase/feedback.ts). Deben
+// coincidir con isValidFeedbackCreate() en firestore.rules — esa es la última
+// barrera real ante un cliente que evite por completo esta capa.
+export const FEEDBACK_SUBJECT_MAX = 100
+export const FEEDBACK_MESSAGE_MIN = 10
+export const FEEDBACK_MESSAGE_MAX = 2000
+export const FEEDBACK_EMAIL_MAX = 120
+export const FEEDBACK_CATEGORIES = ['suggestion', 'bug', 'comment', 'question', 'inappropriate', 'feature_request', 'other'] as const
+
 export function requireNonEmpty(value: string, label: string): string {
   const trimmed = value.trim()
   if (!trimmed) throw new Error(`${label} es obligatorio.`)
@@ -40,4 +49,30 @@ export function requireMaxLength(value: string, max: number, label: string): str
     throw new Error(`${label} no puede superar los ${max} caracteres.`)
   }
   return value
+}
+
+export function requireMinLength(value: string, min: number, label: string): string {
+  if (value.trim().length < min) {
+    throw new Error(`${label} debe tener al menos ${min} caracteres.`)
+  }
+  return value
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export function requireValidEmail(value: string, label: string): string {
+  const trimmed = requireNonEmpty(value, label)
+  if (!EMAIL_REGEX.test(trimmed)) {
+    throw new Error(`${label} no tiene un formato válido.`)
+  }
+  return trimmed
+}
+
+// Quita caracteres de control (incluido null byte) que no aportan nada a un
+// mensaje de texto y podrían romper su renderizado — conserva saltos de línea
+// (\n, \x0A) porque el mensaje del buzón es multilínea. No reemplaza el
+// escapado de React (que ya evita XSS), solo limpia el dato guardado.
+export function sanitizeFeedbackText(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.trim().replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, '')
 }

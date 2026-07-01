@@ -48,6 +48,9 @@ export function Footer() {
                 <Link to="/privacidad" className="text-gray-400 hover:text-primary transition-colors">
                   Privacidad
                 </Link>
+                <Link to="/feedback" className="text-gray-400 hover:text-primary transition-colors">
+                  Buzón de sugerencias
+                </Link>
               </nav>
             </div>
 
