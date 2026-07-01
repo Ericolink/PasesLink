@@ -32,6 +32,11 @@ export interface CustomField {
   required: boolean
 }
 
+export interface TimelineEntry {
+  time: string   // 'HH:MM' (formato 24h, igual que startTime/endTime)
+  label: string
+}
+
 export interface EventData {
   id: string
   ownerId: string
@@ -41,6 +46,7 @@ export interface EventData {
   endTime?: string   // 'HH:MM', opcional
   location: string
   description?: string
+  dressCode?: string
   coverImage?: string
   accentColor?: string
   templateId?: TemplateId
@@ -53,6 +59,7 @@ export interface EventData {
   ticketPrice: number
   currency: string
   paymentInstructions: string
+  timeline?: TimelineEntry[]
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus

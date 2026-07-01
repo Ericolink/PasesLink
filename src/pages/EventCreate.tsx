@@ -9,13 +9,14 @@ import { isNetworkError } from '../utils/network'
 import { parseCapacity } from '../utils/validationRules'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { CustomFieldsBuilder } from '../components/CustomFieldsBuilder'
+import { TimelineEditor } from '../components/TimelineEditor'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal'
 import { IconCheckCircle } from '../components/Icons'
 import { WizardContainer, WizardStep } from '../components/Wizard'
 import { EntryModeSelector } from '../components/EventCreation/EntryModeSelector'
 import { getTemplate } from '../templates/registry'
-import type { CustomField, EntryMode, TemplateId } from '../types'
+import type { CustomField, EntryMode, TemplateId, TimelineEntry } from '../types'
 
 interface EventDraftFields {
   name: string
@@ -24,6 +25,7 @@ interface EventDraftFields {
   endTime: string
   location: string
   description: string
+  dressCode: string
   templateId: TemplateId
   accentColor: string
   welcomeMessage: string
@@ -36,6 +38,7 @@ interface EventDraftFields {
   currency: string
   paymentInstructions: string
   coverImage: string
+  timeline: TimelineEntry[]
 }
 
 const DRAFT_SAVE_INTERVAL_MS = 5000
@@ -76,6 +79,7 @@ export function EventCreate() {
   const [endTime, setEndTime] = useState('')
   const [location, setLocation] = useState('')
   const [description, setDescription] = useState('')
+  const [dressCode, setDressCode] = useState('')
   const [templateId, setTemplateId] = useState<TemplateId>('default')
   const [accentColor, setAccentColor] = useState('')
   const [welcomeMessage, setWelcomeMessage] = useState('')
@@ -87,6 +91,7 @@ export function EventCreate() {
   const [ticketPrice, setTicketPrice] = useState('')
   const [currency, setCurrency] = useState('$')
   const [paymentInstructions, setPaymentInstructions] = useState('')
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([])
 
   // — Estado del wizard —
   const [step, setStep] = useState(1)
@@ -106,6 +111,7 @@ export function EventCreate() {
     setEndTime(fields.endTime)
     setLocation(fields.location)
     setDescription(fields.description)
+    setDressCode(fields.dressCode || '')
     setTemplateId(fields.templateId)
     setAccentColor(fields.accentColor)
     setWelcomeMessage(fields.welcomeMessage)
@@ -117,6 +123,7 @@ export function EventCreate() {
     setTicketPrice(fields.ticketPrice)
     setCurrency(fields.currency)
     setPaymentInstructions(fields.paymentInstructions)
+    setTimeline(fields.timeline || [])
     if (fields.coverImage) setCoverImage(fields.coverImage)
   }
 
@@ -126,16 +133,16 @@ export function EventCreate() {
       const hasContent = name.trim() || date || location.trim() || description.trim()
       if (!hasContent) return
       saveDraft({
-        name, date, startTime, endTime, location, description, templateId, accentColor,
+        name, date, startTime, endTime, location, description, dressCode, templateId, accentColor,
         welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment,
-        ticketPrice, currency, paymentInstructions, coverImage,
+        ticketPrice, currency, paymentInstructions, coverImage, timeline,
       })
     }, DRAFT_SAVE_INTERVAL_MS)
     return () => clearInterval(id)
   }, [
-    draftKey, pendingDraft, name, date, startTime, endTime, location, description, templateId,
+    draftKey, pendingDraft, name, date, startTime, endTime, location, description, dressCode, templateId,
     accentColor, welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment,
-    ticketPrice, currency, paymentInstructions, coverImage, saveDraft,
+    ticketPrice, currency, paymentInstructions, coverImage, timeline, saveDraft,
   ])
 
   // — Validación por paso —
@@ -182,6 +189,7 @@ export function EventCreate() {
         endTime,
         location,
         description,
+        dressCode: dressCode.trim() || undefined,
         coverImage,
         accentColor,
         templateId,
@@ -194,6 +202,7 @@ export function EventCreate() {
         ticketPrice: requiresPayment ? parseFloat(ticketPrice) || 0 : 0,
         currency: requiresPayment ? currency.trim() : '',
         paymentInstructions: requiresPayment ? paymentInstructions.trim() : '',
+        timeline,
       })
       clearDraft()
       setCreatedEventId(eventId)
@@ -531,6 +540,20 @@ export function EventCreate() {
                   />
                 </div>
                 <div>
+                  <label htmlFor="event-dress-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Vestimenta (opcional)
+                  </label>
+                  <input
+                    id="event-dress-code"
+                    type="text"
+                    value={dressCode}
+                    onChange={(e) => setDressCode(e.target.value)}
+                    maxLength={100}
+                    placeholder="Ej: Formal, Casual, Todo de blanco…"
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
                   <label htmlFor="event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Link de Google Maps
                   </label>
@@ -546,6 +569,21 @@ export function EventCreate() {
                     Pega el link completo de Google Maps (desde el navegador, no el link corto).
                   </p>
                 </div>
+              </div>
+            </details>
+
+            {/* Programa del evento (timeline) */}
+            <details className="group border border-gray-200 dark:border-gray-700 rounded-xl">
+              <summary className="cursor-pointer select-none px-4 py-3.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-2 transition-colors list-none">
+                <span className="group-open:hidden">＋</span>
+                <span className="hidden group-open:inline">−</span>
+                Programa del evento (opcional)
+              </summary>
+              <div className="px-4 pb-4 pt-1 space-y-2">
+                <p className="text-xs text-gray-500 mb-3">
+                  Muestra a tus invitados el orden del día en su pase. Ej: 19:00 Recepción, 20:30 Cena, 22:00 DJ…
+                </p>
+                <TimelineEditor entries={timeline} onChange={setTimeline} />
               </div>
             </details>
 

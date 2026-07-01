@@ -7,10 +7,11 @@ import { isNetworkError } from '../utils/network'
 import { parseCapacity } from '../utils/validationRules'
 import { ImageCropModal } from './ImageCropModal'
 import { CustomFieldsBuilder } from './CustomFieldsBuilder'
+import { TimelineEditor } from './TimelineEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { DraftRecoveryModal } from './DraftRecoveryModal'
 import { getTemplate } from '../templates/registry'
-import type { CustomField, EntryMode, EventData, TemplateId } from '../types'
+import type { CustomField, EntryMode, EventData, TemplateId, TimelineEntry } from '../types'
 
 interface EventEditDraftFields {
   name: string
@@ -19,6 +20,7 @@ interface EventEditDraftFields {
   endTime: string
   location: string
   description: string
+  dressCode: string
   templateId: TemplateId
   accentColor: string
   welcomeMessage: string
@@ -30,6 +32,7 @@ interface EventEditDraftFields {
   currency: string
   paymentInstructions: string
   coverImage: string
+  timeline: TimelineEntry[]
 }
 
 const DRAFT_SAVE_INTERVAL_MS = 5000
@@ -55,6 +58,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [endTime, setEndTime] = useState(event.endTime || '')
   const [location, setLocation] = useState(event.location)
   const [description, setDescription] = useState(event.description || '')
+  const [dressCode, setDressCode] = useState(event.dressCode || '')
   const [templateId, setTemplateId] = useState<TemplateId>(event.templateId || 'default')
   // Vacío = "sin override manual", usa el acento propio de la plantilla.
   const [accentColor, setAccentColor] = useState(event.accentColor || '')
@@ -69,6 +73,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [ticketPrice, setTicketPrice] = useState(event.ticketPrice ? String(event.ticketPrice) : '')
   const [currency, setCurrency] = useState(event.currency || '$')
   const [paymentInstructions, setPaymentInstructions] = useState(event.paymentInstructions || '')
+  const [timeline, setTimeline] = useState<TimelineEntry[]>(event.timeline || [])
   const [saving, setSaving] = useState(false)
   const [networkRetry, setNetworkRetry] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -85,6 +90,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     setEndTime(fields.endTime)
     setLocation(fields.location)
     setDescription(fields.description)
+    setDressCode(fields.dressCode || '')
     setTemplateId(fields.templateId)
     setAccentColor(fields.accentColor)
     setWelcomeMessage(fields.welcomeMessage)
@@ -95,6 +101,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     setTicketPrice(fields.ticketPrice)
     setCurrency(fields.currency)
     setPaymentInstructions(fields.paymentInstructions)
+    setTimeline(fields.timeline || [])
     if (fields.coverImage) setCoverImage(fields.coverImage)
   }
 
@@ -104,14 +111,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if (pendingDraft) return
     const id = setInterval(() => {
       saveDraft({
-        name, date, startTime, endTime, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
-        capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
+        name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
+        capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage, timeline,
       })
     }, DRAFT_SAVE_INTERVAL_MS)
     return () => clearInterval(id)
   }, [
-    pendingDraft, name, date, startTime, endTime, location, description, templateId, accentColor, welcomeMessage, mapsUrl,
-    capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage,
+    pendingDraft, name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
+    capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage, timeline,
     saveDraft,
   ])
 
@@ -134,6 +141,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         endTime,
         location: location.trim(),
         description: description.trim(),
+        dressCode: dressCode.trim() || undefined,
         coverImage,
         accentColor,
         templateId,
@@ -146,6 +154,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         ticketPrice: requiresPayment ? parseFloat(ticketPrice) || 0 : 0,
         currency: requiresPayment ? currency.trim() : '',
         paymentInstructions: requiresPayment ? paymentInstructions.trim() : '',
+        timeline,
       })
       clearDraft()
       onDone()
@@ -233,6 +242,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
       </div>
       <div>
+        <label htmlFor="edit-event-dress-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Vestimenta <span className="text-gray-400 font-normal">(opcional)</span>
+        </label>
+        <input id="edit-event-dress-code" type="text" value={dressCode} onChange={(e) => setDressCode(e.target.value)}
+          maxLength={100} placeholder="Ej: Formal, Casual, Todo de blanco…"
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+      </div>
+      <div>
         <label htmlFor="edit-event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span>
         </label>
@@ -301,6 +318,15 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <p className="text-xs text-gray-400 mt-0.5">Nombre y teléfono siempre se piden. Agrega campos extra opcionales.</p>
         </div>
         <CustomFieldsBuilder fields={customFields} onChange={setCustomFields} />
+      </div>
+
+      {/* Programa del evento */}
+      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Programa del evento</p>
+          <p className="text-xs text-gray-400 mt-0.5">Orden del día visible en el pase del invitado. Ej: 19:00 Recepción, 21:00 Cena…</p>
+        </div>
+        <TimelineEditor entries={timeline} onChange={setTimeline} />
       </div>
 
       {/* Modo de ingreso (fijo, no se puede cambiar después de crear el evento) */}

@@ -17,6 +17,7 @@ import { GuestList } from '../components/GuestList'
 import { EditEventForm } from '../components/EditEventForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EventAnalytics } from '../components/EventAnalytics'
+import { ReminderSection } from '../components/ReminderSection'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { EventCountdown } from '../components/EventCountdown'
 import { formatDate, formatTime12h } from '../utils/time'
@@ -486,6 +487,11 @@ export function EventDetail() {
           />
         </div>
       </div>
+
+      {/* ── RECORDATORIOS ── */}
+      {guests.length > 0 && (
+        <ReminderSection event={event} guests={guests} />
+      )}
 
       {/* ── INGRESO LIBRE / MIXTO ── */}
       {event.entryMode !== 'list' && (

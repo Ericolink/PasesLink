@@ -31,6 +31,11 @@ const CustomFieldSchema = z.object({
   required: z.boolean(),
 })
 
+const TimelineEntrySchema = z.object({
+  time: z.string(),
+  label: z.string().min(1),
+})
+
 export const EventSchema = z.object({
   id: z.string().min(1),
   ownerId: z.string().min(1),
@@ -40,6 +45,7 @@ export const EventSchema = z.object({
   endTime: z.string(),
   location: z.string().min(1),
   description: z.string(),
+  dressCode: z.string().optional(),
   coverImage: z.string(),
   accentColor: z.string(),
   templateId: z.enum(templateIds),
@@ -52,6 +58,7 @@ export const EventSchema = z.object({
   ticketPrice: z.number(),
   currency: z.string(),
   paymentInstructions: z.string(),
+  timeline: z.array(TimelineEntrySchema).optional(),
   plan: z.enum(['premium']),
   paymentStatus: z.enum(['pending', 'paid', 'free_trial']),
   status: z.enum(['active', 'cancelled', 'archived']),

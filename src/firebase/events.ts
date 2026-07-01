@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
-import type { CustomField, EntryMode, EventData, EventStatus, TemplateId } from '../types'
+import type { CustomField, EntryMode, EventData, EventStatus, TemplateId, TimelineEntry } from '../types'
 import { EventSchema, warnIfInvalidShape } from '../types/schemas'
 
 export interface NewEventInput {
@@ -26,6 +26,7 @@ export interface NewEventInput {
   endTime?: string
   location: string
   description?: string
+  dressCode?: string
   coverImage?: string
   accentColor?: string
   templateId?: TemplateId
@@ -38,6 +39,7 @@ export interface NewEventInput {
   ticketPrice?: number
   currency?: string
   paymentInstructions?: string
+  timeline?: TimelineEntry[]
 }
 
 export async function createEvent(ownerId: string, input: NewEventInput) {
@@ -49,6 +51,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     endTime: input.endTime || '',
     location: input.location,
     description: input.description || '',
+    dressCode: input.dressCode || '',
     coverImage: input.coverImage || '',
     accentColor: input.accentColor || '',
     templateId: input.templateId || 'default',
@@ -61,6 +64,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     ticketPrice: input.ticketPrice || 0,
     currency: input.currency || '',
     paymentInstructions: input.paymentInstructions || '',
+    timeline: input.timeline || [],
     // Premium gratis mientras se da a conocer el servicio — sin plan a elegir
     // ni pago que confirmar. Cuando se reintroduzcan pagos, esto vuelve a
     // depender de la elección del organizador.
@@ -128,6 +132,7 @@ export interface UpdateEventInput {
   endTime?: string
   location: string
   description?: string
+  dressCode?: string
   coverImage?: string
   accentColor?: string
   templateId?: TemplateId
@@ -140,6 +145,7 @@ export interface UpdateEventInput {
   ticketPrice?: number
   currency?: string
   paymentInstructions?: string
+  timeline?: TimelineEntry[]
 }
 
 export async function updateEventDetails(eventId: string, input: UpdateEventInput) {
@@ -150,6 +156,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     endTime: input.endTime || '',
     location: input.location,
     description: input.description || '',
+    dressCode: input.dressCode || '',
     coverImage: input.coverImage ?? '',
     accentColor: input.accentColor ?? '',
     templateId: input.templateId || 'default',
@@ -162,6 +169,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     ticketPrice: input.ticketPrice || 0,
     currency: input.currency ?? '',
     paymentInstructions: input.paymentInstructions ?? '',
+    timeline: input.timeline || [],
     updatedAt: serverTimestamp(),
   })
 }
@@ -240,6 +248,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     endTime: (data.endTime as string) || '',
     location: data.location as string,
     description: (data.description as string) || '',
+    dressCode: (data.dressCode as string) || undefined,
     coverImage: (data.coverImage as string) || '',
     accentColor: (data.accentColor as string) || '',
     templateId: (data.templateId as TemplateId) || 'default',
@@ -252,6 +261,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     ticketPrice: (data.ticketPrice as number) || 0,
     currency: (data.currency as string) || '',
     paymentInstructions: (data.paymentInstructions as string) || '',
+    timeline: (data.timeline as TimelineEntry[]) || [],
     plan: data.plan as EventData['plan'],
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],
     status: data.status as EventStatus,

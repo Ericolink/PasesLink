@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc, where } from 'firebase/firestore'
 import { db } from './config'
 import type { UserProfile, UserInvitation } from '../types'
 
@@ -24,10 +24,14 @@ export async function saveUserInvitation(uid: string, inv: Omit<UserInvitation, 
 export async function getUserInvitations(uid: string): Promise<UserInvitation[]> {
   const q = query(
     collection(db, 'users', uid, 'invitations'),
-    orderBy('registeredAt', 'desc'),
+    orderBy('eventDate', 'asc'),
   )
   const snap = await getDocs(q)
   return snap.docs.map((d) => d.data() as UserInvitation)
+}
+
+export async function deleteUserInvitation(uid: string, eventId: string): Promise<void> {
+  await deleteDoc(doc(db, 'users', uid, 'invitations', eventId))
 }
 
 // Inverso de getUserByEmail: lee el perfil completo por uid. Lo necesita
