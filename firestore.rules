@@ -168,6 +168,28 @@ service cloud.firestore {
               && request.resource.data.dislikedBy.size() <= 5000);
         allow delete: if isOwner(eventId) || isAdmin();
       }
+
+      // Álbum de fotos del evento. Visible para cualquiera que conozca el
+      // eventId (mismo criterio que el muro y el pase del invitado).
+      // Solo puede subir fotos quien tenga un qrToken válido (campo que se
+      // escribe en el doc) — el organizador/co-org puede borrar cualquier foto.
+      match /photos/{photoId} {
+        allow read: if true;
+        allow create: if request.resource.data.url is string
+          && request.resource.data.url.size() > 0
+          && request.resource.data.url.size() <= 500
+          && request.resource.data.authorName is string
+          && request.resource.data.authorName.size() > 0
+          && request.resource.data.authorName.size() <= 60
+          && request.resource.data.authorToken is string
+          && request.resource.data.authorToken.size() > 0
+          && request.resource.data.authorToken.size() <= 100
+          && (!('caption' in request.resource.data)
+              || (request.resource.data.caption is string
+                  && request.resource.data.caption.size() <= 120));
+        allow update: if false;
+        allow delete: if isOwnerOrCoOrg(eventId) || isAdmin();
+      }
     }
   }
 }

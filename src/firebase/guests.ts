@@ -527,6 +527,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     checkedOutAt: toMillisOrNull(data.checkedOutAt),
     checkedOutByEmail: (data.checkedOutByEmail as string) || null,
     lockToken: (data.lockToken as string) || null,
+    customData: (data.customData as Record<string, string>) || undefined,
     paymentStatus: (data.paymentStatus as GuestData['paymentStatus']) || 'unpaid',
     createdAt: toMillisOrNull(data.createdAt) || 0,
   }

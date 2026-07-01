@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { addPhoto, deletePhoto, subscribeToPhotos } from '../firebase/photos'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { addPhoto, deletePhoto, fetchPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { uploadImage, optimizedImageUrl } from '../utils/cloudinary'
 import { PhotoLightbox } from './PhotoLightbox'
@@ -25,9 +25,13 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
   const [showCaptionFor, setShowCaptionFor] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    return subscribeToPhotos(eventId, setPhotos)
+  const loadPhotos = useCallback(() => {
+    fetchPhotos(eventId).then(setPhotos).catch(() => {})
   }, [eventId])
+
+  useEffect(() => {
+    loadPhotos()
+  }, [loadPhotos])
 
   function openPicker() {
     fileRef.current?.click()
@@ -59,6 +63,7 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
         authorToken: guestToken,
         caption: caption.trim() || undefined,
       })
+      loadPhotos()
     } catch {
       setUploadError('No se pudo subir la foto. Intenta de nuevo.')
     } finally {
@@ -69,6 +74,7 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
 
   async function handleDelete(photoId: string) {
     await deletePhoto(eventId, photoId)
+    loadPhotos()
   }
 
   return (
@@ -82,15 +88,24 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
             </span>
           )}
         </p>
-        <button
-          onClick={openPicker}
-          disabled={uploading}
-          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
-          style={{ background: 'var(--invite-accent)', color: '#fff' }}
-        >
-          <IconCamera className="w-3.5 h-3.5" />
-          {uploading ? 'Subiendo…' : '+ Foto'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadPhotos}
+            className="text-xs text-[var(--invite-text-muted)] hover:text-[var(--invite-text)] transition-colors"
+            title="Actualizar fotos"
+          >
+            ↻
+          </button>
+          <button
+            onClick={openPicker}
+            disabled={uploading}
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
+            style={{ background: 'var(--invite-accent)', color: '#fff' }}
+          >
+            <IconCamera className="w-3.5 h-3.5" />
+            {uploading ? 'Subiendo…' : '+ Foto'}
+          </button>
+        </div>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
       </div>
 

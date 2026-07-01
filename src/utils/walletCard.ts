@@ -3,6 +3,7 @@
 
 import type { EventData } from '../types'
 import type { GuestData } from '../types'
+import { formatDate } from './time'
 
 interface WalletCardOptions {
   event: EventData
@@ -28,12 +29,6 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.lineTo(x, y + r)
   ctx.quadraticCurveTo(x, y, x + r, y)
   ctx.closePath()
-}
-
-function formatDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-').map(Number)
-  const d = new Date(year, month - 1, day)
-  return d.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 }
 
 function formatTime(t?: string): string {

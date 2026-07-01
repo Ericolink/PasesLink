@@ -47,7 +47,7 @@ export function EventMap({ mapsUrl }: Props) {
       )}
 
       <a
-        href={mapsUrl}
+        href={/^https?:\/\//i.test(mapsUrl) ? mapsUrl : '#'}
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center justify-center gap-2 w-full text-white font-semibold py-3 text-sm hover:opacity-90 active:scale-[.98] transition-all shadow-sm bg-[var(--invite-accent)] [border-radius:var(--invite-radius)]"

@@ -2,14 +2,11 @@ import { useState } from 'react'
 import type { GuestData } from '../types'
 import type { EventData } from '../types'
 import { IconBell, IconCheckCircle, IconWhatsApp } from './Icons'
+import { buildPassUrl } from '../utils/qrUrl'
 
 interface Props {
   event: EventData
   guests: GuestData[]
-}
-
-function buildPassUrl(eventId: string, qrToken: string): string {
-  return `${window.location.origin}/pass/${eventId}/${qrToken}`
 }
 
 function cleanPhone(raw: string): string {

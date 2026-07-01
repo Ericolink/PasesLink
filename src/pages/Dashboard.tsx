@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
@@ -54,6 +54,7 @@ export function Dashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [showPast, setShowPast] = useState(false)
+  const archivingRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!user) return
@@ -61,8 +62,10 @@ export function Dashboard() {
       setEvents(data)
       setLoading(false)
       data.forEach((ev) => {
-        if (ev.status === 'active' && isEventPast(ev.date)) {
+        if (ev.status === 'active' && isEventPast(ev.date) && !archivingRef.current.has(ev.id)) {
+          archivingRef.current.add(ev.id)
           setEventStatus(ev.id, 'archived').catch((err) => {
+            archivingRef.current.delete(ev.id)
             console.error('Error archiving past event:', err)
           })
         }
