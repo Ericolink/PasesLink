@@ -1,9 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { subscribeToAllEvents, subscribeToAllUsers, type AdminUser } from '../firebase/admin'
+import {
+  subscribeToAdminAuditLog,
+  subscribeToAllEvents,
+  subscribeToAllUsers,
+  logAdminAction,
+  type AdminAuditLogEntry,
+  type AdminUser,
+} from '../firebase/admin'
+import { useAuth } from '../hooks/useAuth'
 import { deleteEvent, setEventStatus } from '../firebase/events'
 import type { EventData, EventStatus } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { AdminStatCard, AdminStatCardSkeleton } from '../components/Admin/AdminStatCard'
+import { AdminActivityChart } from '../components/Admin/AdminActivityChart'
+import { AdminEventsTable } from '../components/Admin/AdminEventsTable'
+import { AdminUsersTable } from '../components/Admin/AdminUsersTable'
+import { AdminActivityLog } from '../components/Admin/AdminActivityLog'
+import {
+  IconBarChart,
+  IconBarChart2,
+  IconCalendar,
+  IconCheckCircle,
+  IconTicket,
+  IconUserPlus,
+  IconUsers,
+} from '../components/Icons'
 
 const STATUS_LABELS: Record<EventStatus, string> = {
   active: 'Activo',
@@ -11,14 +32,26 @@ const STATUS_LABELS: Record<EventStatus, string> = {
   archived: 'Archivado',
 }
 
+type Tab = 'events' | 'users' | 'activity'
+type BulkAction = 'archive' | 'cancel' | 'delete'
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
 export function AdminDashboard() {
+  const { user } = useAuth()
   const [events, setEvents] = useState<EventData[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+
+  const [tab, setTab] = useState<Tab>('events')
+  const [eventsSearch, setEventsSearch] = useState('')
+
   const [deletingEvent, setDeletingEvent] = useState<EventData | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const [bulkAction, setBulkAction] = useState<{ events: EventData[]; action: BulkAction } | null>(null)
+  const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
 
   useEffect(() => {
     function handleLoadError(err: Error) {
@@ -37,10 +70,9 @@ export function AdminDashboard() {
     }
   }, [])
 
-  // Memoizado: antes se reconstruían en cada render (incluso por estado no
-  // relacionado, como abrir/cerrar el diálogo de eliminar) — intrascendente
-  // hoy, pero un recorrido O(eventos+usuarios) en cada click deja de serlo
-  // con miles de eventos/usuarios.
+  // Memoizado: recorrer eventos+usuarios para construir estos mapas es
+  // O(n) — intrascendente hoy, pero deja de serlo con miles de filas si se
+  // recalculara en cada render (p.ej. al escribir en el buscador).
   const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
   const eventCountByUser = useMemo(() => {
     const counts = new Map<string, number>()
@@ -50,12 +82,44 @@ export function AdminDashboard() {
     return counts
   }, [events])
 
-  const activeEvents = events.filter((e) => e.status === 'active').length
+  // Fijado al montar (no en cada render) para que el cálculo de "nuevos en
+  // 7 días" sea puro dentro del useMemo de abajo.
+  const [now] = useState(() => Date.now())
+
+  const stats = useMemo(() => {
+    const totalGuests = events.reduce((s, e) => s + e.guestCount, 0)
+    const totalCheckins = events.reduce((s, e) => s + e.checkedInCount, 0)
+    return {
+      activeEvents: events.filter((e) => e.status === 'active').length,
+      totalEvents: events.length,
+      totalUsers: users.length,
+      newUsers7d: users.filter((u) => u.createdAt && now - u.createdAt <= WEEK_MS).length,
+      totalGuests,
+      totalCheckins,
+      checkinRate: totalGuests > 0 ? Math.round((totalCheckins / totalGuests) * 100) : null,
+    }
+  }, [events, users, now])
+
+  function auditContext() {
+    if (!user) throw new Error('No hay sesión de admin activa')
+    return { adminUid: user.uid, adminEmail: user.email }
+  }
 
   async function handleStatusChange(eventId: string, status: EventStatus) {
     setActionError('')
+    const event = events.find((e) => e.id === eventId)
     try {
       await setEventStatus(eventId, status)
+      if (event) {
+        await logAdminAction({
+          ...auditContext(),
+          action: 'event_status_change',
+          targetType: 'event',
+          targetId: eventId,
+          targetName: event.name,
+          meta: STATUS_LABELS[status],
+        })
+      }
     } catch (err) {
       console.error('Error updating event status:', err)
       setActionError('No se pudo actualizar el estado del evento. Intenta de nuevo.')
@@ -64,135 +128,187 @@ export function AdminDashboard() {
 
   async function confirmDeleteEvent() {
     if (!deletingEvent) return
-    setDeleting(true)
+    setActionBusy(true)
     setActionError('')
     try {
       await deleteEvent(deletingEvent.id)
+      await logAdminAction({
+        ...auditContext(),
+        action: 'event_delete',
+        targetType: 'event',
+        targetId: deletingEvent.id,
+        targetName: deletingEvent.name,
+      })
+      setActionMessage(`"${deletingEvent.name}" fue eliminado.`)
     } catch (err) {
       console.error('Error deleting event:', err)
       setActionError('No se pudo eliminar el evento por completo. Es posible que parte de los datos ya se haya borrado — revisa el evento e intenta de nuevo.')
     } finally {
-      setDeleting(false)
+      setActionBusy(false)
       setDeletingEvent(null)
     }
   }
 
-  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
+  async function confirmBulkAction() {
+    if (!bulkAction) return
+    setActionBusy(true)
+    setActionError('')
+    let ok = 0
+    let failed = 0
+    for (const event of bulkAction.events) {
+      try {
+        if (bulkAction.action === 'delete') {
+          await deleteEvent(event.id)
+          await logAdminAction({ ...auditContext(), action: 'event_delete', targetType: 'event', targetId: event.id, targetName: event.name })
+        } else {
+          const status: EventStatus = bulkAction.action === 'archive' ? 'archived' : 'cancelled'
+          await setEventStatus(event.id, status)
+          await logAdminAction({ ...auditContext(), action: 'event_status_change', targetType: 'event', targetId: event.id, targetName: event.name, meta: STATUS_LABELS[status] })
+        }
+        ok++
+      } catch (err) {
+        console.error('Error en acción masiva sobre evento', event.id, err)
+        failed++
+      }
+    }
+    setActionBusy(false)
+    setBulkAction(null)
+    if (failed === 0) setActionMessage(`${ok} evento${ok === 1 ? '' : 's'} actualizado${ok === 1 ? '' : 's'} correctamente.`)
+    else setActionError(`${ok} evento(s) actualizados, ${failed} fallaron. Intenta de nuevo con los restantes.`)
+  }
+
+  function handleFilterEventsByOwner(owner: AdminUser) {
+    setTab('events')
+    setEventsSearch(owner.email || owner.id)
+  }
+
+  const bulkActionCopy: Record<BulkAction, { title: string; verb: string; danger: boolean }> = {
+    archive: { title: 'Archivar eventos', verb: 'archivar', danger: false },
+    cancel: { title: 'Cancelar eventos', verb: 'cancelar', danger: false },
+    delete: { title: 'Eliminar eventos', verb: 'eliminar', danger: true },
+  }
+
   if (loadError) return <p className="text-center text-red-500 mt-16">{loadError}</p>
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 animate-fade-in">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Panel de administración</h1>
+    <div className="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">Panel de administración</h1>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Visión general de eventos y clientes de PaseLink</p>
 
       {actionError && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4">{actionError}</p>
+        <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 mb-4">{actionError}</p>
+      )}
+      {actionMessage && (
+        <p className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2 mb-4">{actionMessage}</p>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
-        <Stat label="Clientes" value={users.length} />
-        <Stat label="Eventos activos" value={activeEvents} />
-        <Stat label="Eventos totales" value={events.length} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        {loading ? (
+          Array.from({ length: 7 }).map((_, i) => <AdminStatCardSkeleton key={i} />)
+        ) : (
+          <>
+            <AdminStatCard label="Eventos activos" value={stats.activeEvents} icon={IconCalendar} accent="primary" />
+            <AdminStatCard label="Eventos totales" value={stats.totalEvents} icon={IconBarChart2} />
+            <AdminStatCard label="Clientes totales" value={stats.totalUsers} icon={IconUsers} />
+            <AdminStatCard label="Nuevos (7 días)" value={stats.newUsers7d} icon={IconUserPlus} accent="green" />
+            <AdminStatCard label="Invitados totales" value={stats.totalGuests} icon={IconTicket} />
+            <AdminStatCard label="Check-ins totales" value={stats.totalCheckins} icon={IconCheckCircle} />
+            <AdminStatCard label="Tasa de check-in" value={stats.checkinRate !== null ? `${stats.checkinRate}%` : '—'} icon={IconBarChart} accent="amber" />
+          </>
+        )}
       </div>
 
-      <h2 className="text-lg font-medium text-gray-900 mb-3">Eventos</h2>
-      <div className="border border-gray-200 rounded-lg bg-white overflow-x-auto mb-8">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-500 border-b border-gray-100">
-              <th className="px-4 py-2 font-medium">Evento</th>
-              <th className="px-4 py-2 font-medium">Organizador</th>
-              <th className="px-4 py-2 font-medium">Estado</th>
-              <th className="px-4 py-2 font-medium">Invitados</th>
-              <th className="px-4 py-2 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {events.map((event) => (
-              <tr key={event.id}>
-                <td className="px-4 py-2">
-                  <Link to={`/events/${event.id}`} className="text-primary font-medium hover:underline">
-                    {event.name}
-                  </Link>
-                  <div className="text-xs text-gray-400">{event.date}</div>
-                </td>
-                <td className="px-4 py-2 text-gray-600">
-                  {usersById.get(event.ownerId)?.email || event.ownerId}
-                </td>
-                <td className="px-4 py-2">
-                  <select
-                    value={event.status}
-                    onChange={(e) => handleStatusChange(event.id, e.target.value as EventStatus)}
-                    className="border border-gray-200 rounded-md text-xs px-1.5 py-1"
-                  >
-                    {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-4 py-2 text-gray-600">
-                  {event.checkedInCount} / {event.guestCount}
-                </td>
-                <td className="px-4 py-2">
-                  <button
-                    onClick={() => setDeletingEvent(event)}
-                    className="text-xs text-red-600 hover:text-red-700 font-medium"
-                  >
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {events.length === 0 && <p className="text-center text-gray-500 py-6">Aún no hay eventos.</p>}
+      {!loading && events.length >= 2 && (
+        <div className="mb-6">
+          <AdminActivityChart events={events} />
+        </div>
+      )}
+
+      <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 mb-4">
+        <TabButton label="Eventos" count={events.length} active={tab === 'events'} onClick={() => setTab('events')} />
+        <TabButton label="Clientes" count={users.length} active={tab === 'users'} onClick={() => setTab('users')} />
+        <TabButton label="Actividad" active={tab === 'activity'} onClick={() => setTab('activity')} />
       </div>
 
-      <h2 className="text-lg font-medium text-gray-900 mb-3">Clientes</h2>
-      <div className="border border-gray-200 rounded-lg bg-white overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-500 border-b border-gray-100">
-              <th className="px-4 py-2 font-medium">Email</th>
-              <th className="px-4 py-2 font-medium">Nombre</th>
-              <th className="px-4 py-2 font-medium">Eventos</th>
-              <th className="px-4 py-2 font-medium">Registrado</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td className="px-4 py-2 text-gray-900">{u.email || u.id}</td>
-                <td className="px-4 py-2 text-gray-600">{u.displayName || '—'}</td>
-                <td className="px-4 py-2 text-gray-600">{eventCountByUser.get(u.id) || 0}</td>
-                <td className="px-4 py-2 text-gray-400">
-                  {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {users.length === 0 && <p className="text-center text-gray-500 py-6">Aún no hay clientes.</p>}
-      </div>
+      {tab === 'events' && (
+        <AdminEventsTable
+          events={events}
+          usersById={usersById}
+          loading={loading}
+          search={eventsSearch}
+          onSearchChange={setEventsSearch}
+          onStatusChange={handleStatusChange}
+          onRequestDelete={setDeletingEvent}
+          onRequestBulkAction={(evts, action) => setBulkAction({ events: evts, action })}
+        />
+      )}
+
+      {tab === 'users' && (
+        <AdminUsersTable
+          users={users}
+          loading={loading}
+          eventCountByUser={eventCountByUser}
+          onFilterEventsByOwner={handleFilterEventsByOwner}
+        />
+      )}
+
+      {tab === 'activity' && <ActivityTab />}
+
       <ConfirmDialog
         open={!!deletingEvent}
         title="Eliminar evento"
         message={`¿Eliminar "${deletingEvent?.name}" definitivamente? Se borrarán todos sus invitados y el historial de check-ins. Esta acción no se puede deshacer. Si el evento tiene muchos invitados, puede tardar varios segundos — no cierres esta ventana.`}
-        confirmLabel={deleting ? 'Eliminando…' : 'Eliminar'}
+        confirmLabel={actionBusy ? 'Eliminando…' : 'Eliminar'}
         danger
         onConfirm={confirmDeleteEvent}
         onCancel={() => setDeletingEvent(null)}
+      />
+
+      <ConfirmDialog
+        open={!!bulkAction}
+        title={bulkAction ? bulkActionCopy[bulkAction.action].title : ''}
+        message={bulkAction ? `¿Seguro que quieres ${bulkActionCopy[bulkAction.action].verb} ${bulkAction.events.length} evento(s)? ${bulkAction.action === 'delete' ? 'Esta acción no se puede deshacer.' : ''}` : ''}
+        confirmLabel={actionBusy ? 'Procesando…' : 'Confirmar'}
+        danger={bulkAction ? bulkActionCopy[bulkAction.action].danger : false}
+        onConfirm={confirmBulkAction}
+        onCancel={() => setBulkAction(null)}
       />
     </div>
   )
 }
 
-function Stat({ label, value, color }: { label: string; value: number | string; color?: string }) {
+function ActivityTab() {
+  const [entries, setEntries] = useState<AdminAuditLogEntry[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    return subscribeToAdminAuditLog(
+      (data) => {
+        setEntries(data)
+        setLoading(false)
+      },
+      (err) => {
+        console.error('Error loading admin audit log:', err)
+        setLoading(false)
+      },
+    )
+  }, [])
+
+  return <AdminActivityLog entries={entries} loading={loading} />
+}
+
+function TabButton({ label, count, active, onClick }: { label: string; count?: number; active: boolean; onClick: () => void }) {
   return (
-    <div className="border border-gray-200 rounded-lg p-3 bg-white text-center">
-      <p className={`text-2xl font-semibold ${color || 'text-gray-900'}`}>{value}</p>
-      <p className="text-xs text-gray-500">{label}</p>
-    </div>
+    <button
+      onClick={onClick}
+      className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+        active
+          ? 'border-primary text-primary'
+          : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+      }`}
+    >
+      {label}
+      {count !== undefined && <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">{count}</span>}
+    </button>
   )
 }

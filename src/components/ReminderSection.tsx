@@ -24,7 +24,7 @@ export function ReminderSection({ event, guests }: Props) {
 
   function reminderMessage(guest: GuestData): string {
     const passUrl = buildPassUrl(event.id, guest.qrToken)
-    return `Hola ${guest.name} 👋 Te recordamos que el evento *${event.name}* se acerca. Todavía no confirmaste tu asistencia. Acedé a tu pase aquí: ${passUrl}`
+    return `Hola ${guest.name} 👋 Te recordamos que el evento *${event.name}* se acerca. Todavía no confirmaste tu asistencia. Consigue tu pase aquí: ${passUrl}`
   }
 
   function copyBulkMessage() {

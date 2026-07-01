@@ -84,6 +84,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Bitácora de acciones del admin (AdminDashboard). Solo el admin puede
+    // leerla o crear entradas — nunca editarla ni borrarla, para que quede
+    // como un registro confiable de qué se hizo y quién lo hizo.
+    match /adminAuditLog/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.adminUid == request.auth.uid
+        && request.resource.data.action is string
+        && request.resource.data.targetType is string
+        && request.resource.data.targetId is string;
+      allow update, delete: if false;
+    }
+
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
       // El admin puede listar todos los usuarios (AdminDashboard). Cualquier otro usuario

@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, onSnapshot, orderBy, query } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, limit, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { mapEvent } from './events'
@@ -8,6 +8,20 @@ export interface AdminUser {
   id: string
   email: string | null
   displayName: string | null
+  createdAt: number
+}
+
+export type AdminAuditAction = 'event_status_change' | 'event_delete'
+
+export interface AdminAuditLogEntry {
+  id: string
+  adminUid: string
+  adminEmail: string | null
+  action: AdminAuditAction
+  targetType: 'event'
+  targetId: string
+  targetName: string
+  meta?: string
   createdAt: number
 }
 
@@ -59,6 +73,53 @@ export function subscribeToAllUsers(
             id: d.id,
             email: (data.email as string) || null,
             displayName: (data.displayName as string) || null,
+            createdAt: toMillis(data.createdAt),
+          }
+        }),
+      )
+    },
+    onError,
+  )
+}
+
+// No usa serverTimestamp() para createdAt del payload local, pero sí lo
+// escribe en Firestore — la bitácora se lee vía subscribeToAdminAuditLog,
+// nunca se necesita el valor recién creado en el mismo tick.
+export async function logAdminAction(entry: {
+  adminUid: string
+  adminEmail: string | null
+  action: AdminAuditAction
+  targetType: 'event'
+  targetId: string
+  targetName: string
+  meta?: string
+}): Promise<void> {
+  await addDoc(collection(db, 'adminAuditLog'), {
+    ...entry,
+    createdAt: serverTimestamp(),
+  })
+}
+
+export function subscribeToAdminAuditLog(
+  callback: (entries: AdminAuditLogEntry[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const q = query(collection(db, 'adminAuditLog'), orderBy('createdAt', 'desc'), limit(50))
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      callback(
+        snapshot.docs.map((d) => {
+          const data = d.data()
+          return {
+            id: d.id,
+            adminUid: data.adminUid as string,
+            adminEmail: (data.adminEmail as string) || null,
+            action: data.action as AdminAuditAction,
+            targetType: data.targetType as 'event',
+            targetId: data.targetId as string,
+            targetName: data.targetName as string,
+            meta: (data.meta as string) || undefined,
             createdAt: toMillis(data.createdAt),
           }
         }),
