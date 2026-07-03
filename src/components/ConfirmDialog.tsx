@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useModalA11y } from '../hooks/useModalA11y'
 
 interface Props {
@@ -37,7 +38,11 @@ export function ConfirmDialog({
 
   if (!open) return null
 
-  return (
+  // Portal a document.body: ver el comentario equivalente en WelcomeModal.tsx
+  // — anidado bajo <main>, este overlay podía quedar por debajo del <Footer>
+  // (hermano posterior fuera de ese árbol) en navegadores donde position:fixed
+  // + backdrop-filter interactúan mal con el contexto de apilamiento.
+  return createPortal(
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
@@ -80,6 +85,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

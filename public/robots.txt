@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+# Rutas privadas o sin valor para buscadores
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /profile
+Disallow: /events/
+Disallow: /pass/
+Disallow: /my-invitations
+Disallow: /my-events
+Disallow: /complete-profile
+Disallow: /reset-password
+
+Sitemap: https://app-pases-9e6e7.web.app/sitemap.xml

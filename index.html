@@ -3,15 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/Icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>PaseLink - Gestión de invitados para eventos</title>
+    <meta name="description" content="Crea eventos, envía invitaciones digitales con QR y controla el acceso de tus invitados en tiempo real. Gratis y sin descargas." />
+    <link rel="canonical" href="https://app-pases-9e6e7.web.app/" />
+    <meta name="theme-color" content="#150D1C" />
+
+    <!-- PWA / iOS -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PaseLink" />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PaseLink" />
+    <meta property="og:title" content="PaseLink - Gestión de invitados para eventos" />
+    <meta property="og:description" content="Crea eventos, envía invitaciones digitales con QR y controla el acceso de tus invitados en tiempo real." />
+    <meta property="og:url" content="https://app-pases-9e6e7.web.app/" />
+    <meta property="og:image" content="https://app-pases-9e6e7.web.app/icons/pwa-512.png" />
+    <meta property="og:locale" content="es_MX" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="PaseLink - Gestión de invitados para eventos" />
+    <meta name="twitter:description" content="Crea eventos, envía invitaciones digitales con QR y controla el acceso de tus invitados en tiempo real." />
+    <meta name="twitter:image" content="https://app-pases-9e6e7.web.app/icons/pwa-512.png" />
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "PaseLink",
+      "url": "https://app-pases-9e6e7.web.app/",
+      "description": "Gestión de invitados para eventos: invitaciones digitales con QR, check-in con escáner y reportes en tiempo real.",
+      "applicationCategory": "EventApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "es",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "MXN" }
+    }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Space Grotesk: tipografía de la app. El resto son las fuentes que usan
          las plantillas de invitación (src/templates/registry.ts) — se cargan
          una sola vez acá, nunca por plantilla, así agregar un tema nuevo que
-         reuse una de estas no agrega ningún request adicional. -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Cormorant+Garamond:wght@500;600&family=Baloo+2:wght@500;600;700&family=Rye&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=Cinzel:wght@500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+         reuse una de estas no agrega ningún request adicional.
+         media="print" evita bloquear el primer render; main.tsx lo cambia a
+         "all" apenas arranca la app (sin handler inline, compatible con CSP). -->
+    <link id="app-fonts" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Cormorant+Garamond:wght@500;600&family=Baloo+2:wght@500;600;700&family=Rye&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=Cinzel:wght@500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet" media="print" />
     <noscript><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Cormorant+Garamond:wght@500;600&family=Baloo+2:wght@500;600;700&family=Rye&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=Cinzel:wght@500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet" /></noscript>
   </head>
   <body>

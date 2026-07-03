@@ -6,9 +6,11 @@ import { deleteEvent, setEventStatus, subscribeToUserEvents } from '../firebase/
 import type { EventData } from '../types'
 import { PlanBadge } from '../components/PlanBadge'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { WelcomeModal } from '../components/WelcomeModal'
 import { IconBarChart, IconCalendar, IconCheckCircle, IconStar, IconTicket, IconUsers } from '../components/Icons'
 import { LoadingInline } from '../components/LoadingInline'
 import { formatDate } from '../utils/time'
+import { consumeWelcomePending, hasSeenNovedades, markNovedadesSeen } from '../utils/onboarding'
 
 function isEventPast(date: string): boolean {
   const today = new Date()
@@ -54,7 +56,31 @@ export function Dashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [showPast, setShowPast] = useState(false)
+  const [onboardingModal, setOnboardingModal] = useState<'welcome' | 'novedades' | null>(null)
   const archivingRef = useRef<Set<string>>(new Set())
+
+  // Se decide una sola vez por sesión de uid: bienvenida si la cuenta se
+  // acaba de crear (ver markWelcomePending en firebase/auth.ts), o novedades
+  // si ya tenía cuenta pero no vio la versión actual del aviso. Nunca ambos
+  // a la vez — quien recibe la bienvenida ya se entera de todo lo nuevo.
+  // Necesita ser un efecto (no un initializer de useState) porque `user` se
+  // resuelve de forma asíncrona después del primer render (useAuth).
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!user) return
+    if (consumeWelcomePending(user.uid)) {
+      setOnboardingModal('welcome')
+      markNovedadesSeen(user.uid)
+    } else if (!hasSeenNovedades(user.uid)) {
+      setOnboardingModal('novedades')
+    }
+  }, [user])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  function closeOnboardingModal() {
+    if (user && onboardingModal === 'novedades') markNovedadesSeen(user.uid)
+    setOnboardingModal(null)
+  }
 
   useEffect(() => {
     if (!user) return
@@ -318,6 +344,13 @@ export function Dashboard() {
         cancelLabel="Cancelar"
         onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
         onCancel={() => setConfirmDeleteId(null)}
+      />
+
+      <WelcomeModal
+        open={onboardingModal !== null}
+        variant={onboardingModal ?? 'welcome'}
+        firstName={profile?.firstName}
+        onClose={closeOnboardingModal}
       />
     </div>
   )
