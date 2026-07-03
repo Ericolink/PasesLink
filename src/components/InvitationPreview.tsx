@@ -74,7 +74,7 @@ export function InvitationPreview({
             disabled
             className="inline-flex items-center justify-center gap-2 text-white rounded-md px-4 py-2 text-sm font-medium opacity-90 bg-[var(--invite-accent)]"
           >
-            <IconDownload className="w-4 h-4" /> Descargar QR
+            <IconDownload className="w-4 h-4" /> Descargar pase
           </button>
           <button
             type="button"

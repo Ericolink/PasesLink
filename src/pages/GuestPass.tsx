@@ -17,7 +17,6 @@ import { ThemeSeal } from '../components/ThemeSeal'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { TimelineDisplay } from '../components/TimelineDisplay'
-import { AddToCalendarButton } from '../components/AddToCalendarButton'
 import { formatDate, formatTime12h } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadWalletCard } from '../utils/walletCard'
@@ -266,25 +265,16 @@ function GuestPassInner() {
     }
   }
 
-  function handleDownload() {
-    const canvas = qrWrapperRef.current?.querySelector('canvas')
-    if (!canvas) return
-    const link = document.createElement('a')
-    link.download = `pase-${guest!.name.replace(/\s+/g, '_')}.png`
-    link.href = canvas.toDataURL('image/png')
-    link.click()
-    setDownloaded(true)
-    setTimeout(() => setDownloaded(false), 2000)
-  }
-
-  function handleWalletCard() {
+  async function handleDownload() {
     const qrCanvas = qrWrapperRef.current?.querySelector('canvas') ?? null
-    void downloadWalletCard({
+    await downloadWalletCard({
       event: event!,
       guest: guest!,
       qrCanvas,
       accentColor: event?.accentColor || undefined,
     })
+    setDownloaded(true)
+    setTimeout(() => setDownloaded(false), 2000)
   }
 
   const timeLabel = event.startTime
@@ -453,29 +443,7 @@ function GuestPassInner() {
                       className="inline-flex items-center justify-center gap-2 text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
                     >
                       {downloaded ? <IconCheckCircle className="w-4 h-4" /> : <IconDownload className="w-4 h-4" />}
-                      {downloaded ? 'Descargado' : 'Descargar QR'}
-                    </button>
-                    <AddToCalendarButton
-                      event={{
-                        title: event.name,
-                        date: event.date,
-                        startTime: event.startTime || undefined,
-                        endTime: event.endTime || undefined,
-                        location: event.location,
-                        description: event.description || undefined,
-                      }}
-                    />
-                    <button
-                      onClick={handleWalletCard}
-                      title="Descargar tarjeta de pase"
-                      className="inline-flex items-center justify-center gap-2 border rounded-md px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
-                      style={{
-                        borderColor: 'var(--invite-border)',
-                        color: 'var(--invite-text)',
-                        background: 'var(--invite-surface)',
-                      }}
-                    >
-                      🪪 Tarjeta
+                      {downloaded ? 'Descargado' : 'Descargar pase'}
                     </button>
                     {guest.companions.length > 0 && (
                       <a
