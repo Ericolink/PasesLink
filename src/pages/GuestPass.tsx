@@ -349,7 +349,7 @@ function GuestPassInner() {
         <div className="relative flex items-center" style={{ marginLeft: '-1px', marginRight: '-1px' }}>
           <div
             className="shrink-0 w-5 h-5 rounded-full border-2 -ml-2.5"
-            style={{ background: 'var(--invite-bg)', borderColor: 'var(--invite-border)' }}
+            style={{ background: 'var(--invite-page-bg)', borderColor: 'var(--invite-border)' }}
           />
           <div
             className="flex-1 border-t-2"
@@ -357,7 +357,7 @@ function GuestPassInner() {
           />
           <div
             className="shrink-0 w-5 h-5 rounded-full border-2 -mr-2.5"
-            style={{ background: 'var(--invite-bg)', borderColor: 'var(--invite-border)' }}
+            style={{ background: 'var(--invite-page-bg)', borderColor: 'var(--invite-border)' }}
           />
         </div>
 

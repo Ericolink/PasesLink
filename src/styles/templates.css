@@ -1075,6 +1075,10 @@
   border-color: var(--invite-text) !important;
   position: relative;
   overflow: visible !important;
+  /* Reserva el ancho del talón de boleto (::after, más abajo) — todo hijo
+     normal-flow (portada, secciones con padding, divisor) se recorre solo,
+     sin tocar cada uno por separado. */
+  padding-left: 28px;
 }
 [data-template='houseparty'] .invite-card::before {
   content: '';
@@ -1100,6 +1104,47 @@
 [data-template='houseparty'] .invite-cover {
   border-radius: calc(var(--invite-radius) - 2px) calc(var(--invite-radius) - 2px) 0 0;
   overflow: hidden;
+}
+
+/* Talón de boleto: franja de tinta a lo largo del borde izquierdo, de punta
+   a punta de la tarjeta — el rasgo que más lee "entrada de admisión" (ticket
+   stub), tomado de una entrada física clásica (talón + texto vertical).
+   Vive en el mismo pseudo-elemento que ya tiene contenido de texto (::after
+   libre; ::before ya es la cinta de arriba), así no suma nodos al DOM. La
+   línea punteada al filo derecho de la franja es la misma línea de corte
+   troquelado que ya usa el divisor horizontal (mismo lenguaje, ahora
+   vertical) — nunca un borde sólido, para que se lea como perforación, no
+   como un panel de color aparte. */
+[data-template='houseparty'] .invite-card::after {
+  content: 'PASELINK · ENTRADA';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--invite-text);
+  color: var(--invite-surface);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-family: 'Archivo Black', 'Space Grotesk', system-ui, sans-serif;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  border-radius: calc(var(--invite-radius) - 1px) 0 0 calc(var(--invite-radius) - 1px);
+  border-right: 2px dashed var(--invite-page-bg);
+  z-index: 2;
+}
+
+/* El divisor pierde su notch izquierdo: junto al talón, dos "cortes"
+   pegados uno al otro (el filo del talón + el círculo del divisor) se
+   leerían como un error de alineación, no como intención — el talón ya
+   cumple ese rol en esta esquina. */
+[data-template='houseparty'] .invite-card > .relative.flex.items-center > :first-child {
+  display: none;
 }
 
 /* Divisor: línea de corte troquelado (guión largo) en la tinta azul, en vez
