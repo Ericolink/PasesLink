@@ -4,7 +4,7 @@ import { fetchPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
-import { IconThumbsUp, IconThumbsDown, IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown } from './Icons'
+import { IconThumbsUp, IconThumbsDown, IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown, IconRotateCcw } from './Icons'
 import { ThemeSeal } from './ThemeSeal'
 import { Avatar } from './Avatar'
 import { PhotoFeedCard } from './PhotoFeedCard'
@@ -151,14 +151,16 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
 
   return (
     <div className="invite-wall-section relative mt-8 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2 mb-4">
         <h2 className="text-lg font-bold text-[var(--invite-text)]">Muro del evento</h2>
         <button
           onClick={() => { loadMessages(); loadPhotos() }}
           disabled={refreshing}
-          className="text-xs font-medium disabled:opacity-50 text-[var(--invite-accent)]"
+          aria-label={refreshing ? 'Actualizando muro…' : 'Actualizar muro'}
+          title="Actualizar muro"
+          className="p-1 rounded-full disabled:opacity-50 text-[var(--invite-accent)]"
         >
-          {refreshing ? 'Actualizando…' : 'Actualizar muro'}
+          <IconRotateCcw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
