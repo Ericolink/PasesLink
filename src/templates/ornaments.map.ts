@@ -6,6 +6,7 @@ import {
   GraduationOrnament,
   KidsOrnament,
   FormalOrnament,
+  HousePartyOrnament,
   type OrnamentProps,
 } from './ornaments'
 
@@ -15,4 +16,5 @@ export const ORNAMENTS: Partial<Record<TemplateId, FC<OrnamentProps>>> = {
   graduation: GraduationOrnament,
   kids: KidsOrnament,
   formal: FormalOrnament,
+  houseparty: HousePartyOrnament,
 }

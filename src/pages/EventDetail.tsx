@@ -245,7 +245,7 @@ export function EventDetail() {
             date={event.date}
             startTime={event.startTime}
             endTime={event.endTime}
-            className="mt-3 text-sm font-semibold text-primary"
+            className="mt-3"
           />
         </div>
       </div>

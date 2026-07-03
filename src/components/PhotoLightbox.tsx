@@ -1,6 +1,13 @@
 import { useEffect } from 'react'
 import type { PhotoData } from '../firebase/photos'
+import { optimizedImageUrl } from '../utils/cloudinary'
 import { IconX, IconArrowLeft } from './Icons'
+
+// Ancho de la versión servida en el lightbox: de sobra para el
+// max-h-[70vh]/max-w-full de acá abajo incluso en pantallas retina, sin
+// cargar el original completo (varios MB) por cada foto que el usuario mira
+// — importante con eventos que acumulan cientos de fotos.
+const LIGHTBOX_IMAGE_WIDTH = 1200
 
 interface Props {
   photos: PhotoData[]
@@ -69,7 +76,7 @@ export function PhotoLightbox({ photos, index, onClose, onPrev, onNext, isOrg, o
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={photo.url}
+          src={optimizedImageUrl(photo.url, LIGHTBOX_IMAGE_WIDTH)}
           alt={photo.caption || `Foto de ${photo.authorName}`}
           className="max-h-[70vh] max-w-full rounded-xl object-contain"
         />

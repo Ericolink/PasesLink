@@ -212,19 +212,32 @@ export async function removeCoOrganizer(eventId: string, uid: string) {
   })
 }
 
+// Antes: 4 subcolecciones leídas y borradas UNA A LA VEZ (cada `await` en el
+// loop esperaba a la anterior sin necesidad — no hay ninguna dependencia
+// entre guests/guestContacts/checkins/waitlist). Con un evento de varios
+// cientos de invitados/check-ins, eso significa varios round-trips
+// secuenciales sumados antes de poder borrar el documento del evento. Ahora
+// las 4 lecturas van en paralelo, y todos los chunks de borrado (de las 4
+// colecciones juntas) también — cada `batch.commit()` es independiente del
+// resto, no hay razón para esperarlos de a uno.
 export async function deleteEvent(eventId: string) {
   const subcollections = ['guests', 'guestContacts', 'checkins', 'waitlist']
-  for (const sub of subcollections) {
-    const snapshot = await getDocs(collection(db, 'events', eventId, sub))
+  const snapshots = await Promise.all(
+    subcollections.map((sub) => getDocs(collection(db, 'events', eventId, sub))),
+  )
+
+  const commits: Promise<void>[] = []
+  for (const snapshot of snapshots) {
     const docs = snapshot.docs
     for (let i = 0; i < docs.length; i += 450) {
       const batch = writeBatch(db)
       for (const d of docs.slice(i, i + 450)) {
         batch.delete(d.ref)
       }
-      await batch.commit()
+      commits.push(batch.commit())
     }
   }
+  await Promise.all(commits)
   await deleteDoc(doc(db, 'events', eventId))
 }
 

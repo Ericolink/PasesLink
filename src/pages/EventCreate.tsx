@@ -12,6 +12,7 @@ import { CustomFieldsBuilder } from '../components/CustomFieldsBuilder'
 import { TimelineEditor } from '../components/TimelineEditor'
 import { TemplatePicker } from '../components/TemplatePicker'
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal'
+import { EventScheduleField } from '../components/EventScheduleField'
 import { IconCheckCircle } from '../components/Icons'
 import { WizardContainer, WizardStep } from '../components/Wizard'
 import { EntryModeSelector } from '../components/EventCreation/EntryModeSelector'
@@ -298,67 +299,33 @@ export function EventCreate() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="min-w-0">
-                <label htmlFor="event-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Fecha *
-                </label>
-                <input
-                  id="event-date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full min-w-0 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div className="min-w-0">
-                <label htmlFor="event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Lugar *
-                </label>
-                <input
-                  id="event-location"
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Salón Los Olivos"
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
+            <div>
+              <label htmlFor="event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Lugar *
+              </label>
+              <input
+                id="event-location"
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Salón Los Olivos"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
             </div>
 
-            <details className="group border border-gray-200 dark:border-gray-700 rounded-lg">
-              <summary className="cursor-pointer select-none px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1.5 transition-colors list-none">
-                <span className="group-open:hidden">＋</span>
-                <span className="hidden group-open:inline">−</span>
-                Agregar hora (opcional)
-              </summary>
-              <div className="px-4 pb-4 grid grid-cols-2 gap-4 pt-2">
-                <div>
-                  <label htmlFor="event-start-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Hora de inicio
-                  </label>
-                  <input
-                    id="event-start-time"
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="event-end-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Hora de fin
-                  </label>
-                  <input
-                    id="event-end-time"
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-            </details>
+            <div>
+              <p className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Fecha y hora *
+              </p>
+              <EventScheduleField
+                date={date}
+                onDateChange={setDate}
+                startTime={startTime}
+                onStartTimeChange={setStartTime}
+                endTime={endTime}
+                onEndTimeChange={setEndTime}
+              />
+            </div>
           </div>
         </WizardStep>
 

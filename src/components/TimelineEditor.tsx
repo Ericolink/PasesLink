@@ -41,7 +41,7 @@ export function TimelineEditor({ entries, onChange }: Props) {
             value={entry.time}
             onChange={(e) => updateEntry(i, 'time', e.target.value)}
             aria-label={`Hora del momento ${i + 1}`}
-            className="w-28 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-28 shrink-0 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary [color-scheme:light] dark:[color-scheme:dark]"
           />
           <input
             id={`${baseId}-label-${i}`}

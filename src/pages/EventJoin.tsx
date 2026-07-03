@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { getEvent } from '../firebase/events'
+import { getEvent, subscribeToEvent } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
 import { addToWaitlist } from '../firebase/waitlist'
 import { useAuth } from '../hooks/useAuth'
@@ -112,6 +112,21 @@ export function EventJoin() {
     })
   }, [id])
 
+  // Suscripción en vivo, aparte del bootstrap de arriba (que decide el estado
+  // inicial una sola vez): cualquier cambio que el organizador guarde en
+  // EditEventForm (horario, portada, mensaje de bienvenida, etc.) debe
+  // reflejarse en esta misma invitación ya abierta, no solo en registros
+  // nuevos. `getEvent` de arriba sigue siendo una lectura única (decide
+  // not_found/error/form/success), esta suscripción solo mantiene `event` al
+  // día una vez que ya se decidió cuál de esos estados mostrar.
+  useEffect(() => {
+    if (!id) return
+    const unsubscribe = subscribeToEvent(id, (ev) => {
+      if (ev) setEvent(ev)
+    })
+    return unsubscribe
+  }, [id])
+
   // Pre-fill name/lastName from profile. Intencionalmente un efecto: profile
   // llega async después de user, y el guard `!name` evita pisar lo que el
   // usuario ya tipeó. Convertirlo a "ajustar estado durante el render" cambiaría
@@ -188,7 +203,7 @@ export function EventJoin() {
 
   if (state === 'not_found' || state === 'error') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center text-center p-4">
         <div className="text-center">
           <div className="flex justify-center mb-3">
             <IconBan className="w-12 h-12 text-gray-400" />
@@ -223,7 +238,7 @@ export function EventJoin() {
         <InvitationThemeRoot
           templateId={event?.templateId}
           accentOverride={event?.accentColor}
-          className="min-h-screen flex items-center justify-center p-4"
+          className="min-h-screen flex items-center justify-center text-center p-4"
         >
           <div className="w-full max-w-sm text-center">
             <IconCheckCircle className="w-14 h-14 mx-auto mb-4 text-green-500" />
@@ -241,7 +256,7 @@ export function EventJoin() {
         <InvitationThemeRoot
           templateId={event?.templateId}
           accentOverride={event?.accentColor}
-          className="min-h-screen flex items-center justify-center p-4"
+          className="min-h-screen flex items-center justify-center text-center p-4"
         >
           <div className="w-full max-w-sm">
             <InvitationCard>
@@ -289,7 +304,7 @@ export function EventJoin() {
       <InvitationThemeRoot
         templateId={event?.templateId}
         accentOverride={event?.accentColor}
-        className="min-h-screen flex items-center justify-center p-4"
+        className="min-h-screen flex items-center justify-center text-center p-4"
       >
         <div className="text-center">
           <div className="flex justify-center mb-4">
@@ -322,7 +337,7 @@ export function EventJoin() {
       <InvitationThemeRoot
         templateId={event?.templateId}
         accentOverride={event?.accentColor}
-        className="flex items-start justify-center min-h-screen p-4"
+        className="flex items-start justify-center min-h-screen text-center p-4"
       >
         <div className="w-full max-w-sm">
           <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
@@ -374,7 +389,7 @@ export function EventJoin() {
     <InvitationThemeRoot
       templateId={event?.templateId}
       accentOverride={event?.accentColor}
-      className="min-h-screen flex items-center justify-center p-4"
+      className="min-h-screen flex items-center justify-center text-center p-4"
     >
       <div className="w-full max-w-sm">
         <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
@@ -393,7 +408,7 @@ export function EventJoin() {
               date={event.date}
               startTime={event.startTime}
               endTime={event.endTime}
-              className="text-sm font-medium mt-1 mb-4 text-[var(--invite-text-muted)]"
+              className="mt-1 mb-4 mx-auto"
             />
           )}
 

@@ -29,6 +29,7 @@ import {
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { PhotoSection } from '../components/PhotoSection'
 import type { EventData, WallMessage, WallMessageType } from '../types'
 
 interface TypeConfig {
@@ -155,7 +156,6 @@ export function EventWall() {
     setPostError('')
     try {
       const authorName  = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
-      const authorToken = isOwner ? (user?.uid ?? 'owner') : (user ? user.uid : (localStorage.getItem(GUEST_NAME_KEY) || guestName))
       const authorRole  = isOwner ? 'owner' : 'guest'
       const authorPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
       await postWallMessage(id, text, type, authorName, authorToken, authorRole, authorPhotoURL)
@@ -257,6 +257,10 @@ export function EventWall() {
 
   const postLabel = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
   const postPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
+  // Mismo criterio de identidad que handlePost, reutilizado acá para las
+  // fotos (PhotoSection) — así el autor de una foto y el de un mensaje del
+  // mismo visitante quedan con el mismo token.
+  const authorToken = isOwner ? (user?.uid ?? 'owner') : (user ? user.uid : (localStorage.getItem(GUEST_NAME_KEY) || guestName))
 
   const content = (
     <>
@@ -420,8 +424,12 @@ export function EventWall() {
                 </div>
               )}
 
-              {/* Reactions row */}
-              <div className="flex items-center gap-3 ml-9">
+              {/* Reactions row — padding del botón deja el target táctil real
+                  en ~40px+ (antes el botón era solo el ícono de 14px,
+                  imposible de tocar con precisión en celular); ml-[1.625rem]
+                  = ml-9 (36px) menos el padding nuevo (p-2.5 = 10px), para
+                  que el ícono siga alineado con el resto del bloque. */}
+              <div className="flex items-center gap-1 ml-[1.625rem]">
                 {(() => {
                   const token    = getDeviceToken()
                   const liked    = msg.likedBy.includes(token)
@@ -430,16 +438,16 @@ export function EventWall() {
                     <>
                       <button
                         onClick={() => handleLike(msg)}
-                        className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'text-primary font-medium' : 'text-gray-400 hover:text-primary'}`}
+                        className={`flex items-center gap-1 text-xs p-2.5 rounded-full transition-colors ${liked ? 'text-primary font-medium' : 'text-gray-400 hover:text-primary'}`}
                       >
-                        <IconThumbsUp className="w-3.5 h-3.5" />
+                        <IconThumbsUp className="w-4 h-4" />
                         {msg.likedBy.length > 0 && <span>{msg.likedBy.length}</span>}
                       </button>
                       <button
                         onClick={() => handleDislike(msg)}
-                        className={`flex items-center gap-1 text-xs transition-colors ${disliked ? 'text-red-500 font-medium' : 'text-gray-400 hover:text-red-400'}`}
+                        className={`flex items-center gap-1 text-xs p-2.5 rounded-full transition-colors ${disliked ? 'text-red-500 font-medium' : 'text-gray-400 hover:text-red-400'}`}
                       >
-                        <IconThumbsDown className="w-3.5 h-3.5" />
+                        <IconThumbsDown className="w-4 h-4" />
                         {msg.dislikedBy.length > 0 && <span>{msg.dislikedBy.length}</span>}
                       </button>
                     </>
@@ -489,6 +497,19 @@ export function EventWall() {
             {loadingOlder ? 'Cargando…' : 'Cargar mensajes anteriores'}
           </button>
         </div>
+      )}
+
+      {/* Fotos del evento — antes solo se veían desde el pase individual del
+          invitado (GuestPass); acá el organizador (y cualquiera que entre al
+          muro) también puede verlas y, si es el dueño, borrarlas. */}
+      {id && (
+        <PhotoSection
+          eventId={id}
+          guestName={postLabel}
+          guestToken={authorToken}
+          isOrg={isOwner}
+          templateId={event?.templateId}
+        />
       )}
 
       <ConfirmDialog

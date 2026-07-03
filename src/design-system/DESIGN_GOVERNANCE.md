@@ -59,6 +59,7 @@ tema:
 | Vaquera | rústico / material táctil (cuero, madera) |
 | Infantil | confeti controlado |
 | Formal | minimal metálico sobrio (doble filete) |
+| Fiesta improvisada | cartel serigrafiado/riso (trama de medio tono alineada, tinta plana a dos colores, sombra dura desplazada) |
 
 Un recurso asignado a un tema (grano de papel, marco institucional,
 confeti, etc.) no aparece en ningún otro, aunque el efecto sería "bonito"

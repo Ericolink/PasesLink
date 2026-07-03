@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addPhoto, deletePhoto, fetchPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
-import { uploadImage, optimizedImageUrl } from '../utils/cloudinary'
+import { uploadImage, optimizedImageUrl, resizeImageForUpload } from '../utils/cloudinary'
 import { PhotoLightbox } from './PhotoLightbox'
 import { IconCamera, IconX } from './Icons'
 
@@ -56,7 +56,8 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
     setUploading(true)
     setUploadError('')
     try {
-      const url = await uploadImage(showCaptionFor)
+      const optimized = await resizeImageForUpload(showCaptionFor)
+      const url = await uploadImage(optimized)
       await addPhoto(eventId, {
         url,
         authorName: guestName,
@@ -78,12 +79,12 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
   }
 
   return (
-    <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
+    <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--invite-border, rgba(144,102,200,.35))' }}>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm font-semibold text-[var(--invite-text)]">
+        <p className="text-sm font-semibold" style={{ color: 'var(--invite-text, #f6f4f9)' }}>
           Fotos del evento
           {photos.length > 0 && (
-            <span className="ml-1.5 text-xs text-[var(--invite-text-muted)] font-normal">
+            <span className="ml-1.5 text-xs font-normal" style={{ color: 'var(--invite-text-muted, #a89fb3)' }}>
               ({photos.length})
             </span>
           )}
@@ -91,7 +92,8 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
         <div className="flex items-center gap-2">
           <button
             onClick={loadPhotos}
-            className="text-xs text-[var(--invite-text-muted)] hover:text-[var(--invite-text)] transition-colors"
+            className="text-xs transition-colors"
+            style={{ color: 'var(--invite-text-muted, #a89fb3)' }}
             title="Actualizar fotos"
           >
             ↻
@@ -100,7 +102,7 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
             onClick={openPicker}
             disabled={uploading}
             className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
-            style={{ background: 'var(--invite-accent)', color: '#fff' }}
+            style={{ background: 'var(--invite-accent, #FF1464)', color: '#fff' }}
           >
             <IconCamera className="w-3.5 h-3.5" />
             {uploading ? 'Subiendo…' : '+ Foto'}
@@ -118,9 +120,11 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div
             className="w-full max-w-sm rounded-2xl p-5 space-y-3"
-            style={{ background: 'var(--invite-surface)', border: '1px solid var(--invite-border)' }}
+            style={{ background: 'var(--invite-surface, #1a1130)', border: '1px solid var(--invite-border, rgba(144,102,200,.35))' }}
           >
-            <p className="text-sm font-semibold text-[var(--invite-text)]">¿Querés agregar un pie de foto?</p>
+            <p className="text-sm font-semibold" style={{ color: 'var(--invite-text, #f6f4f9)' }}>
+              ¿Querés agregar una descripción a la foto?
+            </p>
             <input
               type="text"
               value={caption}
@@ -129,9 +133,9 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
               placeholder="Opcional…"
               className="w-full rounded-lg px-3 py-2 text-sm border outline-none focus:ring-2"
               style={{
-                background: 'var(--invite-bg)',
-                borderColor: 'var(--invite-border)',
-                color: 'var(--invite-text)',
+                background: 'var(--invite-page-bg, #150D1C)',
+                borderColor: 'var(--invite-border, rgba(144,102,200,.35))',
+                color: 'var(--invite-text, #f6f4f9)',
               }}
               autoFocus
             />
@@ -139,14 +143,14 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
               <button
                 onClick={() => setShowCaptionFor(null)}
                 className="flex-1 text-sm py-2 rounded-lg border transition-opacity hover:opacity-70"
-                style={{ borderColor: 'var(--invite-border)', color: 'var(--invite-text-muted)' }}
+                style={{ borderColor: 'var(--invite-border, rgba(144,102,200,.35))', color: 'var(--invite-text-muted, #a89fb3)' }}
               >
                 Cancelar
               </button>
               <button
                 onClick={confirmUpload}
                 className="flex-1 text-sm py-2 rounded-lg font-medium transition-opacity hover:opacity-80 text-white"
-                style={{ background: 'var(--invite-accent)' }}
+                style={{ background: 'var(--invite-accent, #FF1464)' }}
               >
                 Subir foto
               </button>
@@ -159,10 +163,12 @@ export function PhotoSection({ eventId, guestName, guestToken, isOrg = false }: 
       {photos.length === 0 ? (
         <div
           className="rounded-xl py-8 text-center border-2 border-dashed"
-          style={{ borderColor: 'var(--invite-border)' }}
+          style={{ borderColor: 'var(--invite-border, rgba(144,102,200,.35))' }}
         >
-          <IconCamera className="w-7 h-7 mx-auto mb-2 text-[var(--invite-text-muted)]" />
-          <p className="text-sm text-[var(--invite-text-muted)]">Sé el primero en subir una foto</p>
+          <span className="block w-7 h-7 mx-auto mb-2" style={{ color: 'var(--invite-text-muted, #a89fb3)' }}>
+            <IconCamera className="w-7 h-7" />
+          </span>
+          <p className="text-sm" style={{ color: 'var(--invite-text-muted, #a89fb3)' }}>Sé el primero en subir una foto</p>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-1.5">

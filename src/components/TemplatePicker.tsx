@@ -1,4 +1,5 @@
 import { INVITATION_TEMPLATES } from '../templates/registry'
+import { useIsAdmin } from '../hooks/useIsAdmin'
 import type { TemplateId } from '../types'
 import { InvitationPreview } from './InvitationPreview'
 
@@ -23,10 +24,17 @@ interface TemplatePickerProps {
 // estado actual del formulario), el preview lo usa en vivo; si no, cae 100%
 // en los datos de ejemplo de cada tema.
 export function TemplatePicker({ selected, onSelect, previewData }: TemplatePickerProps) {
+  const { isAdmin } = useIsAdmin()
+  // Los temas `adminOnly` (ver registry.ts) quedan ocultos para anfitriones
+  // normales — salvo que el evento ya los tenga seleccionados (p.ej. un
+  // evento existente creado por el admin), para no hacer "desaparecer" la
+  // plantilla activa del selector.
+  const visibleTemplates = INVITATION_TEMPLATES.filter((tpl) => !tpl.adminOnly || isAdmin || tpl.id === selected)
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        {INVITATION_TEMPLATES.map((tpl) => (
+        {visibleTemplates.map((tpl) => (
           <button
             key={tpl.id}
             type="button"

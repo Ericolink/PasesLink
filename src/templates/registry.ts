@@ -10,6 +10,12 @@ export interface InvitationTemplate {
   id: TemplateId
   label: string
   category: string
+  // Oculto para anfitriones no-admin en TemplatePicker (ver useIsAdmin) —
+  // pensado para lanzar un tema nuevo primero como evento propio de PaseLink
+  // antes de abrirlo al público. No es una restricción de seguridad (nada
+  // impide que un evento ya creado con este templateId siga renderizando su
+  // tema), solo control de qué aparece en el selector.
+  adminOnly?: boolean
   vars: {
     accent: string
     accentDark: string
@@ -195,6 +201,40 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
       // Sombra cálida y difusa (sin el segundo tono en línea recta que
       // tenía antes en templates.css) — "suave", no "contrastada".
       shadow: '0 10px 26px rgba(232,145,106,.22)',
+      enterAnimation: 'animate-bounce-in',
+    },
+  },
+  {
+    id: 'houseparty',
+    label: 'Fiesta improvisada',
+    category: 'Fiesta improvisada',
+    // Debut como evento propio de PaseLink primero — se abre al público
+    // cuando el admin lo decida (quitar esta línea).
+    adminOnly: true,
+    vars: {
+      // Tinta azul eléctrico de cartel serigrafiado/riso — nunca el magenta
+      // de marca de la app (ese es el neón del chrome, no de un tema), para
+      // que la invitación no compita ni se confunda con el propio PaseLink.
+      accent: '#2E4FE0',
+      accentDark: '#16238C',
+      accentSoft: '#DCE3FF',
+      // Papel de cartel sin estucar — cálido y apagado, nunca el marfil
+      // rosado de Bodas ni el ámbar institucional de Graduación.
+      pageBg: '#F3EFE3',
+      surface: '#FFFDF7',
+      // "Negro de tinta" con un dejo azul-violeta, no un gris neutro.
+      text: '#191333',
+      textMuted: '#6B6478',
+      border: '#E2D9C4',
+      // Cuerpo en la misma grotesca ya cargada para Formal (cero peso de
+      // fuente nuevo) — el h1 recupera un display de cartel vía override en
+      // templates.css, mismo mecanismo que separa el h1 del cuerpo en el
+      // resto de los temas no-default.
+      fontFamily: "'Space Grotesk', system-ui, sans-serif",
+      borderRadius: '0.6rem',
+      // Sombra dura y desplazada ("sticker/cartel pegado"), no un blur — la
+      // firma visual del tema. Nada de blur difuso: es tinta plana, no luz.
+      shadow: '4px 4px 0 0 var(--invite-text)',
       enterAnimation: 'animate-bounce-in',
     },
   },

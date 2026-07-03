@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { getEvent } from '../firebase/events'
+import { getEvent, subscribeToEvent } from '../firebase/events'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
@@ -26,6 +26,17 @@ export function EventArrive() {
       setEvent(ev)
       setState('ready')
     })
+  }, [id])
+
+  // Suscripción en vivo: una vez que se decidió el estado 'ready', el evento
+  // sigue actualizándose si el organizador guarda cambios (horario, portada,
+  // mensaje de bienvenida, etc.) — mismo mecanismo que EventJoin/GuestPass.
+  useEffect(() => {
+    if (!id) return
+    const unsubscribe = subscribeToEvent(id, (ev) => {
+      if (ev) setEvent(ev)
+    })
+    return unsubscribe
   }, [id])
 
   useEffect(() => {
@@ -62,7 +73,7 @@ export function EventArrive() {
     <InvitationThemeRoot
       templateId={event?.templateId}
       accentOverride={event?.accentColor}
-      className="min-h-screen flex items-center justify-center p-4"
+      className="min-h-screen flex items-center justify-center text-center p-4"
     >
       <div className="w-full max-w-sm">
         <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
@@ -81,7 +92,7 @@ export function EventArrive() {
               date={event.date}
               startTime={event.startTime}
               endTime={event.endTime}
-              className="text-sm font-medium mt-1 mb-4 text-[var(--invite-text-muted)]"
+              className="mt-1 mb-4 mx-auto"
             />
           )}
 

@@ -217,6 +217,13 @@ body {
   background-color: rgba(21, 13, 28, 0.9);
   color: #F6F4F9;
   border-color: #3A2A4A;
+  /* Sin esto, el navegador asume esquema claro para los controles nativos
+     (ícono de calendario/reloj de type="date"/"time", el popup del selector,
+     el spinner de type="number") y los dibuja oscuros — casi invisibles
+     sobre el fondo oscuro de arriba. Es la causa real de los inputs de
+     fecha/hora "desordenados" en celular (el ícono nativo no se veía o se
+     recortaba raro), no un problema de layout. */
+  color-scheme: dark;
 }
 
 .dark input::placeholder,
@@ -384,6 +391,93 @@ body {
 .animate-delay-1 { animation-delay: 0.08s; }
 .animate-delay-2 { animation-delay: 0.16s; }
 .animate-delay-3 { animation-delay: 0.24s; }
+
+/* ── Countdown "flip clock" (EventCountdown.tsx) ────────────────
+   Un solo mecanismo (rotateX + opacity, transform-only → GPU, sin layout
+   thrashing) reutilizado por los 4 dígitos y por los 6 temas de invitación
+   + el dashboard del organizador: los colores salen de --invite-* (con
+   fallback al acento de la app), nunca de CSS por tema, así que agregar
+   esto no toca templates.css ni el contrato de superficies. Cada tile
+   dispara la animación al remontar (key={valor} en EventCountdown.tsx), no
+   con un loop infinito — solo "tickea" cuando su propio número cambia. */
+@keyframes countdown-flip {
+  0%   { transform: rotateX(90deg); opacity: .3; }
+  60%  { transform: rotateX(-10deg); opacity: 1; }
+  100% { transform: rotateX(0deg); }
+}
+.countdown-tile-value {
+  display: inline-block;
+  transform-origin: 50% 50%;
+  animation: countdown-flip .4s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .countdown-tile-value {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* ── Menú hamburguesa (Navbar.tsx) ───────────────────────────────
+   Acordeón real (alto 0→auto vía el truco de grid-template-rows 0fr/1fr,
+   sin JS midiendo alturas) en vez del fade-in plano anterior — mismo
+   lenguaje de motion que ya usa el resto de la app (transform/opacity,
+   sin librería nueva). El panel queda siempre montado (nunca se
+   desmonta al cerrar) para poder animar también el cierre; el
+   grid-template-rows en 0fr + overflow:hidden en el hijo lo colapsa a 0
+   sin recortar contenido a la fuerza. */
+.mobile-menu-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .3s ease-in-out;
+}
+.mobile-menu-collapse[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+.mobile-menu-collapse > div {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Cada link entra con un pequeño desplazamiento lateral escalonado
+   (--stagger-delay por índice, seteado inline desde Navbar.tsx) — mismo
+   recurso que un stagger de librería de animación, sin agregar una. */
+.mobile-menu-item {
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.mobile-menu-collapse[data-open='true'] .mobile-menu-item {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: var(--stagger-delay, 0s);
+}
+
+/* Ícono hamburguesa↔cerrar: pequeño giro de entrada en vez del cambio
+   instantáneo — cada ícono ya remonta al alternar (conditional rendering
+   en Navbar.tsx), así que una animación de entrada alcanza sin necesitar
+   una librería de transición de salida. */
+@keyframes menu-icon-in {
+  from { opacity: 0; transform: rotate(-90deg) scale(.6); }
+  to   { opacity: 1; transform: rotate(0deg) scale(1); }
+}
+.mobile-menu-icon {
+  animation: menu-icon-in .22s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-menu-collapse,
+  .mobile-menu-item {
+    transition: none !important;
+  }
+  .mobile-menu-item {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .mobile-menu-icon {
+    animation: none !important;
+  }
+}
 
 /* Quienes piden menos movimiento no deberían recibir ni los orbs del fondo
    ni las animaciones de entrada de las invitaciones temáticas — afecta toda

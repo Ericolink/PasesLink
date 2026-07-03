@@ -1,11 +1,15 @@
 import { useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useModalA11y } from '../hooks/useModalA11y'
 
 interface Props {
   open: boolean
   title: string
-  message: string
+  // ReactNode (no solo string) para permitir mensajes compuestos, p.ej. la
+  // lista de cambios del "modo anti-tontos" de EditEventForm.tsx — todo
+  // caller existente que ya pasaba un string sigue siendo válido sin tocarlo.
+  message: ReactNode
   confirmLabel?: string
   cancelLabel?: string
   danger?: boolean
@@ -65,7 +69,7 @@ export function ConfirmDialog({
         )}
         <div className="px-6 pt-4 pb-2">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{title}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{message}</p>
+          <div className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{message}</div>
         </div>
         <div className="flex gap-3 p-6 pt-4">
           <button

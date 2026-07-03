@@ -24,6 +24,7 @@ export type TemplateId =
   | 'graduation'
   | 'formal'
   | 'kids'
+  | 'houseparty'
 
 export interface CustomField {
   id: string

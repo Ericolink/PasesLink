@@ -48,6 +48,12 @@ export const PREVIEW_CONTENT: Record<TemplateId, PreviewSample> = {
     location: 'Salón Pequeños Gigantes',
     guestName: 'Emma Castro',
   },
+  houseparty: {
+    eventName: 'Baile Improvisado Vol. 1',
+    date: '18 jul 2026',
+    location: 'Depa de Rodrigo, CDMX',
+    guestName: 'Camila Torres',
+  },
 }
 
 export const PREVIEW_WALL_MESSAGES = [

@@ -250,17 +250,22 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
                 </div>
               </div>
               <p className="text-sm mb-3 ml-9 text-[var(--invite-text)]">{msg.text}</p>
-              <div className="flex items-center gap-3 ml-9">
+              <div className="flex items-center gap-1 ml-[1.625rem]">
+                {/* ml-9 (36px) del texto de arriba menos el padding nuevo del
+                    botón (p-2.5 = 10px) mantiene el ícono alineado con el
+                    resto del bloque — el padding deja el target táctil real
+                    en ~40px+ (antes el botón era solo el ícono de 14px,
+                    imposible de tocar con precisión en celular). */}
                 <button onClick={() => handleLike(msg)}
                   aria-label="Me gusta"
-                  className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'font-medium text-[var(--invite-accent)]' : 'text-gray-400 hover:text-[var(--invite-accent)]'}`}>
-                  <IconThumbsUp className="w-3.5 h-3.5" />
+                  className={`flex items-center gap-1 text-xs p-2.5 rounded-full transition-colors ${liked ? 'font-medium text-[var(--invite-accent)]' : 'text-gray-400 hover:text-[var(--invite-accent)]'}`}>
+                  <IconThumbsUp className="w-4 h-4" />
                   {msg.likedBy.length > 0 && <span>{msg.likedBy.length}</span>}
                 </button>
                 <button onClick={() => handleDislike(msg)}
                   aria-label="No me gusta"
-                  className={`flex items-center gap-1 text-xs transition-colors ${disliked ? 'text-red-500 font-medium' : 'text-gray-400 hover:text-red-400'}`}>
-                  <IconThumbsDown className="w-3.5 h-3.5" />
+                  className={`flex items-center gap-1 text-xs p-2.5 rounded-full transition-colors ${disliked ? 'text-red-500 font-medium' : 'text-gray-400 hover:text-red-400'}`}>
+                  <IconThumbsDown className="w-4 h-4" />
                   {msg.dislikedBy.length > 0 && <span>{msg.dislikedBy.length}</span>}
                 </button>
               </div>

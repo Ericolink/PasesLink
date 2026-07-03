@@ -68,3 +68,20 @@ export const FormalOrnament: FC<OrnamentProps> = ({ className }) => (
     <line x1="38" y1="6" x2="64" y2="6" />
   </svg>
 )
+
+// Cassette de cinta — el objeto físico del tema (mixtape casero), no un
+// ícono de "música" genérico (nota corchea, altavoz). Los dos carretes son
+// deliberadamente de tamaño distinto (cinta ya avanzada, no una cinta nueva
+// perfectamente centrada) — misma lógica anti-simetría que el resto de los
+// ornamentos. La ventana central (rect relleno) es la cinta magnética
+// asomando entre los carretes.
+export const HousePartyOrnament: FC<OrnamentProps> = ({ className }) => (
+  <svg className={className} viewBox="0 0 64 16" fill="none" stroke="currentColor" strokeWidth={1.1}>
+    <line x1="0" y1="8" x2="15" y2="8" strokeLinecap="round" />
+    <rect x="18" y="2.5" width="28" height="11" rx="2" />
+    <circle cx="25.5" cy="8" r="3.1" />
+    <circle cx="38.5" cy="8" r="2.5" />
+    <rect x="29.5" y="6.6" width="5" height="2.8" rx=".5" fill="currentColor" stroke="none" opacity=".85" />
+    <line x1="49" y1="8" x2="64" y2="8" strokeLinecap="round" />
+  </svg>
+)

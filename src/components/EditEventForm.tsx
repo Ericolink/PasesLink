@@ -10,6 +10,8 @@ import { CustomFieldsBuilder } from './CustomFieldsBuilder'
 import { TimelineEditor } from './TimelineEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { DraftRecoveryModal } from './DraftRecoveryModal'
+import { ConfirmDialog } from './ConfirmDialog'
+import { EventScheduleField } from './EventScheduleField'
 import { getTemplate } from '../templates/registry'
 import type { CustomField, EntryMode, EventData, TemplateId, TimelineEntry } from '../types'
 
@@ -35,7 +37,46 @@ interface EventEditDraftFields {
   timeline: TimelineEntry[]
 }
 
+interface ChangeEntry {
+  label: string
+  detail: string
+}
+
 const DRAFT_SAVE_INTERVAL_MS = 5000
+
+// Encabezado + contenido de una sección plegable — mismo lenguaje visual que
+// los "details" que ya usa EventDetail.tsx (Más estadísticas, Gestión del
+// evento), para no introducir un segundo patrón de disclosure en la app.
+function EditSection({
+  title,
+  subtitle,
+  defaultOpen,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <details
+      className="group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+      open={defaultOpen}
+    >
+      <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none list-none bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
+        <span>
+          <span className="block text-sm font-semibold text-gray-900 dark:text-white">{title}</span>
+          {subtitle && <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</span>}
+        </span>
+        <span className="text-xs text-gray-400 shrink-0 ml-3">
+          <span className="group-open:hidden">▾ Ver</span>
+          <span className="hidden group-open:inline">▴ Ocultar</span>
+        </span>
+      </summary>
+      <div className="p-4 space-y-3 border-t border-gray-100 dark:border-gray-700">{children}</div>
+    </details>
+  )
+}
 
 export function EditEventForm({ event, onDone }: { event: EventData; onDone: () => void }) {
   const {
@@ -80,6 +121,12 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
   const [capacityError, setCapacityError] = useState('')
 
+  // "Modo anti-tontos": antes de guardar de verdad, se muestra un resumen de
+  // qué va a cambiar y hay que confirmarlo explícitamente. `null` = sin
+  // diálogo abierto. Evita guardar un cambio accidental (un campo tocado sin
+  // querer, un checkbox desmarcado sin darse cuenta) con un solo tap.
+  const [pendingChanges, setPendingChanges] = useState<ChangeEntry[] | null>(null)
+
   const draftKey = `eventDraft_${event.ownerId}_${event.id}`
   const { pendingDraft, saveDraft, clearDraft, dismissPrompt } = useFormDraft<EventEditDraftFields>(draftKey, event.updatedAt)
 
@@ -121,6 +168,70 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage, timeline,
     saveDraft,
   ])
+
+  // Compara el estado actual del formulario contra el evento original —
+  // texto corto muestra antes/después, texto largo o listas solo dicen
+  // "Actualizado/a" (mostrar un párrafo entero en el diálogo sería más
+  // ruido que ayuda). Nada se guarda todavía acá, solo se describe.
+  function computeChanges(parsedCapacity: number): ChangeEntry[] {
+    const changes: ChangeEntry[] = []
+    const trimmedName = name.trim()
+    const trimmedLocation = location.trim()
+    const trimmedDescription = description.trim()
+    const trimmedDressCode = dressCode.trim()
+    const trimmedMapsUrl = mapsUrl.trim()
+    const trimmedWelcome = welcomeMessage.trim()
+
+    if (event.name !== trimmedName) changes.push({ label: 'Nombre', detail: `"${event.name}" → "${trimmedName}"` })
+    if (event.date !== date) changes.push({ label: 'Fecha', detail: `${event.date} → ${date}` })
+    if ((event.startTime || '') !== startTime) {
+      changes.push({ label: 'Hora de inicio', detail: `${event.startTime || 'sin definir'} → ${startTime || 'sin definir'}` })
+    }
+    if ((event.endTime || '') !== endTime) {
+      changes.push({ label: 'Hora de fin', detail: `${event.endTime || 'sin definir'} → ${endTime || 'sin definir'}` })
+    }
+    if (event.location !== trimmedLocation) changes.push({ label: 'Lugar', detail: `"${event.location}" → "${trimmedLocation}"` })
+    if ((event.description || '') !== trimmedDescription) changes.push({ label: 'Descripción', detail: 'Actualizada' })
+    if ((event.dressCode || '') !== trimmedDressCode) {
+      changes.push({ label: 'Vestimenta', detail: trimmedDressCode ? `"${trimmedDressCode}"` : 'Quitada' })
+    }
+    if ((event.mapsUrl || '') !== trimmedMapsUrl) {
+      changes.push({ label: 'Link de Google Maps', detail: trimmedMapsUrl ? 'Actualizado' : 'Quitado' })
+    }
+    if ((event.templateId || 'default') !== templateId) {
+      changes.push({ label: 'Plantilla del pase', detail: `${getTemplate(event.templateId).label} → ${getTemplate(templateId).label}` })
+    }
+    if ((event.accentColor || '') !== accentColor) {
+      changes.push({ label: 'Color de acento', detail: accentColor ? 'Color personalizado' : 'Vuelve al color de la plantilla' })
+    }
+    if ((event.welcomeMessage || '') !== trimmedWelcome) changes.push({ label: 'Mensaje de bienvenida', detail: 'Actualizado' })
+    if ((event.coverImage || '') !== coverImage) {
+      changes.push({ label: 'Imagen de portada', detail: coverImage ? 'Actualizada' : 'Quitada' })
+    }
+    if ((event.capacity || 0) !== parsedCapacity) {
+      changes.push({ label: 'Límite de invitados', detail: `${event.capacity || 0} → ${parsedCapacity}` })
+    }
+    if (JSON.stringify(event.customFields || []) !== JSON.stringify(customFields)) {
+      changes.push({ label: 'Campos de registro', detail: `${(event.customFields || []).length} → ${customFields.length} campo(s)` })
+    }
+    if (JSON.stringify(event.timeline || []) !== JSON.stringify(timeline)) {
+      changes.push({ label: 'Programa del evento', detail: `${(event.timeline || []).length} → ${timeline.length} actividad(es)` })
+    }
+    if ((event.requiresPayment || false) !== requiresPayment) {
+      changes.push({ label: 'Cobro de entrada', detail: requiresPayment ? 'Activado' : 'Desactivado' })
+    }
+    if (requiresPayment) {
+      const parsedPrice = parseFloat(ticketPrice) || 0
+      const trimmedCurrency = currency.trim()
+      const trimmedInstructions = paymentInstructions.trim()
+      if ((event.ticketPrice || 0) !== parsedPrice) {
+        changes.push({ label: 'Precio por persona', detail: `${event.currency}${event.ticketPrice || 0} → ${trimmedCurrency}${parsedPrice}` })
+      }
+      if ((event.currency || '') !== trimmedCurrency) changes.push({ label: 'Moneda', detail: `${event.currency || '—'} → ${trimmedCurrency}` })
+      if ((event.paymentInstructions || '') !== trimmedInstructions) changes.push({ label: 'Instrucciones de pago', detail: 'Actualizadas' })
+    }
+    return changes
+  }
 
   async function submitEvent() {
     if (!name.trim() || !date || !location.trim()) return
@@ -170,9 +281,24 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  // El submit del form ya no guarda directo: valida, arma el resumen de
+  // cambios y lo muestra para confirmar. Si no hay nada distinto, no tiene
+  // sentido interrumpir con un diálogo vacío — cierra el editor directo.
+  function handleReviewSubmit(e: React.FormEvent) {
     e.preventDefault()
-    void submitEvent()
+    if (!name.trim() || !date || !location.trim()) return
+    const { value: parsedCapacity, error: capacityValidationError } = parseCapacity(capacity)
+    if (capacityValidationError) {
+      setCapacityError(capacityValidationError)
+      return
+    }
+    setCapacityError('')
+    const changes = computeChanges(parsedCapacity)
+    if (changes.length === 0) {
+      onDone()
+      return
+    }
+    setPendingChanges(changes)
   }
 
   return (
@@ -191,149 +317,152 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         onCancel={onCoverCropCancelled}
       />
     )}
-    <form onSubmit={handleSubmit} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4 space-y-3 animate-fade-in-up">
+    <ConfirmDialog
+      open={!!pendingChanges}
+      title="Confirmar cambios"
+      message={
+        <>
+          <p className="mb-2">Vas a guardar estos cambios en el evento:</p>
+          <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+            {(pendingChanges || []).map((c) => (
+              <li key={c.label} className="text-gray-700 dark:text-gray-300">
+                <span className="font-semibold">{c.label}:</span> <span className="text-gray-500 dark:text-gray-400">{c.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      }
+      confirmLabel={saving ? 'Guardando…' : 'Sí, guardar cambios'}
+      cancelLabel="Seguir editando"
+      onConfirm={() => { setPendingChanges(null); void submitEvent() }}
+      onCancel={() => setPendingChanges(null)}
+    />
+    <form onSubmit={handleReviewSubmit} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4 space-y-3 animate-fade-in-up">
       <h2 className="font-medium text-gray-900 dark:text-white">Editar evento</h2>
 
-      <div>
-        <label htmlFor="edit-event-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del evento</label>
-        <input
-          id="edit-event-name"
-          type="text"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="min-w-0">
-          <label htmlFor="edit-event-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
-          <input id="edit-event-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)}
-            className="w-full min-w-0 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+      <EditSection title="Lo esencial" defaultOpen>
+        <div>
+          <label htmlFor="edit-event-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del evento</label>
+          <input
+            id="edit-event-name"
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
         </div>
-        <div className="min-w-0">
+
+        <div>
           <label htmlFor="edit-event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
           <input id="edit-event-location" type="text" required value={location} onChange={(e) => setLocation(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label htmlFor="edit-event-start-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Hora de inicio <span className="text-gray-400 font-normal">(opcional)</span>
-          </label>
-          <input id="edit-event-start-time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+          <p className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha y hora</p>
+          <EventScheduleField
+            dateId="edit-event-date"
+            startTimeId="edit-event-start-time"
+            endTimeId="edit-event-end-time"
+            date={date}
+            onDateChange={setDate}
+            startTime={startTime}
+            onStartTimeChange={setStartTime}
+            endTime={endTime}
+            onEndTimeChange={setEndTime}
+          />
+        </div>
+      </EditSection>
+
+      <EditSection title="Detalles" subtitle="Descripción, vestimenta y ubicación en el mapa">
+        <div>
+          <label htmlFor="edit-event-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
+          <textarea id="edit-event-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
         <div>
-          <label htmlFor="edit-event-end-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Hora de fin <span className="text-gray-400 font-normal">(opcional)</span>
+          <label htmlFor="edit-event-dress-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Vestimenta <span className="text-gray-400 font-normal">(opcional)</span>
           </label>
-          <input id="edit-event-end-time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
+          <input id="edit-event-dress-code" type="text" value={dressCode} onChange={(e) => setDressCode(e.target.value)}
+            maxLength={100} placeholder="Ej: Formal, Casual, Todo de blanco…"
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
-      </div>
-
-      <div>
-        <label htmlFor="edit-event-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
-        <textarea id="edit-event-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-      </div>
-      <div>
-        <label htmlFor="edit-event-dress-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Vestimenta <span className="text-gray-400 font-normal">(opcional)</span>
-        </label>
-        <input id="edit-event-dress-code" type="text" value={dressCode} onChange={(e) => setDressCode(e.target.value)}
-          maxLength={100} placeholder="Ej: Formal, Casual, Todo de blanco…"
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-      </div>
-      <div>
-        <label htmlFor="edit-event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span>
-        </label>
-        <input id="edit-event-maps-url" type="url" value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)}
-          placeholder="https://maps.google.com/maps?q=..."
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-        <p className="text-xs text-gray-400 mt-1">
-          Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto).
-        </p>
-      </div>
-
-      {/* Plantilla visual */}
-      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Plantilla del pase</p>
-        <TemplatePicker
-          selected={templateId}
-          onSelect={setTemplateId}
-          previewData={{ eventName: name, date, location, mapsUrl, coverImage, accentColor, welcomeMessage }}
-        />
-      </div>
-
-      {/* Personalización */}
-      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Personalización del pase</p>
-
         <div>
-          <label htmlFor="edit-event-cover-image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Imagen de portada</label>
-          <input id="edit-event-cover-image" ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
-          {coverImage ? (
-            <div className="relative rounded-lg overflow-hidden h-28 bg-gray-100">
-              <img src={optimizedImageUrl(coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-full object-cover" />
-              <button type="button" onClick={clearCover} className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1">
-                Quitar
+          <label htmlFor="edit-event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <input id="edit-event-maps-url" type="url" value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)}
+            placeholder="https://maps.google.com/maps?q=..."
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          <p className="text-xs text-gray-400 mt-1">
+            Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto).
+          </p>
+        </div>
+      </EditSection>
+
+      <EditSection title="Plantilla y estilo del pase" subtitle="Tema visual, portada, color de acento y mensaje de bienvenida">
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Plantilla del pase</p>
+          <TemplatePicker
+            selected={templateId}
+            onSelect={setTemplateId}
+            previewData={{ eventName: name, date, location, mapsUrl, coverImage, accentColor, welcomeMessage }}
+          />
+        </div>
+
+        <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
+          <div>
+            <label htmlFor="edit-event-cover-image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Imagen de portada</label>
+            <input id="edit-event-cover-image" ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
+            {coverImage ? (
+              <div className="relative rounded-lg overflow-hidden h-28 bg-gray-100">
+                <img src={optimizedImageUrl(coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-full object-cover" />
+                <button type="button" onClick={clearCover} className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1">
+                  Quitar
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={openCoverPicker} disabled={coverUploading}
+                className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-4 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
+                {coverUploading ? 'Subiendo…' : '+ Subir imagen de portada'}
               </button>
-            </div>
-          ) : (
-            <button type="button" onClick={openCoverPicker} disabled={coverUploading}
-              className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-4 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
-              {coverUploading ? 'Subiendo…' : '+ Subir imagen de portada'}
-            </button>
-          )}
-          {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
-        </div>
+            )}
+            {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="edit-event-accent-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
-            <div className="flex items-center gap-2">
-              <input id="edit-event-accent-color" type="color" value={accentColor || getTemplate(templateId).vars.accent} onChange={(e) => setAccentColor(e.target.value)}
-                className="h-9 w-12 border border-gray-300 rounded-md cursor-pointer" />
-              <span className="text-sm text-gray-500">{accentColor || `${getTemplate(templateId).vars.accent} (de la plantilla)`}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="edit-event-accent-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
+              <div className="flex items-center gap-2">
+                <input id="edit-event-accent-color" type="color" value={accentColor || getTemplate(templateId).vars.accent} onChange={(e) => setAccentColor(e.target.value)}
+                  className="h-9 w-12 border border-gray-300 rounded-md cursor-pointer" />
+                <span className="text-sm text-gray-500">{accentColor || `${getTemplate(templateId).vars.accent} (de la plantilla)`}</span>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="edit-event-welcome-message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mensaje de bienvenida</label>
+              <input id="edit-event-welcome-message" type="text" value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)}
+                placeholder="¡Te esperamos!" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
           </div>
-          <div>
-            <label htmlFor="edit-event-welcome-message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mensaje de bienvenida</label>
-            <input id="edit-event-welcome-message" type="text" value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)}
-              placeholder="¡Te esperamos!" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-          </div>
         </div>
-      </div>
+      </EditSection>
 
-      {/* Campos de registro */}
-      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Campos de registro</p>
-          <p className="text-xs text-gray-400 mt-0.5">Nombre y teléfono siempre se piden. Agrega campos extra opcionales.</p>
-        </div>
+      <EditSection title="Campos de registro" subtitle="Qué datos pides además de nombre y teléfono">
+        <p className="text-xs text-gray-400 -mt-1">Nombre y teléfono siempre se piden. Agrega campos extra opcionales.</p>
         <CustomFieldsBuilder fields={customFields} onChange={setCustomFields} />
-      </div>
+      </EditSection>
 
-      {/* Programa del evento */}
-      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Programa del evento</p>
-          <p className="text-xs text-gray-400 mt-0.5">Orden del día visible en el pase del invitado. Ej: 19:00 Recepción, 21:00 Cena…</p>
-        </div>
+      <EditSection title="Programa del evento" subtitle="Orden del día visible en el pase del invitado">
+        <p className="text-xs text-gray-400 -mt-1">Ej: 19:00 Recepción, 21:00 Cena…</p>
         <TimelineEditor entries={timeline} onChange={setTimeline} />
-      </div>
+      </EditSection>
 
-      {/* Modo de ingreso (fijo, no se puede cambiar después de crear el evento) */}
-      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Modo de ingreso</p>
+      <EditSection title="Modo de ingreso y cupo" subtitle={`Cupo actual: ${capacity || '0'} personas`}>
         <p className="text-xs text-gray-400">
-          No se puede cambiar después de crear el evento, para no romper invitaciones o links de
+          El modo de ingreso no se puede cambiar después de crear el evento, para no romper invitaciones o links de
           autoregistro que ya hayas compartido.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -361,10 +490,13 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           </p>
           {capacityError && <p className="text-xs text-red-500 mt-1">{capacityError}</p>}
         </div>
-      </div>
+      </EditSection>
 
-      {/* Cobro de entrada */}
-      <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
+      <EditSection
+        title="Cobro de entrada"
+        subtitle={requiresPayment ? `Activo — ${currency}${ticketPrice || 0} por persona` : 'Desactivado'}
+        defaultOpen={event.requiresPayment}
+      >
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -417,7 +549,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             </div>
           </>
         )}
-      </div>
+      </EditSection>
 
       {submitError && (
         <div className="text-sm text-red-600">

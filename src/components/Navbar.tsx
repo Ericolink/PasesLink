@@ -120,21 +120,36 @@ export function Navbar() {
                 aria-label={mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
                 aria-expanded={mobileMenuOpen}
               >
-                {mobileMenuOpen ? <IconX className="w-5 h-5" /> : <IconMenu className="w-5 h-5" />}
+                {mobileMenuOpen
+                  ? <IconX key="close" className="mobile-menu-icon w-5 h-5" />
+                  : <IconMenu key="open" className="mobile-menu-icon w-5 h-5" />}
               </button>
             </div>
 
-            {mobileMenuOpen && (
+            {/* Siempre montado (nunca `{mobileMenuOpen && ...}`) para que el
+                acordeón de index.css (.mobile-menu-collapse) pueda animar
+                tanto la apertura como el cierre — un fade-in condicional
+                solo anima entrar, nunca salir. `inert` saca los links del
+                foco/tab mientras está colapsado. */}
+            <div
+              className="mobile-menu-collapse sm:hidden absolute top-14 left-0 right-0 overflow-hidden"
+              data-open={mobileMenuOpen}
+              aria-hidden={!mobileMenuOpen}
+              {...(!mobileMenuOpen ? { inert: true } : {})}
+            >
               <div
-                className="sm:hidden absolute top-14 left-0 right-0 border-b px-4 py-3 flex flex-col gap-1 text-sm animate-fade-in"
+                className="border-b px-4 py-3 flex flex-col gap-1 text-sm"
                 style={{
                   background: 'rgba(21,13,28,0.97)',
                   backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
                   borderColor: 'rgba(74,50,92,0.7)',
                 }}
               >
                 {isAdmin && (
-                  <Link to="/admin" onClick={closeMobileMenu} className={`${mobileLinkClass('/admin')} flex items-center gap-1.5`}>
+                  <Link to="/admin" onClick={closeMobileMenu}
+                    className={`mobile-menu-item ${mobileLinkClass('/admin')} flex items-center gap-1.5`}
+                    style={{ '--stagger-delay': '0s' } as React.CSSProperties}>
                     Admin
                     {unreadFeedback > 0 && (
                       <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-white text-[10px] font-bold leading-none">
@@ -143,24 +158,27 @@ export function Navbar() {
                     )}
                   </Link>
                 )}
-                <Link to="/my-events" onClick={closeMobileMenu} className={mobileLinkClass('/my-events')}>
+                <Link to="/my-events" onClick={closeMobileMenu} className={`mobile-menu-item ${mobileLinkClass('/my-events')}`}
+                  style={{ '--stagger-delay': `${(isAdmin ? 1 : 0) * 0.05}s` } as React.CSSProperties}>
                   Mis eventos
                 </Link>
-                <Link to="/my-invitations" onClick={closeMobileMenu} className={mobileLinkClass('/my-invitations')}>
+                <Link to="/my-invitations" onClick={closeMobileMenu} className={`mobile-menu-item ${mobileLinkClass('/my-invitations')}`}
+                  style={{ '--stagger-delay': `${(isAdmin ? 2 : 1) * 0.05}s` } as React.CSSProperties}>
                   Mis invitaciones
                 </Link>
-                <Link to="/profile" onClick={closeMobileMenu} className={mobileLinkClass('/profile')}>
+                <Link to="/profile" onClick={closeMobileMenu} className={`mobile-menu-item ${mobileLinkClass('/profile')}`}
+                  style={{ '--stagger-delay': `${(isAdmin ? 3 : 2) * 0.05}s` } as React.CSSProperties}>
                   Perfil
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="text-left px-3 py-2.5 rounded-md font-medium transition-colors"
-                  style={{ color: '#FF1464' }}
+                  className="mobile-menu-item text-left px-3 py-2.5 rounded-md font-medium transition-colors"
+                  style={{ color: '#FF1464', '--stagger-delay': `${(isAdmin ? 4 : 3) * 0.05}s` } as React.CSSProperties}
                 >
                   Cerrar sesión
                 </button>
               </div>
-            )}
+            </div>
           </>
         ) : (
           <div className="flex items-center gap-2 text-sm">

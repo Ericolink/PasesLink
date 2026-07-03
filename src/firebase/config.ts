@@ -1,6 +1,11 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  memoryLocalCache,
+} from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -13,7 +18,42 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+
+// getFirestore(app) por defecto deja que el SDK "autodetecte" si puede usar
+// streaming (WebChannel) — en Safari (y detrás de varios proxies/VPN/
+// bloqueadores de ads) esa autodetección puede fallar en silencio y el SDK
+// recién lo nota tras un timeout largo antes de reintentar con long-polling,
+// lo que explica cuelgues de 20-30s en CUALQUIER operación (crear/eliminar
+// evento, confirmar invitación, etc. — todas pasan por esta misma conexión)
+// que además coinciden con el aviso de rendimiento que muestra Safari. Forzar
+// la autodetección explícitamente (en vez de esperar a que el SDK la
+// descubra sola) evita ese timeout inicial en los navegadores/redes
+// problemáticos, sin penalizar a los que sí soportan streaming.
+// `persistentLocalCache` agrega cache local (IndexedDB) para que una
+// relectura del mismo documento no dependa de la red — mismo motivo por el
+// que abrir dos veces el dashboard del mismo evento se siente instantáneo la
+// segunda vez. Si IndexedDB no está disponible (Safari en navegación
+// privada la restringe en algunas versiones) el constructor puede tirar
+// sincrónicamente al arrancar la app — se degrada a cache en memoria en vez
+// de dejar la app entera sin cargar por esto, que es una mejora secundaria,
+// no la causa de los cuelgues (esa es `experimentalAutoDetectLongPolling`,
+// arriba).
+function createDb() {
+  try {
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    })
+  } catch (err) {
+    console.error('No se pudo activar el cache persistente de Firestore, usando cache en memoria:', err)
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      localCache: memoryLocalCache(),
+    })
+  }
+}
+
+export const db = createDb()
 export const googleProvider = new GoogleAuthProvider()
 export const facebookProvider = new FacebookAuthProvider()
 

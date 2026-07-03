@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
-import { getEvent } from '../firebase/events'
+import { getEvent, subscribeToEvent } from '../firebase/events'
 import { checkInGuest, claimGuestPass, findGuestByToken, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { useAuth } from '../hooks/useAuth'
 import type { EventData, GuestData, RsvpStatus } from '../types'
@@ -94,6 +94,19 @@ function GuestPassInner() {
       })
       .finally(() => setLoading(false))
   }, [eventId, qrToken, user, authLoading])
+
+  // Suscripción en vivo al evento, aparte del bootstrap de arriba (que hace
+  // el claim del pase una sola vez): un pase ya emitido y abierto debe
+  // reflejar los cambios que el organizador guarde después (horario,
+  // portada, instrucciones de pago, plantilla, etc.), no solo los pases que
+  // se generen de ahí en adelante.
+  useEffect(() => {
+    if (!eventId) return
+    const unsubscribe = subscribeToEvent(eventId, (ev) => {
+      if (ev) setEvent(ev)
+    })
+    return unsubscribe
+  }, [eventId])
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
   if (error || !event || !guest || !eventId || !qrToken) {
@@ -339,7 +352,7 @@ function GuestPassInner() {
             date={event.date}
             startTime={event.startTime}
             endTime={event.endTime}
-            className="text-sm font-medium mt-3 text-[var(--invite-text-muted)]"
+            className="mt-3 mx-auto"
           />
         </div>
 
