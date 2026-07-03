@@ -1,10 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { likeWallMessage, dislikeWallMessage, postWallMessage, fetchWallMessages } from '../firebase/wall'
+import { fetchPhotos } from '../firebase/photos'
+import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
-import { optimizedImageUrl } from '../utils/cloudinary'
 import { IconThumbsUp, IconThumbsDown, IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown } from './Icons'
 import { ThemeSeal } from './ThemeSeal'
+import { Avatar } from './Avatar'
+import { PhotoFeedCard } from './PhotoFeedCard'
+import { PhotoUploadButton } from './PhotoUploadButton'
+import { PhotoViewer } from './PhotoViewer'
+import { mergeWallFeed } from '../utils/wallFeed'
 import { WALL_TEXT_MAX } from '../utils/validation'
 import type { TemplateId, WallMessage, WallMessageType } from '../types'
 
@@ -36,12 +42,14 @@ const TYPE_CONFIG: Record<WallMessageType, { label: string; Icon: React.FC<{clas
   idea:     { label: 'Idea',       Icon: IconLightbulb,      color: 'bg-green-100 text-green-700' },
 }
 
-interface Props { eventId: string; isPremium?: boolean; guestName?: string; templateId?: TemplateId }
+interface Props { eventId: string; isPremium?: boolean; guestName?: string; guestToken?: string; templateId?: TemplateId }
 
-export function WallSection({ eventId, isPremium = false, guestName: guestNameProp, templateId }: Props) {
+export function WallSection({ eventId, isPremium = false, guestName: guestNameProp, guestToken, templateId }: Props) {
   const { user }          = useAuth()
   const { profile }       = useUserProfile()
   const [messages, setMessages] = useState<WallMessage[]>([])
+  const [photos, setPhotos]     = useState<PhotoData[]>([])
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
   const [loading, setLoading]   = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [wallError, setWallError] = useState('')
@@ -57,6 +65,10 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
   const resolvedGuestName = guestNameProp || localStorage.getItem(GUEST_NAME_KEY) || ''
   const authorName  = user ? (profile?.displayName || user.displayName || 'Anfitrión') : resolvedGuestName
   const authorPhoto = user ? (profile?.photoURL || user.photoURL || undefined) : undefined
+  // Mismo criterio de identidad que handlePost — el qrToken real (guestToken,
+  // pasado por GuestPass/EventJoin) si está disponible, si no el mismo
+  // fallback que se usa para publicar mensajes.
+  const photoAuthorToken = guestToken || (user ? user.uid : resolvedGuestName)
 
   // Sin listener permanente a propósito: este widget se monta en páginas
   // 100% públicas de alto tráfico (GuestPass, EventJoin). Un onSnapshot por
@@ -88,11 +100,18 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
     }
   }, [eventId])
 
+  const loadPhotos = useCallback(() => {
+    fetchPhotos(eventId).then(setPhotos).catch(() => {})
+  }, [eventId])
+
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     loadMessages()
-  }, [loadMessages])
+    loadPhotos()
+  }, [loadMessages, loadPhotos])
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const feed = useMemo(() => mergeWallFeed(messages, photos), [messages, photos])
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault()
@@ -135,7 +154,7 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-[var(--invite-text)]">Muro del evento</h2>
         <button
-          onClick={loadMessages}
+          onClick={() => { loadMessages(); loadPhotos() }}
           disabled={refreshing}
           className="text-xs font-medium disabled:opacity-50 text-[var(--invite-accent)]"
         >
@@ -170,6 +189,12 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
                 </button>
               )
             })}
+            <PhotoUploadButton
+              eventId={eventId}
+              authorName={authorName}
+              authorToken={photoAuthorToken}
+              onUploaded={loadPhotos}
+            />
           </div>
           <div className="flex items-start gap-2">
             <Avatar name={authorName} photoURL={authorPhoto} size={28} />
@@ -202,12 +227,23 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
           {wallError}
         </p>
       )}
-      {!loading && !wallError && messages.length === 0 && (
+      {!loading && !wallError && feed.length === 0 && (
         <p className="text-center text-sm py-6 text-[var(--invite-text-muted)]">Sé el primero en escribir algo</p>
       )}
 
       <div className="space-y-3">
-        {messages.map((msg) => {
+        {feed.map((item) => {
+          if (item.kind === 'photo') {
+            return (
+              <PhotoFeedCard
+                key={item.id}
+                photo={item.photo}
+                isOrg={false}
+                onOpen={() => setGalleryIndex(photos.findIndex((p) => p.id === item.photo.id))}
+              />
+            )
+          }
+          const msg       = item.message
           const cfg       = TYPE_CONFIG[msg.type]
           const isOwnerMsg = msg.authorRole === 'owner'
           const token     = getDeviceToken()
@@ -273,19 +309,16 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
           )
         })}
       </div>
-    </div>
-  )
-}
 
-function Avatar({ name, photoURL, size = 32 }: { name: string; photoURL?: string; size?: number }) {
-  if (photoURL) {
-    return <img src={optimizedImageUrl(photoURL, size * 2)} alt={name} loading="lazy" className="rounded-full object-cover shrink-0"
-      style={{ width: size, height: size }} />
-  }
-  return (
-    <div className="rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-[var(--invite-accent)]"
-      style={{ width: size, height: size, backgroundColor: 'var(--invite-accent-soft)' }}>
-      {name?.[0]?.toUpperCase() || '?'}
+      {galleryIndex !== null && (
+        <PhotoViewer
+          photos={photos}
+          index={galleryIndex}
+          onIndexChange={setGalleryIndex}
+          onClose={() => setGalleryIndex(null)}
+          mode="gallery"
+        />
+      )}
     </div>
   )
 }

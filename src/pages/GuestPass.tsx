@@ -8,7 +8,6 @@ import { useAuth } from '../hooks/useAuth'
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
-import { PhotoSection } from '../components/PhotoSection'
 import { StoriesBar } from '../components/StoriesBar'
 import { EventMap } from '../components/EventMap'
 import { InvitationCard } from '../components/InvitationCard'
@@ -618,24 +617,15 @@ function GuestPassInner() {
         <StoriesBar eventId={eventId} />
       )}
 
-      {/* Muro del evento */}
+      {/* Muro del evento — las fotos ya viven mezcladas dentro del feed */}
       {eventId && (
         guest.rsvpStatus === 'yes' ? (
-          <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} templateId={event.templateId} />
+          <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} guestToken={qrToken} templateId={event.templateId} />
         ) : !locked && (
           <div className="mt-8 pt-6 border-t text-center" style={{ borderColor: 'var(--invite-border)' }}>
             <p className="text-sm text-[var(--invite-text-muted)]">Confirma tu asistencia para ver el muro del evento.</p>
           </div>
         )
-      )}
-
-      {/* Álbum de fotos — solo para invitados confirmados */}
-      {!locked && guest.rsvpStatus === 'yes' && eventId && (
-        <PhotoSection
-          eventId={eventId}
-          guestName={guest.name}
-          guestToken={qrToken}
-        />
       )}
     </InvitationThemeRoot>
   )

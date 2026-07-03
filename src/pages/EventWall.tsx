@@ -11,10 +11,13 @@ import {
   replyToWallMessage,
   subscribeToWall,
 } from '../firebase/wall'
+import { deletePhoto, subscribeToPhotos } from '../firebase/photos'
+import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { WALL_NAME_MAX, WALL_TEXT_MAX } from '../utils/validation'
+import { mergeWallFeed } from '../utils/wallFeed'
 import {
   IconCrown,
   IconHelpCircle,
@@ -29,7 +32,10 @@ import {
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { PhotoSection } from '../components/PhotoSection'
+import { Avatar } from '../components/Avatar'
+import { PhotoFeedCard } from '../components/PhotoFeedCard'
+import { PhotoUploadButton } from '../components/PhotoUploadButton'
+import { PhotoViewer } from '../components/PhotoViewer'
 import type { EventData, WallMessage, WallMessageType } from '../types'
 
 interface TypeConfig {
@@ -74,6 +80,8 @@ export function EventWall() {
   const { profile } = useUserProfile()
   const [event, setEvent]           = useState<EventData | null>(null)
   const [messages, setMessages]     = useState<WallMessage[]>([])
+  const [photos, setPhotos]         = useState<PhotoData[]>([])
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
   const [loading, setLoading]       = useState(true)
   const [wallError, setWallError]   = useState('')
   const [olderMessages, setOlderMessages] = useState<WallMessage[]>([])
@@ -121,7 +129,8 @@ export function EventWall() {
       setWallError('No se pudieron cargar los mensajes del muro. Verifica tu conexión.')
       setLoading(false)
     })
-    return unsub
+    const unsubPhotos = subscribeToPhotos(id, setPhotos)
+    return () => { unsub(); unsubPhotos() }
   }, [id])
 
   async function handleLoadOlder() {
@@ -222,6 +231,13 @@ export function EventWall() {
     })
   }, [messages, olderMessages])
 
+  const feed = useMemo(() => mergeWallFeed(sorted, photos), [sorted, photos])
+
+  async function handleDeletePhoto(photoId: string) {
+    if (!id) return
+    await deletePhoto(id, photoId)
+  }
+
   if (!nameConfirmed && !isOwner && !user) {
     const nameGateContent = (
       <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
@@ -257,8 +273,8 @@ export function EventWall() {
 
   const postLabel = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
   const postPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
-  // Mismo criterio de identidad que handlePost, reutilizado acá para las
-  // fotos (PhotoSection) — así el autor de una foto y el de un mensaje del
+  // Mismo criterio de identidad que handlePost, reutilizado acá para
+  // PhotoUploadButton — así el autor de una foto y el de un mensaje del
   // mismo visitante quedan con el mismo token.
   const authorToken = isOwner ? (user?.uid ?? 'owner') : (user ? user.uid : (localStorage.getItem(GUEST_NAME_KEY) || guestName))
 
@@ -314,6 +330,13 @@ export function EventWall() {
                 </button>
               )
             })}
+            {id && (
+              <PhotoUploadButton
+                eventId={id}
+                authorName={postLabel}
+                authorToken={authorToken}
+              />
+            )}
           </div>
           <div className="flex items-start gap-2">
             <Avatar name={postLabel} photoURL={postPhotoURL} size={28} />
@@ -352,12 +375,24 @@ export function EventWall() {
         </p>
       )}
 
-      {!loading && !wallError && sorted.length === 0 && (
+      {!loading && !wallError && feed.length === 0 && (
         <p className="text-center text-gray-400 text-sm py-8">Sé el primero en escribir algo</p>
       )}
 
       <div className="space-y-3">
-        {sorted.map((msg) => {
+        {feed.map((item) => {
+          if (item.kind === 'photo') {
+            return (
+              <PhotoFeedCard
+                key={item.id}
+                photo={item.photo}
+                isOrg={isOwner}
+                onOpen={() => setGalleryIndex(photos.findIndex((p) => p.id === item.photo.id))}
+                onDelete={handleDeletePhoto}
+              />
+            )
+          }
+          const msg       = item.message
           const cfg       = TYPE_CONFIG[msg.type]
           const isOwnerMsg = msg.authorRole === 'owner'
           return (
@@ -499,16 +534,15 @@ export function EventWall() {
         </div>
       )}
 
-      {/* Fotos del evento — antes solo se veían desde el pase individual del
-          invitado (GuestPass); acá el organizador (y cualquiera que entre al
-          muro) también puede verlas y, si es el dueño, borrarlas. */}
-      {id && (
-        <PhotoSection
-          eventId={id}
-          guestName={postLabel}
-          guestToken={authorToken}
+      {galleryIndex !== null && (
+        <PhotoViewer
+          photos={photos}
+          index={galleryIndex}
+          onIndexChange={setGalleryIndex}
+          onClose={() => setGalleryIndex(null)}
+          mode="gallery"
           isOrg={isOwner}
-          templateId={event?.templateId}
+          onDelete={handleDeletePhoto}
         />
       )}
 
@@ -530,20 +564,6 @@ export function EventWall() {
     </InvitationThemeRoot>
   ) : (
     <div className="max-w-xl mx-auto px-4 py-6 min-h-screen">{content}</div>
-  )
-}
-
-/* Avatar component */
-function Avatar({ name, photoURL, size = 32 }: { name: string; photoURL?: string; size?: number }) {
-  if (photoURL) {
-    return <img src={optimizedImageUrl(photoURL, size * 2)} alt={name} loading="lazy" className="rounded-full object-cover shrink-0"
-      style={{ width: size, height: size }} />
-  }
-  return (
-    <div className="rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-xs font-bold text-primary"
-      style={{ width: size, height: size }}>
-      {name?.[0]?.toUpperCase() || '?'}
-    </div>
   )
 }
 

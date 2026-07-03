@@ -377,7 +377,7 @@ export function EventJoin() {
               <EventMap mapsUrl={event.mapsUrl} />
             </>
           )}
-          {id && <WallSection eventId={id} guestName={`${name} ${lastName}`.trim()} />}
+          {id && <WallSection eventId={id} guestName={`${name} ${lastName}`.trim()} guestToken={qrToken} />}
         </div>
       </InvitationThemeRoot>
     )

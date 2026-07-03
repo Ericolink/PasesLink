@@ -9,7 +9,7 @@ const SKIP_RESIZE_UNDER_BYTES = 400 * 1024
 
 /**
  * Redimensiona/recomprime una foto en el navegador ANTES de subirla — pensado
- * para el muro de fotos (PhotoSection.tsx), donde un evento puede terminar
+ * para el muro de fotos (usePhotoUpload.ts), donde un evento puede terminar
  * con cientos de fotos de celular (varios MB cada una, típico de una cámara
  * moderna) subidas por decenas de invitados a la vez. Sin esto, cada foto
  * viaja completa hasta Cloudinary y de ahí a cada persona que abre la

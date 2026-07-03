@@ -1,0 +1,191 @@
+import { useEffect, useRef, useState } from 'react'
+import type { PhotoData } from '../firebase/photos'
+import { optimizedImageUrl } from '../utils/cloudinary'
+import { IconX, IconArrowLeft } from './Icons'
+
+// Ancho de la versión servida en el visor: de sobra para llenar la pantalla
+// incluso en retina, sin cargar el original completo (varios MB) por cada
+// foto — importante con eventos que acumulan cientos de fotos.
+const VIEWER_IMAGE_WIDTH = 1200
+const STORY_DURATION_MS = 5000
+const SWIPE_THRESHOLD_PX = 50
+
+interface Props {
+  photos: PhotoData[]
+  index: number
+  onIndexChange: (index: number) => void
+  onClose: () => void
+  mode: 'story' | 'gallery'
+  isOrg?: boolean
+  onDelete?: (photoId: string) => void
+}
+
+// Visor fullscreen compartido: reemplaza el antiguo PhotoLightbox (grid de
+// fotos del muro) y el visor que antes vivía embebido en StoriesBar.
+// Edge-to-edge real a propósito (sin rounded-xl, sin padding lateral en la
+// imagen) — el contenedor siempre ocupa toda la pantalla, así que una foto
+// vertical y una horizontal se ven igual de "resueltas" en vez de que una
+// quede chica con bordes negros y la otra casi llene la pantalla.
+export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg, onDelete }: Props) {
+  const [progress, setProgress] = useState(0)
+  const touchStartX = useRef<number | null>(null)
+  const photo = photos[index]
+  const isStory = mode === 'story'
+
+  function goPrev() {
+    onIndexChange(Math.max(0, index - 1))
+  }
+
+  function goNext() {
+    if (index < photos.length - 1) onIndexChange(index + 1)
+    else if (isStory) onClose()
+  }
+
+  // Auto-advance solo en modo story
+  useEffect(() => {
+    if (!isStory) return
+    setProgress(0)
+    const start = Date.now()
+    const frame = requestAnimationFrame(function tick() {
+      const pct = Math.min(100, ((Date.now() - start) / STORY_DURATION_MS) * 100)
+      setProgress(pct)
+      if (pct < 100) {
+        requestAnimationFrame(tick)
+      } else if (index < photos.length - 1) {
+        onIndexChange(index + 1)
+      } else {
+        onClose()
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStory, index, photos.length])
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') goPrev()
+      if (e.key === 'ArrowRight') goNext()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, photos.length])
+
+  if (!photo) return null
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return
+    const delta = e.changedTouches[0].clientX - touchStartX.current
+    touchStartX.current = null
+    if (delta > SWIPE_THRESHOLD_PX) goPrev()
+    else if (delta < -SWIPE_THRESHOLD_PX) goNext()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black flex flex-col" onClick={isStory ? undefined : onClose}>
+      {/* Progress bars — solo story */}
+      {isStory && (
+        <div className="flex gap-1 px-3 pt-safe pt-3">
+          {photos.map((_, i) => (
+            <div key={i} className="h-0.5 flex-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,.3)' }}>
+              <div
+                className="h-full rounded-full transition-none"
+                style={{ background: '#fff', width: i < index ? '100%' : i === index ? `${progress}%` : '0%' }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2 pt-safe" onClick={(e) => e.stopPropagation()}>
+        <span className="text-white text-sm font-medium">
+          {isStory ? photo.authorName : `${index + 1} / ${photos.length}`}
+        </span>
+        <button onClick={onClose} className="text-white/70 hover:text-white p-1" aria-label="Cerrar">
+          <IconX className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Image */}
+      <div
+        className="flex-1 relative flex items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <img
+          src={optimizedImageUrl(photo.url, VIEWER_IMAGE_WIDTH)}
+          alt={photo.caption || `Foto de ${photo.authorName}`}
+          className="max-h-full max-w-full w-full h-full object-contain"
+        />
+
+        {isStory ? (
+          <>
+            {/* Tap zones: prev / next */}
+            <button className="absolute left-0 top-0 w-1/3 h-full" onClick={goPrev} aria-label="Anterior" />
+            <button className="absolute right-0 top-0 w-1/3 h-full" onClick={goNext} aria-label="Siguiente" />
+          </>
+        ) : (
+          <>
+            {index > 0 && (
+              <button
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full bg-black/40 transition-colors"
+                onClick={(e) => { e.stopPropagation(); goPrev() }}
+                aria-label="Anterior"
+              >
+                <IconArrowLeft className="w-5 h-5" />
+              </button>
+            )}
+            {index < photos.length - 1 && (
+              <button
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full bg-black/40 transition-colors rotate-180"
+                onClick={(e) => { e.stopPropagation(); goNext() }}
+                aria-label="Siguiente"
+              >
+                <IconArrowLeft className="w-5 h-5" />
+              </button>
+            )}
+          </>
+        )}
+
+        {/* Nav arrows en desktop, solo story (gallery ya las muestra siempre arriba) */}
+        {isStory && index > 0 && (
+          <button
+            className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white"
+            onClick={(e) => { e.stopPropagation(); goPrev() }}
+          >
+            <IconArrowLeft className="w-4 h-4" />
+          </button>
+        )}
+        {isStory && index < photos.length - 1 && (
+          <button
+            className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white rotate-180"
+            onClick={(e) => { e.stopPropagation(); goNext() }}
+          >
+            <IconArrowLeft className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Caption / footer */}
+      <div className="text-center pb-safe pb-6 px-6" onClick={(e) => e.stopPropagation()}>
+        {photo.caption && <p className="text-white/80 text-sm mb-1">{photo.caption}</p>}
+        {!isStory && <p className="text-white/50 text-xs">{photo.authorName}</p>}
+        {!isStory && isOrg && onDelete && (
+          <button
+            onClick={() => { onDelete(photo.id); onClose() }}
+            className="mt-2 text-xs text-red-400 hover:text-red-300 underline"
+          >
+            Eliminar foto
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
