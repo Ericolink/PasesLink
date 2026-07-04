@@ -5,7 +5,7 @@ import { InvitationCard } from './InvitationCard'
 import { ThemeOrnament } from './ThemeOrnament'
 import { InviteDivider } from './InviteDivider'
 import { EventMap } from './EventMap'
-import { IconDownload, IconWhatsApp, IconThumbsUp, IconThumbsDown } from './Icons'
+import { IconDownload, IconWhatsApp } from './Icons'
 import { PREVIEW_CONTENT, PREVIEW_WALL_MESSAGES } from '../templates/previewContent'
 import type { TemplateId } from '../types'
 
@@ -106,13 +106,9 @@ export function InvitationPreview({
             >
               <p className="text-xs font-semibold mb-1 text-[var(--invite-text)]">{msg.authorName}</p>
               <p className="text-sm mb-3 text-[var(--invite-text)]">{msg.text}</p>
-              <div className="flex items-center gap-3 text-gray-400">
-                <span className="flex items-center gap-1 text-xs">
-                  <IconThumbsUp className="w-3.5 h-3.5" />
-                </span>
-                <span className="flex items-center gap-1 text-xs">
-                  <IconThumbsDown className="w-3.5 h-3.5" />
-                </span>
+              <div className="flex items-center gap-1 text-xs text-gray-400">
+                <span aria-hidden="true">👍❤️</span>
+                <span>2</span>
               </div>
             </div>
           ))}

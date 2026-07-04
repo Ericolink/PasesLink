@@ -3,11 +3,10 @@ import { Link, useParams } from 'react-router-dom'
 import { getEvent } from '../firebase/events'
 import {
   deleteWallMessage,
-  dislikeWallMessage,
   getOlderWallMessages,
-  likeWallMessage,
   pinWallMessage,
   postWallMessage,
+  reactToWallMessage,
   replyToWallMessage,
   subscribeToWall,
 } from '../firebase/wall'
@@ -26,8 +25,6 @@ import {
   IconMessageSquare,
   IconMusic,
   IconPin,
-  IconThumbsDown,
-  IconThumbsUp,
   IconX,
 } from '../components/Icons'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
@@ -37,8 +34,9 @@ import { Avatar } from '../components/Avatar'
 import { PhotoFeedCard } from '../components/PhotoFeedCard'
 import { PhotoUploadButton } from '../components/PhotoUploadButton'
 import { PhotoViewer } from '../components/PhotoViewer'
+import { ReactionPicker } from '../components/ReactionPicker'
 import { ReportButton } from '../components/ReportButton'
-import type { EventData, WallMessage, WallMessageType } from '../types'
+import type { EventData, ReactionType, WallMessage, WallMessageType } from '../types'
 
 interface TypeConfig {
   label: string
@@ -204,16 +202,25 @@ export function EventWall() {
     await pinWallMessage(id, msg.id, msg.pinned)
   }
 
-  async function handleLike(msg: WallMessage) {
+  // Optimista: refleja la reacción en `messages` antes de que Firestore
+  // confirme (el listener en vivo la va a pisar con el eco del server en
+  // cuanto llegue, pero el usuario la ve al instante). Si la escritura
+  // falla, se revierte a mano.
+  async function handleReact(msg: WallMessage, type: ReactionType | null) {
     if (!id) return
     const token = getDeviceToken()
-    await likeWallMessage(id, msg.id, token, msg.likedBy.includes(token))
-  }
+    const prevReactions = msg.reactions
+    const nextReactions = { ...prevReactions }
+    if (type) nextReactions[token] = { type, name: postLabel || 'Invitado' }
+    else delete nextReactions[token]
+    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: nextReactions } : m)))
 
-  async function handleDislike(msg: WallMessage) {
-    if (!id) return
-    const token = getDeviceToken()
-    await dislikeWallMessage(id, msg.id, token, msg.dislikedBy.includes(token))
+    try {
+      await reactToWallMessage(id, msg.id, token, postLabel || 'Invitado', type)
+    } catch (err) {
+      console.error('Error reacting to wall message:', err)
+      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: prevReactions } : m)))
+    }
   }
 
   // Mensajes en vivo (recientes + destacados) + históricos cargados a pedido,
@@ -481,29 +488,11 @@ export function EventWall() {
                   = ml-9 (36px) menos el padding nuevo (p-2.5 = 10px), para
                   que el ícono siga alineado con el resto del bloque. */}
               <div className="flex items-center gap-1 ml-[1.625rem]">
-                {(() => {
-                  const token    = getDeviceToken()
-                  const liked    = msg.likedBy.includes(token)
-                  const disliked = msg.dislikedBy.includes(token)
-                  return (
-                    <>
-                      <button
-                        onClick={() => handleLike(msg)}
-                        className={`flex items-center gap-1 text-xs p-2.5 rounded-full transition-colors ${liked ? 'text-primary font-medium' : 'text-gray-400 hover:text-primary'}`}
-                      >
-                        <IconThumbsUp className="w-4 h-4" />
-                        {msg.likedBy.length > 0 && <span>{msg.likedBy.length}</span>}
-                      </button>
-                      <button
-                        onClick={() => handleDislike(msg)}
-                        className={`flex items-center gap-1 text-xs p-2.5 rounded-full transition-colors ${disliked ? 'text-red-500 font-medium' : 'text-gray-400 hover:text-red-400'}`}
-                      >
-                        <IconThumbsDown className="w-4 h-4" />
-                        {msg.dislikedBy.length > 0 && <span>{msg.dislikedBy.length}</span>}
-                      </button>
-                    </>
-                  )
-                })()}
+                <ReactionPicker
+                  reactions={msg.reactions}
+                  myToken={getDeviceToken()}
+                  onReact={(type) => handleReact(msg, type)}
+                />
                 {isOwner && replyingTo !== msg.id && (
                   <button onClick={() => setReplyingTo(msg.id)} className="text-xs text-gray-400 hover:text-primary">
                     Responder

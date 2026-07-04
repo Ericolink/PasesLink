@@ -502,6 +502,108 @@ body {
   }
 }
 
+/* ── Reacciones de comentarios (ReactionPicker.tsx) ──────────────
+   `var(--invite-accent, var(--color-primary))` en vez de asumir un solo
+   valor: WallSection vive siempre dentro de InvitationThemeRoot (define
+   --invite-accent), pero EventWall solo lo hace para cowboy/graduation —
+   en su template por defecto no hay --invite-accent en cascada, así que
+   el fallback a --color-primary (siempre global) evita que el picker se
+   quede sin color de acento ahí. */
+.reaction-main-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 9999px;
+  color: #9ca3af;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.reaction-main-btn:hover {
+  color: var(--invite-accent, var(--color-primary));
+  background-color: color-mix(in srgb, var(--invite-accent, var(--color-primary)) 10%, transparent);
+}
+.reaction-main-btn[data-active='true'] {
+  font-weight: 600;
+  color: var(--invite-accent, var(--color-primary));
+}
+.reaction-main-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.reaction-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  cursor: default;
+}
+
+.reaction-popup {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 9999px;
+  background-color: var(--invite-surface, #fff);
+  border: 1px solid var(--invite-border, rgba(0, 0, 0, 0.08));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 20;
+  animation: reaction-popup-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.dark .reaction-popup {
+  background-color: var(--invite-surface, #1f2937);
+}
+@keyframes reaction-popup-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.reaction-popup-emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+  padding: 0.3rem;
+  border-radius: 9999px;
+  transform-origin: bottom center;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease;
+  animation: reaction-emoji-in 0.2s ease both;
+}
+.reaction-popup-emoji:hover,
+.reaction-popup-emoji:focus-visible {
+  transform: scale(1.35) translateY(-4px);
+  background-color: color-mix(in srgb, var(--invite-accent, var(--color-primary)) 12%, transparent);
+  outline: none;
+}
+@keyframes reaction-emoji-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.6); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction-popup,
+  .reaction-popup-emoji {
+    animation: none !important;
+  }
+  .reaction-popup-emoji:hover,
+  .reaction-popup-emoji:focus-visible {
+    transform: none !important;
+  }
+}
+
+@media (hover: none) {
+  /* Sin hover real (touch): el picker se abre solo por pulsación
+     prolongada (ver onTouchStart en ReactionPicker.tsx), el agrandado
+     al pasar el cursor no aplica. */
+  .reaction-popup-emoji:hover {
+    transform: none;
+    background-color: transparent;
+  }
+}
+
 /* ── Card hover ──────────────────────────────────────────────── */
 .card-hover {
   transition: transform 0.18s ease-out, box-shadow 0.18s ease-out, border-color 0.18s ease-out;

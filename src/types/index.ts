@@ -83,6 +83,19 @@ export interface WaitlistEntry {
 
 export type WallMessageType = 'comment' | 'question' | 'music' | 'idea'
 
+// Set cerrado por ahora (agregar una reacción nueva = un entry acá + en
+// REACTIONS en ReactionPicker.tsx, nada más — el resto del sistema
+// (contadores, "más usadas", picker) ya itera sobre lo que exista en
+// `reactions` sin asumir cuáles tipos hay).
+export type ReactionType = 'like' | 'love' | 'haha' | 'wow' | 'sad' | 'angry'
+
+export interface WallReaction {
+  type: ReactionType
+  // Denormalizado (igual que authorName en el mensaje) para poder mostrar
+  // "quién reaccionó" sin una consulta extra por reacción.
+  name: string
+}
+
 export interface WallMessage {
   id: string
   text: string
@@ -92,8 +105,10 @@ export interface WallMessage {
   authorRole: 'owner' | 'guest'
   authorPhotoURL?: string
   createdAt: number
-  likedBy: string[]
-  dislikedBy: string[]
+  // Keyed por el device token del reactor — un solo campo reemplaza a los
+  // viejos likedBy/dislikedBy, un doc por reactor (no arrays paralelos), y
+  // permite agregar reacciones nuevas sin migrar nada.
+  reactions: Record<string, WallReaction>
   replies: WallReply[]
   deleted: boolean
   pinned: boolean

@@ -1,20 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { likeWallMessage, dislikeWallMessage, postWallMessage, fetchWallMessages } from '../firebase/wall'
+import { reactToWallMessage, postWallMessage, fetchWallMessages } from '../firebase/wall'
 import { fetchPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
-import { IconThumbsUp, IconThumbsDown, IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown, IconRotateCcw } from './Icons'
+import { IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown, IconRotateCcw } from './Icons'
 import { ThemeSeal } from './ThemeSeal'
 import { Avatar } from './Avatar'
 import { PhotoFeedCard } from './PhotoFeedCard'
 import { PhotoUploadButton } from './PhotoUploadButton'
 import { PhotoViewer } from './PhotoViewer'
+import { ReactionPicker } from './ReactionPicker'
 import { ReportButton } from './ReportButton'
 import { mergeWallFeed } from '../utils/wallFeed'
 import { WALL_TEXT_MAX } from '../utils/validation'
-import type { TemplateId, WallMessage, WallMessageType } from '../types'
+import type { ReactionType, TemplateId, WallMessage, WallMessageType } from '../types'
 
 const DEVICE_TOKEN_KEY = 'wall_device_token'
 const GUEST_NAME_KEY   = 'wall_guest_name'
@@ -138,16 +139,24 @@ export function WallSection({ eventId, eventName = '', isPremium = false, guestN
     }
   }
 
-  async function handleLike(msg: WallMessage) {
+  // Optimista: la reacción se refleja en `messages` antes de que Firestore
+  // confirme, y solo se revierte si la escritura falla — evita el viaje
+  // redondo de un `loadMessages()` completo (que además recargaría fotos y
+  // reordenaría toda la lista) por cada tap en una carita.
+  async function handleReact(msg: WallMessage, type: ReactionType | null) {
     const token = getDeviceToken()
-    await likeWallMessage(eventId, msg.id, token, msg.likedBy.includes(token))
-    await loadMessages()
-  }
+    const prevReactions = msg.reactions
+    const nextReactions = { ...prevReactions }
+    if (type) nextReactions[token] = { type, name: authorName || 'Invitado' }
+    else delete nextReactions[token]
+    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: nextReactions } : m)))
 
-  async function handleDislike(msg: WallMessage) {
-    const token = getDeviceToken()
-    await dislikeWallMessage(eventId, msg.id, token, msg.dislikedBy.includes(token))
-    await loadMessages()
+    try {
+      await reactToWallMessage(eventId, msg.id, token, authorName || 'Invitado', type)
+    } catch (err) {
+      console.error('Error reacting to wall message:', err)
+      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: prevReactions } : m)))
+    }
   }
 
   const canPost = user ? !isMinor : !!resolvedGuestName
@@ -266,9 +275,6 @@ export function WallSection({ eventId, eventName = '', isPremium = false, guestN
           const msg       = item.message
           const cfg       = TYPE_CONFIG[msg.type]
           const isOwnerMsg = msg.authorRole === 'owner'
-          const token     = getDeviceToken()
-          const liked     = msg.likedBy.includes(token)
-          const disliked  = msg.dislikedBy.includes(token)
           return (
             <div key={msg.id}
               data-pinned={msg.pinned}
@@ -312,18 +318,11 @@ export function WallSection({ eventId, eventName = '', isPremium = false, guestN
                     resto del bloque — el padding deja el target táctil real
                     en ~40px+ (antes el botón era solo el ícono de 14px,
                     imposible de tocar con precisión en celular). */}
-                <button onClick={() => handleLike(msg)}
-                  aria-label="Me gusta"
-                  className={`flex items-center gap-1 text-xs p-2.5 rounded-full transition-colors ${liked ? 'font-medium text-[var(--invite-accent)]' : 'text-gray-400 hover:text-[var(--invite-accent)]'}`}>
-                  <IconThumbsUp className="w-4 h-4" />
-                  {msg.likedBy.length > 0 && <span>{msg.likedBy.length}</span>}
-                </button>
-                <button onClick={() => handleDislike(msg)}
-                  aria-label="No me gusta"
-                  className={`flex items-center gap-1 text-xs p-2.5 rounded-full transition-colors ${disliked ? 'text-red-500 font-medium' : 'text-gray-400 hover:text-red-400'}`}>
-                  <IconThumbsDown className="w-4 h-4" />
-                  {msg.dislikedBy.length > 0 && <span>{msg.dislikedBy.length}</span>}
-                </button>
+                <ReactionPicker
+                  reactions={msg.reactions}
+                  myToken={getDeviceToken()}
+                  onReact={(type) => handleReact(msg, type)}
+                />
                 <ReportButton
                   eventId={eventId}
                   eventName={eventName}

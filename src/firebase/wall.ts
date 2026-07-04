@@ -1,10 +1,10 @@
 import {
   addDoc,
-  arrayRemove,
-  arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
+  FieldPath,
   getDocs,
   limit,
   onSnapshot,
@@ -26,7 +26,7 @@ import {
   WALL_TOKEN_MAX,
   WALL_TYPES,
 } from '../utils/validation'
-import type { WallMessage, WallMessageType, WallReply } from '../types'
+import type { ReactionType, WallMessage, WallMessageType, WallReaction, WallReply } from '../types'
 import { WallMessageSchema, warnIfInvalidShape } from '../types/schemas'
 
 export const DEFAULT_WALL_LIVE_LIMIT = 50
@@ -172,8 +172,7 @@ export async function postWallMessage(
     authorToken,
     authorRole,
     authorPhotoURL: authorPhotoURL || null,
-    likedBy: [],
-    dislikedBy: [],
+    reactions: {},
     replies: [],
     deleted: false,
     pinned: false,
@@ -191,30 +190,24 @@ export async function pinWallMessage(
   })
 }
 
-export async function likeWallMessage(
+// Un solo campo (`reactions.<token>`) reemplaza el par likedBy/dislikedBy:
+// como es un map keyed por token, cada reactor tiene a lo sumo una entrada
+// (elegir otra reacción pisa la anterior, nunca hay que limpiar un array
+// aparte) y agregar un tipo de reacción nuevo no toca este archivo.
+// Se usa FieldPath en vez de la forma `{ [`reactions.${token}`]: ... }`
+// porque un token puede traer '.' (ej. viene de un nombre de invitado
+// escrito a mano) — con FieldPath ese token viaja como un único segmento
+// de ruta, nunca se interpreta como un map anidado.
+export async function reactToWallMessage(
   eventId: string,
   messageId: string,
   token: string,
-  currentlyLiked: boolean,
+  name: string,
+  reactionType: ReactionType | null,
 ) {
-  await updateDoc(doc(db, 'events', eventId, 'wall', messageId),
-    currentlyLiked
-      ? { likedBy: arrayRemove(token) }
-      : { likedBy: arrayUnion(token), dislikedBy: arrayRemove(token) },
-  )
-}
-
-export async function dislikeWallMessage(
-  eventId: string,
-  messageId: string,
-  token: string,
-  currentlyDisliked: boolean,
-) {
-  await updateDoc(doc(db, 'events', eventId, 'wall', messageId),
-    currentlyDisliked
-      ? { dislikedBy: arrayRemove(token) }
-      : { dislikedBy: arrayUnion(token), likedBy: arrayRemove(token) },
-  )
+  const ref = doc(db, 'events', eventId, 'wall', messageId)
+  const path = new FieldPath('reactions', token)
+  await updateDoc(ref, path, reactionType ? ({ type: reactionType, name } satisfies WallReaction) : deleteField())
 }
 
 export async function replyToWallMessage(
@@ -253,8 +246,7 @@ function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
     authorToken: data.authorToken as string,
     authorRole: (data.authorRole as 'owner' | 'guest') || 'guest',
     authorPhotoURL: (data.authorPhotoURL as string) || undefined,
-    likedBy: (data.likedBy as string[]) || [],
-    dislikedBy: (data.dislikedBy as string[]) || [],
+    reactions: (data.reactions as Record<string, WallReaction>) || {},
     replies: (data.replies as WallReply[]) || [],
     deleted: (data.deleted as boolean) || false,
     pinned: (data.pinned as boolean) || false,

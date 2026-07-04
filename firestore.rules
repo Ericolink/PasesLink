@@ -317,17 +317,16 @@ service cloud.firestore {
         // sancionar) — mismo límite que el resto de las protecciones
         // anti-abuso de este archivo para tráfico anónimo.
         allow create: if isValidWallMessage() && (request.auth == null || !commentsBlocked(eventId));
-        // TODO Fase 3+: esta rama no verifica que el token agregado a
-        // likedBy/dislikedBy sea el propio del dispositivo que hace la
-        // petición — solo limita qué claves se tocan y el tamaño máximo de
-        // los arrays. Un cliente que hable directo con Firestore (evitando
-        // src/firebase/wall.ts) puede votar repetidamente simulando tokens
-        // distintos. Solución robusta: mover el voto a una subcolección
-        // wall/{id}/votes/{token} con un doc por voto.
+        // TODO Fase 3+: esta rama no verifica que la key agregada/quitada en
+        // `reactions` sea el propio token del dispositivo que hace la
+        // petición — solo limita qué campo se toca y el tamaño máximo del
+        // mapa. Un cliente que hable directo con Firestore (evitando
+        // src/firebase/wall.ts) puede reaccionar repetidamente simulando
+        // tokens distintos. Solución robusta: mover la reacción a una
+        // subcolección wall/{id}/reactions/{token} con un doc por reactor.
         allow update: if isOwner(eventId) || isAdmin()
-          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'dislikedBy'])
-              && request.resource.data.likedBy.size() <= 5000
-              && request.resource.data.dislikedBy.size() <= 5000);
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+              && request.resource.data.reactions.size() <= 5000);
         allow delete: if isOwner(eventId) || isAdmin();
       }
 
