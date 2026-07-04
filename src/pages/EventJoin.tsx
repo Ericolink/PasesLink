@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import QRCode from 'qrcode'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { getEvent, subscribeToEvent } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
 import { addToWaitlist } from '../firebase/waitlist'
@@ -25,12 +24,9 @@ import {
 const labelClass = 'block text-xs font-bold uppercase tracking-wide mb-1.5 text-[var(--invite-text-muted)]'
 const inputClass =
   'w-full rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]'
-import { WallSection } from '../components/WallSection'
-import { EventMap } from '../components/EventMap'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
-import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { formatTime12h } from '../utils/time'
 import {
@@ -38,30 +34,30 @@ import {
   IconCheckCircle,
   IconFrown,
   IconListOrdered,
-  IconSparkles,
 } from '../components/Icons'
 import type { EventData } from '../types'
 import { buildPassUrl } from '../utils/qrUrl'
 
-type State = 'loading' | 'form' | 'submitting' | 'success' | 'full' | 'not_found' | 'error'
+type State = 'loading' | 'form' | 'submitting' | 'full' | 'not_found' | 'error'
 type WaitlistState = 'idle' | 'form' | 'submitting' | 'joined'
 
 interface SavedReg {
-  name: string
-  lastName: string
-  phone: string
-  email?: string
-  partySize?: number
   qrToken: string
-  customValues: Record<string, string>
 }
 
 function regKey(eventId: string) {
   return `join_reg_${eventId}`
 }
 
+// El pase de un invitado autoregistrado se ve y funciona igual que el de un
+// invitado agregado por lista: ambos son el mismo documento en
+// events/{eventId}/guests y ambos se muestran con GuestPass en
+// /pass/:eventId/:qrToken (descarga, compartir, RSVP, check-in, etc.). Este
+// componente solo cubre el formulario de registro — una vez creado el
+// invitado, se redirige a esa única fuente de verdad en vez de duplicar su UI.
 export function EventJoin() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { profile } = useUserProfile()
   const [event, setEvent] = useState<EventData | null>(null)
@@ -72,7 +68,6 @@ export function EventJoin() {
   const [email, setEmail] = useState('')
   const [partySize, setPartySize] = useState(1)
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
-  const [qrToken, setQrToken] = useState('')
   const [waitlistState, setWaitlistState] = useState<WaitlistState>('idle')
   const [wlSubmitting, setWlSubmitting] = useState(false)
   const [wlName, setWlName] = useState('')
@@ -80,7 +75,6 @@ export function EventJoin() {
   const [wlPhone, setWlPhone] = useState('')
   const [wlError, setWlError] = useState('')
   const [regError, setRegError] = useState('')
-  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     if (!id) return
@@ -89,20 +83,16 @@ export function EventJoin() {
       if (ev.entryMode === 'list') { setState('error'); return }
       setEvent(ev)
 
-      // Restore saved registration for this event
+      // Ya registrado antes en este navegador: llevarlo directo a su pase
+      // (misma ruta que usa un invitado de lista) en vez de re-registrarlo.
       const saved = localStorage.getItem(regKey(id))
       if (saved) {
         try {
           const reg: SavedReg = JSON.parse(saved)
-          setName(reg.name)
-          setLastName(reg.lastName || '')
-          setPhone(reg.phone)
-          setEmail(reg.email || '')
-          setPartySize(reg.partySize || 1)
-          setCustomValues(reg.customValues || {})
-          setQrToken(reg.qrToken)
-          setState('success')
-          return
+          if (reg.qrToken) {
+            navigate(`/pass/${id}/${reg.qrToken}`, { replace: true })
+            return
+          }
         } catch {
           localStorage.removeItem(regKey(id))
         }
@@ -110,7 +100,7 @@ export function EventJoin() {
 
       setState('form')
     })
-  }, [id])
+  }, [id, navigate])
 
   // Suscripción en vivo, aparte del bootstrap de arriba (que decide el estado
   // inicial una sola vez): cualquier cambio que el organizador guarde en
@@ -140,13 +130,6 @@ export function EventJoin() {
   }, [profile, user])
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
-  useEffect(() => {
-    if (state === 'success' && qrToken && canvasRef.current && id) {
-      const passUrl = buildPassUrl(id, qrToken)
-      QRCode.toCanvas(canvasRef.current, passUrl, { width: 200, margin: 2 })
-    }
-  }, [state, qrToken, id])
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!id || !name.trim() || !lastName.trim()) return
@@ -159,17 +142,12 @@ export function EventJoin() {
         setState('full')
       } else {
         const token = result.qrToken!
-        setQrToken(token)
-        localStorage.setItem(
-          regKey(id),
-          JSON.stringify({ name, lastName, phone, email, partySize, qrToken: token, customValues }),
-        )
+        localStorage.setItem(regKey(id), JSON.stringify({ qrToken: token }))
         localStorage.setItem('wall_guest_name', fullName)
-        setState('success')
         // Best-effort: si no hay plantilla de EmailJS configurada, no hace
         // nada (ver sendGuestPassEmail) — el pase sigue funcionando solo con
-        // localStorage, esto es una red de seguridad adicional para cuando el
-        // invitado pierde el link guardado en el navegador.
+        // el link de /pass, esto es una red de seguridad adicional para
+        // cuando el invitado pierde el link guardado en el navegador.
         if (email.trim() && event) {
           void sendGuestPassEmail(email.trim(), event.name, buildPassUrl(id, token))
         }
@@ -185,6 +163,10 @@ export function EventJoin() {
             type: 'walkin',
           })
         }
+        // Mismo destino que un invitado de lista (GuestList.tsx) — una sola
+        // pantalla de pase (GuestPass) con descarga, compartir y RSVP, en vez
+        // de una vista de éxito propia y más limitada acá.
+        navigate(`/pass/${id}/${token}`, { replace: true })
       }
     } catch (err) {
       console.error('Error registering guest:', err)
@@ -327,62 +309,6 @@ export function EventJoin() {
             <IconListOrdered className="w-4 h-4" />
             Unirme a la lista de espera
           </button>
-        </div>
-      </InvitationThemeRoot>
-    )
-  }
-
-  if (state === 'success') {
-    return (
-      <InvitationThemeRoot
-        templateId={event?.templateId}
-        accentOverride={event?.accentColor}
-        className="flex items-start justify-center min-h-screen text-center p-4"
-      >
-        <div className="w-full max-w-sm">
-          <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
-            <div className="flex justify-center mb-2">
-              <IconSparkles className="w-8 h-8 text-[var(--invite-accent)]" />
-            </div>
-            <h1 className="text-lg font-bold mb-1">
-              Hola, {name} {lastName}
-            </h1>
-            <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-2 text-[var(--invite-accent)]" />
-            {partySize > 1 && (
-              <p className="text-sm text-[var(--invite-text-muted)]">+{partySize - 1} acompañante(s)</p>
-            )}
-            <p className="text-sm mb-4 text-[var(--invite-text-muted)]">Este es tu pase de entrada. Guárdalo.</p>
-            <div className="flex justify-center mb-4">
-              <canvas ref={canvasRef} className="rounded-lg" />
-            </div>
-            {event?.requiresPayment && (
-              <div className="text-left bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 mb-4">
-                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Pago de entrada</p>
-                <p className="text-sm text-amber-800 dark:text-amber-300 mb-1">
-                  Monto a pagar: <strong>{event.currency}{event.ticketPrice.toLocaleString('es')}</strong>
-                </p>
-                {event.paymentInstructions && (
-                  <p className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-line">{event.paymentInstructions}</p>
-                )}
-                <p className="text-xs text-amber-600 mt-1">El organizador confirmará tu pago al ingresar.</p>
-              </div>
-            )}
-            {event?.welcomeMessage && (
-              <p className="text-sm italic text-[var(--invite-accent)]">{event.welcomeMessage}</p>
-            )}
-            {event?.description && (
-              <p className="mt-3 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-left">
-                {event.description}
-              </p>
-            )}
-          </InvitationCard>
-          {event?.mapsUrl && (
-            <>
-              <InviteDivider templateId={event?.templateId} />
-              <EventMap mapsUrl={event.mapsUrl} />
-            </>
-          )}
-          {id && <WallSection eventId={id} eventName={event?.name} guestName={`${name} ${lastName}`.trim()} guestToken={qrToken} />}
         </div>
       </InvitationThemeRoot>
     )
