@@ -15,8 +15,8 @@ export function mergeWallFeed(messages: WallMessage[], photos: PhotoData[]): Fee
     ...photos.map((p) => ({ kind: 'photo' as const, id: p.id, createdAt: p.createdAt, photo: p })),
   ]
   return items.sort((a, b) => {
-    const aPinned = a.kind === 'message' && a.message.pinned
-    const bPinned = b.kind === 'message' && b.message.pinned
+    const aPinned = a.kind === 'message' ? a.message.pinned : a.photo.pinned
+    const bPinned = b.kind === 'message' ? b.message.pinned : b.photo.pinned
     if (aPinned && !bPinned) return -1
     if (!aPinned && bPinned) return 1
     return b.createdAt - a.createdAt

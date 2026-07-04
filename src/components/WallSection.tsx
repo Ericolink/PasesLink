@@ -269,6 +269,7 @@ export function WallSection({ eventId, eventName = '', isPremium = false, guestN
                 photo={item.photo}
                 isOrg={false}
                 onOpen={() => setGalleryIndex(photos.findIndex((p) => p.id === item.photo.id))}
+                templateId={templateId}
                 eventId={eventId}
                 eventName={eventName}
               />

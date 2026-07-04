@@ -10,7 +10,7 @@ import {
   replyToWallMessage,
   subscribeToWall,
 } from '../firebase/wall'
-import { deletePhoto, subscribeToPhotos } from '../firebase/photos'
+import { deletePhoto, pinPhoto, subscribeToPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
@@ -249,6 +249,11 @@ export function EventWall() {
     await deletePhoto(id, photoId)
   }
 
+  async function handlePinPhoto(photo: PhotoData) {
+    if (!id) return
+    await pinPhoto(id, photo.id, photo.pinned)
+  }
+
   if (!nameConfirmed && !isOwner && !user) {
     const nameGateContent = (
       <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
@@ -431,6 +436,8 @@ export function EventWall() {
                 isOrg={isOwner}
                 onOpen={() => setGalleryIndex(photos.findIndex((p) => p.id === item.photo.id))}
                 onDelete={handleDeletePhoto}
+                onPin={handlePinPhoto}
+                templateId={event?.templateId}
                 eventId={id || ''}
                 eventName={event?.name || ''}
               />

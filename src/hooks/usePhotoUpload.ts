@@ -105,7 +105,7 @@ export function usePhotoUpload(
         caption: item.caption?.trim() || undefined,
         width,
         height,
-      } as Omit<PhotoData, 'id' | 'createdAt'>)
+      } as Omit<PhotoData, 'id' | 'createdAt' | 'pinned'>)
       setQueue((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: 'done', progress: 100 } : q)))
       onUploaded?.()
       // Auto-limpieza tras un momento: el usuario ya vio el check verde, no

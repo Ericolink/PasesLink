@@ -9,6 +9,7 @@ import {
   query,
   limit,
   serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
@@ -26,6 +27,7 @@ export interface PhotoData {
   // este campo o si el navegador no pudo decodificar la imagen.
   width?: number
   height?: number
+  pinned: boolean
 }
 
 const MAX_PHOTOS_DISPLAYED = 60
@@ -47,12 +49,13 @@ function mapPhoto(id: string, data: Record<string, unknown>): PhotoData {
     createdAt: toMillis(data.createdAt),
     width: typeof data.width === 'number' ? data.width : undefined,
     height: typeof data.height === 'number' ? data.height : undefined,
+    pinned: data.pinned === true,
   }
 }
 
 export async function addPhoto(
   eventId: string,
-  photo: Omit<PhotoData, 'id' | 'createdAt'>,
+  photo: Omit<PhotoData, 'id' | 'createdAt' | 'pinned'>,
 ): Promise<string> {
   const ref = await addDoc(collection(db, 'events', eventId, 'photos'), {
     url: photo.url,
@@ -92,4 +95,11 @@ export function subscribeToPhotos(
 
 export async function deletePhoto(eventId: string, photoId: string): Promise<void> {
   await deleteDoc(doc(db, 'events', eventId, 'photos', photoId))
+}
+
+// Destacar/quitar destacado de una foto — mismo concepto que pinWallMessage
+// para mensajes, pero las fotos viven en su propia subcolección y antes no
+// tenían este campo ni permiso de update en firestore.rules.
+export async function pinPhoto(eventId: string, photoId: string, currentlyPinned: boolean): Promise<void> {
+  await updateDoc(doc(db, 'events', eventId, 'photos', photoId), { pinned: !currentlyPinned })
 }
