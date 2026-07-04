@@ -8,7 +8,6 @@ import { useAuth } from '../hooks/useAuth'
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
-import { StoriesBar } from '../components/StoriesBar'
 import { EventMap } from '../components/EventMap'
 import { InvitationCard } from '../components/InvitationCard'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
@@ -586,12 +585,7 @@ function GuestPassInner() {
           <EventMap mapsUrl={event.mapsUrl} />
         </>
       )}
-      {/* Stories — visible para todos los invitados confirmados */}
-      {!locked && guest.rsvpStatus === 'yes' && eventId && (
-        <StoriesBar eventId={eventId} />
-      )}
-
-      {/* Muro del evento — las fotos ya viven mezcladas dentro del feed */}
+      {/* Muro del evento — Historias + fotos ya viven dentro de WallSection */}
       {eventId && (
         guest.rsvpStatus === 'yes' ? (
           <WallSection eventId={eventId} eventName={event?.name} isPremium={event?.plan === 'premium'} guestName={guest.name} guestToken={qrToken} templateId={event.templateId} />

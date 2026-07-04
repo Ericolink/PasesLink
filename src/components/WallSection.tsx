@@ -13,6 +13,7 @@ import { PhotoUploadButton } from './PhotoUploadButton'
 import { PhotoViewer } from './PhotoViewer'
 import { ReactionPicker } from './ReactionPicker'
 import { ReportButton } from './ReportButton'
+import { StoriesBar } from './StoriesBar'
 import { mergeWallFeed } from '../utils/wallFeed'
 import { WALL_TEXT_MAX } from '../utils/validation'
 import type { ReactionType, TemplateId, WallMessage, WallMessageType } from '../types'
@@ -163,6 +164,7 @@ export function WallSection({ eventId, eventName = '', isPremium = false, guestN
 
   return (
     <div className="invite-wall-section relative mt-8 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
+      <StoriesBar eventId={eventId} photos={photos} />
       <div className="flex items-center gap-2 mb-4">
         <h2 className="text-lg font-bold text-[var(--invite-text)]">Muro del evento</h2>
         <button

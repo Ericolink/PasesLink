@@ -20,6 +20,12 @@ export interface PhotoData {
   authorToken: string // qrToken del invitado que subió la foto
   caption?: string
   createdAt: number
+  // Dimensiones del archivo subido (ver resizeImageForUpload) — permiten
+  // reservar el aspect-ratio de la tarjeta/miniatura antes de que la imagen
+  // cargue, evitando el salto de layout. Ausentes en fotos subidas antes de
+  // este campo o si el navegador no pudo decodificar la imagen.
+  width?: number
+  height?: number
 }
 
 const MAX_PHOTOS_DISPLAYED = 60
@@ -39,6 +45,8 @@ function mapPhoto(id: string, data: Record<string, unknown>): PhotoData {
     authorToken: (data.authorToken as string) || '',
     caption: (data.caption as string) || undefined,
     createdAt: toMillis(data.createdAt),
+    width: typeof data.width === 'number' ? data.width : undefined,
+    height: typeof data.height === 'number' ? data.height : undefined,
   }
 }
 
@@ -51,6 +59,8 @@ export async function addPhoto(
     authorName: photo.authorName,
     authorToken: photo.authorToken,
     caption: photo.caption || '',
+    width: photo.width ?? null,
+    height: photo.height ?? null,
     createdAt: serverTimestamp(),
   })
   return ref.id

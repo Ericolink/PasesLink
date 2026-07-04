@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { PhotoData } from '../firebase/photos'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { IconX, IconArrowLeft } from './Icons'
+import { ProgressiveImage } from './ProgressiveImage'
 
 // Ancho de la versión servida en el visor: de sobra para llenar la pantalla
 // incluso en retina, sin cargar el original completo (varios MB) por cada
@@ -18,6 +19,9 @@ interface Props {
   mode: 'story' | 'gallery'
   isOrg?: boolean
   onDelete?: (photoId: string) => void
+  // Invocado cada vez que cambia la foto visible (mount + avance/retroceso).
+  // Usado en modo story para marcar como "vista" al autor correspondiente.
+  onView?: (photo: PhotoData) => void
 }
 
 // Visor fullscreen compartido: reemplaza el antiguo PhotoLightbox (grid de
@@ -26,11 +30,16 @@ interface Props {
 // imagen) — el contenedor siempre ocupa toda la pantalla, así que una foto
 // vertical y una horizontal se ven igual de "resueltas" en vez de que una
 // quede chica con bordes negros y la otra casi llene la pantalla.
-export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg, onDelete }: Props) {
+export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg, onDelete, onView }: Props) {
   const [progress, setProgress] = useState(0)
   const touchStartX = useRef<number | null>(null)
   const photo = photos[index]
   const isStory = mode === 'story'
+
+  useEffect(() => {
+    if (photo) onView?.(photo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photo?.id])
 
   function goPrev() {
     onIndexChange(Math.max(0, index - 1))
@@ -119,10 +128,12 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <img
+        <ProgressiveImage
           src={optimizedImageUrl(photo.url, VIEWER_IMAGE_WIDTH)}
           alt={photo.caption || `Foto de ${photo.authorName}`}
-          className="max-h-full max-w-full w-full h-full object-contain"
+          loading="eager"
+          className="max-h-full max-w-full w-full h-full"
+          imgClassName="object-contain"
         />
 
         {isStory ? (

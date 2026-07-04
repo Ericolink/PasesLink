@@ -36,6 +36,7 @@ import { PhotoUploadButton } from '../components/PhotoUploadButton'
 import { PhotoViewer } from '../components/PhotoViewer'
 import { ReactionPicker } from '../components/ReactionPicker'
 import { ReportButton } from '../components/ReportButton'
+import { StoriesBar } from '../components/StoriesBar'
 import type { EventData, ReactionType, WallMessage, WallMessageType } from '../types'
 
 interface TypeConfig {
@@ -312,6 +313,8 @@ export function EventWall() {
           </button>
         )}
       </div>
+
+      {id && <StoriesBar eventId={id} photos={photos} />}
 
       {/* Age restriction notice */}
       {user && isMinor && (

@@ -1,6 +1,7 @@
 import type { PhotoData } from '../firebase/photos'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { Avatar } from './Avatar'
+import { ProgressiveImage } from './ProgressiveImage'
 import { ReportButton } from './ReportButton'
 
 interface Props {
@@ -31,11 +32,13 @@ export function PhotoFeedCard({ photo, isOrg, onOpen, onDelete, eventId, eventNa
       </div>
 
       <button type="button" onClick={onOpen} className="block rounded-lg overflow-hidden ml-9 w-[calc(100%-2.25rem)]">
-        <img
+        <ProgressiveImage
           src={optimizedImageUrl(photo.url, 600)}
           alt={photo.caption || `Foto de ${photo.authorName}`}
-          className="w-full max-h-[420px] object-cover cursor-pointer"
-          loading="lazy"
+          width={photo.width}
+          height={photo.height}
+          className="w-full max-h-[420px]"
+          imgClassName="object-cover cursor-pointer"
         />
       </button>
 
