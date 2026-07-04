@@ -233,6 +233,16 @@ export async function exportGuestPassesPdf(
       doc.setFont('helvetica', 'normal')
     }
 
+    // Aviso de seguridad, mismo texto que la versión web del pase
+    // (PassSecurityNotice.tsx) — pase personal, no debe compartirse.
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...palette.muted)
+    doc.text('Pase personal e intransferible · No compartir · Preséntalo el día del evento', pageWidth / 2, pageHeight - 14, {
+      align: 'center',
+    })
+    doc.setFont('helvetica', 'normal')
+
     // Pie de página, ancla visual consistente con el encabezado en cada
     // página del PDF (uno por invitado), también en el color "accent" de
     // la plantilla.

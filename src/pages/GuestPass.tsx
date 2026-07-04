@@ -16,9 +16,10 @@ import { ThemeSeal } from '../components/ThemeSeal'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { TimelineDisplay } from '../components/TimelineDisplay'
+import { PassSecurityNotice } from '../components/PassSecurityNotice'
 import { formatDate, formatTime12h } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
-import { downloadWalletCard } from '../utils/walletCard'
+import { downloadPassImage } from '../utils/downloadPass'
 import { getTemplate } from '../templates/registry'
 import { buildPassUrl } from '../utils/qrUrl'
 
@@ -47,6 +48,7 @@ function GuestPassInner() {
   const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required'>('idle')
   const [paymentSaving, setPaymentSaving] = useState(false)
   const qrWrapperRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Esperar a que useAuth() confirme la sesión antes de decidir si el visor
@@ -265,13 +267,9 @@ function GuestPassInner() {
   }
 
   async function handleDownload() {
-    const qrCanvas = qrWrapperRef.current?.querySelector('canvas') ?? null
-    await downloadWalletCard({
-      event: event!,
-      guest: guest!,
-      qrCanvas,
-      accentColor: event?.accentColor || undefined,
-    })
+    if (!cardRef.current || !guest) return
+    const filename = `pase-${guest.name.replace(/\s+/g, '_').slice(0, 30)}.png`
+    await downloadPassImage(cardRef.current, filename)
     setDownloaded(true)
     setTimeout(() => setDownloaded(false), 2000)
   }
@@ -290,6 +288,7 @@ function GuestPassInner() {
           Sin overflow-hidden en el wrapper para que el divisor perforado
           pueda extenderse de borde a borde con sus semicírculos notch. */}
       <div
+        ref={cardRef}
         className="invite-card border bg-[var(--invite-surface)] text-[var(--invite-text)] [font-family:var(--invite-font)] [border-radius:var(--invite-radius)]"
         style={{
           boxShadow: 'var(--invite-shadow)',
@@ -308,6 +307,7 @@ function GuestPassInner() {
               src={optimizedImageUrl(event.coverImage, 800)}
               alt={event.name}
               loading="lazy"
+              crossOrigin="anonymous"
               className="w-full h-full object-cover"
             />
           </div>
@@ -442,7 +442,7 @@ function GuestPassInner() {
                     <p className="text-sm text-[var(--invite-text-muted)] mb-3">Presenta este código QR en la entrada</p>
                   )}
 
-                  <div className="flex flex-col sm:flex-row gap-2 justify-center flex-wrap">
+                  <div data-pass-exclude="true" className="flex flex-col sm:flex-row gap-2 justify-center flex-wrap">
                     <button
                       onClick={handleDownload}
                       className="inline-flex items-center justify-center gap-2 text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
@@ -462,6 +462,7 @@ function GuestPassInner() {
                       </a>
                     )}
                   </div>
+                  <PassSecurityNotice />
                 </>
               )}
 
