@@ -66,6 +66,7 @@ function buildNewGuestPayload(input: { name: string; lastName?: string; companio
     checkedInByEmail: null,
     checkedOutAt: null,
     checkedOutByEmail: null,
+    exitType: null,
     lockToken: null,
     paymentStatus: 'unpaid' as const,
     createdAt: serverTimestamp(),
@@ -298,10 +299,23 @@ async function findGuestRefByToken(eventId: string, qrToken: string) {
   return doc(db, 'events', eventId, 'guests', queryResult.docs[0].id)
 }
 
+// Único punto que deriva el estado de presencia (adentro / afuera temporal /
+// afuera definitivo / nunca escaneado) a partir de status+checkedOutAt+exitType
+// — reusalo en vez de repetir la combinación booleana en cada archivo que
+// necesita distinguir estos casos (Scanner.tsx, GuestList.tsx).
+export type GuestPresence = 'invited' | 'inside' | 'temp_out' | 'final_out'
+
+export function guestPresence(guest: Pick<GuestData, 'status' | 'checkedOutAt' | 'exitType'>): GuestPresence {
+  if (guest.status !== 'checked_in') return 'invited'
+  if (!guest.checkedOutAt) return 'inside'
+  return guest.exitType === 'final' ? 'final_out' : 'temp_out'
+}
+
 export type CheckInResult =
-  | { status: 'success'; guest: GuestData }
+  | { status: 'success'; guest: GuestData; reentry: boolean }
   | { status: 'already_checked_in'; guest: GuestData }
   | { status: 'payment_required'; guest: GuestData }
+  | { status: 'blocked_final_exit'; guest: GuestData }
   | { status: 'not_found' }
 
 export async function checkInGuest(
@@ -323,33 +337,52 @@ export async function checkInGuest(
       return { status: 'not_found' } as CheckInResult
     }
     const guest = mapGuest(guestSnap.id, guestSnap.data())
-    if (guest.status === 'checked_in') {
+    const presence = guestPresence(guest)
+    if (presence === 'inside') {
       return { status: 'already_checked_in', guest } as CheckInResult
     }
+    if (presence === 'final_out') {
+      return { status: 'blocked_final_exit', guest } as CheckInResult
+    }
+    const isReentry = presence === 'temp_out'
 
-    const eventSnap = await transaction.get(eventRef)
-    if (eventSnap.data()?.requiresPayment && guest.paymentStatus !== 'paid') {
-      return { status: 'payment_required', guest } as CheckInResult
+    // El gate de pago solo aplica a la primera entrada — un reingreso ya pasó
+    // ese control antes; si el organizador cambia el estado de pago mientras
+    // el invitado está afuera (p.ej. por una disputa), no debe bloquearle el
+    // reingreso al mismo evento que ya estaba autorizado a estar.
+    if (!isReentry) {
+      const eventSnap = await transaction.get(eventRef)
+      if (eventSnap.data()?.requiresPayment && guest.paymentStatus !== 'paid') {
+        return { status: 'payment_required', guest } as CheckInResult
+      }
     }
 
     transaction.update(guestRef, {
       status: 'checked_in',
-      checkedInAt: serverTimestamp(),
-      checkedInBy: scannedBy,
-      checkedInByEmail: scannedByEmail,
       checkedOutAt: null,
       checkedOutByEmail: null,
+      exitType: null,
+      // En un reingreso se preserva el checkedInAt/checkedInBy originales
+      // (el "primer check-in" que ya muestra ScanResultModal) — solo se
+      // pisan en la primera entrada real.
+      ...(isReentry ? {} : { checkedInAt: serverTimestamp(), checkedInBy: scannedBy, checkedInByEmail: scannedByEmail }),
     })
-    // checkedInCount cuenta personas, no invitados escaneados: un check-in
-    // con acompañantes suma partySize() (el invitado + companions) de una
-    // sola vez, así el contador refleja cuánta gente entró realmente.
-    transaction.update(eventRef, { checkedInCount: increment(partySize(guest)) })
+    // checkedInCount es asistencia acumulada (cuánta gente entró alguna vez):
+    // solo suma en la primera entrada, nunca en un reingreso. occupancyCount
+    // es ocupación en vivo (gatea `capacity` en walkIn/registerWalkInGuest):
+    // sube en CUALQUIER ingreso, primero o reingreso — un solo update para no
+    // llamar transaction.update() dos veces sobre el mismo doc.
+    transaction.update(eventRef, {
+      occupancyCount: increment(partySize(guest)),
+      ...(isReentry ? {} : { checkedInCount: increment(partySize(guest)) }),
+    })
 
     const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
     transaction.set(checkinRef, {
       guestId: guest.id,
       guestName: guest.name,
       type: 'check_in',
+      ...(isReentry ? { reentry: true } : {}),
       timestamp: serverTimestamp(),
       scannedBy,
       scannedByEmail,
@@ -357,13 +390,14 @@ export async function checkInGuest(
 
     return {
       status: 'success',
-      guest: { ...guest, status: 'checked_in' },
+      guest: { ...guest, status: 'checked_in', checkedOutAt: null, exitType: null },
+      reentry: isReentry,
     } as CheckInResult
   })
 }
 
 export type CheckOutResult =
-  | { status: 'success'; guest: GuestData }
+  | { status: 'success'; guest: GuestData; kind: 'temporary' | 'final' }
   | { status: 'not_checked_in' }
   | { status: 'already_checked_out'; guest: GuestData }
   | { status: 'not_found' }
@@ -373,11 +407,13 @@ export async function checkOutGuest(
   qrToken: string,
   scannedBy: string,
   scannedByEmail: string | null,
+  kind: 'temporary' | 'final',
 ): Promise<CheckOutResult> {
   const guestRef = await findGuestRefByToken(eventId, qrToken)
   if (!guestRef) {
     return { status: 'not_found' }
   }
+  const eventRef = doc(db, 'events', eventId)
 
   return runTransaction(db, async (transaction) => {
     const guestSnap = await transaction.get(guestRef)
@@ -385,23 +421,29 @@ export async function checkOutGuest(
       return { status: 'not_found' } as CheckOutResult
     }
     const guest = mapGuest(guestSnap.id, guestSnap.data())
-    if (guest.status !== 'checked_in') {
+    const presence = guestPresence(guest)
+    if (presence === 'invited') {
       return { status: 'not_checked_in' } as CheckOutResult
     }
-    if (guest.checkedOutAt) {
+    if (presence === 'temp_out' || presence === 'final_out') {
       return { status: 'already_checked_out', guest } as CheckOutResult
     }
 
     transaction.update(guestRef, {
       checkedOutAt: serverTimestamp(),
       checkedOutByEmail: scannedByEmail,
+      exitType: kind,
     })
+    // Toda salida (temporal o definitiva) libera ocupación en vivo — a
+    // diferencia de checkedInCount (asistencia acumulada), que no se toca acá.
+    transaction.update(eventRef, { occupancyCount: increment(-partySize(guest)) })
 
     const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
     transaction.set(checkinRef, {
       guestId: guest.id,
       guestName: guest.name,
       type: 'check_out',
+      exitKind: kind,
       timestamp: serverTimestamp(),
       scannedBy,
       scannedByEmail,
@@ -409,9 +451,19 @@ export async function checkOutGuest(
 
     return {
       status: 'success',
-      guest: { ...guest, checkedOutAt: Date.now() },
+      guest: { ...guest, checkedOutAt: Date.now(), checkedOutByEmail: scannedByEmail, exitType: kind },
+      kind,
     } as CheckOutResult
   })
+}
+
+// Excepción del organizador (pedida explícitamente): revierte una salida
+// "definitiva" a un estado que vuelve a permitir reingreso por escáner —
+// limpia `exitType` sin tocar `checkedOutAt` (el invitado sigue figurando
+// "afuera" hasta que efectivamente reingrese, checkInGuest se encarga de
+// resetear checkedOutAt en ese momento).
+export async function allowGuestReentry(eventId: string, guestId: string) {
+  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { exitType: null })
 }
 
 export interface CheckinSummaryEntry {
@@ -526,6 +578,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     checkedInByEmail: (data.checkedInByEmail as string) || null,
     checkedOutAt: toMillisOrNull(data.checkedOutAt),
     checkedOutByEmail: (data.checkedOutByEmail as string) || null,
+    exitType: (data.exitType as GuestData['exitType']) || null,
     lockToken: (data.lockToken as string) || null,
     customData: (data.customData as Record<string, string>) || undefined,
     paymentStatus: (data.paymentStatus as GuestData['paymentStatus']) || 'unpaid',

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ScanFeedback } from '../pages/Scanner'
-import { IconAlertTriangle, IconCheckCircle, IconCopy, IconHelpCircle, IconLogOut, IconUsers, IconXCircle } from './Icons'
+import { IconAlertTriangle, IconBan, IconCheckCircle, IconCopy, IconHelpCircle, IconLogOut, IconUsers, IconXCircle } from './Icons'
 import { useModalA11y } from '../hooks/useModalA11y'
 
 function formatTimestamp(ms: number): string {
@@ -10,14 +10,13 @@ function formatTimestamp(ms: number): string {
 export function ScanResultModal({
   feedback,
   onClose,
-  onCheckout,
+  onRequestCheckout,
 }: {
   feedback: ScanFeedback
   onClose: () => void
-  onCheckout?: () => void
+  onRequestCheckout?: () => void
 }) {
   const [showFirstCheckIn, setShowFirstCheckIn] = useState(false)
-  const [checkingOut, setCheckingOut] = useState(false)
 
   const styles = {
     success: { bg: 'bg-green-600', icon: IconCheckCircle, title: 'Bienvenido/a' },
@@ -26,6 +25,7 @@ export function ScanResultModal({
     checkout: { bg: 'bg-blue-600', icon: IconLogOut, title: 'Hasta luego' },
     already_out: { bg: 'bg-amber-500', icon: IconAlertTriangle, title: 'Ya había salido' },
     not_checked_in: { bg: 'bg-amber-500', icon: IconAlertTriangle, title: 'Sin check-in' },
+    exit_blocked: { bg: 'bg-red-700', icon: IconBan, title: 'Reingreso no permitido' },
     full: { bg: 'bg-orange-500', icon: IconUsers, title: 'Cupo lleno' },
     not_found: { bg: 'bg-gray-600', icon: IconHelpCircle, title: 'No encontrado' },
     error: { bg: 'bg-red-700', icon: IconAlertTriangle, title: 'Error' },
@@ -69,14 +69,13 @@ export function ScanResultModal({
           </div>
         )}
 
-        {feedback.type === 'already' && onCheckout && (
+        {feedback.type === 'already' && onRequestCheckout && (
           <button
-            onClick={() => { setCheckingOut(true); onCheckout() }}
-            disabled={checkingOut}
-            className="mt-4 inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-3 text-sm font-medium disabled:opacity-50 w-full justify-center"
+            onClick={onRequestCheckout}
+            className="mt-4 inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-3 text-sm font-medium w-full justify-center"
           >
             <IconLogOut className="w-4 h-4" />
-            {checkingOut ? 'Registrando salida…' : '¿Salió del evento?'}
+            ¿Salió del evento?
           </button>
         )}
 

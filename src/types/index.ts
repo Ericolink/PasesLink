@@ -65,7 +65,19 @@ export interface EventData {
   paymentStatus: PaymentStatus
   status: EventStatus
   guestCount: number
+  // Asistencia acumulada (cuánta gente hizo check-in alguna vez) — nunca se
+  // decrementa por una salida individual. Para "cuánta gente hay adentro
+  // ahora mismo" usar `occupancyCount` (o `useGuestStats.peopleInside` para
+  // el subconjunto de invitados con pase, sin walk-ins anónimos).
   checkedInCount: number
+  // Ocupación en vivo: sube con cualquier ingreso (check-in, reingreso o
+  // walk-in anónimo) y baja con cualquier salida (temporal, definitiva o
+  // walkOut) — es la única fuente de verdad para gatear `capacity` contra
+  // cuánta gente hay físicamente adentro. Separado de `checkedInCount` a
+  // propósito: ese campo alimenta estadísticas de asistencia acumulada
+  // (EventDetail, Reports, la barra de progreso del Scanner) que no deben
+  // fluctuar hacia abajo cuando alguien sale y vuelve.
+  occupancyCount: number
   coOrganizersMap?: Record<string, string>  // { [uid]: email }
   createdAt: number
   updatedAt: number
@@ -122,6 +134,13 @@ export interface WallReply {
 
 export type GuestStatus = 'invited' | 'checked_in'
 
+// Solo tiene sentido mientras `checkedOutAt` está seteado (invitado
+// actualmente afuera): 'temporary' = puede volver a escanear su QR para
+// reingresar, 'final' = checkInGuest bloquea el reingreso (ver
+// firebase/guests.ts) salvo que el organizador lo revierta con
+// allowGuestReentry. Se limpia a `null` en cada nuevo check-in/reingreso.
+export type GuestExitType = 'temporary' | 'final' | null
+
 export type RsvpStatus = 'pending' | 'yes' | 'no'
 
 export interface CompanionData {
@@ -144,6 +163,7 @@ export interface GuestData {
   checkedInByEmail: string | null
   checkedOutAt: number | null
   checkedOutByEmail: string | null
+  exitType: GuestExitType
   lockToken: string | null
   customData?: Record<string, string>
   paymentStatus: GuestPaymentStatus
@@ -157,6 +177,12 @@ export interface CheckinLog {
   guestId: string
   guestName: string
   type: CheckinType
+  // Solo presente en entradas type: 'check_out' — distingue salida temporal
+  // (puede volver) de definitiva (no puede reingresar sin excepción).
+  exitKind?: 'temporary' | 'final'
+  // Solo presente en entradas type: 'check_in' que corresponden a un
+  // reingreso tras una salida temporal (no al primer check-in).
+  reentry?: boolean
   timestamp: number
   scannedBy: string
   scannedByEmail: string | null

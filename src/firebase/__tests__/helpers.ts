@@ -39,6 +39,7 @@ export function defaultEventData(overrides: Record<string, unknown> = {}) {
     status: 'active',
     guestCount: 0,
     checkedInCount: 0,
+    occupancyCount: 0,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     ...overrides,

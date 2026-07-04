@@ -99,7 +99,7 @@ export function EventDetail() {
     })
   }, [guests, search, statusFilter, sortBy])
 
-  const { totalPeople, totalCollected, peopleInside, rsvpYes, rsvpNo } = useGuestStats(guests, event?.ticketPrice ?? 0)
+  const { totalPeople, totalCollected, rsvpYes, rsvpNo } = useGuestStats(guests, event?.ticketPrice ?? 0)
 
   if (loading) {
     return (
@@ -312,7 +312,7 @@ export function EventDetail() {
         />
         <MetricCard
           label="Dentro ahora"
-          value={peopleInside}
+          value={event.occupancyCount}
           valueClass="text-primary"
         />
         <MetricCard

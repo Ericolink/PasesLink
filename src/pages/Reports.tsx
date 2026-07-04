@@ -159,7 +159,9 @@ export function Reports() {
                 {guest.status === 'checked_in' && guest.checkedInAt ? (
                   <>
                     Entró {new Date(guest.checkedInAt).toLocaleTimeString()}
-                    {guest.checkedOutAt && <> · Salió {new Date(guest.checkedOutAt).toLocaleTimeString()}</>}
+                    {guest.checkedOutAt && (
+                      <> · {guest.exitType === 'final' ? 'Salió (definitivo)' : 'Salió (temporal)'} {new Date(guest.checkedOutAt).toLocaleTimeString()}</>
+                    )}
                   </>
                 ) : (
                   'Pendiente'
@@ -187,6 +189,10 @@ export function Reports() {
                     <IconCheck className="w-3.5 h-3.5 text-green-600 shrink-0" />
                   )}
                   {c.guestName}
+                  {c.type === 'check_out' && (
+                    <span className="text-gray-400"> · {c.exitKind === 'final' ? 'salida definitiva' : 'salida temporal'}</span>
+                  )}
+                  {c.type === 'check_in' && c.reentry && <span className="text-gray-400"> · reingreso</span>}
                   {c.scannedByEmail && <span className="text-gray-400"> · {c.scannedByEmail}</span>}
                 </span>
                 <span className="text-gray-400">{new Date(c.timestamp).toLocaleTimeString()}</span>

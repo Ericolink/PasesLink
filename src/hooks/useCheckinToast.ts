@@ -23,7 +23,9 @@ export function useCheckinToast(eventId: string | undefined) {
       lastId.current = docSnap.id
 
       const data = docSnap.data()
-      const verb = data.type === 'check_out' ? 'salió del evento' : 'hizo check-in'
+      const verb = data.type === 'check_out'
+        ? (data.exitKind === 'final' ? 'se retiró del evento' : 'salió temporalmente')
+        : (data.reentry ? 'reingresó al evento' : 'hizo check-in')
       setMessage(`${data.guestName} ${verb}`)
       setTimeout(() => setMessage(null), 4000)
     })

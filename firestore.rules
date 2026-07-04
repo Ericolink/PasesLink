@@ -35,6 +35,19 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/events/$(eventId)).data.entryMode in ['open', 'hybrid'];
     }
 
+    // Valida el delta de un contador de "gente adentro" (checkedInCount /
+    // occupancyCount): sin cambios, o +-1..50 en cualquier dirección —
+    // walkIn/walkOut mueven de a 1 (Opción A/C, sin acompañantes), mientras
+    // que checkInGuest/checkOutGuest mueven partySize() (invitado +
+    // acompañantes) de una sola vez, en cualquiera de los dos sentidos según
+    // sea una entrada o una salida. El tope de 50 no se ata a un límite
+    // exacto de acompañantes que la UI no impone.
+    function counterDeltaOk(newVal, oldVal) {
+      return newVal == oldVal
+        || (newVal < oldVal && newVal >= oldVal - 50)
+        || (newVal > oldVal && newVal <= oldVal + 50);
+    }
+
     // Cualquier cliente puede crear wall/waitlist sin autenticarse — estos
     // límites son la última barrera real si alguien evita por completo la
     // capa de aplicación (src/firebase/wall.ts, src/firebase/waitlist.ts) y
@@ -258,16 +271,16 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
       allow update: if isOwner(eventId) || isAdmin()
         // Check-in/checkout individual o contador walk-in (Opciones A y C): solo
-        // organizador/co-org. -1 es siempre walkOut (Opción A). Un check-in con
-        // acompañantes suma (1 + companions.length) de una sola vez (ver
-        // checkInGuest en guests.ts) en vez de exactamente 1 — el tope de +50
-        // sigue bloqueando un salto arbitrario sin atarse a un límite exacto de
-        // acompañantes, que la UI no impone.
+        // organizador/co-org, y solo tocando los dos contadores de presencia.
+        // checkedInCount (asistencia acumulada) y occupancyCount (ocupación en
+        // vivo) pueden cambiar juntos (checkInGuest/walkIn) o solo el segundo
+        // (checkOutGuest, un reingreso vía checkInGuest, o walkOut cuando
+        // checkedInCount ya está en 0) — por eso se valida cada uno por
+        // separado en vez de exigir que ambos cambien a la vez.
         || (isOwnerOrCoOrg(eventId)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount'])
-            && (request.resource.data.checkedInCount == resource.data.checkedInCount - 1
-                || (request.resource.data.checkedInCount > resource.data.checkedInCount
-                    && request.resource.data.checkedInCount <= resource.data.checkedInCount + 50)))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount'])
+            && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
+            && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount))
         // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1 en 1.
         || (resource.data.entryMode in ['open', 'hybrid']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount'])

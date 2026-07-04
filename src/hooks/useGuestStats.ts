@@ -9,13 +9,11 @@ import type { GuestData } from '../types'
 // notorio en eventos con cientos de invitados.
 export function useGuestStats(guests: GuestData[], ticketPrice: number) {
   return useMemo(() => {
-    const insideGuests = guests.filter((g) => g.status === 'checked_in' && !g.checkedOutAt)
     return {
       totalPeople: guests.reduce((sum, g) => sum + partySize(g), 0),
       totalCollected: guests
         .filter((g) => g.paymentStatus === 'paid')
         .reduce((sum, g) => sum + ticketPrice * partySize(g), 0),
-      peopleInside: insideGuests.reduce((sum, g) => sum + partySize(g), 0),
       rsvpYes: guests.filter((g) => g.rsvpStatus === 'yes').length,
       rsvpNo: guests.filter((g) => g.rsvpStatus === 'no').length,
     }

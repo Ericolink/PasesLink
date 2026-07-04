@@ -73,6 +73,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     status: 'active',
     guestCount: 0,
     checkedInCount: 0,
+    occupancyCount: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -280,6 +281,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     status: data.status as EventStatus,
     guestCount: (data.guestCount as number) || 0,
     checkedInCount: (data.checkedInCount as number) || 0,
+    occupancyCount: (data.occupancyCount as number) || 0,
     coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),

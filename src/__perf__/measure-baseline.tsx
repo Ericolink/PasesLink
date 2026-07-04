@@ -35,6 +35,7 @@ export function generateGuests(count: number, checkedInCount: number): GuestData
       checkedInByEmail: null,
       checkedOutAt: null,
       checkedOutByEmail: null,
+      exitType: null,
       lockToken: null,
       paymentStatus: 'unpaid',
       createdAt: now,

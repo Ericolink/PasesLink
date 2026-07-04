@@ -34,7 +34,7 @@ describe('capacity.ts', () => {
   })
 
   it('should reject walkIn when capacity is full', async () => {
-    await seedEvent(testEnv, EVENT_ID, { capacity: 2, checkedInCount: 2 })
+    await seedEvent(testEnv, EVENT_ID, { capacity: 2, checkedInCount: 2, occupancyCount: 2 })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
     const result = await walkIn(EVENT_ID)
@@ -42,10 +42,11 @@ describe('capacity.ts', () => {
     expect(result).toBe('full')
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.checkedInCount).toBe(2)
+    expect(event?.occupancyCount).toBe(2)
   })
 
-  it('should increment checkedInCount on a successful walkIn', async () => {
-    await seedEvent(testEnv, EVENT_ID, { capacity: 5, checkedInCount: 1 })
+  it('should increment checkedInCount and occupancyCount on a successful walkIn', async () => {
+    await seedEvent(testEnv, EVENT_ID, { capacity: 5, checkedInCount: 1, occupancyCount: 1 })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
     const result = await walkIn(EVENT_ID)
@@ -53,17 +54,38 @@ describe('capacity.ts', () => {
     expect(result).toBe('success')
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.checkedInCount).toBe(2)
+    expect(event?.occupancyCount).toBe(2)
   })
 
-  it('should decrement checkedInCount on walkOut and no-op once it reaches zero', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 1 })
+  it('should allow a walkIn once occupancy drops even if checkedInCount (cumulative) stayed at capacity', async () => {
+    // Simula el caso que motivó separar los dos contadores: mucha gente entró
+    // e históricamente checkedInCount llegó al tope, pero la mitad ya se fue
+    // (occupancyCount bajó) — el venue tiene lugar real aunque checkedInCount
+    // diga lo contrario.
+    await seedEvent(testEnv, EVENT_ID, { capacity: 2, checkedInCount: 2, occupancyCount: 1 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    const result = await walkIn(EVENT_ID)
+
+    expect(result).toBe('success')
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.checkedInCount).toBe(3)
+    expect(event?.occupancyCount).toBe(2)
+  })
+
+  it('should decrement checkedInCount and occupancyCount on walkOut and no-op once they reach zero', async () => {
+    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 1, occupancyCount: 1 })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
     await walkOut(EVENT_ID)
-    expect((await getEventDoc(testEnv, EVENT_ID))?.checkedInCount).toBe(0)
+    let event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.checkedInCount).toBe(0)
+    expect(event?.occupancyCount).toBe(0)
 
     await walkOut(EVENT_ID)
-    expect((await getEventDoc(testEnv, EVENT_ID))?.checkedInCount).toBe(0)
+    event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.checkedInCount).toBe(0)
+    expect(event?.occupancyCount).toBe(0)
   })
 
   it('should reject registerWalkInGuest when capacity is full', async () => {

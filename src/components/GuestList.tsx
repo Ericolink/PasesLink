@@ -1,15 +1,18 @@
-import { memo, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { deleteGuest, resetGuestRsvp, setGuestPaymentStatus, unlockGuestPass, updateGuest } from '../firebase/guests'
-import type { CompanionData, GuestData } from '../types'
+import { allowGuestReentry, deleteGuest, guestPresence, resetGuestRsvp, setGuestPaymentStatus, unlockGuestPass, updateGuest } from '../firebase/guests'
+import { getGuestCheckins } from '../firebase/reports'
+import type { CheckinLog, CompanionData, GuestData } from '../types'
 import { RSVP_LABELS } from '../types'
 import {
   IconCheck,
   IconCheckCircle,
+  IconClock,
   IconEdit,
   IconEye,
   IconHelpCircle,
   IconInbox,
+  IconLogOut,
   IconRotateCcw,
   IconShare,
   IconTicket,
@@ -31,19 +34,62 @@ import { buildPassUrl } from '../utils/qrUrl'
 const GUEST_LIST_PAGE_SIZE = 50
 
 function GuestStatusBadge({ guest }: { guest: GuestData }) {
-  const { label, classes, Icon } = guest.status === 'checked_in'
-    ? { label: 'Escaneado', classes: 'bg-blue-50 text-blue-700', Icon: IconCheckCircle }
-    : guest.rsvpStatus === 'yes'
-      ? { label: 'Asistirá', classes: 'bg-green-50 text-green-700', Icon: IconCheck }
-      : guest.rsvpStatus === 'no'
-        ? { label: 'No asistirá', classes: 'bg-gray-100 text-gray-500', Icon: IconX }
-        : { label: 'Sin responder', classes: 'bg-amber-50 text-amber-700', Icon: IconHelpCircle }
+  const presence = guestPresence(guest)
+
+  const { label, classes, Icon } = presence === 'inside'
+    ? { label: 'Adentro', classes: 'bg-blue-50 text-blue-700', Icon: IconCheckCircle }
+    : presence === 'temp_out'
+      ? { label: 'Salida temporal', classes: 'bg-amber-50 text-amber-700', Icon: IconLogOut }
+      : presence === 'final_out'
+        ? { label: 'Fuera del evento', classes: 'bg-gray-100 text-gray-500', Icon: IconLogOut }
+        : guest.rsvpStatus === 'yes'
+          ? { label: 'Asistirá', classes: 'bg-green-50 text-green-700', Icon: IconCheck }
+          : guest.rsvpStatus === 'no'
+            ? { label: 'No asistirá', classes: 'bg-gray-100 text-gray-500', Icon: IconX }
+            : { label: 'Sin responder', classes: 'bg-amber-50 text-amber-700', Icon: IconHelpCircle }
 
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full shrink-0 ${classes}`}>
       <Icon className="w-3.5 h-3.5" />
       {label}
     </span>
+  )
+}
+
+function formatCheckinEntryLabel(c: CheckinLog): string {
+  if (c.type === 'check_out') return c.exitKind === 'final' ? 'Salida definitiva' : 'Salida temporal'
+  return c.reentry ? 'Reingreso' : 'Entrada'
+}
+
+function GuestHistory({ eventId, guestId }: { eventId: string; guestId: string }) {
+  const [entries, setEntries] = useState<CheckinLog[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    getGuestCheckins(eventId, guestId)
+      .then(setEntries)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false))
+  }, [eventId, guestId])
+
+  if (loading) return <p className="text-xs text-gray-400 px-3 pb-3">Cargando historial…</p>
+  if (error) return <p className="text-xs text-red-500 px-3 pb-3">No se pudo cargar el historial.</p>
+  if (!entries || entries.length === 0) return <p className="text-xs text-gray-400 px-3 pb-3">Sin movimientos registrados.</p>
+
+  return (
+    <ul className="px-3 pb-3 space-y-1">
+      {entries.map((c) => (
+        <li key={c.id} className="flex items-center justify-between text-xs text-gray-600 gap-2">
+          <span className="inline-flex items-center gap-1.5">
+            <IconClock className="w-3 h-3 text-gray-400 shrink-0" />
+            {formatCheckinEntryLabel(c)}
+            {c.scannedByEmail && <span className="text-gray-400"> · {c.scannedByEmail}</span>}
+          </span>
+          <span className="text-gray-400 shrink-0">{new Date(c.timestamp).toLocaleString('es', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -64,6 +110,8 @@ export const GuestList = memo(function GuestList({
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deletingGuest, setDeletingGuest] = useState<GuestData | null>(null)
   const [unlockingGuest, setUnlockingGuest] = useState<GuestData | null>(null)
+  const [reentryGuest, setReentryGuest] = useState<GuestData | null>(null)
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [visibleCount, setVisibleCount] = useState(GUEST_LIST_PAGE_SIZE)
 
@@ -109,6 +157,19 @@ export const GuestList = memo(function GuestList({
       setActionError('No se pudo desbloquear el pase. Intenta de nuevo.')
     } finally {
       setUnlockingGuest(null)
+    }
+  }
+
+  async function confirmAllowReentry() {
+    if (!reentryGuest) return
+    setActionError('')
+    try {
+      await allowGuestReentry(eventId, reentryGuest.id)
+    } catch (err) {
+      console.error('Error allowing guest reentry:', err)
+      setActionError('No se pudo habilitar el reingreso. Intenta de nuevo.')
+    } finally {
+      setReentryGuest(null)
     }
   }
 
@@ -183,6 +244,28 @@ export const GuestList = memo(function GuestList({
                 )}
               </div>
             )}
+            {guestPresence(guest) === 'final_out' && (
+              <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setReentryGuest(guest)}
+                  className="flex items-center gap-1 text-xs text-primary font-medium"
+                >
+                  <IconRotateCcw className="w-3.5 h-3.5" />
+                  Permitir reingreso
+                </button>
+              </div>
+            )}
+            {guest.status === 'checked_in' && (
+              <div className="px-3 pb-3">
+                <button
+                  onClick={() => setHistoryOpenId(historyOpenId === guest.id ? null : guest.id)}
+                  className="text-xs text-gray-500 font-medium underline underline-offset-2"
+                >
+                  {historyOpenId === guest.id ? 'Ocultar historial' : 'Ver historial de accesos'}
+                </button>
+              </div>
+            )}
+            {historyOpenId === guest.id && <GuestHistory eventId={eventId} guestId={guest.id} />}
             {guest.lockToken && (
               <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
                 <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700">
@@ -272,6 +355,14 @@ export const GuestList = memo(function GuestList({
         confirmLabel="Desbloquear"
         onConfirm={confirmUnlock}
         onCancel={() => setUnlockingGuest(null)}
+      />
+      <ConfirmDialog
+        open={!!reentryGuest}
+        title="Permitir reingreso"
+        message={`"${reentryGuest?.name} ${reentryGuest?.lastName || ''}" se retiró definitivamente del evento. Esto habilita que vuelva a entrar escaneando su mismo pase.`}
+        confirmLabel="Permitir reingreso"
+        onConfirm={confirmAllowReentry}
+        onCancel={() => setReentryGuest(null)}
       />
     </div>
   )

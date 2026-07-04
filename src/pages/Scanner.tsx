@@ -4,31 +4,36 @@ import { Html5Qrcode } from 'html5-qrcode'
 import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEventOnly } from '../hooks/useEventOnly'
-import { checkInGuest, checkOutGuest } from '../firebase/guests'
+import { checkInGuest, checkOutGuest, findGuestByToken, guestPresence } from '../firebase/guests'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
+import { ExitConfirmDialog, type PendingExit } from '../components/ExitConfirmDialog'
 import { CameraPermissionHandler } from '../components/Scanner'
 import { buildPassUrl, extractQrToken, isArriveQr } from '../utils/qrUrl'
 import { isNetworkError } from '../utils/network'
 
 export type ScanFeedback = {
-  type: 'success' | 'already' | 'invalid' | 'checkout' | 'not_checked_in' | 'already_out' | 'full' | 'not_found' | 'error'
+  type: 'success' | 'already' | 'invalid' | 'checkout' | 'not_checked_in' | 'already_out' | 'exit_blocked' | 'full' | 'not_found' | 'error'
   guestName?: string
   detail?: string
   checkedInAt?: number | null
   checkedInByEmail?: string | null
-  // Solo se usa para el botón de check-out del ScanResultModal (ver
-  // handleCheckout) — no se muestra en pantalla.
+  // Solo se usan para el botón "¿Salió del evento?" del ScanResultModal (ver
+  // handleRequestCheckoutFromModal) — no se muestran en pantalla.
   qrToken?: string
+  companionsCount?: number
 }
+
+type ScanMode = 'entrada' | 'salida'
 
 const AUTO_CLOSE_MS = 3500
 const SCAN_COOLDOWN_MS = 2500
 const NETWORK_RETRY_MS = 2000
 
 // Resultados que requieren una decisión del guardia (cupo lleno, QR duplicado,
-// invitado no encontrado, error de red) se quedan en pantalla hasta que los
-// cierre a mano — solo los casos "informativos" (éxito, salida) se autocierran.
+// invitado no encontrado, error de red, reingreso bloqueado) se quedan en
+// pantalla hasta que los cierre a mano — solo los casos "informativos" (éxito,
+// salida) se autocierran.
 const AUTO_CLOSE_TYPES: ScanFeedback['type'][] = ['success', 'checkout', 'invalid', 'already_out', 'not_checked_in']
 
 export function Scanner() {
@@ -41,6 +46,9 @@ export function Scanner() {
   const [walkInMsg, setWalkInMsg] = useState<'success' | 'full' | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
   const [manualValue, setManualValue] = useState('')
+  const [scanMode, setScanMode] = useState<ScanMode>('entrada')
+  const [pendingExit, setPendingExit] = useState<PendingExit | null>(null)
+  const [exitSubmitting, setExitSubmitting] = useState(false)
 
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const startingRef = useRef(false)
@@ -49,6 +57,15 @@ export function Scanner() {
   const hasAutoStartedRef = useRef(false)
   const eventRef = useRef(event)
   useEffect(() => { eventRef.current = event }, [event])
+  // El callback de frame de html5-qrcode se registra UNA sola vez en
+  // startScanning() (auto-arranque, ver más abajo) — si processQr leyera
+  // scanMode/pendingExit directo del estado, quedaría "congelado" en el
+  // valor que tenían en ese momento y nunca vería, por ejemplo, que el
+  // guardia cambió a modo "Salida". Mismo patrón que eventRef arriba.
+  const scanModeRef = useRef(scanMode)
+  useEffect(() => { scanModeRef.current = scanMode }, [scanMode])
+  const pendingExitRef = useRef(pendingExit)
+  useEffect(() => { pendingExitRef.current = pendingExit }, [pendingExit])
 
   useEffect(() => {
     return () => { void stopScanning() }
@@ -129,6 +146,14 @@ export function Scanner() {
 
   async function processQr(decodedText: string, attempt = 1) {
     if (!eventId || !user) return
+    // Ya hay una salida esperando confirmación (Volverá / Se retira) — no
+    // dejar que un frame de cámara de por medio la pise con otro invitado.
+    if (pendingExitRef.current) return
+
+    if (scanModeRef.current === 'salida') {
+      await processExitScan(decodedText, attempt)
+      return
+    }
 
     // Ingreso directo (Opción C) — QR compartido del evento
     if (isArriveQr(decodedText, eventId)) {
@@ -158,10 +183,11 @@ export function Scanner() {
         confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = eventRef.current?.welcomeMessage || undefined
         const companions = result.guest.companions.length > 0 ? `+${result.guest.companions.length} acompañante(s)` : undefined
+        const reentryMsg = result.reentry ? 'Reingreso registrado' : undefined
         showFeedback({
           type: 'success',
           guestName: result.guest.name,
-          detail: [companions, welcome].filter(Boolean).join(' · ') || undefined,
+          detail: [reentryMsg, companions, welcome].filter(Boolean).join(' · ') || undefined,
         })
       } else if (result.status === 'already_checked_in') {
         showFeedback({
@@ -170,9 +196,16 @@ export function Scanner() {
           checkedInAt: result.guest.checkedInAt,
           checkedInByEmail: result.guest.checkedInByEmail,
           qrToken,
+          companionsCount: result.guest.companions.length,
         })
       } else if (result.status === 'payment_required') {
         showFeedback({ type: 'invalid', guestName: result.guest.name, detail: 'Debe pagar la entrada antes de ingresar.' })
+      } else if (result.status === 'blocked_final_exit') {
+        showFeedback({
+          type: 'exit_blocked',
+          guestName: result.guest.name,
+          detail: 'Este invitado se retiró definitivamente del evento. Un organizador puede habilitar su reingreso desde la lista de invitados.',
+        })
       } else {
         showFeedback({ type: 'not_found', detail: 'Este código no corresponde a ningún invitado de este evento.' })
       }
@@ -181,23 +214,85 @@ export function Scanner() {
     }
   }
 
-  async function handleCheckout(qrToken: string) {
-    if (!eventId || !user) return
+  async function processExitScan(decodedText: string, attempt: number) {
+    if (!eventId) return
+
+    if (isArriveQr(decodedText, eventId)) {
+      showFeedback({ type: 'invalid', detail: 'Este código es de ingreso, no de salida.' })
+      return
+    }
+
+    const qrToken = extractQrToken(decodedText, eventId)
+    if (!qrToken) {
+      showFeedback({ type: 'invalid', detail: 'Código QR no válido para este evento.' })
+      return
+    }
+
     try {
-      const result = await checkOutGuest(eventId, qrToken, user.uid, user.email)
+      const guest = await findGuestByToken(eventId, qrToken)
+      if (!guest) {
+        showFeedback({ type: 'not_found', detail: 'Este código no corresponde a ningún invitado de este evento.' })
+        return
+      }
+      const guestName = [guest.name, guest.lastName].filter(Boolean).join(' ')
+      const presence = guestPresence(guest)
+      if (presence === 'invited') {
+        showFeedback({ type: 'not_checked_in', guestName, detail: 'Este invitado todavía no registró su ingreso.' })
+        return
+      }
+      if (presence === 'temp_out' || presence === 'final_out') {
+        showFeedback({
+          type: 'already_out',
+          guestName,
+          detail: presence === 'final_out' ? 'Ya se había retirado definitivamente.' : 'Ya había salido temporalmente.',
+        })
+        return
+      }
+      setPendingExit({ qrToken, guestName, companionsCount: guest.companions.length })
+    } catch (err) {
+      await handleProcessError(err, attempt, () => processExitScan(decodedText, attempt + 1))
+    }
+  }
+
+  async function submitExit(kind: 'temporary' | 'final') {
+    // Guard sincrónico: en un doble-tap táctil (común en tablets de guardia)
+    // el segundo click puede llegar antes de que React re-renderice el botón
+    // con `disabled`, así que no alcanza con el prop — hace falta cortar acá.
+    if (exitSubmitting || !pendingExit || !eventId || !user) return
+    const { qrToken, guestName } = pendingExit
+    setExitSubmitting(true)
+    try {
+      const result = await checkOutGuest(eventId, qrToken, user.uid, user.email, kind)
       if (result.status === 'success') {
-        showFeedback({ type: 'checkout', guestName: result.guest.name, detail: 'Salida registrada' })
+        showFeedback({
+          type: 'checkout',
+          guestName,
+          detail: kind === 'temporary' ? 'Podrá volver a ingresar.' : 'Salida definitiva registrada.',
+        })
       } else if (result.status === 'already_checked_out') {
-        showFeedback({ type: 'already_out', guestName: result.guest.name })
+        showFeedback({ type: 'already_out', guestName })
       } else if (result.status === 'not_checked_in') {
-        showFeedback({ type: 'not_checked_in' })
+        showFeedback({ type: 'not_checked_in', guestName })
       } else {
         showFeedback({ type: 'not_found', detail: 'Este código no corresponde a ningún invitado de este evento.' })
       }
     } catch (err) {
       console.error('Error registrando check-out:', err)
       showFeedback({ type: 'error', detail: 'No se pudo registrar la salida. Intenta de nuevo.' })
+    } finally {
+      setExitSubmitting(false)
+      setPendingExit(null)
     }
+  }
+
+  // Disparado desde el botón "¿Salió del evento?" del ScanResultModal (modo
+  // entrada, invitado ya adentro) — reusa el mismo diálogo Volverá/Se retira
+  // en vez de registrar la salida de una sola opción, para que ambos caminos
+  // (modo salida dedicado y este atajo) terminen siempre en la misma decisión.
+  function handleRequestCheckoutFromModal() {
+    if (!feedback?.qrToken) return
+    setPendingExit({ qrToken: feedback.qrToken, guestName: feedback.guestName || '', companionsCount: feedback.companionsCount || 0 })
+    setFeedback(null)
   }
 
   async function handleProcessError(err: unknown, attempt: number, retry: () => Promise<void>) {
@@ -298,6 +393,26 @@ export function Scanner() {
 
       {event && <p className="text-sm text-gray-400 mb-4">{event.name}</p>}
 
+      {/* Modo de escaneo: entrada (default) o salida — cambia qué hace processQr al leer un QR */}
+      <div className="grid grid-cols-2 gap-2 mb-4 bg-gray-800 rounded-xl p-1">
+        <button
+          onClick={() => setScanMode('entrada')}
+          className={`min-h-11 rounded-lg text-sm font-semibold transition-colors ${
+            scanMode === 'entrada' ? 'bg-primary text-white' : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          Entrada
+        </button>
+        <button
+          onClick={() => setScanMode('salida')}
+          className={`min-h-11 rounded-lg text-sm font-semibold transition-colors ${
+            scanMode === 'salida' ? 'bg-primary text-white' : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          Salida
+        </button>
+      </div>
+
       {/* Área de la cámara */}
       <div className="relative rounded-2xl overflow-hidden bg-black mb-3" style={{ minHeight: 320 }}>
         {/* html5-qrcode inyecta el video aquí */}
@@ -393,7 +508,17 @@ export function Scanner() {
         <ScanResultModal
           feedback={feedback}
           onClose={() => setFeedback(null)}
-          onCheckout={feedback.qrToken ? () => handleCheckout(feedback.qrToken!) : undefined}
+          onRequestCheckout={feedback.qrToken ? handleRequestCheckoutFromModal : undefined}
+        />
+      )}
+
+      {pendingExit && (
+        <ExitConfirmDialog
+          pendingExit={pendingExit}
+          submitting={exitSubmitting}
+          onVolvera={() => { void submitExit('temporary') }}
+          onSeRetira={() => { void submitExit('final') }}
+          onCancel={() => setPendingExit(null)}
         />
       )}
 

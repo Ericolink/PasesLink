@@ -1,4 +1,4 @@
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore'
+import { collection, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import type { CheckinLog } from '../types'
@@ -10,6 +10,8 @@ function mapCheckin(id: string, data: Record<string, unknown>): CheckinLog {
     guestId: data.guestId as string,
     guestName: data.guestName as string,
     type: (data.type as CheckinLog['type']) || 'check_in',
+    exitKind: (data.exitKind as CheckinLog['exitKind']) || undefined,
+    reentry: (data.reentry as boolean) || undefined,
     scannedBy: data.scannedBy as string,
     scannedByEmail: (data.scannedByEmail as string) || null,
     timestamp: toMillis(data.timestamp),
@@ -30,4 +32,18 @@ export function subscribeToCheckins(eventId: string, callback: (checkins: Checki
   return onSnapshot(q, (snapshot) => {
     callback(snapshot.docs.map((d) => mapCheckin(d.id, d.data())))
   })
+}
+
+// Historial de accesos de UN invitado (entradas, salidas y reingresos), para
+// el panel de administración (GuestList). Consulta puntual (no listener) —
+// se pide bajo demanda al expandir el historial de un invitado puntual, no
+// hace falta tenerla en vivo como el resto de las estadísticas del dashboard.
+export async function getGuestCheckins(eventId: string, guestId: string): Promise<CheckinLog[]> {
+  const q = query(
+    collection(db, 'events', eventId, 'checkins'),
+    where('guestId', '==', guestId),
+    orderBy('timestamp', 'asc'),
+  )
+  const snapshot = await getDocs(q)
+  return snapshot.docs.map((d) => mapCheckin(d.id, d.data()))
 }

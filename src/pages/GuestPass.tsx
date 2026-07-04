@@ -46,7 +46,7 @@ function GuestPassInner() {
   const [downloaded, setDownloaded] = useState(false)
   const [showMaybeMessage, setShowMaybeMessage] = useState(false)
   const [showDeclineModal, setShowDeclineModal] = useState(false)
-  const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required'>('idle')
+  const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required' | 'blocked' | 'not_found'>('idle')
   const [paymentSaving, setPaymentSaving] = useState(false)
   const qrWrapperRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -157,6 +157,10 @@ function GuestPassInner() {
       setCheckInState('already')
     } else if (result.status === 'payment_required') {
       setCheckInState('payment_required')
+    } else if (result.status === 'blocked_final_exit') {
+      setCheckInState('blocked')
+    } else {
+      setCheckInState('not_found')
     }
   }
 
@@ -245,6 +249,22 @@ function GuestPassInner() {
             )}
             {checkInState === 'payment_required' && (
               <p className="text-sm text-amber-600 mb-3">Cobra la entrada y marcá el pago antes de registrar el ingreso.</p>
+            )}
+            {checkInState === 'blocked' && (
+              <div className="flex flex-col items-center gap-3 mb-3">
+                <IconAlertTriangle className="w-14 h-14 text-red-500" />
+                <p className="text-base font-semibold text-red-600">No se pudo registrar el ingreso</p>
+                <p className="text-sm text-[var(--invite-text-muted)]">
+                  Este invitado se retiró definitivamente del evento. Un organizador puede habilitar su reingreso desde la lista de invitados.
+                </p>
+              </div>
+            )}
+            {checkInState === 'not_found' && (
+              <div className="flex flex-col items-center gap-3 mb-3">
+                <IconAlertTriangle className="w-14 h-14 text-red-500" />
+                <p className="text-base font-semibold text-red-600">No se pudo registrar el ingreso</p>
+                <p className="text-sm text-[var(--invite-text-muted)]">Este pase ya no corresponde a ningún invitado del evento.</p>
+              </div>
             )}
             {(checkInState === 'idle' || checkInState === 'loading' || checkInState === 'payment_required') && (
               <button

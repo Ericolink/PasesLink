@@ -17,7 +17,17 @@ import {
   requireNonEmpty,
 } from '../utils/validation'
 
-/** Opción A / C — Incrementa checkedInCount atómicamente. Respeta el cupo si está definido. */
+/**
+ * Opción A / C — Incrementa el contador walk-in atómicamente. Respeta el cupo
+ * si está definido, comparando contra `occupancyCount` (ocupación en vivo:
+ * sube/baja con cualquier ingreso/salida, walk-in o por QR) — NO contra
+ * `checkedInCount`, que es asistencia acumulada y nunca baja cuando alguien
+ * sale, así que compararlo contra `capacity` seguiría bloqueando nuevos
+ * walk-ins aunque el venue ya no esté lleno. `checkedInCount` se sigue
+ * incrementando igual, sin cambios, para no afectar las estadísticas de
+ * asistencia que ya dependen de él (barra de progreso del Scanner, "Escaneados"
+ * en EventDetail).
+ */
 export async function walkIn(eventId: string): Promise<'success' | 'full'> {
   const eventRef = doc(db, 'events', eventId)
   return runTransaction(db, async (tx) => {
@@ -25,22 +35,24 @@ export async function walkIn(eventId: string): Promise<'success' | 'full'> {
     if (!snap.exists()) return 'full'
     const data = snap.data()
     const capacity = data.capacity as number | null
-    const current = (data.checkedInCount as number) || 0
-    if (capacity && current >= capacity) return 'full'
-    tx.update(eventRef, { checkedInCount: increment(1) })
+    const currentOccupancy = (data.occupancyCount as number) || 0
+    if (capacity && currentOccupancy >= capacity) return 'full'
+    tx.update(eventRef, { checkedInCount: increment(1), occupancyCount: increment(1) })
     return 'success'
   })
 }
 
-/** Opción A — Decrementa checkedInCount (libera un lugar). */
+/** Opción A — Decrementa el contador walk-in (libera un lugar de ocupación en vivo). */
 export async function walkOut(eventId: string): Promise<void> {
   const eventRef = doc(db, 'events', eventId)
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(eventRef)
     if (!snap.exists()) return
-    const current = (snap.data().checkedInCount as number) || 0
-    if (current <= 0) return
-    tx.update(eventRef, { checkedInCount: increment(-1) })
+    const data = snap.data()
+    const updates: Record<string, unknown> = {}
+    if (((data.checkedInCount as number) || 0) > 0) updates.checkedInCount = increment(-1)
+    if (((data.occupancyCount as number) || 0) > 0) updates.occupancyCount = increment(-1)
+    if (Object.keys(updates).length > 0) tx.update(eventRef, updates)
   })
 }
 
@@ -108,6 +120,7 @@ export async function registerWalkInGuest(
       checkedInByEmail: null,
       checkedOutAt: null,
       checkedOutByEmail: null,
+      exitType: null,
       lockToken: null,
       notes: '',
       paymentStatus: 'unpaid',
