@@ -253,20 +253,20 @@ export function EventJoin() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className={labelClass}>Nombre *</label>
-                    <input type="text" required maxLength={WAITLIST_NAME_MAX} value={wlName} onChange={(e) => setWlName(e.target.value)}
+                    <input type="text" required autoComplete="given-name" maxLength={WAITLIST_NAME_MAX} value={wlName} onChange={(e) => setWlName(e.target.value)}
                       placeholder="Ana"
                       className={inputClass} />
                   </div>
                   <div>
                     <label className={labelClass}>Apellido *</label>
-                    <input type="text" required maxLength={WAITLIST_NAME_MAX} value={wlLastName} onChange={(e) => setWlLastName(e.target.value)}
+                    <input type="text" required autoComplete="family-name" maxLength={WAITLIST_NAME_MAX} value={wlLastName} onChange={(e) => setWlLastName(e.target.value)}
                       placeholder="García"
                       className={inputClass} />
                   </div>
                 </div>
                 <div>
                   <label className={labelClass}>Teléfono <span className="font-normal normal-case">(opcional)</span></label>
-                  <input type="tel" maxLength={WAITLIST_PHONE_MAX} value={wlPhone} onChange={(e) => setWlPhone(e.target.value)}
+                  <input type="tel" autoComplete="tel" maxLength={WAITLIST_PHONE_MAX} value={wlPhone} onChange={(e) => setWlPhone(e.target.value)}
                     placeholder="+1 234 567 8900"
                     className={inputClass} />
                 </div>
@@ -304,7 +304,7 @@ export function EventJoin() {
               setWlPhone(phone)
               setWaitlistState('form')
             }}
-            className="inline-flex items-center gap-2 text-white rounded-lg px-5 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
+            className="inline-flex items-center gap-2 text-white rounded-lg px-5 py-3.5 text-sm font-semibold hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
           >
             <IconListOrdered className="w-4 h-4" />
             Unirme a la lista de espera
@@ -356,6 +356,7 @@ export function EventJoin() {
                 <input
                   type="text"
                   required
+                  autoComplete="given-name"
                   maxLength={GUEST_NAME_PART_MAX}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -368,6 +369,7 @@ export function EventJoin() {
                 <input
                   type="text"
                   required
+                  autoComplete="family-name"
                   maxLength={GUEST_NAME_PART_MAX}
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
@@ -378,19 +380,33 @@ export function EventJoin() {
             </div>
             <div>
               <label className={labelClass}>¿Cuántos vienen? <span className="font-normal normal-case">(incluyéndote)</span></label>
-              <input
-                type="number"
-                min={1}
-                max={GUEST_MAX_PARTY_SIZE}
-                value={partySize}
-                onChange={(e) => setPartySize(Math.min(Math.max(Number(e.target.value) || 1, 1), GUEST_MAX_PARTY_SIZE))}
-                className={inputClass}
-              />
+              <div className="flex items-center justify-between rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] px-2 py-1">
+                <button
+                  type="button"
+                  onClick={() => setPartySize(Math.max(partySize - 1, 1))}
+                  disabled={partySize <= 1}
+                  aria-label="Restar acompañante"
+                  className="w-11 h-11 shrink-0 rounded-full text-xl font-bold text-[var(--invite-text)] disabled:opacity-30 active:bg-[var(--invite-accent-soft)] transition-colors"
+                >
+                  −
+                </button>
+                <span className="text-base font-semibold text-[var(--invite-text)] tabular-nums">{partySize}</span>
+                <button
+                  type="button"
+                  onClick={() => setPartySize(Math.min(partySize + 1, GUEST_MAX_PARTY_SIZE))}
+                  disabled={partySize >= GUEST_MAX_PARTY_SIZE}
+                  aria-label="Sumar acompañante"
+                  className="w-11 h-11 shrink-0 rounded-full text-xl font-bold text-[var(--invite-text)] disabled:opacity-30 active:bg-[var(--invite-accent-soft)] transition-colors"
+                >
+                  +
+                </button>
+              </div>
             </div>
             <div>
               <label className={labelClass}>Teléfono <span className="font-normal normal-case">(opcional)</span></label>
               <input
                 type="tel"
+                autoComplete="tel"
                 maxLength={GUEST_PHONE_MAX}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -404,6 +420,8 @@ export function EventJoin() {
               </label>
               <input
                 type="email"
+                autoComplete="email"
+                inputMode="email"
                 maxLength={GUEST_EMAIL_MAX}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

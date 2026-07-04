@@ -94,7 +94,7 @@ export function WelcomeModal({ open, variant, firstName, onClose }: Props) {
   // de qué ancestro tenga o no un stacking context problemático.
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[env(safe-area-inset-bottom)] sm:pb-0 bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
@@ -102,7 +102,7 @@ export function WelcomeModal({ open, variant, firstName, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label={isWelcome ? 'Bienvenido a PaseLink' : 'Novedades de PaseLink'}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto animate-bounce-in"
+        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm max-h-[90vh] overflow-y-auto animate-bounce-in"
       >
         <div className="flex flex-col items-center px-6 pt-7 pb-2 text-center">
           <Logo className="h-8 mb-4" />
@@ -141,10 +141,10 @@ export function WelcomeModal({ open, variant, firstName, onClose }: Props) {
           ))}
         </ul>
 
-        <div className="p-6 pt-2">
+        <div className="p-6 pt-2 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
           <button
             onClick={onClose}
-            className="w-full rounded-xl py-2.5 text-sm font-medium text-white bg-primary hover:bg-primary-dark transition-colors"
+            className="w-full rounded-xl py-3 text-sm font-medium text-white bg-primary hover:bg-primary-dark transition-colors"
           >
             {isWelcome ? 'Empezar' : 'Entendido'}
           </button>

@@ -514,10 +514,10 @@ body {
   align-items: center;
   gap: 0.3rem;
   font-size: 0.75rem;
-  padding: 0.55rem 0.65rem;
+  padding: 0.75rem 0.7rem;
   border-radius: 9999px;
   color: #9ca3af;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
 }
 .reaction-main-btn:hover {
   color: var(--invite-accent, var(--color-primary));
@@ -526,6 +526,23 @@ body {
 .reaction-main-btn[data-active='true'] {
   font-weight: 600;
   color: var(--invite-accent, var(--color-primary));
+}
+
+/* Pista visual de long-press (ver comentario en ReactionPicker.tsx): se
+   encoge y se tiñe del color de acento durante los ~400ms que dura el
+   `LONG_PRESS_DELAY_MS`, para que "mantener presionado abre más opciones"
+   sea descubrible sin depender de hover (que no existe en touch). */
+.reaction-main-btn[data-pressing='true'] {
+  transform: scale(0.9);
+  color: var(--invite-accent, var(--color-primary));
+  background-color: color-mix(in srgb, var(--invite-accent, var(--color-primary)) 16%, transparent);
+  transition: color 0.15s ease, background-color 0.4s ease, transform 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction-main-btn[data-pressing='true'] {
+    transform: none;
+  }
 }
 .reaction-main-emoji {
   font-size: 1rem;
@@ -566,7 +583,7 @@ body {
 .reaction-popup-emoji {
   font-size: 1.35rem;
   line-height: 1;
-  padding: 0.3rem;
+  padding: 0.45rem;
   border-radius: 9999px;
   transform-origin: bottom center;
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease;

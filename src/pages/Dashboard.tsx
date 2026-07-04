@@ -461,7 +461,7 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
               <button
                 onClick={onCancel}
                 disabled={isLoading}
-                className="text-xs px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
+                className="text-xs px-2.5 py-2 rounded-md transition-colors disabled:opacity-40"
                 style={{ background: 'rgba(74,50,92,.5)', border: '1px solid rgba(74,50,92,.9)', color: '#A89FB3' }}
               >
                 Cancelar
@@ -471,7 +471,7 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
               <button
                 onClick={onReactivate}
                 disabled={isLoading}
-                className="text-xs px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
+                className="text-xs px-2.5 py-2 rounded-md transition-colors disabled:opacity-40"
                 style={{ background: 'rgba(26,100,26,.2)', border: '1px solid rgba(34,197,94,.2)', color: '#4ade80' }}
               >
                 Reactivar
@@ -480,7 +480,7 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
             <button
               onClick={onDelete}
               disabled={isLoading}
-              className="text-xs px-2.5 py-1 rounded-md transition-colors disabled:opacity-40"
+              className="text-xs px-2.5 py-2 rounded-md transition-colors disabled:opacity-40"
               style={{ background: 'rgba(255,20,100,.1)', border: '1px solid rgba(255,20,100,.3)', color: '#FF1464' }}
             >
               {isLoading ? '…' : 'Eliminar'}

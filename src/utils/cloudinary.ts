@@ -171,7 +171,7 @@ export function optimizedImageUrl(url: string, width: number): string {
   const idx = url.indexOf(marker)
   if (idx === -1) return url
   const insertAt = idx + marker.length
-  return `${url.slice(0, insertAt)}q_auto,f_auto,w_${width}/${url.slice(insertAt)}`
+  return `${url.slice(0, insertAt)}q_auto,f_auto,dpr_auto,w_${width}/${url.slice(insertAt)}`
 }
 
 /**

@@ -40,15 +40,15 @@ export function ImageCropModal({ imageSrc, onCrop, onCancel }: Props) {
       aria-label="Recortar imagen"
       className="fixed inset-0 z-50 flex flex-col bg-black"
     >
-      <div className="flex items-center justify-between px-4 py-3 bg-black/80">
-        <button onClick={onCancel} className="text-sm text-gray-300 hover:text-white">
+      <div className="flex items-center justify-between px-2 py-2 bg-black/80">
+        <button onClick={onCancel} className="px-3 py-2.5 text-sm text-gray-300 hover:text-white">
           Cancelar
         </button>
         <span className="text-sm font-medium text-white">Recortar imagen</span>
         <button
           onClick={handleConfirm}
           disabled={processing}
-          className="text-sm font-semibold text-primary hover:text-primary-dark disabled:opacity-50"
+          className="px-3 py-2.5 text-sm font-semibold text-primary hover:text-primary-dark disabled:opacity-50"
         >
           {processing ? 'Procesando…' : 'Usar imagen'}
         </button>

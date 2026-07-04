@@ -106,7 +106,7 @@ export function MyInvitations() {
 
             <button
               onClick={() => setConfirmDelete(inv)}
-              className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+              className="absolute top-2 right-2 p-2.5 rounded-lg text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
               aria-label="Eliminar invitación"
             >
               <IconTrash className="w-4 h-4" />

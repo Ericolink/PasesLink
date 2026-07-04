@@ -152,24 +152,93 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
       </div>
 
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border-b border-primary/20 text-sm">
-          <span className="font-medium text-gray-700 dark:text-gray-200">{selected.size} seleccionados</span>
-          <button onClick={() => onRequestBulkAction(selectedEvents, 'archive')} className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium">
+        <div className="flex items-center gap-1 flex-wrap px-2 py-1.5 bg-primary/5 border-b border-primary/20 text-sm">
+          <span className="font-medium text-gray-700 dark:text-gray-200 px-2">{selected.size} seleccionados</span>
+          <button onClick={() => onRequestBulkAction(selectedEvents, 'archive')} className="px-2.5 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium">
             Archivar
           </button>
-          <button onClick={() => onRequestBulkAction(selectedEvents, 'cancel')} className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium">
+          <button onClick={() => onRequestBulkAction(selectedEvents, 'cancel')} className="px-2.5 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium">
             Cancelar
           </button>
-          <button onClick={() => onRequestBulkAction(selectedEvents, 'delete')} className="text-red-600 hover:text-red-700 font-medium">
+          <button onClick={() => onRequestBulkAction(selectedEvents, 'delete')} className="px-2.5 py-2 text-red-600 hover:text-red-700 font-medium">
             Eliminar
           </button>
-          <button onClick={() => setSelected(new Set())} className="ml-auto text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+          <button onClick={() => setSelected(new Set())} className="ml-auto px-2.5 py-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             Cancelar selección
           </button>
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      {/* Tarjetas en mobile — la tabla de 8 columnas se desborda horizontal
+          en pantallas angostas; en `sm:` en adelante se muestra la tabla y
+          se oculta esta vista, reutilizando el mismo `pageItems`/handlers. */}
+      <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+        {loading && Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="p-4 animate-pulse space-y-2">
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
+            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+          </div>
+        ))}
+        {!loading && pageItems.map((event) => (
+          <div key={event.id} className="p-4 space-y-2.5">
+            <div className="flex items-start gap-2.5">
+              <input
+                type="checkbox"
+                checked={selected.has(event.id)}
+                onChange={() => toggleSelect(event.id)}
+                aria-label={`Seleccionar ${event.name}`}
+                className="mt-1 w-4 h-4 shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <Link to={`/events/${event.id}`} className="text-primary font-medium hover:underline break-words">
+                  {event.name}
+                </Link>
+                <div className="text-xs text-gray-400 dark:text-gray-500 truncate">{event.location}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{event.date}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{usersById.get(event.ownerId)?.email || event.ownerId}</div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${STATUS_PILL_CLASSES[event.status]}`}>
+                {STATUS_LABELS[event.status]}
+              </span>
+              <select
+                value={event.status}
+                onChange={(e) => onStatusChange(event.id, e.target.value as EventStatus)}
+                aria-label={`Cambiar estado de ${event.name}`}
+                className="border border-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white rounded-md text-xs px-2 py-1.5"
+              >
+                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+                {event.guestCount} invitados · {event.checkedInCount} check-ins
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-1 -mr-2">
+              <Link to={`/events/${event.id}`} title="Ver evento" aria-label={`Ver ${event.name}`} className="p-2.5 text-gray-400 hover:text-primary">
+                <IconEye className="w-4 h-4" />
+              </Link>
+              {event.plan === 'premium' && (
+                <Link to={`/events/${event.id}/reports`} title="Ver reportes" aria-label={`Reportes de ${event.name}`} className="p-2.5 text-gray-400 hover:text-primary">
+                  <IconBarChart2 className="w-4 h-4" />
+                </Link>
+              )}
+              <button onClick={() => onRequestDelete(event)} title="Eliminar" aria-label={`Eliminar ${event.name}`} className="p-2.5 text-gray-400 hover:text-red-600">
+                <IconTrash className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+        {!loading && pageItems.length === 0 && (
+          <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay eventos que coincidan con la búsqueda.</p>
+        )}
+      </div>
+
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">

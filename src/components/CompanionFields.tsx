@@ -33,20 +33,20 @@ export function CompanionFieldsEditor({
         </button>
       </div>
       {companions.map((companion, index) => (
-        <div key={index} className="grid grid-cols-3 gap-2 items-center bg-gray-50 rounded-md p-2">
+        <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-gray-50 rounded-md p-2">
           <input
             type="text"
             placeholder="Nombre (opcional)"
             value={companion.name || ''}
             onChange={(e) => updateCompanion(index, 'name', e.target.value)}
-            className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="border border-gray-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <input
             type="text"
             placeholder="Apellido (opcional)"
             value={companion.lastName || ''}
             onChange={(e) => updateCompanion(index, 'lastName', e.target.value)}
-            className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="border border-gray-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <div className="flex items-center gap-1">
             <input
@@ -54,12 +54,12 @@ export function CompanionFieldsEditor({
               placeholder="Teléfono (opcional)"
               value={companion.phone || ''}
               onChange={(e) => updateCompanion(index, 'phone', e.target.value)}
-              className="flex-1 min-w-0 border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex-1 min-w-0 border border-gray-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <button
               type="button"
               onClick={() => removeCompanion(index)}
-              className="shrink-0 text-gray-400 hover:text-red-500 transition-colors p-1"
+              className="shrink-0 text-gray-400 hover:text-red-500 transition-colors p-2.5"
               aria-label="Eliminar acompañante"
             >
               <IconTrash className="w-4 h-4" />

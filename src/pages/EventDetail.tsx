@@ -16,6 +16,7 @@ import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
 import { EditEventForm } from '../components/EditEventForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { SkeletonBlock } from '../components/Skeleton'
 import { EventAnalytics } from '../components/EventAnalytics'
 import { ReminderSection } from '../components/ReminderSection'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
@@ -100,7 +101,20 @@ export function EventDetail() {
 
   const { totalPeople, totalCollected, peopleInside, rsvpYes, rsvpNo } = useGuestStats(guests, event?.ticketPrice ?? 0)
 
-  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <SkeletonBlock className="w-full h-40 rounded-xl mb-4" />
+        <SkeletonBlock className="h-6 w-1/2 mb-2" />
+        <SkeletonBlock className="h-4 w-1/3 mb-6" />
+        <div className="grid grid-cols-3 gap-3">
+          <SkeletonBlock className="h-16 rounded-lg" />
+          <SkeletonBlock className="h-16 rounded-lg" />
+          <SkeletonBlock className="h-16 rounded-lg" />
+        </div>
+      </div>
+    )
+  }
   if (error) {
     return (
       <div className="text-center mt-16 px-4">
@@ -823,7 +837,18 @@ function PublicLink({ label, desc, path }: { label: string; desc: string; path: 
   const [copied, setCopied] = useState(false)
   const url = window.location.origin + path
 
-  function copy() {
+  // En celular, `navigator.share` abre la hoja nativa (WhatsApp, mensajes,
+  // etc.) — mismo patrón ya validado en GuestList.handleShare. Sin esa API
+  // (desktop/navegadores viejos) cae al copiado al portapapeles de siempre.
+  async function share() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: label, text: desc, url })
+        return
+      } catch {
+        return
+      }
+    }
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
@@ -837,10 +862,10 @@ function PublicLink({ label, desc, path }: { label: string; desc: string; path: 
         <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
       </div>
       <button
-        onClick={copy}
-        className="text-xs shrink-0 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-2.5 py-1.5 font-medium hover:bg-white dark:hover:bg-gray-600 transition-colors"
+        onClick={share}
+        className="text-xs shrink-0 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-2.5 py-2.5 font-medium hover:bg-white dark:hover:bg-gray-600 transition-colors"
       >
-        {copied ? 'Copiado ✓' : 'Copiar link'}
+        {copied ? 'Copiado ✓' : 'Compartir'}
       </button>
     </div>
   )

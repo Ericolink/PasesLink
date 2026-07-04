@@ -57,7 +57,7 @@ export function TimelineEditor({ entries, onChange }: Props) {
             type="button"
             onClick={() => removeEntry(i)}
             aria-label="Eliminar momento"
-            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors shrink-0"
+            className="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors shrink-0"
           >
             <IconX className="w-4 h-4" />
           </button>

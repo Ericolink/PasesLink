@@ -48,7 +48,7 @@ export function ConfirmDialog({
   // + backdrop-filter interactúan mal con el contexto de apilamiento.
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[env(safe-area-inset-bottom)] sm:pb-0 bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
     >
       <div
@@ -56,7 +56,7 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm animate-bounce-in"
+        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm animate-bounce-in"
       >
         {danger && (
           <div className="flex items-center justify-center pt-6 pb-2">
@@ -71,17 +71,17 @@ export function ConfirmDialog({
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{title}</h2>
           <div className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{message}</div>
         </div>
-        <div className="flex gap-3 p-6 pt-4">
+        <div className="flex gap-3 p-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
           <button
             onClick={onCancel}
-            className="flex-1 border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="flex-1 border border-gray-300 dark:border-gray-600 rounded-xl py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             {cancelLabel}
           </button>
           <button
             ref={confirmRef}
             onClick={onConfirm}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-medium text-white transition-colors ${
+            className={`flex-1 rounded-xl py-3 text-sm font-medium text-white transition-colors ${
               danger ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary-dark'
             }`}
           >

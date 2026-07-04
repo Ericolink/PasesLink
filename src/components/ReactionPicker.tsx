@@ -14,6 +14,11 @@ interface Props {
 
 export function ReactionPicker({ reactions, myToken, onReact }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
+  // Única pista visual de que "mantener presionado" hace algo distinto a tocar
+  // en touch (sin hover no hay ninguna otra señal): el botón se encoge y se
+  // llena de color durante los LONG_PRESS_DELAY_MS del press, vía CSS
+  // (.reaction-main-btn[data-pressing]) sincronizado a esa misma constante.
+  const [pressing, setPressing] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -113,14 +118,15 @@ export function ReactionPicker({ reactions, myToken, onReact }: Props) {
       <button
         type="button"
         onClick={handleMainClick}
-        onTouchStart={() => scheduleOpen(pressTimer, LONG_PRESS_DELAY_MS)}
-        onTouchEnd={() => clearTimeout(pressTimer.current)}
-        onTouchCancel={() => clearTimeout(pressTimer.current)}
+        onTouchStart={() => { setPressing(true); scheduleOpen(pressTimer, LONG_PRESS_DELAY_MS) }}
+        onTouchEnd={() => { setPressing(false); clearTimeout(pressTimer.current) }}
+        onTouchCancel={() => { setPressing(false); clearTimeout(pressTimer.current) }}
         onContextMenu={(e) => e.preventDefault()}
         aria-label={mineConfig ? `Reacción: ${mineConfig.label}` : 'Reaccionar'}
         aria-haspopup="menu"
         aria-expanded={pickerOpen}
         data-active={!!mine}
+        data-pressing={pressing}
         className="reaction-main-btn"
       >
         {mineConfig ? (

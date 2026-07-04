@@ -292,7 +292,7 @@ export function EventWall() {
   const content = (
     <>
       {event?.coverImage && (
-        <img src={optimizedImageUrl(event.coverImage, 800)} alt="" loading="lazy" className="w-full h-28 object-cover rounded-xl mb-4" />
+        <img src={optimizedImageUrl(event.coverImage, 800)} alt="" loading="eager" fetchPriority="high" className="w-full h-28 object-cover rounded-xl mb-4" />
       )}
       {isOwner && (
         <Link to={`/events/${id}`} className="text-sm text-gray-500 hover:text-primary transition-colors inline-flex items-center gap-1 mb-3">
@@ -315,6 +315,24 @@ export function EventWall() {
       </div>
 
       {id && <StoriesBar eventId={id} photos={photos} />}
+
+      {/* FAB de acceso rápido al composer, solo mobile: en un muro largo,
+          comentar exigía scrollear hasta el formulario arriba del feed —
+          este botón lleva ahí y enfoca el textarea directo (el teclado se
+          abre solo, comportamiento nativo del focus, sin manejo especial). */}
+      {!isMinor && !commentBlockedMessage && (
+        <button
+          onClick={() => {
+            textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setTimeout(() => textareaRef.current?.focus(), 350)
+          }}
+          aria-label="Escribir comentario"
+          className="sm:hidden fixed z-30 w-14 h-14 rounded-full bg-primary text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+          style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))', right: '1rem' }}
+        >
+          <IconMessageSquare className="w-6 h-6" />
+        </button>
+      )}
 
       {/* Age restriction notice */}
       {user && isMinor && (
@@ -452,18 +470,19 @@ export function EventWall() {
                 </div>
                 {/* Owner actions */}
                 {isOwner && (
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center -mr-2 shrink-0">
                     <button
                       onClick={() => handlePin(msg)}
                       title={msg.pinned ? 'Quitar destacado' : 'Destacar mensaje'}
                       aria-label={msg.pinned ? 'Quitar destacado' : 'Destacar mensaje'}
-                      className={`text-xs transition-colors ${msg.pinned ? 'text-yellow-500 hover:text-yellow-400' : 'text-gray-400 hover:text-yellow-500'}`}
+                      className={`p-2.5 transition-colors ${msg.pinned ? 'text-yellow-500 hover:text-yellow-400' : 'text-gray-400 hover:text-yellow-500'}`}
                     >
                       <IconPin className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => setDeletingMessageId(msg.id)}
-                      className="text-xs text-red-400 hover:text-red-600"
+                      aria-label="Eliminar mensaje"
+                      className="p-2.5 text-xs text-red-400 hover:text-red-600"
                     >
                       Eliminar
                     </button>

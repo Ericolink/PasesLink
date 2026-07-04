@@ -82,23 +82,23 @@ export function CompleteProfile() {
             <div>
               <label htmlFor="complete-profile-first-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
               <input id="complete-profile-first-name" type="text" required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                className="w-full border border-gray-300 rounded-md px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <div>
               <label htmlFor="complete-profile-last-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido *</label>
               <input id="complete-profile-last-name" type="text" required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                className="w-full border border-gray-300 rounded-md px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
           </div>
           <div>
             <label htmlFor="complete-profile-birth-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha de nacimiento *</label>
             <input id="complete-profile-birth-date" type="date" required autoComplete="bday" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
               max={new Date().toISOString().split('T')[0]}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+              className="w-full border border-gray-300 rounded-md px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
           {errorInfo && <AuthErrorMessage info={errorInfo} />}
           <button type="submit" disabled={loading}
-            className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
+            className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
             {loading ? 'Guardando…' : 'Guardar y entrar'}
           </button>
         </form>

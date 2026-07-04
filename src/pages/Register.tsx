@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { checkEmailVerified, loginWithGoogle, registerWithEmail, resendVerificationEmail } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
+import { PasswordInput } from '../components/PasswordInput'
 import { useAuth } from '../hooks/useAuth'
 import { uploadImage } from '../utils/cloudinary'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
@@ -125,14 +126,14 @@ export function Register() {
           <button
             onClick={handleCheckVerified}
             disabled={checking}
-            className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+            className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
           >
             {checking ? 'Comprobando…' : 'Ya verifiqué mi correo'}
           </button>
           <button
             onClick={handleResend}
             disabled={resending}
-            className="w-full border border-gray-300 rounded-md py-2 font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="w-full border border-gray-300 rounded-md py-3 font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
             {resending ? 'Enviando…' : 'Reenviar email'}
           </button>
@@ -171,28 +172,27 @@ export function Register() {
           <div>
             <label htmlFor="register-first-name" className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
             <input id="register-first-name" type="text" required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+              className="w-full border border-gray-300 rounded-md px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
           <div>
             <label htmlFor="register-last-name" className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
             <input id="register-last-name" type="text" required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+              className="w-full border border-gray-300 rounded-md px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
         </div>
         <div>
           <label htmlFor="register-email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-          <input id="register-email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          <input id="register-email" type="email" required autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
         <div>
           <label htmlFor="register-password" className="block text-sm font-medium text-gray-700 mb-1">Contraseña *</label>
-          <input id="register-password" type="password" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={password} onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          <PasswordInput id="register-password" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={password} onChange={setPassword} />
           <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
         </div>
         {errorInfo && <AuthErrorMessage info={errorInfo} />}
         <button type="submit" disabled={loading}
-          className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
+          className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
           {loading ? 'Creando cuenta…' : 'Crear cuenta'}
         </button>
       </form>
@@ -203,7 +203,7 @@ export function Register() {
         <div className="flex-1 h-px bg-gray-200" />
       </div>
       <button onClick={handleGoogle} disabled={loading}
-        className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 font-medium hover:bg-gray-50 transition-colors disabled:opacity-50">
+        className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md py-3 font-medium hover:bg-gray-50 transition-colors disabled:opacity-50">
         <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
         Continuar con Google
       </button>

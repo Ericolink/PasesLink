@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from 'react'
 import { usePhotoUpload, PHOTO_CAPTION_MAX } from '../hooks/usePhotoUpload'
 import { IconCamera, IconRotateCcw, IconX, IconCheck } from './Icons'
 
@@ -21,6 +22,13 @@ export function PhotoUploadButton({ eventId, authorName, authorToken, onUploaded
   } = usePhotoUpload(eventId, authorName, authorToken, onUploaded)
 
   const activeCount = queue.filter((q) => q.status !== 'done').length
+
+  // Preview de la foto antes de publicar (flujo de una sola foto): antes se
+  // pedía la descripción a ciegas, sin ver encuadre/calidad de lo que se iba
+  // a subir. `pendingFile` solo vive mientras este modal está abierto, así
+  // que el object URL se crea/revoca en el mismo ciclo de vida.
+  const previewUrl = useMemo(() => (pendingFile ? URL.createObjectURL(pendingFile) : null), [pendingFile])
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
 
   return (
     <>
@@ -87,6 +95,9 @@ export function PhotoUploadButton({ eventId, authorName, authorToken, onUploaded
             <p className="text-sm font-semibold" style={{ color: 'var(--invite-text, #f6f4f9)' }}>
               ¿Querés agregar una descripción a la foto?
             </p>
+            {previewUrl && (
+              <img src={previewUrl} alt="" className="w-full max-h-52 object-contain rounded-lg" />
+            )}
             <input
               type="text"
               value={caption}

@@ -122,7 +122,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setMode('single')}
-          className={`text-sm px-3 py-1 rounded-md font-medium ${
+          className={`text-sm px-3 py-2 rounded-md font-medium ${
             mode === 'single' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
           }`}
         >
@@ -130,7 +130,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
         </button>
         <button
           onClick={() => setMode('bulk')}
-          className={`text-sm px-3 py-1 rounded-md font-medium ${
+          className={`text-sm px-3 py-2 rounded-md font-medium ${
             mode === 'bulk' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
           }`}
         >

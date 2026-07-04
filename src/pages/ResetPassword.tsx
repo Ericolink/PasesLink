@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { confirmPasswordReset, verifyPasswordResetCode } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
+import { PasswordInput } from '../components/PasswordInput'
 import { IconCheckCircle, IconXCircle } from '../components/Icons'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
@@ -78,36 +79,32 @@ export function ResetPassword() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="reset-password" className="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña</label>
-              <input
+              <PasswordInput
                 id="reset-password"
-                type="password"
                 required
                 autoComplete="new-password"
                 minLength={PASSWORD_MIN_LENGTH}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                onChange={setPassword}
               />
               <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
             </div>
             <div>
               <label htmlFor="reset-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
-              <input
+              <PasswordInput
                 id="reset-confirm-password"
-                type="password"
                 required
                 autoComplete="new-password"
                 minLength={PASSWORD_MIN_LENGTH}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                onChange={setConfirmPassword}
               />
             </div>
             {errorInfo && <AuthErrorMessage info={errorInfo} />}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary text-white rounded-md py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+              className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
             >
               {loading ? 'Guardando…' : 'Restablecer contraseña'}
             </button>
@@ -121,7 +118,7 @@ export function ResetPassword() {
           <p className="text-sm text-gray-700 mb-4">Tu contraseña fue actualizada correctamente.</p>
           <button
             onClick={() => navigate('/login')}
-            className="bg-primary text-white rounded-md px-4 py-2 font-medium hover:bg-primary-dark transition-colors"
+            className="bg-primary text-white rounded-md px-4 py-3 font-medium hover:bg-primary-dark transition-colors"
           >
             Ir a iniciar sesión
           </button>

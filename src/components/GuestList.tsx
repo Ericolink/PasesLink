@@ -317,13 +317,13 @@ function EditGuestRow({
   return (
     <form onSubmit={handleSave} className="py-2.5 space-y-2">
       {error && <p className="text-xs text-red-500">{error}</p>}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
         <input
           type="text"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="border border-gray-300 rounded-md px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="Nombre"
         />
         <input
@@ -331,28 +331,28 @@ function EditGuestRow({
           required
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
-          className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="border border-gray-300 rounded-md px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="Apellido"
         />
         <input
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="border border-gray-300 rounded-md px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="Teléfono"
         />
         <div className="flex gap-2">
           <button
             type="submit"
             disabled={saving}
-            className="flex-1 bg-primary text-white rounded-md px-2 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+            className="flex-1 bg-primary text-white rounded-md px-2 py-2.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
           >
             Guardar
           </button>
           <button
             type="button"
             onClick={onDone}
-            className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-gray-50"
+            className="flex-1 border border-gray-300 rounded-md px-2 py-2.5 text-sm font-medium hover:bg-gray-50"
           >
             Cancelar
           </button>

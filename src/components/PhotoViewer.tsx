@@ -10,6 +10,7 @@ import { ProgressiveImage } from './ProgressiveImage'
 const VIEWER_IMAGE_WIDTH = 1200
 const STORY_DURATION_MS = 5000
 const SWIPE_THRESHOLD_PX = 50
+const SWIPE_DOWN_CLOSE_PX = 90
 
 interface Props {
   photos: PhotoData[]
@@ -33,8 +34,28 @@ interface Props {
 export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg, onDelete, onView }: Props) {
   const [progress, setProgress] = useState(0)
   const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
+  // Estado del avance automático de historias, separado de React state para
+  // no reprogramar el rAF en cada render: `pausedRef` se apaga/enciende al
+  // mantener presionada la imagen (como IG/WhatsApp) sin perder el progreso
+  // ya acumulado (`elapsedRef` guarda lo corrido antes de la pausa actual).
+  const pausedRef = useRef(false)
+  const startRef = useRef(Date.now())
+  const elapsedRef = useRef(0)
   const photo = photos[index]
   const isStory = mode === 'story'
+
+  function pauseStory() {
+    if (!isStory || pausedRef.current) return
+    elapsedRef.current += Date.now() - startRef.current
+    pausedRef.current = true
+  }
+
+  function resumeStory() {
+    if (!isStory || !pausedRef.current) return
+    startRef.current = Date.now()
+    pausedRef.current = false
+  }
 
   useEffect(() => {
     if (photo) onView?.(photo)
@@ -50,21 +71,26 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
     else if (isStory) onClose()
   }
 
-  // Auto-advance solo en modo story
+  // Auto-advance solo en modo story — respeta pauseStory()/resumeStory()
+  // (ver comentario junto a esos refs) en vez de asumir que corre siempre.
   useEffect(() => {
     if (!isStory) return
     setProgress(0)
-    const start = Date.now()
+    elapsedRef.current = 0
+    pausedRef.current = false
+    startRef.current = Date.now()
     const frame = requestAnimationFrame(function tick() {
-      const pct = Math.min(100, ((Date.now() - start) / STORY_DURATION_MS) * 100)
-      setProgress(pct)
-      if (pct < 100) {
-        requestAnimationFrame(tick)
-      } else if (index < photos.length - 1) {
-        onIndexChange(index + 1)
-      } else {
-        onClose()
+      if (!pausedRef.current) {
+        const elapsed = elapsedRef.current + (Date.now() - startRef.current)
+        const pct = Math.min(100, (elapsed / STORY_DURATION_MS) * 100)
+        setProgress(pct)
+        if (pct >= 100) {
+          if (index < photos.length - 1) onIndexChange(index + 1)
+          else onClose()
+          return
+        }
       }
+      requestAnimationFrame(tick)
     })
     return () => cancelAnimationFrame(frame)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,14 +111,25 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
 
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+    pauseStory()
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return
-    const delta = e.changedTouches[0].clientX - touchStartX.current
+    resumeStory()
+    if (touchStartX.current === null || touchStartY.current === null) return
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current
     touchStartX.current = null
-    if (delta > SWIPE_THRESHOLD_PX) goPrev()
-    else if (delta < -SWIPE_THRESHOLD_PX) goNext()
+    touchStartY.current = null
+    // Swipe hacia abajo predominante → cerrar (mismo gesto que IG/WhatsApp),
+    // antes solo se podía cerrar con el botón X pequeño de la esquina.
+    if (deltaY > SWIPE_DOWN_CLOSE_PX && Math.abs(deltaY) > Math.abs(deltaX)) {
+      onClose()
+      return
+    }
+    if (deltaX > SWIPE_THRESHOLD_PX) goPrev()
+    else if (deltaX < -SWIPE_THRESHOLD_PX) goNext()
   }
 
   return (

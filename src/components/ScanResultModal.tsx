@@ -37,13 +37,13 @@ export function ScanResultModal({
   const dialogRef = useModalA11y<HTMLDivElement>(true, onClose)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={styles.title}
-        className={`${styles.bg} text-white rounded-2xl shadow-xl max-w-sm w-full p-8 text-center animate-bounce-in`}
+        className={`${styles.bg} text-white rounded-t-3xl sm:rounded-2xl shadow-xl max-w-sm w-full p-8 text-center animate-bounce-in`}
         onClick={(e) => e.stopPropagation()}
       >
         <Icon className="w-14 h-14 mb-3 mx-auto" />
@@ -73,7 +73,7 @@ export function ScanResultModal({
           <button
             onClick={() => { setCheckingOut(true); onCheckout() }}
             disabled={checkingOut}
-            className="mt-4 inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="mt-4 inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-3 text-sm font-medium disabled:opacity-50 w-full justify-center"
           >
             <IconLogOut className="w-4 h-4" />
             {checkingOut ? 'Registrando salida…' : '¿Salió del evento?'}
@@ -82,7 +82,7 @@ export function ScanResultModal({
 
         <button
           onClick={onClose}
-          className="mt-6 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-2 text-sm font-medium"
+          className="mt-6 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-3 text-sm font-medium w-full"
         >
           Cerrar
         </button>

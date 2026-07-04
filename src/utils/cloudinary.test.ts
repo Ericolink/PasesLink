@@ -5,7 +5,7 @@ describe('optimizedImageUrl', () => {
   it('inserts quality/format/width transforms right after /upload/', () => {
     const url = 'https://res.cloudinary.com/demo/image/upload/v1700000000/folder/photo.jpg'
     expect(optimizedImageUrl(url, 800)).toBe(
-      'https://res.cloudinary.com/demo/image/upload/q_auto,f_auto,w_800/v1700000000/folder/photo.jpg',
+      'https://res.cloudinary.com/demo/image/upload/q_auto,f_auto,dpr_auto,w_800/v1700000000/folder/photo.jpg',
     )
   })
 

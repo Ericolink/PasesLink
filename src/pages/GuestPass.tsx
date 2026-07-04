@@ -17,6 +17,7 @@ import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { TimelineDisplay } from '../components/TimelineDisplay'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
+import { SkeletonBlock } from '../components/Skeleton'
 import { formatDate, formatTime12h } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadPassImage } from '../utils/downloadPass'
@@ -107,7 +108,19 @@ function GuestPassInner() {
     return unsubscribe
   }, [eventId])
 
-  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-sm">
+          <SkeletonBlock className="w-full h-40 rounded-2xl mb-4" />
+          <SkeletonBlock className="h-5 w-2/3 mx-auto mb-2" />
+          <SkeletonBlock className="h-4 w-1/2 mx-auto mb-6" />
+          <SkeletonBlock className="w-40 h-40 mx-auto rounded-xl mb-4" />
+          <SkeletonBlock className="h-11 w-full rounded-md" />
+        </div>
+      </div>
+    )
+  }
   if (error || !event || !guest || !eventId || !qrToken) {
     return (
       <div className="text-center mt-16 px-4">
@@ -445,7 +458,7 @@ function GuestPassInner() {
                   <div data-pass-exclude="true" className="flex flex-col sm:flex-row gap-2 justify-center flex-wrap">
                     <button
                       onClick={handleDownload}
-                      className="inline-flex items-center justify-center gap-2 text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
+                      className="inline-flex items-center justify-center gap-2 text-white rounded-md px-4 py-3 sm:py-2 text-sm font-medium hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
                     >
                       {downloaded ? <IconCheckCircle className="w-4 h-4" /> : <IconDownload className="w-4 h-4" />}
                       {downloaded ? 'Descargado' : 'Descargar pase'}
@@ -456,7 +469,7 @@ function GuestPassInner() {
                         target="_blank"
                         rel="noopener noreferrer"
                         title="Comparte con tus acompañantes"
-                        className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+                        className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-md px-4 py-3 sm:py-2 text-sm font-medium hover:opacity-90 transition-opacity"
                       >
                         <IconWhatsApp className="w-4 h-4" /> Compartir
                       </a>
@@ -474,14 +487,14 @@ function GuestPassInner() {
                     <button
                       onClick={() => handleRsvp('yes')}
                       disabled={rsvpSaving}
-                      className="text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
+                      className="text-white rounded-md px-4 py-3 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
                     >
                       Sí, asistiré
                     </button>
                     <button
                       onClick={() => setShowMaybeMessage(true)}
                       disabled={rsvpSaving}
-                      className="border rounded-md px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
+                      className="border rounded-md px-4 py-3 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
                       style={{ borderColor: 'var(--invite-border)' }}
                     >
                       No estoy seguro
@@ -489,7 +502,7 @@ function GuestPassInner() {
                     <button
                       onClick={() => setShowDeclineModal(true)}
                       disabled={rsvpSaving}
-                      className="text-xs transition-colors disabled:opacity-50 text-[var(--invite-text-muted)] hover:text-[var(--invite-text)] underline underline-offset-2 mt-1"
+                      className="text-sm py-2 transition-colors disabled:opacity-50 text-[var(--invite-text-muted)] hover:text-[var(--invite-text)] underline underline-offset-2 mt-1"
                     >
                       No podré asistir
                     </button>
@@ -506,7 +519,7 @@ function GuestPassInner() {
                         <div className="flex flex-col gap-2">
                           <button
                             onClick={() => setShowDeclineModal(false)}
-                            className="w-full border rounded-md px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+                            className="w-full border rounded-md px-4 py-3 text-sm font-medium hover:opacity-80 transition-opacity"
                             style={{ borderColor: 'var(--invite-border)' }}
                           >
                             Volver
@@ -514,7 +527,7 @@ function GuestPassInner() {
                           <button
                             onClick={() => { setShowDeclineModal(false); void handleRsvp('no') }}
                             disabled={rsvpSaving}
-                            className="w-full text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
+                            className="w-full text-white rounded-md px-4 py-3 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
                           >
                             Sí, no asistiré
                           </button>
