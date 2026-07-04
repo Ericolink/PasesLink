@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   subscribeToAdminAuditLog,
   subscribeToAllEvents,
@@ -28,6 +29,7 @@ import { AdminUsersTable } from '../components/Admin/AdminUsersTable'
 import { AdminActivityLog } from '../components/Admin/AdminActivityLog'
 import { AdminFeedbackTable } from '../components/Admin/AdminFeedbackTable'
 import { AdminFeedbackDetail } from '../components/Admin/AdminFeedbackDetail'
+import { AdminReportsTab } from '../components/Admin/AdminReportsTab'
 import {
   IconBarChart,
   IconBarChart2,
@@ -44,20 +46,24 @@ const STATUS_LABELS: Record<EventStatus, string> = {
   archived: 'Archivado',
 }
 
-type Tab = 'events' | 'users' | 'activity' | 'feedback'
+type Tab = 'events' | 'users' | 'activity' | 'feedback' | 'reports'
 type BulkAction = 'archive' | 'cancel' | 'delete'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 export function AdminDashboard() {
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<EventData[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [feedback, setFeedback] = useState<Feedback[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  const [tab, setTab] = useState<Tab>('events')
+  // Link directo del correo de aviso de reportes (ver sendReportNotificationEmail):
+  // /admin?tab=reports&reportId=X abre el panel directo en el caso reportado.
+  const [tab, setTab] = useState<Tab>(() => (searchParams.get('tab') === 'reports' ? 'reports' : 'events'))
+  const [initialReportId] = useState(() => searchParams.get('reportId'))
   const [eventsSearch, setEventsSearch] = useState('')
   const [feedbackSearch, setFeedbackSearch] = useState('')
 
@@ -323,6 +329,7 @@ export function AdminDashboard() {
         <TabButton label="Eventos" count={events.length} active={tab === 'events'} onClick={() => setTab('events')} />
         <TabButton label="Clientes" count={users.length} active={tab === 'users'} onClick={() => setTab('users')} />
         <TabButton label="Buzón" unreadCount={unreadFeedbackCount} active={tab === 'feedback'} onClick={() => setTab('feedback')} />
+        <TabButton label="Reportes" active={tab === 'reports'} onClick={() => setTab('reports')} />
         <TabButton label="Actividad" active={tab === 'activity'} onClick={() => setTab('activity')} />
       </div>
 
@@ -359,6 +366,8 @@ export function AdminDashboard() {
           onRequestDelete={(item) => setDeletingFeedbackId(item.id)}
         />
       )}
+
+      {tab === 'reports' && <AdminReportsTab initialReportId={initialReportId} />}
 
       {tab === 'activity' && <ActivityTab />}
 

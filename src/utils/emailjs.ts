@@ -5,6 +5,8 @@ const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID
 const WELCOME_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_WELCOME
 const CHECKIN_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CHECKIN
 const PASS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_PASS
+const REPORT_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_REPORT
+const REPORT_ADMIN_EMAIL = import.meta.env.VITE_REPORT_ADMIN_EMAIL
 const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
 
 const RETRY_DELAYS_MS = [1000, 2000, 4000]
@@ -107,5 +109,42 @@ export async function sendCheckinSummaryEmail(
     )
   } catch (err) {
     console.error('Error sending checkin summary email:', err)
+  }
+}
+
+// Aviso inmediato al admin cuando se reporta contenido del muro (src/firebase/moderation.ts).
+// Best-effort y silencioso a propósito, igual que el resto de los correos de
+// este archivo: un fallo acá no debe impedir que el reporte quede guardado
+// (ya está en Firestore antes de llamar a esta función) — el admin igual lo
+// va a ver en /admin, este correo es solo para que se entere más rápido.
+// Vars del template: event_name, reported_at, reported_user, reporter,
+// content_type, reason, admin_url.
+export async function sendReportNotificationEmail(input: {
+  eventName: string
+  reportedUser: string
+  reporter: string
+  contentTypeLabel: string
+  reason: string
+  reportId: string
+}) {
+  if (!SERVICE_ID || !REPORT_TEMPLATE_ID || !PUBLIC_KEY || !REPORT_ADMIN_EMAIL) return
+  try {
+    await emailjs.send(
+      SERVICE_ID,
+      REPORT_TEMPLATE_ID,
+      {
+        to_email: REPORT_ADMIN_EMAIL,
+        event_name: input.eventName,
+        reported_at: new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }),
+        reported_user: input.reportedUser,
+        reporter: input.reporter,
+        content_type: input.contentTypeLabel,
+        reason: input.reason,
+        admin_url: `${window.location.origin}/admin?tab=reports&reportId=${input.reportId}`,
+      },
+      { publicKey: PUBLIC_KEY },
+    )
+  } catch (err) {
+    console.error('Error sending report notification email:', err)
   }
 }

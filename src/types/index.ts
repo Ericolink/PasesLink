@@ -234,3 +234,115 @@ export const FEEDBACK_PRIORITY_LABELS: Record<FeedbackPriority, string> = {
   urgent: 'Urgente',
 }
 
+// Moderación del muro (src/firebase/moderation.ts, src/firebase/sanctions.ts).
+// Un reporte apunta a un comentario o foto puntual; el "contenido" se guarda
+// como snapshot (contentSnapshot/contentCaption) porque el original puede
+// borrarse después (por el organizador o por el propio admin) y el caso debe
+// seguir siendo revisable igual.
+export type ReportedContentType = 'comment' | 'photo'
+
+export type ReportStatus = 'pending' | 'in_review' | 'resolved' | 'rejected'
+
+export type ReportActionType =
+  | 'status_change'
+  | 'note'
+  | 'content_deleted'
+  | 'sanction_applied'
+  | 'sanction_revoked'
+
+export interface ReportActionEntry {
+  id: string
+  type: ReportActionType
+  adminUid: string
+  adminEmail: string | null
+  detail: string
+  createdAt: number
+}
+
+// reporterUid/reporterName/reporterEmail siempre se guardan (se necesitan
+// para el cooldown y para evitar reportes duplicados) — `anonymous` solo
+// controla si el panel de admin los muestra u oculta, no si existen en el
+// documento (que de todas formas solo puede leer un admin, ver firestore.rules).
+export interface ContentReport {
+  id: string
+  eventId: string
+  eventName: string
+  contentType: ReportedContentType
+  contentId: string
+  contentSnapshot: string
+  contentCaption?: string
+  contentAuthorName: string
+  contentAuthorToken: string
+  contentAuthorUid: string | null
+  reporterUid: string
+  reporterName: string
+  reporterEmail: string | null
+  anonymous: boolean
+  reason: string
+  status: ReportStatus
+  adminNotes: string
+  actionHistory: ReportActionEntry[]
+  createdAt: number
+  updatedAt: number
+}
+
+export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
+  pending: 'Pendiente',
+  in_review: 'En revisión',
+  resolved: 'Resuelto',
+  rejected: 'Rechazado',
+}
+
+export const REPORT_CONTENT_TYPE_LABELS: Record<ReportedContentType, string> = {
+  comment: 'Comentario',
+  photo: 'Fotografía',
+}
+
+// Sanciones aplicables a una cuenta desde un reporte (src/firebase/sanctions.ts).
+// Diseñado para poder agregar tipos nuevos sin tocar el resto del sistema —
+// cada tipo solo determina QUÉ campo de UserSanctionScope toca applySanction.
+export type SanctionType = 'warning' | 'ban' | 'suspension' | 'comment_restriction' | 'photo_restriction'
+
+export type SanctionScope = 'global' | 'event'
+
+export const SANCTION_TYPE_LABELS: Record<SanctionType, string> = {
+  warning: 'Advertencia',
+  ban: 'Baneo permanente',
+  suspension: 'Suspensión temporal',
+  comment_restriction: 'Restricción de comentarios',
+  photo_restriction: 'Restricción de fotos',
+}
+
+// bannedUntil/commentBanUntil/photoBanUntil: 0 = sin restricción activa,
+// timestamp (ms) en el futuro = restricción activa hasta esa fecha,
+// Number.MAX_SAFE_INTEGER = permanente (ver PERMANENT_SANCTION_MS en sanctions.ts).
+export interface UserSanctionScopeState {
+  bannedUntil: number
+  commentBanUntil: number
+  photoBanUntil: number
+  reason: string
+}
+
+export interface UserSanctionSummary {
+  uid: string
+  warningsCount: number
+  global: UserSanctionScopeState
+  events: Record<string, UserSanctionScopeState>
+  updatedAt: number
+}
+
+export interface SanctionHistoryEntry {
+  id: string
+  type: SanctionType | 'revoked'
+  scope: SanctionScope
+  eventId: string | null
+  eventName: string | null
+  reason: string
+  durationMs: number | null // null = permanente
+  expiresAt: number | null
+  adminUid: string
+  adminEmail: string | null
+  reportId: string | null
+  createdAt: number
+}
+

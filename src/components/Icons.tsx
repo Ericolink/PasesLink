@@ -523,3 +523,20 @@ export function IconBug({ className = 'w-5 h-5' }: IconProps) {
     </svg>
   )
 }
+
+export function IconFlag({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" y1="22" x2="4" y2="15" />
+    </svg>
+  )
+}
+
+export function IconShield({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  )
+}

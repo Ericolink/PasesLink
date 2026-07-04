@@ -370,6 +370,11 @@ export function EventJoin() {
             {event?.welcomeMessage && (
               <p className="text-sm italic text-[var(--invite-accent)]">{event.welcomeMessage}</p>
             )}
+            {event?.description && (
+              <p className="mt-3 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-left">
+                {event.description}
+              </p>
+            )}
           </InvitationCard>
           {event?.mapsUrl && (
             <>
@@ -377,7 +382,7 @@ export function EventJoin() {
               <EventMap mapsUrl={event.mapsUrl} />
             </>
           )}
-          {id && <WallSection eventId={id} guestName={`${name} ${lastName}`.trim()} guestToken={qrToken} />}
+          {id && <WallSection eventId={id} eventName={event?.name} guestName={`${name} ${lastName}`.trim()} guestToken={qrToken} />}
         </div>
       </InvitationThemeRoot>
     )
@@ -410,6 +415,12 @@ export function EventJoin() {
               endTime={event.endTime}
               className="mt-1 mb-4 mx-auto"
             />
+          )}
+
+          {event?.description && (
+            <p className="mb-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-left">
+              {event.description}
+            </p>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-3 text-left">

@@ -128,6 +128,106 @@ service cloud.firestore {
         && request.resource.data.lastAt == request.time;
     }
 
+    // Reportes de contenido del muro (comentarios/fotos) — src/firebase/moderation.ts.
+    // Solo admin puede leer/listar/actualizar, igual que /feedback: el reporte
+    // incluye datos del reportador y del reportado que no deben quedar
+    // expuestos a nadie más. "Solo usuarios autenticados pueden reportar"
+    // (pedido explícito) es lo que permite además el cooldown y el bloqueo de
+    // duplicados server-verificados abajo, a diferencia del envío anónimo de
+    // feedback que solo puede protegerse "mejor esfuerzo" del lado cliente.
+    function reportCooldownOk() {
+      let rl = /databases/$(database)/documents/reportRateLimits/$(request.auth.uid);
+      return !exists(rl) || request.time > get(rl).data.lastAt + duration.value(20, 's');
+    }
+
+    function reportNotDuplicate(contentId) {
+      let dd = /databases/$(database)/documents/reportDedup/$(request.auth.uid)/targets/$(contentId);
+      return !exists(dd) || request.time > get(dd).data.lastAt + duration.value(24, 'h');
+    }
+
+    function isValidReportCreate() {
+      let d = request.resource.data;
+      return request.auth != null
+        && d.reporterUid == request.auth.uid
+        && d.eventId is string && d.eventId.size() > 0
+        && d.eventName is string && d.eventName.size() <= 200
+        && d.contentType in ['comment', 'photo']
+        && d.contentId is string && d.contentId.size() > 0
+        && d.contentSnapshot is string && d.contentSnapshot.size() <= 1000
+        && d.contentAuthorName is string && d.contentAuthorName.size() <= 120
+        && d.reporterName is string && d.reporterName.size() <= 120
+        && d.reason is string && d.reason.size() >= 10 && d.reason.size() <= 500
+        && d.status == 'pending' && d.adminNotes == '' && d.actionHistory == []
+        && reportCooldownOk() && reportNotDuplicate(d.contentId);
+    }
+
+    match /reports/{reportId} {
+      allow read, list: if isAdmin();
+      allow create: if isValidReportCreate();
+      allow update, delete: if isAdmin();
+    }
+
+    match /reportRateLimits/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.lastAt == request.time;
+    }
+
+    match /reportDedup/{uid}/targets/{contentId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.lastAt == request.time;
+      allow delete: if false;
+    }
+
+    // Sanciones de moderación (src/firebase/sanctions.ts). El resumen en
+    // sanctions/{uid} es lo que consultan estas mismas reglas para bloquear
+    // comentarios/fotos de una cuenta sancionada (ver isBanned/commentsBlocked/
+    // photosBlocked más abajo) y lo que el propio usuario puede leer para
+    // saber por qué está restringido — pero solo el admin puede escribirlo.
+    // El historial detallado (para el panel de admin) vive aparte y nunca lo
+    // lee la app del usuario sancionado.
+    match /sanctions/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+
+      match /history/{entryId} {
+        allow read, create: if isAdmin();
+        allow update, delete: if false;
+      }
+    }
+
+    // Consultadas desde las reglas del muro/fotos más abajo — siempre detrás
+    // de un `request.auth == null || ...` en el punto de llamada (mismo
+    // criterio que feedbackCooldownOk arriba), así que estas funciones pueden
+    // asumir que request.auth ya existe. Reglas de Firestore no soportan
+    // `if`/`else` como statement, solo expresiones booleanas de corto-circuito
+    // (`&&`/`||`) — por eso no hay early-return acá, cada función es una sola
+    // expresión que evita llamar a get() cuando exists() ya dio false.
+    function isBanned(eventId) {
+      let path = /databases/$(database)/documents/sanctions/$(request.auth.uid);
+      return exists(path) && (
+        (('global' in get(path).data) && get(path).data.global.bannedUntil > request.time.toMillis())
+        || (('events' in get(path).data) && (eventId in get(path).data.events) && get(path).data.events[eventId].bannedUntil > request.time.toMillis())
+      );
+    }
+
+    function commentsBlocked(eventId) {
+      let path = /databases/$(database)/documents/sanctions/$(request.auth.uid);
+      return isBanned(eventId) || (exists(path) && (
+        (('global' in get(path).data) && get(path).data.global.commentBanUntil > request.time.toMillis())
+        || (('events' in get(path).data) && (eventId in get(path).data.events) && get(path).data.events[eventId].commentBanUntil > request.time.toMillis())
+      ));
+    }
+
+    function photosBlocked(eventId) {
+      let path = /databases/$(database)/documents/sanctions/$(request.auth.uid);
+      return isBanned(eventId) || (exists(path) && (
+        (('global' in get(path).data) && get(path).data.global.photoBanUntil > request.time.toMillis())
+        || (('events' in get(path).data) && (eventId in get(path).data.events) && get(path).data.events[eventId].photoBanUntil > request.time.toMillis())
+      ));
+    }
+
     // Bitácora de acciones del admin (AdminDashboard). Solo el admin puede
     // leerla o crear entradas — nunca editarla ni borrarla, para que quede
     // como un registro confiable de qué se hizo y quién lo hizo.
@@ -211,7 +311,12 @@ service cloud.firestore {
 
       match /wall/{messageId} {
         allow read: if true;
-        allow create: if isValidWallMessage();
+        // Sancionado (baneo o restricción de comentarios, global o de este
+        // evento en particular) → bloqueado server-side, no solo en la UI.
+        // Un invitado sin sesión no pasa por este chequeo (no hay uid que
+        // sancionar) — mismo límite que el resto de las protecciones
+        // anti-abuso de este archivo para tráfico anónimo.
+        allow create: if isValidWallMessage() && (request.auth == null || !commentsBlocked(eventId));
         // TODO Fase 3+: esta rama no verifica que el token agregado a
         // likedBy/dislikedBy sea el propio del dispositivo que hace la
         // petición — solo limita qué claves se tocan y el tamaño máximo de
@@ -243,7 +348,8 @@ service cloud.firestore {
           && request.resource.data.authorToken.size() <= 100
           && (!('caption' in request.resource.data)
               || (request.resource.data.caption is string
-                  && request.resource.data.caption.size() <= 120));
+                  && request.resource.data.caption.size() <= 120))
+          && (request.auth == null || !photosBlocked(eventId));
         allow update: if false;
         allow delete: if isOwnerOrCoOrg(eventId) || isAdmin();
       }

@@ -1,19 +1,22 @@
 import type { PhotoData } from '../firebase/photos'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { Avatar } from './Avatar'
+import { ReportButton } from './ReportButton'
 
 interface Props {
   photo: PhotoData
   isOrg: boolean
   onOpen: () => void
   onDelete?: (photoId: string) => void
+  eventId: string
+  eventName: string
 }
 
 // Misma "forma" que una card de mensaje del muro (mismo padding/borde/avatar)
 // para que una foto se sienta como un comentario más del feed, no como un
 // bloque distinto. La imagen usa object-cover con altura acotada — un
 // preview recortado tipo feed; el encuadre completo se ve al abrir PhotoViewer.
-export function PhotoFeedCard({ photo, isOrg, onOpen, onDelete }: Props) {
+export function PhotoFeedCard({ photo, isOrg, onOpen, onDelete, eventId, eventName }: Props) {
   return (
     <div
       className="invite-wall-message border p-4 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
@@ -40,14 +43,28 @@ export function PhotoFeedCard({ photo, isOrg, onOpen, onDelete }: Props) {
         <p className="text-sm mt-2 ml-9 text-[var(--invite-text)]">{photo.caption}</p>
       )}
 
-      {isOrg && onDelete && (
-        <button
-          onClick={() => onDelete(photo.id)}
-          className="text-xs text-red-400 hover:text-red-300 mt-2 ml-9"
-        >
-          Eliminar foto
-        </button>
-      )}
+      <div className="flex items-center gap-3 mt-2 ml-9">
+        {isOrg && onDelete && (
+          <button
+            onClick={() => onDelete(photo.id)}
+            className="text-xs text-red-400 hover:text-red-300"
+          >
+            Eliminar foto
+          </button>
+        )}
+        <ReportButton
+          eventId={eventId}
+          eventName={eventName}
+          contentType="photo"
+          contentId={photo.id}
+          contentSnapshot={photo.url}
+          contentCaption={photo.caption}
+          contentAuthorName={photo.authorName}
+          contentAuthorToken={photo.authorToken}
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+          showLabel
+        />
+      </div>
     </div>
   )
 }

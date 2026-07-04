@@ -4,12 +4,14 @@ import { fetchPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
+import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { IconThumbsUp, IconThumbsDown, IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown, IconRotateCcw } from './Icons'
 import { ThemeSeal } from './ThemeSeal'
 import { Avatar } from './Avatar'
 import { PhotoFeedCard } from './PhotoFeedCard'
 import { PhotoUploadButton } from './PhotoUploadButton'
 import { PhotoViewer } from './PhotoViewer'
+import { ReportButton } from './ReportButton'
 import { mergeWallFeed } from '../utils/wallFeed'
 import { WALL_TEXT_MAX } from '../utils/validation'
 import type { TemplateId, WallMessage, WallMessageType } from '../types'
@@ -42,11 +44,12 @@ const TYPE_CONFIG: Record<WallMessageType, { label: string; Icon: React.FC<{clas
   idea:     { label: 'Idea',       Icon: IconLightbulb,      color: 'bg-green-100 text-green-700' },
 }
 
-interface Props { eventId: string; isPremium?: boolean; guestName?: string; guestToken?: string; templateId?: TemplateId }
+interface Props { eventId: string; eventName?: string; isPremium?: boolean; guestName?: string; guestToken?: string; templateId?: TemplateId }
 
-export function WallSection({ eventId, isPremium = false, guestName: guestNameProp, guestToken, templateId }: Props) {
+export function WallSection({ eventId, eventName = '', isPremium = false, guestName: guestNameProp, guestToken, templateId }: Props) {
   const { user }          = useAuth()
   const { profile }       = useUserProfile()
+  const { photoBlocked, commentBlockedMessage, photoBlockedMessage } = useSanctionStatus(eventId)
   const [messages, setMessages] = useState<WallMessage[]>([])
   const [photos, setPhotos]     = useState<PhotoData[]>([])
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
@@ -171,8 +174,17 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
         </div>
       )}
 
+      {/* Sanción activa — Firestore rules es la barrera real (ver
+          firestore.rules), este aviso solo evita que el usuario se tope con
+          un error de permisos genérico al intentar publicar. */}
+      {user && commentBlockedMessage && (
+        <div className="text-xs text-red-500 bg-red-500/10 rounded-lg px-3 py-2 mb-4">
+          {commentBlockedMessage}
+        </div>
+      )}
+
       {/* Post form */}
-      {canPost && (
+      {canPost && !commentBlockedMessage && (
         <form
           onSubmit={handlePost}
           className="invite-wall-form border p-4 mb-4 space-y-3 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
@@ -196,8 +208,12 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
               authorName={authorName}
               authorToken={photoAuthorToken}
               onUploaded={loadPhotos}
+              disabled={photoBlocked}
             />
           </div>
+          {photoBlockedMessage && (
+            <p className="text-xs text-red-500 basis-full">{photoBlockedMessage}</p>
+          )}
           <div className="flex items-start gap-2">
             <Avatar name={authorName} photoURL={authorPhoto} size={28} />
             <textarea
@@ -242,6 +258,8 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
                 photo={item.photo}
                 isOrg={false}
                 onOpen={() => setGalleryIndex(photos.findIndex((p) => p.id === item.photo.id))}
+                eventId={eventId}
+                eventName={eventName}
               />
             )
           }
@@ -306,6 +324,15 @@ export function WallSection({ eventId, isPremium = false, guestName: guestNamePr
                   <IconThumbsDown className="w-4 h-4" />
                   {msg.dislikedBy.length > 0 && <span>{msg.dislikedBy.length}</span>}
                 </button>
+                <ReportButton
+                  eventId={eventId}
+                  eventName={eventName}
+                  contentType="comment"
+                  contentId={msg.id}
+                  contentSnapshot={msg.text}
+                  contentAuthorName={msg.authorName}
+                  contentAuthorToken={msg.authorToken}
+                />
               </div>
             </div>
           )

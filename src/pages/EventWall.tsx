@@ -15,6 +15,7 @@ import { deletePhoto, subscribeToPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
+import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { WALL_NAME_MAX, WALL_TEXT_MAX } from '../utils/validation'
 import { mergeWallFeed } from '../utils/wallFeed'
@@ -36,6 +37,7 @@ import { Avatar } from '../components/Avatar'
 import { PhotoFeedCard } from '../components/PhotoFeedCard'
 import { PhotoUploadButton } from '../components/PhotoUploadButton'
 import { PhotoViewer } from '../components/PhotoViewer'
+import { ReportButton } from '../components/ReportButton'
 import type { EventData, WallMessage, WallMessageType } from '../types'
 
 interface TypeConfig {
@@ -78,6 +80,7 @@ export function EventWall() {
   const { id }    = useParams<{ id: string }>()
   const { user }  = useAuth()
   const { profile } = useUserProfile()
+  const { photoBlocked, commentBlockedMessage, photoBlockedMessage } = useSanctionStatus(id)
   const [event, setEvent]           = useState<EventData | null>(null)
   const [messages, setMessages]     = useState<WallMessage[]>([])
   const [photos, setPhotos]         = useState<PhotoData[]>([])
@@ -310,8 +313,17 @@ export function EventWall() {
         </div>
       )}
 
+      {/* Sanción activa — Firestore rules es la barrera real (ver
+          firestore.rules), este aviso solo evita que el usuario se tope con
+          un error de permisos genérico al intentar publicar. */}
+      {commentBlockedMessage && (
+        <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 mb-4">
+          {commentBlockedMessage}
+        </div>
+      )}
+
       {/* Post form */}
-      {!isMinor && (
+      {!isMinor && !commentBlockedMessage && (
         <form onSubmit={handlePost} className="invite-wall-form bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-5 space-y-3">
           <div className="flex gap-2 flex-wrap">
             {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
@@ -335,9 +347,11 @@ export function EventWall() {
                 eventId={id}
                 authorName={postLabel}
                 authorToken={authorToken}
+                disabled={photoBlocked}
               />
             )}
           </div>
+          {photoBlockedMessage && <p className="text-xs text-red-500 basis-full">{photoBlockedMessage}</p>}
           <div className="flex items-start gap-2">
             <Avatar name={postLabel} photoURL={postPhotoURL} size={28} />
             <textarea
@@ -389,6 +403,8 @@ export function EventWall() {
                 isOrg={isOwner}
                 onOpen={() => setGalleryIndex(photos.findIndex((p) => p.id === item.photo.id))}
                 onDelete={handleDeletePhoto}
+                eventId={id || ''}
+                eventName={event?.name || ''}
               />
             )
           }
@@ -492,6 +508,17 @@ export function EventWall() {
                   <button onClick={() => setReplyingTo(msg.id)} className="text-xs text-gray-400 hover:text-primary">
                     Responder
                   </button>
+                )}
+                {id && (
+                  <ReportButton
+                    eventId={id}
+                    eventName={event?.name || ''}
+                    contentType="comment"
+                    contentId={msg.id}
+                    contentSnapshot={msg.text}
+                    contentAuthorName={msg.authorName}
+                    contentAuthorToken={msg.authorToken}
+                  />
                 )}
               </div>
 

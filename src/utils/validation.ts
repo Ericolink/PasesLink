@@ -38,6 +38,15 @@ export const FEEDBACK_MESSAGE_MAX = 2000
 export const FEEDBACK_EMAIL_MAX = 120
 export const FEEDBACK_CATEGORIES = ['suggestion', 'bug', 'comment', 'question', 'inappropriate', 'feature_request', 'other'] as const
 
+// Reportes de contenido del muro (src/firebase/moderation.ts). Deben coincidir
+// con isValidReportCreate() en firestore.rules — misma razón que el resto de
+// los límites de este archivo: esa es la última barrera real.
+export const REPORT_REASON_MIN = 10
+export const REPORT_REASON_MAX = 500
+export const REPORT_CONTENT_SNAPSHOT_MAX = 1000
+export const REPORT_NAME_MAX = 120
+export const REPORT_EVENT_NAME_MAX = 200
+
 export function requireNonEmpty(value: string, label: string): string {
   const trimmed = value.trim()
   if (!trimmed) throw new Error(`${label} es obligatorio.`)

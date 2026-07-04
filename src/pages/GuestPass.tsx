@@ -343,6 +343,12 @@ function GuestPassInner() {
             endTime={event.endTime}
             className="mt-3 mx-auto"
           />
+
+          {event.description && (
+            <p className="mt-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-left">
+              {event.description}
+            </p>
+          )}
         </div>
 
         {/* ── DIVISOR PERFORADO ── */}
@@ -588,7 +594,7 @@ function GuestPassInner() {
       {/* Muro del evento — las fotos ya viven mezcladas dentro del feed */}
       {eventId && (
         guest.rsvpStatus === 'yes' ? (
-          <WallSection eventId={eventId} isPremium={event?.plan === 'premium'} guestName={guest.name} guestToken={qrToken} templateId={event.templateId} />
+          <WallSection eventId={eventId} eventName={event?.name} isPremium={event?.plan === 'premium'} guestName={guest.name} guestToken={qrToken} templateId={event.templateId} />
         ) : !locked && (
           <div className="mt-8 pt-6 border-t text-center" style={{ borderColor: 'var(--invite-border)' }}>
             <p className="text-sm text-[var(--invite-text-muted)]">Confirma tu asistencia para ver el muro del evento.</p>
