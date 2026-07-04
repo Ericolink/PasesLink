@@ -1,8 +1,10 @@
+import { IconGlobe, IconShuffle, IconUsers } from '../Icons'
+import type { ComponentType } from 'react'
 import type { EntryMode } from '../../types'
 
 interface ModeOption {
   id: EntryMode
-  emoji: string
+  Icon: ComponentType<{ className?: string }>
   title: string
   badge: string
   description: string
@@ -11,21 +13,21 @@ interface ModeOption {
 const MODES: ModeOption[] = [
   {
     id: 'list',
-    emoji: '👥',
+    Icon: IconUsers,
     title: 'Controlar acceso',
     badge: 'Solo invitados con QR',
     description: 'Invita a personas específicas — fiesta privada, boda, evento corporativo cerrado.',
   },
   {
     id: 'open',
-    emoji: '🌐',
+    Icon: IconGlobe,
     title: 'Acceso público',
     badge: 'Registro abierto a cualquiera',
     description: 'Cualquiera puede registrarse hasta llenar el cupo — evento público, feria, conferencia.',
   },
   {
     id: 'hybrid',
-    emoji: '🔀',
+    Icon: IconShuffle,
     title: 'Ambos modos',
     badge: 'Invitados + registro abierto',
     description: 'Invitados especiales Y el público general también puede registrarse.',
@@ -52,7 +54,11 @@ export function EntryModeSelector({ value, onChange }: EntryModeSelectorProps) {
           }`}
         >
           <div className="flex items-start gap-3">
-            <span className="text-2xl flex-shrink-0 leading-none mt-0.5">{mode.emoji}</span>
+            <mode.Icon
+              className={`w-6 h-6 flex-shrink-0 mt-0.5 ${
+                value === mode.id ? 'text-primary' : 'text-gray-400 dark:text-gray-500'
+              }`}
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">
