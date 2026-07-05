@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { allowGuestReentry, deleteGuest, guestPresence, partySize, resetGuestRsvp, setGuestPaymentStatus, unlockGuestPass, updateGuest } from '../firebase/guests'
 import { getGuestCheckins } from '../firebase/reports'
 import type { CheckinLog, CompanionData, GuestData } from '../types'
-import { RSVP_LABELS } from '../types'
 import {
   IconCheck,
   IconCheckCircle,
@@ -242,20 +241,11 @@ export const GuestList = memo(function GuestList({
               </div>
               <GuestStatusBadge guest={guest} />
             </div>
-            {guest.rsvpStatus !== 'pending' && (
+            {guest.rsvpStatus === 'no' && (
               <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    guest.rsvpStatus === 'yes' ? 'bg-blue-50 text-primary' : 'bg-gray-100 text-gray-500'
-                  }`}
-                >
-                  {RSVP_LABELS[guest.rsvpStatus]}
-                </span>
-                {guest.rsvpStatus === 'no' && (
-                  <button onClick={() => handleReactivate(guest)} className="text-xs text-primary font-medium">
-                    Reactivar invitación
-                  </button>
-                )}
+                <button onClick={() => handleReactivate(guest)} className="text-xs text-primary font-medium">
+                  Reactivar invitación
+                </button>
               </div>
             )}
             {guestPresence(guest) === 'final_out' && (

@@ -4,10 +4,9 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { deleteEvent, setEventStatus, subscribeToUserEvents } from '../firebase/events'
 import type { EventData } from '../types'
-import { PlanBadge } from '../components/PlanBadge'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { WelcomeModal } from '../components/WelcomeModal'
-import { IconBarChart, IconCalendar, IconCheckCircle, IconStar, IconTicket, IconUsers } from '../components/Icons'
+import { IconBarChart, IconCalendar, IconCheckCircle, IconTicket, IconUsers } from '../components/Icons'
 import { LoadingInline } from '../components/LoadingInline'
 import { formatDate } from '../utils/time'
 import { consumeWelcomePending, hasSeenNovedades, markNovedadesSeen } from '../utils/onboarding'
@@ -396,14 +395,10 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
         <button onClick={onNavigate} disabled={isLoading} className="w-full text-left p-4 pb-3">
           <div className="flex items-start justify-between gap-2 mb-1">
             <h2 className="font-semibold text-white flex items-center gap-2">
-              {event.plan === 'premium'
-                ? <IconStar className="w-4 h-4 text-amber-400 shrink-0" />
-                : <IconTicket className="w-4 h-4 text-primary shrink-0" />
-              }
+              <IconTicket className="w-4 h-4 text-primary shrink-0" />
               {event.name}
             </h2>
             <div className="flex items-center gap-2 shrink-0">
-              <PlanBadge plan={event.plan} />
               {event.status !== 'active' && (
                 <span
                   className="text-xs px-2 py-0.5 rounded-full font-medium"

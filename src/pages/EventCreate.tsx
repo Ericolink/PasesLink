@@ -639,7 +639,7 @@ export function EventCreate() {
             </div>
 
             <p className="text-sm text-center text-amber-600 bg-amber-50 dark:bg-amber-900/20 rounded-md px-3 py-2">
-              🎉 Todas las funciones Premium (reportes, recordatorios, notificaciones) están incluidas gratis mientras damos a conocer el servicio.
+              🎉 Todas las funciones (reportes, recordatorios, notificaciones) están incluidas gratis mientras damos a conocer el servicio.
             </p>
 
             {error && (

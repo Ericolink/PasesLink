@@ -11,7 +11,6 @@ import { useCheckinSessionAccumulator } from '../hooks/useCheckinSessionAccumula
 import { useModalA11y } from '../hooks/useModalA11y'
 import { deleteEvent, setEventStatus } from '../firebase/events'
 import { optimizedImageUrl } from '../utils/cloudinary'
-import { PlanBadge } from '../components/PlanBadge'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
 import { EditEventForm } from '../components/EditEventForm'
@@ -212,10 +211,9 @@ export function EventDetail() {
           </div>
         )}
         <div className="p-5">
-          {/* Estado + plan */}
+          {/* Estado */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <StatusPill status={event.status} />
-            <PlanBadge plan={event.plan} />
           </div>
 
           {/* Nombre + botón editar */}
@@ -285,14 +283,12 @@ export function EventDetail() {
         >
           Muro
         </Link>
-        {event.plan === 'premium' && (
-          <Link
-            to={`/events/${event.id}/reports`}
-            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
-          >
-            Reportes
-          </Link>
-        )}
+        <Link
+          to={`/events/${event.id}/reports`}
+          className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
+        >
+          Reportes
+        </Link>
       </div>
 
       {/* ── ESTADÍSTICAS PRINCIPALES ── */}
@@ -525,9 +521,6 @@ export function EventDetail() {
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
                 {event.entryMode === 'hybrid' ? 'Ingreso mixto' : 'Ingreso libre'}
               </h2>
-              {event.entryMode === 'hybrid' && (
-                <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Mixto</span>
-              )}
             </div>
             <span className="text-xs text-gray-400">
               <span className="group-open:hidden">▾</span>
@@ -549,23 +542,21 @@ export function EventDetail() {
         </details>
       )}
 
-      {/* ── ANALÍTICA (premium, colapsable) ── */}
-      {event.plan === 'premium' && (
-        <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 mb-5">
-          <summary className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-              Analítica
-            </span>
-            <span className="text-xs text-gray-400">
-              <span className="group-open:hidden">▾ Ver</span>
-              <span className="hidden group-open:inline">▴ Ocultar</span>
-            </span>
-          </summary>
-          <div className="border-t border-gray-100 dark:border-gray-700 p-5">
-            <EventAnalytics guests={guests} loading={guestsLoading} />
-          </div>
-        </details>
-      )}
+      {/* ── ANALÍTICA (colapsable) ── */}
+      <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 mb-5">
+        <summary className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+            Analítica
+          </span>
+          <span className="text-xs text-gray-400">
+            <span className="group-open:hidden">▾ Ver</span>
+            <span className="hidden group-open:inline">▴ Ocultar</span>
+          </span>
+        </summary>
+        <div className="border-t border-gray-100 dark:border-gray-700 p-5">
+          <EventAnalytics guests={guests} loading={guestsLoading} />
+        </div>
+      </details>
 
       {/* ── RESUMEN DE CHECK-INS ── */}
       {isOwner && organizerNotifyEnabled && checkinsThisSession.length > 0 && (

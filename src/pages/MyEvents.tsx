@@ -20,14 +20,6 @@ const STATUS_COLOR: Record<EventData['status'], string> = {
   archived:  'bg-gray-500/20 text-gray-400',
 }
 
-const PLAN_COLOR: Record<EventData['plan'], string> = {
-  premium: 'bg-yellow-500/20 text-yellow-400',
-}
-
-const PLAN_LABEL: Record<EventData['plan'], string> = {
-  premium: 'Premium',
-}
-
 export function MyEvents() {
   const { user } = useAuth()
   const [events, setEvents]   = useState<EventData[]>([])
@@ -101,9 +93,6 @@ export function MyEvents() {
                 <p className="font-semibold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors">
                   {ev.name}
                 </p>
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${PLAN_COLOR[ev.plan]}`}>
-                  {PLAN_LABEL[ev.plan]}
-                </span>
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${STATUS_COLOR[ev.status]}`}>
                   {STATUS_LABEL[ev.status]}
                 </span>

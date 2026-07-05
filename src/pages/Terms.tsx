@@ -28,8 +28,9 @@ export function Terms() {
         <section>
           <h2 className="font-medium text-gray-900 mb-1">3. Planes y pagos</h2>
           <p>
-            PaseLink ofrece un plan Básico y un plan Premium con funciones adicionales. Los precios y funciones de
-            cada plan pueden actualizarse; cualquier cambio se reflejará en la página de creación de eventos.
+            Actualmente todas las funciones de PaseLink están incluidas sin costo mientras el servicio está en
+            lanzamiento. Si en el futuro se introducen planes pagos o cambios de precio, se anunciará con
+            anticipación y se reflejará en la página de creación de eventos.
           </p>
         </section>
 

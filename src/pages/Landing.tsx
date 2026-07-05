@@ -229,7 +229,7 @@ export function Landing() {
           </span>
 
           <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Precio</p>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">Premium, totalmente gratis</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">Todo incluido, totalmente gratis</h2>
           <p className="text-gray-500 dark:text-gray-500 mb-6">
             Mientras damos a conocer el servicio, todas las funciones están incluidas sin costo. Sin tarjeta, sin
             límite de invitados.

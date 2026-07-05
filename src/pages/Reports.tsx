@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { subscribeToCheckins } from '../firebase/reports'
 import { partySize } from '../firebase/guests'
 import { useEvent } from '../hooks/useEvent'
@@ -51,10 +51,6 @@ export function Reports() {
       </div>
     )
   }
-  if (event.plan !== 'premium') {
-    return <Navigate to={`/events/${event.id}`} replace />
-  }
-
   const attendanceRate = event.guestCount > 0 ? Math.round((event.checkedInCount / event.guestCount) * 100) : 0
   const pending = guests.filter((g) => g.status === 'invited')
   const rsvpYes = guests.filter((g) => g.rsvpStatus === 'yes').length

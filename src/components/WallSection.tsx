@@ -46,9 +46,9 @@ const TYPE_CONFIG: Record<WallMessageType, { label: string; Icon: React.FC<{clas
   idea:     { label: 'Idea',       Icon: IconLightbulb,      color: 'bg-green-100 text-green-700' },
 }
 
-interface Props { eventId: string; eventName?: string; isPremium?: boolean; guestName?: string; guestToken?: string; templateId?: TemplateId }
+interface Props { eventId: string; eventName?: string; guestName?: string; guestToken?: string; templateId?: TemplateId }
 
-export function WallSection({ eventId, eventName = '', isPremium = false, guestName: guestNameProp, guestToken, templateId }: Props) {
+export function WallSection({ eventId, eventName = '', guestName: guestNameProp, guestToken, templateId }: Props) {
   const { user }          = useAuth()
   const { profile }       = useUserProfile()
   const { photoBlocked, commentBlockedMessage, photoBlockedMessage } = useSanctionStatus(eventId)
@@ -302,14 +302,12 @@ export function WallSection({ eventId, eventName = '', isPremium = false, guestN
                         Destacado
                       </span>
                     )}
-                    {isOwnerMsg && isPremium
+                    {isOwnerMsg
                       ? <span className="min-w-0 inline-flex items-center gap-1 text-xs font-bold"
                           style={{ color: '#E8B84B', textShadow: '0 0 8px rgba(232,184,75,.8)' }}>
                           <IconCrown className="w-3 h-3 shrink-0" /><span className="min-w-0 truncate">{msg.authorName}</span>
                         </span>
-                      : isOwnerMsg
-                        ? <span className="min-w-0 truncate text-xs font-bold text-[var(--invite-accent)]">{msg.authorName}</span>
-                        : <span className="min-w-0 truncate text-xs font-semibold text-[var(--invite-text)]">{msg.authorName}</span>
+                      : <span className="min-w-0 truncate text-xs font-semibold text-[var(--invite-text)]">{msg.authorName}</span>
                     }
                   </div>
                 </div>

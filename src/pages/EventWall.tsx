@@ -109,7 +109,6 @@ export function EventWall() {
   // `isOwner`, que sigue siendo la identidad estricta usada para publicar
   // como "Anfitrión".
   const isOrg      = isOwner || !!(user && event?.coOrganizersMap && user.uid in event.coOrganizersMap)
-  const isPremium  = event?.plan === 'premium'
   const isMinor    = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
 
   // If user is authenticated, skip name screen. Igual que en EventJoin: profile
@@ -415,7 +414,7 @@ export function EventWall() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">
-              Como: <AuthorName name={postLabel} role={isOwner ? 'owner' : 'guest'} premium={isPremium} />
+              Como: <AuthorName name={postLabel} role={isOwner ? 'owner' : 'guest'} />
             </span>
             <span className="text-xs text-gray-400">{text.length}/{WALL_TEXT_MAX}</span>
             <button
@@ -461,7 +460,6 @@ export function EventWall() {
           }
           const msg       = item.message
           const cfg       = TYPE_CONFIG[msg.type]
-          const isOwnerMsg = msg.authorRole === 'owner'
           return (
             <div
               key={msg.id}
@@ -488,7 +486,7 @@ export function EventWall() {
                       <cfg.Icon className="w-3 h-3" />
                       {cfg.label}
                     </span>
-                    <AuthorName name={msg.authorName} role={msg.authorRole} premium={isPremium && isOwnerMsg} />
+                    <AuthorName name={msg.authorName} role={msg.authorRole} />
                   </div>
                 </div>
                 {/* Owner/co-org actions */}
@@ -523,7 +521,6 @@ export function EventWall() {
                       <AuthorName
                         name={r.authorName || OWNER_DISPLAY}
                         role={r.authorRole}
-                        premium={isPremium && r.authorRole === 'owner'}
                         inline
                       />
                       <span className="text-xs text-gray-700 dark:text-gray-300 ml-1">{r.text}</span>
@@ -633,40 +630,29 @@ export function EventWall() {
   )
 }
 
-/* Componente para renderizar el nombre del autor con estilo según plan */
+/* Componente para renderizar el nombre del autor, destacando al organizador */
 function AuthorName({
   name,
   role,
-  premium,
   inline = false,
 }: {
   name: string
   role: 'owner' | 'guest'
-  premium: boolean
   inline?: boolean
 }) {
   if (role !== 'owner') {
     return <span className={`text-xs font-semibold text-gray-700 dark:text-gray-300 ${inline ? 'inline' : ''}`}>{name}</span>
   }
 
-  if (premium) {
-    return (
-      <span
-        className={`inline-flex items-center gap-1 text-xs font-bold ${inline ? '' : ''}`}
-        style={{
-          color: '#E8B84B',
-          textShadow: '0 0 8px rgba(232,184,75,.8), 0 0 16px rgba(232,184,75,.4)',
-        }}
-      >
-        <IconCrown className="w-3 h-3" />
-        {name}
-      </span>
-    )
-  }
-
-  /* Basic plan — resaltar pero sin dorado */
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-bold text-primary ${inline ? '' : ''}`}>
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-bold ${inline ? '' : ''}`}
+      style={{
+        color: '#E8B84B',
+        textShadow: '0 0 8px rgba(232,184,75,.8), 0 0 16px rgba(232,184,75,.4)',
+      }}
+    >
+      <IconCrown className="w-3 h-3" />
       {name}
     </span>
   )

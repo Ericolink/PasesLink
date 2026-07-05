@@ -39,7 +39,6 @@ export const EventAnalytics = memo(function EventAnalytics({ guests, loading = f
         <div className="flex items-center gap-2 mb-1">
           <IconBarChart2 className="w-4 h-4 text-primary" />
           <h2 className="font-medium text-gray-900 dark:text-white">Analytics</h2>
-          <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Premium</span>
         </div>
         {loading
           ? <LoadingInline label="Cargando asistentes…" />
@@ -55,7 +54,6 @@ export const EventAnalytics = memo(function EventAnalytics({ guests, loading = f
       <div className="flex items-center gap-2 mb-4">
         <IconBarChart2 className="w-4 h-4 text-primary" />
         <h2 className="font-medium text-gray-900 dark:text-white">Analytics de llegadas</h2>
-        <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">Premium</span>
       </div>
 
       <div className="flex gap-4 mb-4 text-center">

@@ -222,11 +222,9 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
               <Link to={`/events/${event.id}`} title="Ver evento" aria-label={`Ver ${event.name}`} className="p-2.5 text-gray-400 hover:text-primary">
                 <IconEye className="w-4 h-4" />
               </Link>
-              {event.plan === 'premium' && (
-                <Link to={`/events/${event.id}/reports`} title="Ver reportes" aria-label={`Reportes de ${event.name}`} className="p-2.5 text-gray-400 hover:text-primary">
-                  <IconBarChart2 className="w-4 h-4" />
-                </Link>
-              )}
+              <Link to={`/events/${event.id}/reports`} title="Ver reportes" aria-label={`Reportes de ${event.name}`} className="p-2.5 text-gray-400 hover:text-primary">
+                <IconBarChart2 className="w-4 h-4" />
+              </Link>
               <button onClick={() => onRequestDelete(event)} title="Eliminar" aria-label={`Eliminar ${event.name}`} className="p-2.5 text-gray-400 hover:text-red-600">
                 <IconTrash className="w-4 h-4" />
               </button>
@@ -300,11 +298,9 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
                     <Link to={`/events/${event.id}`} title="Ver evento" aria-label={`Ver ${event.name}`} className="text-gray-400 hover:text-primary">
                       <IconEye className="w-4 h-4" />
                     </Link>
-                    {event.plan === 'premium' && (
-                      <Link to={`/events/${event.id}/reports`} title="Ver reportes" aria-label={`Reportes de ${event.name}`} className="text-gray-400 hover:text-primary">
-                        <IconBarChart2 className="w-4 h-4" />
-                      </Link>
-                    )}
+                    <Link to={`/events/${event.id}/reports`} title="Ver reportes" aria-label={`Reportes de ${event.name}`} className="text-gray-400 hover:text-primary">
+                      <IconBarChart2 className="w-4 h-4" />
+                    </Link>
                     <button onClick={() => onRequestDelete(event)} title="Eliminar" aria-label={`Eliminar ${event.name}`} className="text-gray-400 hover:text-red-600">
                       <IconTrash className="w-4 h-4" />
                     </button>

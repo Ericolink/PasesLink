@@ -16,7 +16,6 @@ import { useModalA11y } from '../hooks/useModalA11y'
 import {
   IconBell,
   IconCheckCircle,
-  IconCrown,
   IconEdit,
   IconLink,
   IconUsers,
@@ -476,12 +475,9 @@ export function Profile() {
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
                 Email por check-in
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
-                  <IconCrown className="w-3 h-3" /> Premium
-                </span>
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Recibe un correo cada vez que un invitado haga check-in en tus eventos premium.
+                Recibe un correo cada vez que un invitado haga check-in en tus eventos.
               </p>
             </div>
           </div>

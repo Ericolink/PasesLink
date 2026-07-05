@@ -630,7 +630,7 @@ function GuestPassInner() {
       {/* Muro del evento — Historias + fotos ya viven dentro de WallSection */}
       {eventId && (
         guest.rsvpStatus === 'yes' ? (
-          <WallSection eventId={eventId} eventName={event?.name} isPremium={event?.plan === 'premium'} guestName={guest.name} guestToken={qrToken} templateId={event.templateId} />
+          <WallSection eventId={eventId} eventName={event?.name} guestName={guest.name} guestToken={qrToken} templateId={event.templateId} />
         ) : !locked && (
           <div className="mt-8 pt-6 border-t text-center" style={{ borderColor: 'var(--invite-border)' }}>
             <p className="text-sm text-[var(--invite-text-muted)]">Confirma tu asistencia para ver el muro del evento.</p>
