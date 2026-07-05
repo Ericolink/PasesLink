@@ -1,5 +1,4 @@
 import { memo, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { allowGuestReentry, deleteGuest, guestPresence, partySize, resetGuestRsvp, setGuestPaymentStatus, unlockGuestPass, updateGuest } from '../firebase/guests'
 import { getGuestCheckins } from '../firebase/reports'
 import type { CheckinLog, CompanionData, GuestData } from '../types'
@@ -8,7 +7,6 @@ import {
   IconCheckCircle,
   IconClock,
   IconEdit,
-  IconEye,
   IconHelpCircle,
   IconInbox,
   IconLogOut,
@@ -301,7 +299,7 @@ export const GuestList = memo(function GuestList({
                 </button>
               </div>
             )}
-            <div className="grid grid-cols-4 divide-x divide-gray-100 border-t border-gray-100">
+            <div className="grid grid-cols-3 divide-x divide-gray-100 border-t border-gray-100">
               <button
                 onClick={() => handleShare(guest)}
                 title={copiedId === guest.id ? 'Copiado!' : 'Compartir invitación'}
@@ -310,14 +308,6 @@ export const GuestList = memo(function GuestList({
               >
                 {copiedId === guest.id ? <IconCheck className="w-5 h-5" /> : <IconShare className="w-5 h-5" />}
               </button>
-              <Link
-                to={`/pass/${eventId}/${guest.qrToken}`}
-                target="_blank"
-                className="flex flex-col items-center justify-center gap-1 py-3 min-h-12 text-xs text-primary font-medium hover:bg-gray-50 transition-colors"
-              >
-                <IconEye className="w-4 h-4" />
-                Ver pase
-              </Link>
               <button
                 onClick={() => setEditingId(guest.id)}
                 className="flex flex-col items-center justify-center gap-1 py-3 min-h-12 text-xs text-gray-500 font-medium hover:bg-gray-50 transition-colors"
