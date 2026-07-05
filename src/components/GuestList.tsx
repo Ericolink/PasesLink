@@ -304,10 +304,11 @@ export const GuestList = memo(function GuestList({
             <div className="grid grid-cols-4 divide-x divide-gray-100 border-t border-gray-100">
               <button
                 onClick={() => handleShare(guest)}
-                className="flex flex-col items-center justify-center gap-1 py-3 min-h-12 text-xs text-primary font-medium hover:bg-gray-50 transition-colors"
+                title={copiedId === guest.id ? 'Copiado!' : 'Compartir invitación'}
+                aria-label={copiedId === guest.id ? 'Copiado!' : 'Compartir invitación'}
+                className="flex items-center justify-center py-3 min-h-12 text-primary hover:bg-gray-50 active:bg-gray-100 transition-colors"
               >
-                <IconShare className="w-4 h-4" />
-                {copiedId === guest.id ? 'Copiado!' : 'Compartir'}
+                {copiedId === guest.id ? <IconCheck className="w-5 h-5" /> : <IconShare className="w-5 h-5" />}
               </button>
               <Link
                 to={`/pass/${eventId}/${guest.qrToken}`}
