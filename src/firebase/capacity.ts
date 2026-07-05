@@ -135,7 +135,7 @@ export async function registerWalkInGuest(
         phone: trimmedPhone,
       })
     }
-    tx.update(eventRef, { guestCount: increment(1) })
+    tx.update(eventRef, { guestCount: increment(1), peopleCount: increment(clampedPartySize) })
 
     return { status: 'success', qrToken }
   })

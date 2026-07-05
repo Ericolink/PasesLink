@@ -281,10 +281,16 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount'])
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount))
-        // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1 en 1.
+        // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
+        // invitación en 1 (guestCount), sumando entre 1 y GUEST_MAX_PARTY_SIZE
+        // personas (peopleCount) — ese invitado puede traer acompañantes (ver
+        // GUEST_MAX_PARTY_SIZE en src/utils/validation.ts, debe coincidir con
+        // el 10 de acá).
         || (resource.data.entryMode in ['open', 'hybrid']
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount'])
-            && request.resource.data.guestCount == resource.data.guestCount + 1);
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount'])
+            && request.resource.data.guestCount == resource.data.guestCount + 1
+            && request.resource.data.peopleCount >= resource.data.peopleCount + 1
+            && request.resource.data.peopleCount <= resource.data.peopleCount + 10);
       allow delete: if isOwner(eventId) || isAdmin();
 
       match /guests/{guestId} {

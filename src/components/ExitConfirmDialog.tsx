@@ -5,6 +5,7 @@ export type PendingExit = {
   qrToken: string
   guestName: string
   companionsCount: number
+  isGroup?: boolean
 }
 
 export function ExitConfirmDialog({
@@ -35,8 +36,12 @@ export function ExitConfirmDialog({
         <IconLogOut className="w-14 h-14 mb-3 mx-auto" />
         <h2 className="text-2xl font-semibold mb-1">Registrar salida</h2>
         <p className="text-lg mb-1">{pendingExit.guestName}</p>
-        {pendingExit.companionsCount > 0 && (
-          <p className="text-sm opacity-80 mb-1">+{pendingExit.companionsCount} acompañante(s)</p>
+        {pendingExit.isGroup ? (
+          <p className="text-sm opacity-80 mb-1">{pendingExit.companionsCount + 1} integrantes</p>
+        ) : (
+          pendingExit.companionsCount > 0 && (
+            <p className="text-sm opacity-80 mb-1">+{pendingExit.companionsCount} acompañante(s)</p>
+          )
         )}
         <p className="text-sm opacity-80 mb-6">¿Va a volver a entrar o se retira del evento?</p>
 

@@ -4,7 +4,7 @@ import { Html5Qrcode } from 'html5-qrcode'
 import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEventOnly } from '../hooks/useEventOnly'
-import { checkInGuest, checkOutGuest, findGuestByToken, guestPresence } from '../firebase/guests'
+import { checkInGuest, checkOutGuest, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
 import { ExitConfirmDialog, type PendingExit } from '../components/ExitConfirmDialog'
@@ -22,6 +22,7 @@ export type ScanFeedback = {
   // handleRequestCheckoutFromModal) — no se muestran en pantalla.
   qrToken?: string
   companionsCount?: number
+  isGroup?: boolean
 }
 
 type ScanMode = 'entrada' | 'salida'
@@ -182,7 +183,11 @@ export function Scanner() {
       if (result.status === 'success') {
         confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = eventRef.current?.welcomeMessage || undefined
-        const companions = result.guest.companions.length > 0 ? `+${result.guest.companions.length} acompañante(s)` : undefined
+        const companions = result.guest.isGroup
+          ? `${partySize(result.guest)} integrantes`
+          : result.guest.companions.length > 0
+            ? `+${result.guest.companions.length} acompañante(s)`
+            : undefined
         const reentryMsg = result.reentry ? 'Reingreso registrado' : undefined
         showFeedback({
           type: 'success',
@@ -197,6 +202,7 @@ export function Scanner() {
           checkedInByEmail: result.guest.checkedInByEmail,
           qrToken,
           companionsCount: result.guest.companions.length,
+          isGroup: result.guest.isGroup,
         })
       } else if (result.status === 'payment_required') {
         showFeedback({ type: 'invalid', guestName: result.guest.name, detail: 'Debe pagar la entrada antes de ingresar.' })
@@ -248,7 +254,7 @@ export function Scanner() {
         })
         return
       }
-      setPendingExit({ qrToken, guestName, companionsCount: guest.companions.length })
+      setPendingExit({ qrToken, guestName, companionsCount: guest.companions.length, isGroup: guest.isGroup })
     } catch (err) {
       await handleProcessError(err, attempt, () => processExitScan(decodedText, attempt + 1))
     }
@@ -291,7 +297,12 @@ export function Scanner() {
   // (modo salida dedicado y este atajo) terminen siempre en la misma decisión.
   function handleRequestCheckoutFromModal() {
     if (!feedback?.qrToken) return
-    setPendingExit({ qrToken: feedback.qrToken, guestName: feedback.guestName || '', companionsCount: feedback.companionsCount || 0 })
+    setPendingExit({
+      qrToken: feedback.qrToken,
+      guestName: feedback.guestName || '',
+      companionsCount: feedback.companionsCount || 0,
+      isGroup: feedback.isGroup,
+    })
     setFeedback(null)
   }
 

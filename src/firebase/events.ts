@@ -72,6 +72,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     paymentStatus: 'paid',
     status: 'active',
     guestCount: 0,
+    peopleCount: 0,
     checkedInCount: 0,
     occupancyCount: 0,
     createdAt: serverTimestamp(),
@@ -280,6 +281,11 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],
     status: data.status as EventStatus,
     guestCount: (data.guestCount as number) || 0,
+    // Eventos creados antes de este campo no lo tienen — cae a 0 en vez de
+    // reventar, aunque eso subestime el "% de asistencia" hasta que se
+    // agregue/edite un invitado (que ya recalcula sobre el valor real). Ver
+    // comentario de `peopleCount` en types/index.ts.
+    peopleCount: (data.peopleCount as number) || 0,
     checkedInCount: (data.checkedInCount as number) || 0,
     occupancyCount: (data.occupancyCount as number) || 0,
     coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { subscribeToCheckins } from '../firebase/reports'
+import { partySize } from '../firebase/guests'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import type { CheckinLog } from '../types'
@@ -151,8 +152,17 @@ export function Reports() {
           {!guestsLoading && guests.map((guest) => (
             <div key={guest.id} className="flex items-center justify-between py-2 text-sm gap-2">
               <span className="text-gray-900">
-                {guest.name} {guest.lastName}
-                {guest.companions.length > 0 && <span className="text-gray-400"> +{guest.companions.length}</span>}
+                {guest.isGroup ? (
+                  <>
+                    {guest.name}
+                    <span className="text-gray-400"> · {partySize(guest)} integrantes</span>
+                  </>
+                ) : (
+                  <>
+                    {guest.name} {guest.lastName}
+                    {guest.companions.length > 0 && <span className="text-gray-400"> +{guest.companions.length}</span>}
+                  </>
+                )}
               </span>
               <span className="text-gray-400 text-xs">{RSVP_LABELS[guest.rsvpStatus]}</span>
               <span className="text-gray-500 text-right">

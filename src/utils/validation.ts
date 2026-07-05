@@ -28,6 +28,11 @@ export const GUEST_CUSTOM_FIELD_MAX_COUNT = 30
 // controlaba solo el organizador autenticado vía CompanionFieldsEditor), así
 // que no existía ningún límite explícito para una entrada anónima.
 export const GUEST_MAX_PARTY_SIZE = 10
+// Tope de "cantidad de integrantes" al crear/editar una familia o grupo desde
+// el panel del organizador (GuestAddForm/GuestList) — a diferencia de
+// GUEST_MAX_PARTY_SIZE (autoregistro público, sin control del organizador),
+// esta vía la usa un organizador autenticado, por eso el límite es más alto.
+export const GUEST_GROUP_MAX_MEMBERS = 50
 
 // Buzón de feedback (src/pages/Feedback.tsx, src/firebase/feedback.ts). Deben
 // coincidir con isValidFeedbackCreate() en firestore.rules — esa es la última

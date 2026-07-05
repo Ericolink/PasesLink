@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent, subscribeToEvent } from '../firebase/events'
-import { checkInGuest, claimGuestPass, findGuestByToken, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
+import { checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { useAuth } from '../hooks/useAuth'
 import type { EventData, GuestData, RsvpStatus } from '../types'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
@@ -188,8 +188,12 @@ function GuestPassInner() {
         <InvitationCard>
           <p className="text-xs uppercase tracking-wide mb-4 text-[var(--invite-text-muted)]">Modo organizador</p>
           <h1 className="text-xl font-semibold">{guest.name}</h1>
-          {guest.companions.length > 0 && (
-            <p className="text-sm mt-1 text-[var(--invite-text-muted)]">+ {guest.companions.length} acompañante(s)</p>
+          {guest.isGroup ? (
+            <p className="text-sm mt-1 text-[var(--invite-text-muted)]">{partySize(guest)} integrantes</p>
+          ) : (
+            guest.companions.length > 0 && (
+              <p className="text-sm mt-1 text-[var(--invite-text-muted)]">+ {guest.companions.length} acompañante(s)</p>
+            )
           )}
           <p className="text-sm mt-1 text-[var(--invite-text-muted)]">{event.name}</p>
 
@@ -436,8 +440,12 @@ function GuestPassInner() {
           {!locked && guest.rsvpStatus !== 'no' && (
             <>
               <p className="text-lg font-semibold text-[var(--invite-text)] mb-0.5">{guest.name}</p>
-              {guest.companions.length > 0 && (
-                <p className="text-sm text-[var(--invite-text-muted)] mb-3">+ {guest.companions.length} acompañante(s)</p>
+              {guest.isGroup ? (
+                <p className="text-sm text-[var(--invite-text-muted)] mb-3">{partySize(guest)} integrantes</p>
+              ) : (
+                guest.companions.length > 0 && (
+                  <p className="text-sm text-[var(--invite-text-muted)] mb-3">+ {guest.companions.length} acompañante(s)</p>
+                )
               )}
 
               <div className="relative flex justify-center my-5" ref={qrWrapperRef}>

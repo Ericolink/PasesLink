@@ -64,7 +64,20 @@ export interface EventData {
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus
+  // Cantidad de invitaciones/documentos `guests` (1 por invitado o por
+  // familia/grupo, sin importar cuántas personas represente cada uno).
   guestCount: number
+  // Cantidad total de PERSONAS esperadas: suma de partySize() (1 +
+  // companions.length) de cada invitado/familia — a diferencia de
+  // guestCount, que cuenta invitaciones, no personas. Existe como contador
+  // denormalizado (no derivado en el cliente) para que las vistas que
+  // listan varios eventos sin cargar su subcolección `guests` (Dashboard,
+  // MyEvents) puedan calcular "% de asistencia" correctamente: dividir
+  // checkedInCount (personas) entre guestCount (invitaciones) da porcentajes
+  // incorrectos en cuanto un invitado tiene acompañantes o es una familia de
+  // varios integrantes. EventDetail, que sí carga `guests`, sigue usando
+  // totalPeople (useGuestStats) en vez de este campo — ambos deben coincidir.
+  peopleCount: number
   // Asistencia acumulada (cuánta gente hizo check-in alguna vez) — nunca se
   // decrementa por una salida individual. Para "cuánta gente hay adentro
   // ahora mismo" usar `occupancyCount` (o `useGuestStats.peopleInside` para
@@ -157,6 +170,13 @@ export interface GuestData {
   qrToken: string
   status: GuestStatus
   companions: CompanionData[]
+  // Invitado creado como "familia o grupo" (nombre de grupo + cantidad de
+  // integrantes) en vez de invitado individual. Solo cambia CÓMO se muestra
+  // el nombre/cantidad en la UI (ver GuestAddForm/GuestList/GuestPass) — el
+  // conteo real de personas sigue siendo partySize() (1 + companions.length),
+  // el check-in/QR/estadísticas no distinguen este campo. Ausente/false en
+  // invitados creados antes de este campo (siempre invitados individuales).
+  isGroup?: boolean
   rsvpStatus: RsvpStatus
   checkedInAt: number | null
   checkedInBy: string | null

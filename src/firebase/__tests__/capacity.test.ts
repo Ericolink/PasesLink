@@ -112,6 +112,18 @@ describe('capacity.ts', () => {
     expect(event?.guestCount).toBe(1)
   })
 
+  it('should increment peopleCount by the party size on registerWalkInGuest', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0 })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Con Acompañantes', undefined, undefined, undefined, 4)
+
+    expect(result.status).toBe('success')
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(1)
+    expect(event?.peopleCount).toBe(4)
+  })
+
   it('should enforce the same checkedInCount limit for normal check-ins and walk-ins', async () => {
     await seedEvent(testEnv, EVENT_ID, { capacity: 1, checkedInCount: 0 })
     await seedGuest(testEnv, EVENT_ID, 'guest-1', { qrToken: 'qr-1' })

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { addGuest, addGuestsBulk } from '../firebase/guests'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
-import { GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
+import { GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
 import type { CompanionData, GuestData } from '../types'
 
 function normalizeName(value: string): string {
@@ -16,14 +16,16 @@ function parseBulkNames(raw: string): string[] {
     .filter(Boolean)
 }
 
-type PendingDuplicate = { type: 'single' } | { type: 'bulk'; duplicates: string[] }
+type PendingDuplicate = { type: 'single' } | { type: 'group' } | { type: 'bulk'; duplicates: string[] }
 
 export function GuestAddForm({ eventId, guests }: { eventId: string; guests: GuestData[] }) {
-  const [mode, setMode] = useState<'single' | 'bulk'>('single')
+  const [mode, setMode] = useState<'single' | 'group' | 'bulk'>('single')
   const [name, setName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
   const [companions, setCompanions] = useState<CompanionData[]>([])
+  const [groupName, setGroupName] = useState('')
+  const [memberCount, setMemberCount] = useState(2)
   const [bulkNames, setBulkNames] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -80,6 +82,44 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
     await submitSingleGuest()
   }
 
+  // Una familia/grupo es un GuestData común con `isGroup: true`: el nombre del
+  // grupo va en `name`, y la cantidad de integrantes se traduce a
+  // `companions` (integrantes - 1, sin nombre individual) para reusar
+  // exactamente el mismo pase/QR/check-in/estadísticas que ya usa
+  // partySize() — no existe un modelo ni una colección paralela.
+  async function submitGroupGuest() {
+    setLoading(true)
+    setError('')
+    setWaitlistedMsg('')
+    try {
+      const trimmedGroupName = groupName.trim()
+      const result = await addGuest(eventId, {
+        name: trimmedGroupName,
+        companions: Array.from({ length: Math.max(0, memberCount - 1) }, () => ({})),
+        isGroup: true,
+      })
+      if (result.status === 'waitlisted') {
+        setWaitlistedMsg(`El cupo está lleno — ${trimmedGroupName} se agregó a la lista de espera en vez de a los invitados.`)
+      }
+      setGroupName('')
+      setMemberCount(2)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo agregar la familia o grupo. Intenta de nuevo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleGroupSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!groupName.trim() || memberCount < 1) return
+    if (existingNames.has(normalizeName(groupName))) {
+      setPendingDuplicate({ type: 'group' })
+      return
+    }
+    await submitGroupGuest()
+  }
+
   async function submitBulkGuests(names: string[]) {
     setLoading(true)
     setError('')
@@ -114,6 +154,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
     setPendingDuplicate(null)
     if (!pending) return
     if (pending.type === 'single') void submitSingleGuest()
+    else if (pending.type === 'group') void submitGroupGuest()
     else void submitBulkGuests(parseBulkNames(bulkNames))
   }
 
@@ -127,6 +168,14 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
           }`}
         >
           Agregar uno
+        </button>
+        <button
+          onClick={() => setMode('group')}
+          className={`text-sm px-3 py-2 rounded-md font-medium ${
+            mode === 'group' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          Familia o grupo
         </button>
         <button
           onClick={() => setMode('bulk')}
@@ -182,6 +231,42 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
             {loading ? 'Agregando…' : 'Agregar invitado'}
           </button>
         </form>
+      ) : mode === 'group' ? (
+        <form onSubmit={handleGroupSubmit} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input
+              type="text"
+              required
+              maxLength={GUEST_FULL_NAME_MAX}
+              placeholder="Nombre del grupo (ej. Familia Muñoz)"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              className="sm:col-span-2 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <input
+              type="number"
+              required
+              min={1}
+              max={GUEST_GROUP_MAX_MEMBERS}
+              placeholder="Cantidad de integrantes"
+              value={memberCount}
+              onChange={(e) => setMemberCount(Math.max(1, Math.min(GUEST_GROUP_MAX_MEMBERS, Number(e.target.value) || 1)))}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <p className="text-xs text-gray-500">
+            Se genera un solo pase con un único código QR para todo el grupo — al escanearlo en la entrada, se suman
+            los {memberCount} integrantes de una vez.
+          </p>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Agregando…' : 'Agregar familia o grupo'}
+          </button>
+        </form>
       ) : (
         <form onSubmit={handleBulkSubmit} className="space-y-3">
           <textarea
@@ -207,9 +292,11 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
         message={
           pendingDuplicate?.type === 'single'
             ? `${name.trim()} ${lastName.trim()} ya está en la lista de invitados. ¿Agregar de todas formas?`
-            : pendingDuplicate?.type === 'bulk'
-              ? `${pendingDuplicate.duplicates.length} de los nombres pegados ya están en la lista o se repiten: ${pendingDuplicate.duplicates.join(', ')}. ¿Agregar todos de todas formas?`
-              : ''
+            : pendingDuplicate?.type === 'group'
+              ? `${groupName.trim()} ya está en la lista de invitados. ¿Agregar de todas formas?`
+              : pendingDuplicate?.type === 'bulk'
+                ? `${pendingDuplicate.duplicates.length} de los nombres pegados ya están en la lista o se repiten: ${pendingDuplicate.duplicates.join(', ')}. ¿Agregar todos de todas formas?`
+                : ''
         }
         confirmLabel="Agregar de todas formas"
         cancelLabel="Cancelar"

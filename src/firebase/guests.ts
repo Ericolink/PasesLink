@@ -34,6 +34,7 @@ export interface NewGuestInput {
   lastName?: string
   phone?: string
   companions?: CompanionData[]
+  isGroup?: boolean
 }
 
 function generateQrToken(): string {
@@ -53,11 +54,17 @@ export function partySize(guest: { companions: CompanionData[] }): number {
 // funcione sin login) y es PII. Vive aparte, en `guestContacts/{guestId}`,
 // cuya regla de Firestore solo permite lectura al organizador/co-organizador/
 // admin. Ver firestore.rules.
-function buildNewGuestPayload(input: { name: string; lastName?: string; companions?: CompanionData[] }) {
+function buildNewGuestPayload(input: {
+  name: string
+  lastName?: string
+  companions?: CompanionData[]
+  isGroup?: boolean
+}) {
   return {
     name: input.name,
     lastName: input.lastName || '',
     companions: input.companions || [],
+    isGroup: input.isGroup || false,
     rsvpStatus: 'pending' as const,
     qrToken: generateQrToken(),
     status: 'invited' as const,
@@ -101,11 +108,15 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<A
 
   const batch = writeBatch(db)
   const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-  batch.set(guestRef, buildNewGuestPayload({ ...input, name, lastName }))
+  const payload = buildNewGuestPayload({ ...input, name, lastName })
+  batch.set(guestRef, payload)
   if (phone) {
     batch.set(contactRef(eventId, guestRef.id), { phone })
   }
-  batch.update(doc(db, 'events', eventId), { guestCount: increment(1) })
+  batch.update(doc(db, 'events', eventId), {
+    guestCount: increment(1),
+    peopleCount: increment(partySize(payload)),
+  })
   await batch.commit()
   return { status: 'added', id: guestRef.id }
 }
@@ -132,7 +143,12 @@ export async function addGuestsBulk(eventId: string, names: string[]) {
       const guestRef = doc(collection(db, 'events', eventId, 'guests'))
       batch.set(guestRef, buildNewGuestPayload({ name }))
     }
-    batch.update(doc(db, 'events', eventId), { guestCount: increment(slice.length) })
+    // Cada invitado de una carga masiva es individual sin acompañantes
+    // (partySize == 1), así que peopleCount sube lo mismo que guestCount acá.
+    batch.update(doc(db, 'events', eventId), {
+      guestCount: increment(slice.length),
+      peopleCount: increment(slice.length),
+    })
     await batch.commit()
   }
 }
@@ -146,6 +162,31 @@ export interface UpdateGuestInput {
 
 export async function updateGuest(eventId: string, guestId: string, input: UpdateGuestInput) {
   const { phone, ...guestFields } = input
+
+  // Si `companions` cambia de largo (acompañantes agregados/quitados, o
+  // cantidad de integrantes editada en una familia), partySize() de este
+  // invitado cambia — hay que ajustar peopleCount por la diferencia exacta,
+  // en la misma transacción que guarda el nuevo array, para que no quede
+  // desalineado con la suma real de personas del evento.
+  if (guestFields.companions !== undefined) {
+    const guestRef = doc(db, 'events', eventId, 'guests', guestId)
+    const eventRef = doc(db, 'events', eventId)
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(guestRef)
+      if (!snap.exists()) return
+      const before = partySize(mapGuest(snap.id, snap.data()))
+      const after = 1 + guestFields.companions!.length
+      transaction.update(guestRef, { ...guestFields })
+      if (phone !== undefined) {
+        transaction.set(contactRef(eventId, guestId), { phone }, { merge: true })
+      }
+      if (after !== before) {
+        transaction.update(eventRef, { peopleCount: increment(after - before) })
+      }
+    })
+    return
+  }
+
   const batch = writeBatch(db)
   if (Object.keys(guestFields).length > 0) {
     batch.update(doc(db, 'events', eventId, 'guests', guestId), { ...guestFields })
@@ -156,13 +197,30 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
   await batch.commit()
 }
 
-export async function deleteGuest(eventId: string, guestId: string, wasCheckedIn: boolean) {
+// Recibe el invitado completo (no solo su id) porque descontar los 4
+// contadores del evento correctamente requiere su partySize() y su presencia
+// actual, no solo si alguna vez hizo check-in: antes se restaba 1 de
+// checkedInCount sin importar cuántas personas representaba (dejaba ese
+// contador inflado al borrar un invitado con acompañantes o una familia), y
+// occupancyCount nunca se tocaba (si se borraba a alguien que seguía adentro,
+// esa ocupación quedaba "fantasma" para siempre).
+export async function deleteGuest(
+  eventId: string,
+  guest: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType'>,
+) {
+  const size = partySize(guest)
   const batch = writeBatch(db)
-  batch.delete(doc(db, 'events', eventId, 'guests', guestId))
-  batch.delete(contactRef(eventId, guestId))
-  const updates: Record<string, unknown> = { guestCount: increment(-1) }
-  if (wasCheckedIn) {
-    updates.checkedInCount = increment(-1)
+  batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
+  batch.delete(contactRef(eventId, guest.id))
+  const updates: Record<string, unknown> = {
+    guestCount: increment(-1),
+    peopleCount: increment(-size),
+  }
+  if (guest.status === 'checked_in') {
+    updates.checkedInCount = increment(-size)
+    if (guestPresence(guest) === 'inside') {
+      updates.occupancyCount = increment(-size)
+    }
   }
   batch.update(doc(db, 'events', eventId), updates)
   await batch.commit()
@@ -572,6 +630,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     qrToken: data.qrToken as string,
     status: data.status as GuestData['status'],
     companions: normalizeCompanions(data.companions),
+    isGroup: (data.isGroup as boolean) || false,
     rsvpStatus: (data.rsvpStatus as GuestData['rsvpStatus']) || 'pending',
     checkedInAt: toMillisOrNull(data.checkedInAt),
     checkedInBy: (data.checkedInBy as string) || null,

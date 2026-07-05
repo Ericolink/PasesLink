@@ -38,6 +38,7 @@ export function defaultEventData(overrides: Record<string, unknown> = {}) {
     paymentStatus: 'free_trial',
     status: 'active',
     guestCount: 0,
+    peopleCount: 0,
     checkedInCount: 0,
     occupancyCount: 0,
     createdAt: Date.now(),

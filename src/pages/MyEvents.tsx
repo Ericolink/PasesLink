@@ -118,7 +118,7 @@ export function MyEvents() {
             <div className="shrink-0 text-right">
               <div className="flex items-center gap-1 justify-end text-sm font-semibold text-gray-900 dark:text-white">
                 <IconUsers className="w-3.5 h-3.5 text-gray-400" />
-                {ev.checkedInCount}/{ev.guestCount}
+                {ev.checkedInCount}/{ev.peopleCount}
               </div>
               <p className="text-[10px] text-gray-500">check-ins</p>
             </div>

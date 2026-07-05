@@ -101,7 +101,12 @@ export function Dashboard() {
   }, [user])
 
   const stats = useMemo(() => {
-    const totalGuests = events.reduce((s, e) => s + e.guestCount, 0)
+    // peopleCount (personas totales, incluye acompañantes/familias), no
+    // guestCount (cantidad de invitaciones/documentos) — dividir
+    // totalCheckins (personas) entre guestCount daba porcentajes >100% en
+    // cuanto un evento tenía invitados con acompañantes o familias. Ver
+    // comentario de `peopleCount` en types/index.ts.
+    const totalGuests = events.reduce((s, e) => s + e.peopleCount, 0)
     const totalCheckins = events.reduce((s, e) => s + e.checkedInCount, 0)
     const attendanceRate =
       totalGuests > 0 ? Math.round((totalCheckins / totalGuests) * 100) : null
@@ -228,7 +233,7 @@ export function Dashboard() {
           <p className="text-sm text-gray-400 mt-0.5">{formatDate(nextEvent.date)} · {nextEvent.location}</p>
           <div className="flex items-center gap-4 mt-3 text-sm text-gray-400">
             <span className="flex items-center gap-1">
-              <IconUsers className="w-3.5 h-3.5" /> {nextEvent.guestCount} invitados
+              <IconUsers className="w-3.5 h-3.5" /> {nextEvent.peopleCount} invitados
             </span>
             <span className="flex items-center gap-1">
               <IconCheckCircle className="w-3.5 h-3.5" /> {nextEvent.checkedInCount} check-ins
@@ -368,8 +373,8 @@ interface EventCardProps {
 }
 
 function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReactivate, onDelete }: EventCardProps) {
-  const progress = event.guestCount > 0 ? Math.min(100, (event.checkedInCount / event.guestCount) * 100) : 0
-  const attendanceRate = event.guestCount > 0 ? Math.round((event.checkedInCount / event.guestCount) * 100) : null
+  const progress = event.peopleCount > 0 ? Math.min(100, (event.checkedInCount / event.peopleCount) * 100) : 0
+  const attendanceRate = event.peopleCount > 0 ? Math.round((event.checkedInCount / event.peopleCount) * 100) : null
 
   return (
     <div
@@ -420,7 +425,7 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
           <div>
             <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
               <span>
-                {event.checkedInCount} / {event.guestCount} check-ins
+                {event.checkedInCount} / {event.peopleCount} check-ins
                 {attendanceRate !== null && past && (
                   <span className="ml-1.5 text-gray-600">({attendanceRate}% asistencia)</span>
                 )}

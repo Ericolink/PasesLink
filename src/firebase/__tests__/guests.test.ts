@@ -13,7 +13,7 @@ vi.mock('../config', () => ({
 }))
 
 import { walkIn, walkOut } from '../capacity'
-import { checkInGuest, checkOutGuest } from '../guests'
+import { addGuest, addGuestsBulk, checkInGuest, checkOutGuest, deleteGuest, updateGuest } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -204,5 +204,81 @@ describe('guests.ts', () => {
     event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.checkedInCount).toBe(1)
     expect(event?.occupancyCount).toBe(1)
+  })
+
+  it('should increment guestCount by 1 and peopleCount by partySize on addGuest (family/group)', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    const result = await addGuest(EVENT_ID, {
+      name: 'Familia Muñoz',
+      companions: [{}, {}, {}],
+      isGroup: true,
+    })
+
+    expect(result.status).toBe('added')
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(1)
+    expect(event?.peopleCount).toBe(4)
+  })
+
+  it('should increment guestCount and peopleCount by the same amount on addGuestsBulk (no companions)', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await addGuestsBulk(EVENT_ID, ['Juan Pérez', 'María López'])
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(2)
+    expect(event?.peopleCount).toBe(2)
+  })
+
+  it('should decrement guestCount, peopleCount, checkedInCount and occupancyCount by partySize on deleteGuest while still inside', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 4, checkedInCount: 4, occupancyCount: 4 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await deleteGuest(EVENT_ID, {
+      id: GUEST_ID,
+      status: 'checked_in',
+      companions: [{}, {}, {}],
+      checkedOutAt: null,
+      exitType: null,
+    })
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(0)
+    expect(event?.peopleCount).toBe(0)
+    expect(event?.checkedInCount).toBe(0)
+    expect(event?.occupancyCount).toBe(0)
+  })
+
+  it('should not double-decrement occupancyCount on deleteGuest when the guest had already exited', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 4, checkedInCount: 4, occupancyCount: 0 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await deleteGuest(EVENT_ID, {
+      id: GUEST_ID,
+      status: 'checked_in',
+      companions: [{}, {}, {}],
+      checkedOutAt: Date.now(),
+      exitType: 'final',
+    })
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(0)
+    expect(event?.peopleCount).toBe(0)
+    expect(event?.checkedInCount).toBe(0)
+    expect(event?.occupancyCount).toBe(0)
+  })
+
+  it('should adjust peopleCount when updateGuest changes the companions count', async () => {
+    await seedEvent(testEnv, EVENT_ID, { peopleCount: 4 })
+    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await updateGuest(EVENT_ID, GUEST_ID, { name: 'Familia Muñoz', companions: [{}, {}, {}, {}, {}] })
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.peopleCount).toBe(6)
   })
 })

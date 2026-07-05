@@ -305,8 +305,14 @@ export function EventDetail() {
         <MetricCard
           label="Escaneados"
           value={event.checkedInCount}
-          sub={event.guestCount > 0
-            ? `${Math.round((event.checkedInCount / event.guestCount) * 100)}% del total`
+          // % sobre personas totales (totalPeople, ya suma partySize de cada
+          // invitado/familia), no sobre guestCount (cantidad de invitaciones/
+          // documentos) — checkedInCount es un conteo de PERSONAS (ver
+          // partySize en checkInGuest), dividirlo por la cantidad de
+          // invitaciones daba porcentajes >100% en cuanto había acompañantes
+          // o familias con varios integrantes.
+          sub={totalPeople > 0
+            ? `${Math.round((event.checkedInCount / totalPeople) * 100)}% del total`
             : undefined}
           valueClass="text-green-600 dark:text-green-400"
         />
@@ -317,7 +323,7 @@ export function EventDetail() {
         />
         <MetricCard
           label="Pendientes"
-          value={event.guestCount - event.checkedInCount}
+          value={Math.max(0, totalPeople - event.checkedInCount)}
         />
       </div>
 
