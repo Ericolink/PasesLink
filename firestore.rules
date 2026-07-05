@@ -60,6 +60,33 @@ service cloud.firestore {
         && d.authorToken is string && d.authorToken.size() <= 100;
     }
 
+    // Misma validación que isValidWallMessage, para el elemento agregado al
+    // array `replies` (ver isValidWallReplyAppend más abajo). authorRole no
+    // se restringe a 'guest' — el anfitrión responde con este mismo flujo,
+    // no uno aparte.
+    function isValidWallReply(r) {
+      return r.text is string && r.text.size() > 0 && r.text.size() <= 500
+        && r.authorName is string && r.authorName.size() > 0 && r.authorName.size() <= 60
+        && r.authorToken is string && r.authorToken.size() <= 100
+        && r.authorRole in ['owner', 'guest'];
+    }
+
+    // Cualquier participante autorizado del muro puede agregar una respuesta
+    // (misma autorización que crear un mensaje nuevo: no bloqueado por
+    // sanción). Solo permite AGREGAR un elemento al final del array —
+    // request.resource.data.replies[0:N] == resource.data.replies exige que
+    // las respuestas ya existentes lleguen sin tocar, para que un cliente no
+    // pueda reescribir o borrar respuestas ajenas aprovechando este permiso.
+    function isValidWallReplyAppend(eventId) {
+      let oldReplies = resource.data.replies;
+      let newReplies = request.resource.data.replies;
+      return (request.auth == null || !commentsBlocked(eventId))
+        && newReplies.size() == oldReplies.size() + 1
+        && newReplies.size() <= 500
+        && newReplies[0:oldReplies.size()] == oldReplies
+        && isValidWallReply(newReplies[oldReplies.size()]);
+    }
+
     function isValidWaitlistEntry() {
       let d = request.resource.data;
       return d.name is string && d.name.size() > 0 && d.name.size() <= 60
@@ -343,10 +370,15 @@ service cloud.firestore {
         // src/firebase/wall.ts) puede reaccionar repetidamente simulando
         // tokens distintos. Solución robusta: mover la reacción a una
         // subcolección wall/{id}/reactions/{token} con un doc por reactor.
-        allow update: if isOwner(eventId) || isAdmin()
+        allow update: if isOwnerOrCoOrg(eventId) || isAdmin()
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
-              && request.resource.data.reactions.size() <= 5000);
-        allow delete: if isOwner(eventId) || isAdmin();
+              && request.resource.data.reactions.size() <= 5000)
+          // Responder: mismo criterio de autorización que crear un mensaje
+          // (ver isValidWallReplyAppend) — el anfitrión y cualquier invitado
+          // no sancionado usan esta misma rama, no hay una ruta aparte.
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replies'])
+              && isValidWallReplyAppend(eventId));
+        allow delete: if isOwnerOrCoOrg(eventId) || isAdmin();
       }
 
       // Álbum de fotos del evento. Visible para cualquiera que conozca el

@@ -215,12 +215,24 @@ export async function replyToWallMessage(
   messageId: string,
   text: string,
   currentReplies: WallReply[],
+  authorName: string,
+  authorToken: string,
+  authorRole: 'owner' | 'guest' = 'guest',
+  authorPhotoURL?: string,
 ) {
   const trimmedText = requireMaxLength(requireNonEmpty(text, 'La respuesta'), WALL_TEXT_MAX, 'La respuesta')
+  const trimmedName = requireMaxLength(requireNonEmpty(authorName, 'El nombre'), WALL_NAME_MAX, 'El nombre')
+  requireMaxLength(authorToken, WALL_TOKEN_MAX, 'El identificador de autor')
+  if (authorPhotoURL) requireMaxLength(authorPhotoURL, WALL_PHOTO_URL_MAX, 'La URL de la foto')
+
   const newReply: WallReply = {
     id: crypto.randomUUID(),
     text: trimmedText,
+    authorName: trimmedName,
+    authorToken,
+    authorRole,
     createdAt: Date.now(),
+    ...(authorPhotoURL ? { authorPhotoURL } : {}),
   }
   await updateDoc(doc(db, 'events', eventId, 'wall', messageId), {
     replies: [...currentReplies, newReply],
@@ -237,6 +249,22 @@ export async function hardDeleteWallMessage(eventId: string, messageId: string) 
   await deleteDoc(doc(db, 'events', eventId, 'wall', messageId))
 }
 
+// Respuestas creadas antes de que `WallReply` tuviera campos de autor eran,
+// por diseño previo, siempre del anfitrión (única identidad que podía
+// responder) — se rellenan acá para que documentos viejos sigan mostrando
+// "Anfitrión" sin que la UI necesite un caso especial para datos legados.
+function mapReply(data: Record<string, unknown>): WallReply {
+  return {
+    id: data.id as string,
+    text: data.text as string,
+    authorName: (data.authorName as string) || '',
+    authorToken: (data.authorToken as string) || '',
+    authorRole: (data.authorRole as 'owner' | 'guest') || 'owner',
+    authorPhotoURL: (data.authorPhotoURL as string) || undefined,
+    createdAt: data.createdAt as number,
+  }
+}
+
 function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
   const message: WallMessage = {
     id,
@@ -247,7 +275,7 @@ function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
     authorRole: (data.authorRole as 'owner' | 'guest') || 'guest',
     authorPhotoURL: (data.authorPhotoURL as string) || undefined,
     reactions: (data.reactions as Record<string, WallReaction>) || {},
-    replies: (data.replies as WallReply[]) || [],
+    replies: ((data.replies as Record<string, unknown>[]) || []).map(mapReply),
     deleted: (data.deleted as boolean) || false,
     pinned: (data.pinned as boolean) || false,
     createdAt: toMillis(data.createdAt),

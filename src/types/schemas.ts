@@ -117,6 +117,10 @@ export const CheckinSchema = z.object({
 const WallReplySchema = z.object({
   id: z.string(),
   text: z.string(),
+  authorName: z.string(),
+  authorToken: z.string(),
+  authorRole: z.enum(['owner', 'guest']),
+  authorPhotoURL: z.string().optional(),
   createdAt: z.number(),
 })
 

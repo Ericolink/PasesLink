@@ -142,6 +142,10 @@ export interface WallMessage {
 export interface WallReply {
   id: string
   text: string
+  authorName: string
+  authorToken: string
+  authorRole: 'owner' | 'guest'
+  authorPhotoURL?: string
   createdAt: number
 }
 

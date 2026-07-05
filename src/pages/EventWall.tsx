@@ -102,6 +102,13 @@ export function EventWall() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isOwner    = !!(user && event && user.uid === event.ownerId)
+  // Moderación (fijar/eliminar mensaje, borrar/fijar foto): igual criterio
+  // que el resto de la app (GuestPass, EventDetail, Scanner, firestore.rules
+  // isOwnerOrCoOrg) — un co-organizador ya gestiona el evento en todas esas
+  // pantallas, así que también debe poder moderar el muro. Separado de
+  // `isOwner`, que sigue siendo la identidad estricta usada para publicar
+  // como "Anfitrión".
+  const isOrg      = isOwner || !!(user && event?.coOrganizersMap && user.uid in event.coOrganizersMap)
   const isPremium  = event?.plan === 'premium'
   const isMinor    = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
 
@@ -183,7 +190,16 @@ export function EventWall() {
   async function handleReply(message: WallMessage) {
     if (!id || !replyText.trim()) return
     try {
-      await replyToWallMessage(id, message.id, replyText, message.replies)
+      await replyToWallMessage(
+        id,
+        message.id,
+        replyText,
+        message.replies,
+        postLabel,
+        authorToken,
+        isOwner ? 'owner' : 'guest',
+        postPhotoURL,
+      )
       setReplyText('')
       setReplyingTo(null)
     } catch (err) {
@@ -433,7 +449,7 @@ export function EventWall() {
               <PhotoFeedCard
                 key={item.id}
                 photo={item.photo}
-                isOrg={isOwner}
+                isOrg={isOrg}
                 onOpen={() => setGalleryIndex(photos.findIndex((p) => p.id === item.photo.id))}
                 onDelete={handleDeletePhoto}
                 onPin={handlePinPhoto}
@@ -475,8 +491,8 @@ export function EventWall() {
                     <AuthorName name={msg.authorName} role={msg.authorRole} premium={isPremium && isOwnerMsg} />
                   </div>
                 </div>
-                {/* Owner actions */}
-                {isOwner && (
+                {/* Owner/co-org actions */}
+                {isOrg && (
                   <div className="flex items-center -mr-2 shrink-0">
                     <button
                       onClick={() => handlePin(msg)}
@@ -504,7 +520,12 @@ export function EventWall() {
                 <div className="border-l-2 border-gray-100 dark:border-gray-700 pl-3 mb-3 space-y-2 ml-9">
                   {msg.replies.map((r) => (
                     <div key={r.id}>
-                      <AuthorName name={OWNER_DISPLAY} role="owner" premium={isPremium} inline />
+                      <AuthorName
+                        name={r.authorName || OWNER_DISPLAY}
+                        role={r.authorRole}
+                        premium={isPremium && r.authorRole === 'owner'}
+                        inline
+                      />
                       <span className="text-xs text-gray-700 dark:text-gray-300 ml-1">{r.text}</span>
                     </div>
                   ))}
@@ -522,7 +543,7 @@ export function EventWall() {
                   myToken={getDeviceToken()}
                   onReact={(type) => handleReact(msg, type)}
                 />
-                {isOwner && replyingTo !== msg.id && (
+                {!isMinor && !commentBlockedMessage && replyingTo !== msg.id && (
                   <button onClick={() => setReplyingTo(msg.id)} className="text-xs text-gray-400 hover:text-primary">
                     Responder
                   </button>
@@ -541,7 +562,7 @@ export function EventWall() {
               </div>
 
               {/* Reply input */}
-              {isOwner && replyingTo === msg.id && (
+              {!isMinor && !commentBlockedMessage && replyingTo === msg.id && (
                 <div className="mt-3 flex gap-2 ml-9">
                   <input
                     type="text"
@@ -586,7 +607,7 @@ export function EventWall() {
           onIndexChange={setGalleryIndex}
           onClose={() => setGalleryIndex(null)}
           mode="gallery"
-          isOrg={isOwner}
+          isOrg={isOrg}
           onDelete={handleDeletePhoto}
         />
       )}
