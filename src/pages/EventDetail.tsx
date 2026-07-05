@@ -21,6 +21,7 @@ import { EventAnalytics } from '../components/EventAnalytics'
 import { ReminderSection } from '../components/ReminderSection'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { EventCountdown } from '../components/EventCountdown'
+import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
 import { formatDate, formatTime12h } from '../utils/time'
 import {
   IconArrowLeft,
@@ -520,6 +521,7 @@ export function EventDetail() {
             </span>
           </summary>
           <div className="border-t border-gray-100 dark:border-gray-700 p-5 space-y-3">
+            <ShareEventButton event={event} />
             <PublicLink
               label="Auto-registro"
               desc="Los asistentes se registran y obtienen su QR propio"

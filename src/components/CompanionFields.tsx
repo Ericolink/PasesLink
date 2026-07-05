@@ -22,16 +22,13 @@ export function CompanionFieldsEditor({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <label className="text-sm text-gray-600">Acompañantes</label>
-        <button
-          type="button"
-          onClick={addCompanion}
-          className="text-xs text-primary font-medium hover:underline"
-        >
-          + Agregar acompañante
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={addCompanion}
+        className="text-xs text-primary font-medium hover:underline"
+      >
+        + Agregar acompañante
+      </button>
       {companions.map((companion, index) => (
         <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-gray-50 rounded-md p-2">
           <input

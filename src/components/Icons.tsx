@@ -582,3 +582,27 @@ export function IconSearch({ className = 'w-5 h-5' }: IconProps) {
     </svg>
   )
 }
+
+export function IconTelegram({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M21.94 4.6c.23-1-.68-1.8-1.6-1.44L2.4 10.36c-.99.39-.98 1.83.02 2.2l4.5 1.66 1.74 5.6c.2.63 1 .8 1.45.31l2.44-2.63 4.55 3.38c.77.57 1.87.14 2.06-.8l3.78-15.48zM8.53 13.4l9.6-6.3c.2-.13.4.14.24.3l-8 7.5c-.29.27-.47.63-.52 1.02l-.24 1.87-1.08-4.4z" />
+    </svg>
+  )
+}
+
+export function IconFacebook({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.99 3.66 9.13 8.44 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.45 2.89h-2.33v6.99C18.34 21.13 22 16.99 22 12z" />
+    </svg>
+  )
+}
+
+export function IconTwitterX({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  )
+}
