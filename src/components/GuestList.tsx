@@ -97,12 +97,18 @@ export const GuestList = memo(function GuestList({
   requiresPayment = false,
   ticketPrice = 0,
   currency = '',
+  hasActiveFilters = false,
 }: {
   eventId: string
   guests: GuestData[]
   requiresPayment?: boolean
   ticketPrice?: number
   currency?: string
+  // true cuando `guests` ya viene reducido por búsqueda/filtro de estado (no
+  // por el orden, que nunca produce cero resultados) — distingue "todavía no
+  // hay invitados" de "ninguno coincide con lo que buscás", que antes
+  // compartían el mismo mensaje.
+  hasActiveFilters?: boolean
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -117,7 +123,9 @@ export const GuestList = memo(function GuestList({
     return (
       <div className="text-center py-8 animate-fade-in">
         <IconInbox className="w-8 h-8 mb-2 mx-auto text-gray-300" />
-        <p className="text-sm text-gray-500">Todavía no agregaste invitados.</p>
+        <p className="text-sm text-gray-500">
+          {hasActiveFilters ? 'Ningún invitado coincide con esa búsqueda o filtro.' : 'Todavía no agregaste invitados.'}
+        </p>
       </div>
     )
   }

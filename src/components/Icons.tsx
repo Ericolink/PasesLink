@@ -573,3 +573,12 @@ export function IconShuffle({ className = 'w-5 h-5' }: IconProps) {
     </svg>
   )
 }
+
+export function IconSearch({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  )
+}

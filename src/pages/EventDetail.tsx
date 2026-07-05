@@ -13,6 +13,7 @@ import { deleteEvent, setEventStatus } from '../firebase/events'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
+import { GuestSearchSheet } from '../components/GuestSearchSheet'
 import { EditEventForm } from '../components/EditEventForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { SkeletonBlock } from '../components/Skeleton'
@@ -28,6 +29,7 @@ import {
   IconEdit,
   IconListOrdered,
   IconMapPin,
+  IconSearch,
   IconUserPlus,
   IconWhatsApp,
   IconX,
@@ -46,6 +48,7 @@ export function EventDetail() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'scanned' | 'declined' | 'pending'>('all')
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'az' | 'za'>('newest')
+  const [guestSearchSheetOpen, setGuestSearchSheetOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(false)
   const [removingCoOrg, setRemovingCoOrg] = useState<{ uid: string; email: string } | null>(null)
   const checkinToast = useCheckinToast(eventId)
@@ -97,6 +100,10 @@ export function EventDetail() {
       return b.createdAt - a.createdAt
     })
   }, [guests, search, statusFilter, sortBy])
+
+  // Cuenta solo estado/orden (no el texto de búsqueda, que ya se ve tal cual
+  // en el propio botón disparador) para el badge de "Buscar y filtrar".
+  const activeFilterCount = (statusFilter !== 'all' ? 1 : 0) + (sortBy !== 'newest' ? 1 : 0)
 
   const { totalPeople, totalCollected, rsvpYes, rsvpNo } = useGuestStats(guests, event?.ticketPrice ?? 0)
 
@@ -458,40 +465,24 @@ export function EventDetail() {
           )}
           {exportPdfError && <p className="text-xs text-red-500 mb-3">{exportPdfError}</p>}
 
-          {/* Búsqueda y filtros */}
+          {/* Buscar y filtrar: un solo control abre el sheet con el input y
+              los dos filtros que antes ocupaban tres filas separadas. */}
           {guests.length > 0 && (
-            <>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por nombre o apellido…"
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm mb-3 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
-              />
-              <div className="flex gap-2 mb-4">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                  className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="all">Todos</option>
-                  <option value="confirmed">Confirmados</option>
-                  <option value="scanned">Ya escaneados</option>
-                  <option value="declined">No asistirán</option>
-                  <option value="pending">Pendientes</option>
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                  className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="newest">Más nuevos</option>
-                  <option value="oldest">Más antiguos</option>
-                  <option value="az">A–Z</option>
-                  <option value="za">Z–A</option>
-                </select>
-              </div>
-            </>
+            <button
+              type="button"
+              onClick={() => setGuestSearchSheetOpen(true)}
+              className="w-full flex items-center gap-2.5 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2.5 text-sm mb-4 bg-gray-50 dark:bg-gray-700 text-left hover:border-gray-300 dark:hover:border-gray-500 focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+            >
+              <IconSearch className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className={`flex-1 truncate ${search ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+                {search || 'Buscar invitados'}
+              </span>
+              {activeFilterCount > 0 && (
+                <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-primary text-white text-[11px] font-semibold">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
           )}
 
           <GuestList
@@ -500,6 +491,7 @@ export function EventDetail() {
             requiresPayment={event.requiresPayment}
             ticketPrice={event.ticketPrice}
             currency={event.currency}
+            hasActiveFilters={Boolean(search.trim()) || statusFilter !== 'all'}
           />
         </div>
       </div>
@@ -692,6 +684,18 @@ export function EventDetail() {
           </div>
         </details>
       )}
+
+      <GuestSearchSheet
+        open={guestSearchSheetOpen}
+        search={search}
+        onSearchChange={setSearch}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        sortBy={sortBy}
+        onSortByChange={setSortBy}
+        resultCount={filteredGuests.length}
+        onClose={() => setGuestSearchSheetOpen(false)}
+      />
 
       {/* Diálogos de confirmación */}
       <ConfirmDialog
