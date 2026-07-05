@@ -131,7 +131,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
   await updatePassword(user, newPassword)
 }
 
-export async function uploadProfilePhoto(file: File) {
+export async function uploadProfilePhoto(file: File | Blob) {
   const user = auth.currentUser
   if (!user) throw new Error('No hay un usuario autenticado.')
   const photoURL = await uploadImage(file)

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { checkEmailVerified, loginWithGoogle, registerWithEmail, resendVerificationEmail } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
@@ -6,6 +6,8 @@ import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { PasswordInput } from '../components/PasswordInput'
 import { useAuth } from '../hooks/useAuth'
 import { uploadImage } from '../utils/cloudinary'
+import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
+import { ImageCropModal } from '../components/ImageCropModal'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 
@@ -18,7 +20,7 @@ export function Register() {
   const [lastName, setLastName]   = useState('')
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoFile, setPhotoFile] = useState<Blob | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const [loading, setLoading] = useState(false)
@@ -26,7 +28,12 @@ export function Register() {
   const [checking, setChecking] = useState(false)
   const [resending, setResending] = useState(false)
   const [verifyHint, setVerifyHint] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
+
+  const { fileInputRef: fileRef, rawImage, error: pickError, openPicker, onFileSelected, onCropConfirmed, onCropCancelled } =
+    usePickAndCropImage((blob) => {
+      setPhotoFile(blob)
+      setPhotoPreview(URL.createObjectURL(blob))
+    })
 
   // No redirige mientras se espera la verificación: createUserWithEmailAndPassword
   // ya deja a `user` autenticado al instante, pero la pantalla de "verifica tu
@@ -40,13 +47,6 @@ export function Register() {
   }, [showVerificationGate, navigate])
 
   if (user && !awaitingVerification) return <Navigate to="/dashboard" replace />
-
-  function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setPhotoFile(file)
-    setPhotoPreview(URL.createObjectURL(file))
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -152,10 +152,10 @@ export function Register() {
       <h1 className="text-2xl font-semibold text-gray-900 mb-6 text-center">Crear cuenta</h1>
 
       {/* Avatar selector */}
-      <div className="flex justify-center mb-5">
+      <div className="flex flex-col items-center mb-5">
         <button
           type="button"
-          onClick={() => fileRef.current?.click()}
+          onClick={openPicker}
           aria-label="Elegir foto de perfil"
           className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-dashed border-gray-300 hover:border-primary transition-colors flex items-center justify-center bg-gray-100 dark:bg-gray-800"
         >
@@ -164,8 +164,20 @@ export function Register() {
             : <span className="text-xs text-gray-500 text-center px-1">Foto<br/>(opcional)</span>
           }
         </button>
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
+        {pickError && <p className="text-xs text-red-500 mt-1.5">{pickError}</p>}
       </div>
+
+      {rawImage && (
+        <ImageCropModal
+          imageSrc={rawImage}
+          aspect={1}
+          cropShape="round"
+          maxOutputDimension={800}
+          onCrop={onCropConfirmed}
+          onCancel={onCropCancelled}
+        />
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">

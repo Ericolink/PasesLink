@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { updateProfile } from 'firebase/auth'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
@@ -13,6 +13,8 @@ import { saveUserProfile } from '../firebase/userProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 import { useModalA11y } from '../hooks/useModalA11y'
+import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
+import { ImageCropModal } from '../components/ImageCropModal'
 import {
   IconBell,
   IconCheckCircle,
@@ -116,7 +118,6 @@ function EditNameModal({
 export function Profile() {
   const { user } = useAuth()
   const { profile } = useUserProfile()
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   /* Photo */
   const [photoURL, setPhotoURL]         = useState('')
@@ -162,6 +163,22 @@ export function Profile() {
   }, [profile, user])
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  /* ── Handlers ── */
+  const { fileInputRef, rawImage, error: pickError, openPicker, onFileSelected, onCropConfirmed, onCropCancelled } =
+    usePickAndCropImage(async (blob) => {
+      setPhotoError('')
+      setPhotoUploading(true)
+      try {
+        const url = await uploadProfilePhoto(blob)
+        await updateProfile(user!, { photoURL: url })
+        setPhotoURL(url)
+      } catch {
+        setPhotoError('No pudimos subir la imagen. Verifica que sea menor de 8 MB.')
+      } finally {
+        setPhotoUploading(false)
+      }
+    })
+
   if (!user) return null
 
   const hasGoogle = user.providerData.some((p) => p.providerId === 'google.com')
@@ -171,23 +188,6 @@ export function Profile() {
   const birthDisplay = birthDate
     ? new Date(birthDate + 'T12:00:00').toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' })
     : '—'
-
-  /* ── Handlers ── */
-  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setPhotoError('')
-    setPhotoUploading(true)
-    try {
-      const url = await uploadProfilePhoto(file)
-      await updateProfile(user!, { photoURL: url })
-      setPhotoURL(url)
-    } catch {
-      setPhotoError('No pudimos subir la imagen. Verifica que sea menor de 5 MB.')
-    } finally {
-      setPhotoUploading(false)
-    }
-  }
 
   async function handleSaveName(first: string, last: string) {
     const displayName = `${first} ${last}`.trim()
@@ -294,14 +294,25 @@ export function Profile() {
             }
           </div>
           <div className="space-y-1">
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={photoUploading}
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={onFileSelected} className="hidden" />
+            <button type="button" onClick={openPicker} disabled={photoUploading}
               className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50">
               {photoUploading ? 'Subiendo…' : 'Cambiar foto'}
             </button>
-            {photoError && <p className="text-xs text-red-500">{photoError}</p>}
+            {(photoError || pickError) && <p className="text-xs text-red-500">{photoError || pickError}</p>}
           </div>
         </div>
+
+        {rawImage && (
+          <ImageCropModal
+            imageSrc={rawImage}
+            aspect={1}
+            cropShape="round"
+            maxOutputDimension={800}
+            onCrop={onCropConfirmed}
+            onCancel={onCropCancelled}
+          />
+        )}
 
         {/* Read-only fields */}
         <div className="space-y-4">

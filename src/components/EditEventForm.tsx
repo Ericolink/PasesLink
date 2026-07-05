@@ -313,6 +313,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     {coverRawImage && (
       <ImageCropModal
         imageSrc={coverRawImage}
+        aspect={16 / 9}
         onCrop={onCoverCropConfirmed}
         onCancel={onCoverCropCancelled}
       />

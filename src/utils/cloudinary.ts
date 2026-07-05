@@ -9,7 +9,9 @@ export const MAX_UPLOAD_MB = 8
 
 // Umbrales de resizeImageForUpload — ver ese comentario para el porqué.
 const MAX_UPLOAD_DIMENSION = 1600
-const UPLOAD_JPEG_QUALITY = 0.82
+// Exportada: la reusa src/utils/imageCrop.ts para que el recorte de portada/
+// avatar salga con la misma calidad que el resto de las imágenes subidas.
+export const UPLOAD_JPEG_QUALITY = 0.82
 const SKIP_RESIZE_UNDER_BYTES = 400 * 1024
 
 export interface PreparedUpload {

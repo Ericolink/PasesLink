@@ -263,6 +263,7 @@ export function EventCreate() {
       {coverRawImage && (
         <ImageCropModal
           imageSrc={coverRawImage}
+          aspect={16 / 9}
           onCrop={onCoverCropConfirmed}
           onCancel={onCoverCropCancelled}
         />

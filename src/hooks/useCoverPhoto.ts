@@ -1,46 +1,32 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { uploadImage } from '../utils/cloudinary'
+import { usePickAndCropImage } from './usePickAndCropImage'
 
 export function useCoverPhoto(initial = '') {
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [coverImage, setCoverImage] = useState(initial)
-  const [rawImage, setRawImage] = useState<string | null>(null) // src for crop modal
   const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState('')
+  const [uploadError, setUploadError] = useState('')
 
-  function openPicker() {
-    fileInputRef.current?.click()
-  }
-
-  function onFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    setError('')
-    const reader = new FileReader()
-    reader.onload = (ev) => setRawImage(ev.target?.result as string)
-    reader.readAsDataURL(file)
-  }
-
-  async function onCropConfirmed(blob: Blob) {
-    setRawImage(null)
-    setUploading(true)
-    try {
-      const url = await uploadImage(blob)
-      setCoverImage(url)
-    } catch {
-      setError('No pudimos subir la imagen. Verifica que sea menor de 5 MB.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  function onCropCancelled() {
-    setRawImage(null)
-  }
+  const { fileInputRef, rawImage, error, openPicker, onFileSelected, onCropConfirmed, onCropCancelled } =
+    usePickAndCropImage(async (blob) => {
+      setUploading(true)
+      try {
+        const url = await uploadImage(blob)
+        setCoverImage(url)
+      } catch {
+        setUploadError(`No pudimos subir la imagen. Verifica que sea menor de 8 MB.`)
+      } finally {
+        setUploading(false)
+      }
+    })
 
   function clearCover() {
     setCoverImage('')
+  }
+
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    setUploadError('')
+    onFileSelected(e)
   }
 
   return {
@@ -48,9 +34,9 @@ export function useCoverPhoto(initial = '') {
     coverImage,
     rawImage,
     uploading,
-    error,
+    error: error || uploadError,
     openPicker,
-    onFileSelected,
+    onFileSelected: handleFileSelected,
     onCropConfirmed,
     onCropCancelled,
     clearCover,

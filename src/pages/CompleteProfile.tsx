@@ -1,9 +1,11 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { updateProfile } from 'firebase/auth'
 import { saveUserProfile } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import { uploadImage } from '../utils/cloudinary'
+import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
+import { ImageCropModal } from '../components/ImageCropModal'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
@@ -16,18 +18,16 @@ export function CompleteProfile() {
   const [firstName, setFirstName] = useState(parts[0] || '')
   const [lastName, setLastName]   = useState(parts.slice(1).join(' ') || '')
   const [birthDate, setBirthDate] = useState('')
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoFile, setPhotoFile] = useState<Blob | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(user?.photoURL || null)
   const [loading, setLoading] = useState(false)
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
 
-  function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setPhotoFile(file)
-    setPhotoPreview(URL.createObjectURL(file))
-  }
+  const { fileInputRef: fileRef, rawImage, error: pickError, openPicker, onFileSelected, onCropConfirmed, onCropCancelled } =
+    usePickAndCropImage((blob) => {
+      setPhotoFile(blob)
+      setPhotoPreview(URL.createObjectURL(blob))
+    })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -66,16 +66,28 @@ export function CompleteProfile() {
         </p>
 
         {/* Avatar */}
-        <div className="flex justify-center mb-5">
-          <button type="button" onClick={() => fileRef.current?.click()} aria-label="Elegir foto de perfil"
+        <div className="flex flex-col items-center mb-5">
+          <button type="button" onClick={openPicker} aria-label="Elegir foto de perfil"
             className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-dashed border-gray-300 hover:border-primary transition-colors bg-gray-100 dark:bg-gray-800">
             {photoPreview
               ? <img src={photoPreview} alt="" className="w-full h-full object-cover" />
               : <span className="text-xs text-gray-500 text-center px-1">Foto<br/>(opcional)</span>
             }
           </button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
+          {pickError && <p className="text-xs text-red-500 mt-1.5">{pickError}</p>}
         </div>
+
+        {rawImage && (
+          <ImageCropModal
+            imageSrc={rawImage}
+            aspect={1}
+            cropShape="round"
+            maxOutputDimension={800}
+            onCrop={onCropConfirmed}
+            onCancel={onCropCancelled}
+          />
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-3 bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-2 gap-3">
