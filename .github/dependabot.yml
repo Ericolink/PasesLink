@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-request-limit: 10
+    groups:
+      # Agrupa todos los @sentry/* en un solo PR en vez de uno por paquete —
+      # suelen liberar versiones juntas y actualizarlos por separado podría
+      # dejar el SDK y el plugin de build desincronizados un rato.
+      sentry:
+        patterns:
+          - "@sentry/*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
