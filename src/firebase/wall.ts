@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
+import { withListenerReporting } from '../lib/sentry'
 import {
   requireMaxLength,
   requireNonEmpty,
@@ -72,7 +73,7 @@ export function subscribeToWall(
       recent = snap.docs.map((d) => mapMessage(d.id, d.data()))
       emitIfReady()
     },
-    onError,
+    withListenerReporting('wall.recent', onError),
   )
 
   const pinnedQuery = query(
@@ -85,7 +86,7 @@ export function subscribeToWall(
       pinned = snap.docs.map((d) => mapMessage(d.id, d.data()))
       emitIfReady()
     },
-    onError,
+    withListenerReporting('wall.pinned', onError),
   )
 
   return () => {

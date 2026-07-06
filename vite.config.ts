@@ -1,9 +1,19 @@
 import { configDefaults, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    // Los mapas se generan siempre (el plugin de abajo los necesita para
+    // asociar los errores de Sentry al código fuente real), pero no se
+    // referencian desde el bundle público ni se suben a Firebase Hosting —
+    // el plugin los borra localmente después de subirlos (ver
+    // filesToDeleteAfterUpload). Sin token, no hay upload ni borrado: los
+    // .map quedarían en dist/, por eso sourcemap solo se activa junto al plugin.
+    sourcemap: process.env.SENTRY_AUTH_TOKEN ? 'hidden' : false,
+  },
   plugins: [
     react(),
     VitePWA({
@@ -76,6 +86,19 @@ export default defineConfig({
             },
           },
         ],
+      },
+    }),
+    // Sube source maps y crea el release en Sentry durante `npm run build`.
+    // Va al final del array a propósito (recomendación oficial de Sentry):
+    // corre después de que el resto de los plugins terminó de escribir sus
+    // archivos, así sube los artefactos finales. Sin SENTRY_AUTH_TOKEN
+    // (desarrollo local, o CI sin el secret configurado todavía) se
+    // desactiva solo — el build sigue funcionando igual, simplemente sin
+    // subir mapas ni crear un release.
+    sentryVitePlugin({
+      disable: !process.env.SENTRY_AUTH_TOKEN,
+      sourcemaps: {
+        filesToDeleteAfterUpload: ['./dist/**/*.js.map'],
       },
     }),
   ],

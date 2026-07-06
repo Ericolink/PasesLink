@@ -1,6 +1,7 @@
 import { collection, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
+import { withListenerReporting } from '../lib/sentry'
 import type { CheckinLog } from '../types'
 import { CheckinSchema, warnIfInvalidShape } from '../types/schemas'
 
@@ -31,7 +32,7 @@ export function subscribeToCheckins(eventId: string, callback: (checkins: Checki
   const q = query(collection(db, 'events', eventId, 'checkins'), orderBy('timestamp', 'asc'))
   return onSnapshot(q, (snapshot) => {
     callback(snapshot.docs.map((d) => mapCheckin(d.id, d.data())))
-  })
+  }, withListenerReporting('checkins'))
 }
 
 // Historial de accesos de UN invitado (entradas, salidas y reingresos), para

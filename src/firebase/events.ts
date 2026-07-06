@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
+import { withListenerReporting } from '../lib/sentry'
 import type { CustomField, EntryMode, EventData, EventStatus, TemplateId, TimelineEntry } from '../types'
 import { EventSchema, warnIfInvalidShape } from '../types/schemas'
 
@@ -93,7 +94,7 @@ export function subscribeToUserEvents(
   return onSnapshot(q, (snapshot) => {
     const events = snapshot.docs.map((d) => mapEvent(d.id, d.data()))
     callback(events)
-  })
+  }, withListenerReporting('userEvents'))
 }
 
 export function subscribeToEvent(
@@ -110,7 +111,7 @@ export function subscribeToEvent(
       }
       callback(mapEvent(snapshot.id, snapshot.data()))
     },
-    onError,
+    withListenerReporting('event', onError),
   )
 }
 

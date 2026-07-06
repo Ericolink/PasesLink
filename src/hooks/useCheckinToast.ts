@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { db } from '../firebase/config'
+import { withListenerReporting } from '../lib/sentry'
 
 export function useCheckinToast(eventId: string | undefined) {
   const [message, setMessage] = useState<string | null>(null)
@@ -28,7 +29,7 @@ export function useCheckinToast(eventId: string | undefined) {
         : (data.reentry ? 'reingresó al evento' : 'hizo check-in')
       setMessage(`${data.guestName} ${verb}`)
       setTimeout(() => setMessage(null), 4000)
-    })
+    }, withListenerReporting('checkinToast'))
   }, [eventId])
 
   return message

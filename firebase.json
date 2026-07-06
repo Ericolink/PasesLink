@@ -5,7 +5,7 @@
   },
   "hosting": {
     "public": "dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map"],
     "rewrites": [
       {
         "source": "**",
@@ -23,7 +23,7 @@
           { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" },
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' https://www.google.com https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://res.cloudinary.com https://lh3.googleusercontent.com https://graph.facebook.com https://platform-lookaside.fbsbx.com; connect-src 'self' https://*.googleapis.com https://api.emailjs.com https://api.cloudinary.com https://res.cloudinary.com https://www.google.com https://fonts.gstatic.com; frame-src https://app-pases-9e6e7.firebaseapp.com https://www.google.com https://accounts.google.com https://www.facebook.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
+            "value": "default-src 'self'; script-src 'self' https://www.google.com https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://res.cloudinary.com https://lh3.googleusercontent.com https://graph.facebook.com https://platform-lookaside.fbsbx.com; connect-src 'self' https://*.googleapis.com https://api.emailjs.com https://api.cloudinary.com https://res.cloudinary.com https://www.google.com https://fonts.gstatic.com https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io https://*.ingest.sentry.io; frame-src https://app-pases-9e6e7.firebaseapp.com https://www.google.com https://accounts.google.com https://www.facebook.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
           }
         ]
       },

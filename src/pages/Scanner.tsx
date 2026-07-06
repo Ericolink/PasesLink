@@ -12,6 +12,7 @@ import { CameraPermissionHandler } from '../components/Scanner'
 import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { buildPassUrl, extractQrToken, isArriveQr } from '../utils/qrUrl'
 import { isNetworkError } from '../utils/network'
+import { captureException } from '../lib/sentry'
 
 export type ScanFeedback = {
   type: 'success' | 'already' | 'invalid' | 'checkout' | 'not_checked_in' | 'already_out' | 'exit_blocked' | 'full' | 'not_found' | 'error'
@@ -285,6 +286,7 @@ export function Scanner() {
       }
     } catch (err) {
       console.error('Error registrando check-out:', err)
+      captureException(err, { tags: { component: 'scanner', action: 'check_out' } })
       showFeedback({ type: 'error', detail: 'No se pudo registrar la salida. Intenta de nuevo.' })
     } finally {
       setExitSubmitting(false)
@@ -309,6 +311,13 @@ export function Scanner() {
 
   async function handleProcessError(err: unknown, attempt: number, retry: () => Promise<void>) {
     console.error('Error procesando QR:', err)
+    // Un error de red durante el primer intento todavía puede resolverse solo
+    // (ver retry más abajo) — recién si sigue fallando tras agotar los
+    // reintentos vale la pena una alerta, para no llenar Sentry con cortes de
+    // wifi momentáneos del salón que se autorresuelven.
+    if (!isNetworkError(err) || attempt >= 2) {
+      captureException(err, { tags: { component: 'scanner', action: 'process_qr' } })
+    }
     if (isNetworkError(err) && attempt < 2) {
       showFeedback({ type: 'error', detail: 'Sin conexión. Reintentando en unos segundos…' })
       await new Promise((resolve) => setTimeout(resolve, NETWORK_RETRY_MS))
@@ -332,6 +341,7 @@ export function Scanner() {
       setTimeout(() => setWalkInMsg(null), 2000)
     } catch (err) {
       console.error('Error registrando walk-in:', err)
+      captureException(err, { tags: { component: 'scanner', action: 'walk_in' } })
       showFeedback({ type: 'error', detail: 'No se pudo registrar el ingreso. Intenta de nuevo.' })
     }
   }
@@ -342,6 +352,7 @@ export function Scanner() {
       await walkOut(eventId)
     } catch (err) {
       console.error('Error registrando walk-out:', err)
+      captureException(err, { tags: { component: 'scanner', action: 'walk_out' } })
       showFeedback({ type: 'error', detail: 'No se pudo registrar la salida. Intenta de nuevo.' })
     }
   }

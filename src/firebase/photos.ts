@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
+import { withListenerReporting } from '../lib/sentry'
 
 export interface PhotoData {
   id: string
@@ -90,7 +91,7 @@ export function subscribeToPhotos(
   )
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => mapPhoto(d.id, d.data())))
-  })
+  }, withListenerReporting('photos'))
 }
 
 export async function deletePhoto(eventId: string, photoId: string): Promise<void> {

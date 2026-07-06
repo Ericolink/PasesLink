@@ -16,6 +16,7 @@ import { ReportButton } from './ReportButton'
 import { StoriesBar } from './StoriesBar'
 import { mergeWallFeed } from '../utils/wallFeed'
 import { WALL_TEXT_MAX } from '../utils/validation'
+import { captureException } from '../lib/sentry'
 import type { ReactionType, TemplateId, WallMessage, WallMessageType } from '../types'
 
 const DEVICE_TOKEN_KEY = 'wall_device_token'
@@ -98,6 +99,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
       }))
     } catch (err) {
       console.error('Error loading wall section:', err)
+      captureException(err, { tags: { component: 'wall_section', action: 'load' } })
       setWallError('No se pudieron cargar los mensajes del muro.')
     } finally {
       setRefreshing(false)
@@ -134,6 +136,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
       await loadMessages()
     } catch (err) {
       console.error('Error posting wall message:', err)
+      captureException(err, { tags: { component: 'wall_section', action: 'post' } })
       setPostError(err instanceof Error ? err.message : 'No se pudo publicar el mensaje. Intenta de nuevo.')
     } finally {
       setPosting(false)

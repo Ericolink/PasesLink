@@ -1,3 +1,5 @@
+import { captureException, measureSpan } from '../lib/sentry'
+
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
 
@@ -137,28 +139,40 @@ function uploadOnce(file: File | Blob, onProgress?: (pct: number) => void): Prom
  */
 export async function uploadImage(file: File | Blob, onProgress?: (pct: number) => void): Promise<string> {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error('Cloudinary no está configurado.')
+    // Config faltante en producción no es un error de usuario — es un deploy
+    // roto (env vars sin cargar). Vale la pena saberlo apenas pase, no cuando
+    // un invitado se queje de que no puede subir su foto.
+    const err = new Error('Cloudinary no está configurado.')
+    captureException(err, { tags: { flow: 'cloudinary.upload' } })
+    throw err
   }
   if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
     throw new Error(`La imagen no puede superar los ${MAX_UPLOAD_MB} MB.`)
   }
 
-  for (let attempt = 0; attempt <= MAX_UPLOAD_RETRIES; attempt++) {
-    try {
-      return await uploadOnce(file, onProgress)
-    } catch (err) {
-      const isLastAttempt = attempt === MAX_UPLOAD_RETRIES
-      if (!(err instanceof RetryableUploadError) || isLastAttempt) {
-        throw err instanceof RetryableUploadError
-          ? new Error('No se pudo subir la foto. Revisa tu conexión e intenta de nuevo.')
-          : err
+  return measureSpan('cloudinary.uploadImage', 'http.client', async () => {
+    for (let attempt = 0; attempt <= MAX_UPLOAD_RETRIES; attempt++) {
+      try {
+        return await uploadOnce(file, onProgress)
+      } catch (err) {
+        const isLastAttempt = attempt === MAX_UPLOAD_RETRIES
+        if (!(err instanceof RetryableUploadError) || isLastAttempt) {
+          // Un archivo demasiado grande ya se corta arriba (validación de
+          // usuario, no se reporta) — lo que llega acá es siempre una falla
+          // real: red, servidor de Cloudinary, o una respuesta que no pudimos
+          // parsear.
+          captureException(err, { tags: { flow: 'cloudinary.upload' }, extra: { attempt, isLastAttempt } })
+          throw err instanceof RetryableUploadError
+            ? new Error('No se pudo subir la foto. Revisa tu conexión e intenta de nuevo.')
+            : err
+        }
+        onProgress?.(0)
+        await sleep(RETRY_BASE_DELAY_MS * 2 ** attempt)
       }
-      onProgress?.(0)
-      await sleep(RETRY_BASE_DELAY_MS * 2 ** attempt)
     }
-  }
-  // Inalcanzable (el loop siempre retorna o lanza), solo para TypeScript.
-  throw new Error('No se pudo subir la foto.')
+    // Inalcanzable (el loop siempre retorna o lanza), solo para TypeScript.
+    throw new Error('No se pudo subir la foto.')
+  })
 }
 
 /**

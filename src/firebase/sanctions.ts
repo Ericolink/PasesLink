@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, se
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { appendReportSanctionAction } from './moderation'
+import { withListenerReporting } from '../lib/sentry'
 import type { SanctionHistoryEntry, SanctionScope, SanctionType, UserSanctionScopeState, UserSanctionSummary } from '../types'
 import { SANCTION_TYPE_LABELS } from '../types'
 
@@ -55,7 +56,7 @@ export function subscribeToUserSanctionSummary(
   return onSnapshot(
     doc(db, 'sanctions', uid),
     (snap) => callback(mapSummary(uid, snap.exists() ? snap.data() : undefined)),
-    onError,
+    withListenerReporting('sanctions', onError),
   )
 }
 

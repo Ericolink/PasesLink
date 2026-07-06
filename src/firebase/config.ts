@@ -6,6 +6,7 @@ import {
   persistentMultipleTabManager,
   memoryLocalCache,
 } from 'firebase/firestore'
+import { captureException } from '../lib/sentry'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -46,6 +47,7 @@ function createDb() {
     })
   } catch (err) {
     console.error('No se pudo activar el cache persistente de Firestore, usando cache en memoria:', err)
+    captureException(err, { tags: { flow: 'firestore.config' } })
     return initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
       localCache: memoryLocalCache(),

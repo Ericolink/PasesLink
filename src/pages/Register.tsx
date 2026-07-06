@@ -10,6 +10,7 @@ import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
+import { captureException } from '../lib/sentry'
 
 const DEV_AUTO_SKIP_MS = 30000
 
@@ -80,6 +81,7 @@ export function Register() {
     } catch (err) {
       if (isAuthCancellation(err)) return
       console.error('Error en login con Google:', err)
+      captureException(err, { tags: { component: 'auth', action: 'login_google' } })
       setErrorInfo(getAuthErrorInfo(err, 'No pudimos iniciar sesión con Google.'))
     } finally {
       setLoading(false)

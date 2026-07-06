@@ -14,6 +14,7 @@ import { db } from './config'
 import { registerWalkInGuest } from './capacity'
 import { requireMaxLength, requireNonEmpty, WAITLIST_NAME_MAX, WAITLIST_PHONE_MAX } from '../utils/validation'
 import type { WaitlistEntry } from '../types'
+import { withListenerReporting } from '../lib/sentry'
 
 export async function addToWaitlist(
   eventId: string,
@@ -58,7 +59,7 @@ export function subscribeToWaitlist(
             : 0,
       })),
     )
-  })
+  }, withListenerReporting('waitlist'))
 }
 
 // No se puede envolver en una sola transacción: registerWalkInGuest ya abre y

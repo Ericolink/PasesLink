@@ -26,3 +26,8 @@ dist-ssr
 
 # Firebase deploy cache
 .firebase/
+
+# Salida local de scripts/backup-firestore.mjs (los backups reales viven en
+# el repo privado paselink-backups, nunca acá)
+backups-data/
+test-backup-output/

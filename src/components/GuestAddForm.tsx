@@ -3,6 +3,7 @@ import { addGuest, addGuestsBulk } from '../firebase/guests'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
 import { GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
+import { captureException } from '../lib/sentry'
 import type { CompanionData, GuestData } from '../types'
 
 function normalizeName(value: string): string {
@@ -66,6 +67,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
       setPhone('')
       setCompanions([])
     } catch (err) {
+      captureException(err, { tags: { component: 'guest_add_form', action: 'add_single' } })
       setError(err instanceof Error ? err.message : 'No se pudo agregar el invitado. Intenta de nuevo.')
     } finally {
       setLoading(false)
@@ -104,6 +106,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
       setGroupName('')
       setMemberCount(2)
     } catch (err) {
+      captureException(err, { tags: { component: 'guest_add_form', action: 'add_group' } })
       setError(err instanceof Error ? err.message : 'No se pudo agregar la familia o grupo. Intenta de nuevo.')
     } finally {
       setLoading(false)
@@ -127,6 +130,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
       await addGuestsBulk(eventId, names)
       setBulkNames('')
     } catch (err) {
+      captureException(err, { tags: { component: 'guest_add_form', action: 'add_bulk' } })
       setError(
         err instanceof Error
           ? err.message

@@ -6,6 +6,7 @@ import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { PasswordInput } from '../components/PasswordInput'
 import { useAuth } from '../hooks/useAuth'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
+import { captureException } from '../lib/sentry'
 
 export function Login() {
   const { user } = useAuth()
@@ -42,6 +43,7 @@ export function Login() {
     } catch (err) {
       if (isAuthCancellation(err)) return
       console.error('Error en login con Google:', err)
+      captureException(err, { tags: { component: 'auth', action: 'login_google' } })
       setErrorInfo(getAuthErrorInfo(err, 'No pudimos iniciar sesión con Google.'))
     } finally {
       setLoading(false)

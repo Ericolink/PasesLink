@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { IconAlertTriangle } from './Icons'
+import { captureException } from '../lib/sentry'
 
 interface Props {
   children: ReactNode
@@ -21,6 +22,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Uncaught error:', error, info)
+    captureException(error, { extra: { componentStack: info.componentStack ?? undefined } })
     this.setState({ errorInfo: info })
   }
 

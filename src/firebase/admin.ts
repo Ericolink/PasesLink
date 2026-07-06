@@ -2,6 +2,7 @@ import { addDoc, collection, doc, getDoc, limit, onSnapshot, orderBy, query, ser
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { mapEvent } from './events'
+import { withListenerReporting } from '../lib/sentry'
 import type { EventData } from '../types'
 
 export interface AdminUser {
@@ -54,7 +55,7 @@ export function subscribeToAllEvents(
     (snapshot) => {
       callback(snapshot.docs.map((d) => mapEvent(d.id, d.data())))
     },
-    onError,
+    withListenerReporting('admin.allEvents', onError),
   )
 }
 
@@ -78,7 +79,7 @@ export function subscribeToAllUsers(
         }),
       )
     },
-    onError,
+    withListenerReporting('admin.allUsers', onError),
   )
 }
 
@@ -125,7 +126,7 @@ export function subscribeToAdminAuditLog(
         }),
       )
     },
-    onError,
+    withListenerReporting('admin.auditLog', onError),
   )
 }
 

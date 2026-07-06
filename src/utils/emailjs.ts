@@ -1,5 +1,6 @@
 import emailjs from '@emailjs/browser'
 import { emitEmailNotification } from './emailNotifications'
+import { captureException } from '../lib/sentry'
 
 const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID
 const WELCOME_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_WELCOME
@@ -28,8 +29,14 @@ async function sendWithRetry(send: () => Promise<unknown>, onFirstFailureMessage
       return
     } catch (err) {
       console.error(`${logLabel} (intento ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}):`, err)
+      const isLastAttempt = attempt === RETRY_DELAYS_MS.length
+      // Solo se reporta cuando se agotan los reintentos — un corte
+      // momentáneo de EmailJS que se resuelve en el segundo o tercer intento
+      // no es un problema de producción, es la razón por la que existe el
+      // reintento.
+      if (isLastAttempt) captureException(err, { tags: { flow: 'emailjs' }, extra: { logLabel } })
       if (attempt === 0) emitEmailNotification(onFirstFailureMessage)
-      if (attempt < RETRY_DELAYS_MS.length) await wait(RETRY_DELAYS_MS[attempt])
+      if (!isLastAttempt) await wait(RETRY_DELAYS_MS[attempt])
     }
   }
 }
@@ -109,6 +116,7 @@ export async function sendCheckinSummaryEmail(
     )
   } catch (err) {
     console.error('Error sending checkin summary email:', err)
+    captureException(err, { tags: { flow: 'emailjs' }, extra: { logLabel: 'checkin summary' } })
   }
 }
 
@@ -146,5 +154,6 @@ export async function sendReportNotificationEmail(input: {
     )
   } catch (err) {
     console.error('Error sending report notification email:', err)
+    captureException(err, { tags: { flow: 'emailjs' }, extra: { logLabel: 'report notification' } })
   }
 }

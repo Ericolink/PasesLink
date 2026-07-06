@@ -18,6 +18,7 @@ import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { WALL_NAME_MAX, WALL_TEXT_MAX } from '../utils/validation'
 import { mergeWallFeed } from '../utils/wallFeed'
+import { captureException } from '../lib/sentry'
 import {
   IconCrown,
   IconHelpCircle,
@@ -180,6 +181,7 @@ export function EventWall() {
       textareaRef.current?.focus()
     } catch (err) {
       console.error('Error posting wall message:', err)
+      captureException(err, { tags: { component: 'event_wall', action: 'post' } })
       setPostError(err instanceof Error ? err.message : 'No se pudo publicar el mensaje. Intenta de nuevo.')
     } finally {
       setPosting(false)
@@ -203,6 +205,7 @@ export function EventWall() {
       setReplyingTo(null)
     } catch (err) {
       console.error('Error replying to wall message:', err)
+      captureException(err, { tags: { component: 'event_wall', action: 'reply' } })
       setPostError(err instanceof Error ? err.message : 'No se pudo enviar la respuesta. Intenta de nuevo.')
     }
   }

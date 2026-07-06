@@ -1,0 +1,49 @@
+name: Backup diario de Firestore
+
+on:
+  schedule:
+    # 08:17 UTC ≈ 2:17am / 3:17am en México (hora baja de tráfico). Minuto no
+    # redondo a propósito, para no caer justo en el pico de cron jobs de :00
+    # de todo GitHub Actions.
+    - cron: '17 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - run: npm ci
+
+      - name: Exportar Firestore a JSON
+        run: node scripts/backup-firestore.mjs ./backup-output
+        env:
+          FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7 }}
+
+      # El repo de backups es privado y separado de este (contiene PII de
+      # invitados: email/teléfono) — nunca vive en este repo público. Usa un
+      # PAT propio con permiso de escritura SOLO en ese repo, no el
+      # GITHUB_TOKEN de este workflow (que no tiene alcance a otro repo).
+      - name: Clonar repo privado de backups
+        run: git clone --depth 1 "https://x-access-token:${{ secrets.BACKUP_REPO_TOKEN }}@github.com/Ericolink/paselink-backups.git" backup-repo
+
+      - name: Commitear y subir el backup del día
+        working-directory: backup-repo
+        run: |
+          rm -rf latest
+          cp -r ../backup-output/latest latest
+          git config user.name "paselink-backup-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add latest
+          if git diff --cached --quiet; then
+            echo "Sin cambios respecto al backup anterior."
+          else
+            git commit -m "Backup $(date -u +%F)"
+            git push
+          fi

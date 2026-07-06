@@ -18,6 +18,7 @@ import {
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { deleteWallMessage } from './wall'
+import { withListenerReporting } from '../lib/sentry'
 import { deletePhoto } from './photos'
 import {
   REPORT_CONTENT_SNAPSHOT_MAX,
@@ -178,7 +179,7 @@ export function subscribeToRecentReports(
     ? [where('status', '==', statusFilter), orderBy('createdAt', 'desc'), limit(liveLimit)]
     : [orderBy('createdAt', 'desc'), limit(liveLimit)]
   const q = query(collection(db, 'reports'), ...constraints)
-  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => mapReport(d.id, d.data()))), onError)
+  return onSnapshot(q, (snap) => callback(snap.docs.map((d) => mapReport(d.id, d.data()))), withListenerReporting('reports', onError))
 }
 
 export async function getOlderReports(

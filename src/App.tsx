@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Route } from 'react-router-dom'
+import { SentryRoutes } from './lib/sentry'
 import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
 import { Background } from './components/Background'
@@ -50,7 +51,7 @@ function App() {
       <main>
       <ErrorBoundary>
       <Suspense fallback={<PageFallback />}>
-      <Routes>
+      <SentryRoutes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -126,7 +127,7 @@ function App() {
         <Route path="/my-events" element={<MyEvents />} />
 
         <Route path="*" element={<NotFound />} />
-      </Routes>
+      </SentryRoutes>
       </Suspense>
       </ErrorBoundary>
       </main>

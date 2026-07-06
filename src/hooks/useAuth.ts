@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { auth } from '../firebase/config'
+import { setSentryUser } from '../lib/sentry'
 
 export function useAuth() {
   // Inicializar desde auth.currentUser (no null) evita un "flash" de sesión
@@ -17,6 +18,7 @@ export function useAuth() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser)
       setLoading(false)
+      setSentryUser(currentUser ? { uid: currentUser.uid, email: currentUser.email } : null)
     })
     return unsubscribe
   }, [])

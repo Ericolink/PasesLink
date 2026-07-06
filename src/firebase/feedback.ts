@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
+import { withListenerReporting } from '../lib/sentry'
 import type { Feedback, FeedbackCategory, FeedbackPriority, FeedbackStatus } from '../types'
 import {
   FEEDBACK_CATEGORIES,
@@ -130,7 +131,7 @@ export function subscribeToAllFeedback(
   return onSnapshot(
     q,
     (snapshot) => callback(snapshot.docs.map((d) => mapFeedback(d.id, d.data()))),
-    onError,
+    withListenerReporting('feedback.all', onError),
   )
 }
 
@@ -141,7 +142,7 @@ export function subscribeToUnreadFeedbackCount(
   onError?: (error: Error) => void,
 ): Unsubscribe {
   const q = query(collection(db, 'feedback'), where('read', '==', false))
-  return onSnapshot(q, (snapshot) => callback(snapshot.size), onError)
+  return onSnapshot(q, (snapshot) => callback(snapshot.size), withListenerReporting('feedback.unreadCount', onError))
 }
 
 export async function markFeedbackRead(feedbackId: string): Promise<void> {

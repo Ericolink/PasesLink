@@ -19,6 +19,7 @@ import { getEvent } from './events'
 import { addToWaitlist } from './waitlist'
 import { getUserProfile } from './userProfile'
 import { sendCheckinSummaryEmail } from '../utils/emailjs'
+import { captureException, measureSpan, withListenerReporting } from '../lib/sentry'
 import type { CompanionData, GuestData, GuestPaymentStatus, RsvpStatus } from '../types'
 import { GuestSchema, warnIfInvalidShape } from '../types/schemas'
 import {
@@ -100,25 +101,27 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<A
     : ''
   const phone = input.phone ? requireMaxLength(input.phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
 
-  const event = await getEvent(eventId)
-  if (event && event.capacity > 0 && event.guestCount >= event.capacity) {
-    await addToWaitlist(eventId, name, lastName, phone)
-    return { status: 'waitlisted' }
-  }
+  return measureSpan('firestore.addGuest', 'db.firestore', async () => {
+    const event = await getEvent(eventId)
+    if (event && event.capacity > 0 && event.guestCount >= event.capacity) {
+      await addToWaitlist(eventId, name, lastName, phone)
+      return { status: 'waitlisted' }
+    }
 
-  const batch = writeBatch(db)
-  const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-  const payload = buildNewGuestPayload({ ...input, name, lastName })
-  batch.set(guestRef, payload)
-  if (phone) {
-    batch.set(contactRef(eventId, guestRef.id), { phone })
-  }
-  batch.update(doc(db, 'events', eventId), {
-    guestCount: increment(1),
-    peopleCount: increment(partySize(payload)),
+    const batch = writeBatch(db)
+    const guestRef = doc(collection(db, 'events', eventId, 'guests'))
+    const payload = buildNewGuestPayload({ ...input, name, lastName })
+    batch.set(guestRef, payload)
+    if (phone) {
+      batch.set(contactRef(eventId, guestRef.id), { phone })
+    }
+    batch.update(doc(db, 'events', eventId), {
+      guestCount: increment(1),
+      peopleCount: increment(partySize(payload)),
+    })
+    await batch.commit()
+    return { status: 'added', id: guestRef.id }
   })
-  await batch.commit()
-  return { status: 'added', id: guestRef.id }
 }
 
 // Firestore rechaza batches de más de 500 operaciones; se reparte en chunks de
@@ -136,21 +139,23 @@ export async function addGuestsBulk(eventId: string, names: string[]) {
   const trimmedNames = names.map((name) =>
     requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre'),
   )
-  for (let i = 0; i < trimmedNames.length; i += BULK_CHUNK_SIZE) {
-    const slice = trimmedNames.slice(i, i + BULK_CHUNK_SIZE)
-    const batch = writeBatch(db)
-    for (const name of slice) {
-      const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-      batch.set(guestRef, buildNewGuestPayload({ name }))
+  await measureSpan('firestore.addGuestsBulk', 'db.firestore', async () => {
+    for (let i = 0; i < trimmedNames.length; i += BULK_CHUNK_SIZE) {
+      const slice = trimmedNames.slice(i, i + BULK_CHUNK_SIZE)
+      const batch = writeBatch(db)
+      for (const name of slice) {
+        const guestRef = doc(collection(db, 'events', eventId, 'guests'))
+        batch.set(guestRef, buildNewGuestPayload({ name }))
+      }
+      // Cada invitado de una carga masiva es individual sin acompañantes
+      // (partySize == 1), así que peopleCount sube lo mismo que guestCount acá.
+      batch.update(doc(db, 'events', eventId), {
+        guestCount: increment(slice.length),
+        peopleCount: increment(slice.length),
+      })
+      await batch.commit()
     }
-    // Cada invitado de una carga masiva es individual sin acompañantes
-    // (partySize == 1), así que peopleCount sube lo mismo que guestCount acá.
-    batch.update(doc(db, 'events', eventId), {
-      guestCount: increment(slice.length),
-      peopleCount: increment(slice.length),
-    })
-    await batch.commit()
-  }
+  })
 }
 
 export interface UpdateGuestInput {
@@ -271,7 +276,7 @@ export function subscribeToGuests(
       baseGuests = snapshot.docs.map((d) => mapGuest(d.id, d.data()))
       emitIfReady()
     },
-    onError,
+    withListenerReporting('guests', onError),
   )
 
   const unsubContacts = onSnapshot(
@@ -283,7 +288,7 @@ export function subscribeToGuests(
       })
       emitIfReady()
     },
-    onError,
+    withListenerReporting('guestContacts', onError),
   )
 
   return () => {
@@ -389,7 +394,7 @@ export async function checkInGuest(
 
   const eventRef = doc(db, 'events', eventId)
 
-  return runTransaction(db, async (transaction) => {
+  return measureSpan('firestore.checkInGuest', 'db.firestore', () => runTransaction(db, async (transaction) => {
     const guestSnap = await transaction.get(guestRef)
     if (!guestSnap.exists()) {
       return { status: 'not_found' } as CheckInResult
@@ -451,7 +456,7 @@ export async function checkInGuest(
       guest: { ...guest, status: 'checked_in', checkedOutAt: null, exitType: null },
       reentry: isReentry,
     } as CheckInResult
-  })
+  }))
 }
 
 export type CheckOutResult =
@@ -473,7 +478,7 @@ export async function checkOutGuest(
   }
   const eventRef = doc(db, 'events', eventId)
 
-  return runTransaction(db, async (transaction) => {
+  return measureSpan('firestore.checkOutGuest', 'db.firestore', () => runTransaction(db, async (transaction) => {
     const guestSnap = await transaction.get(guestRef)
     if (!guestSnap.exists()) {
       return { status: 'not_found' } as CheckOutResult
@@ -512,7 +517,7 @@ export async function checkOutGuest(
       guest: { ...guest, checkedOutAt: Date.now(), checkedOutByEmail: scannedByEmail, exitType: kind },
       kind,
     } as CheckOutResult
-  })
+  }))
 }
 
 // Excepción del organizador (pedida explícitamente): revierte una salida
@@ -582,6 +587,7 @@ export async function sendCheckinSummary(
     await sendCheckinSummaryEmail(organizerEmail, event.name, checkinsListHtml, checkinsData.length)
   } catch (err) {
     console.error('Error sending checkin summary:', err)
+    captureException(err, { tags: { flow: 'emailjs.checkinSummary' } })
   }
 }
 
