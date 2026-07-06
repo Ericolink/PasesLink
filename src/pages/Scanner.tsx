@@ -9,6 +9,7 @@ import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
 import { ExitConfirmDialog, type PendingExit } from '../components/ExitConfirmDialog'
 import { CameraPermissionHandler } from '../components/Scanner'
+import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { buildPassUrl, extractQrToken, isArriveQr } from '../utils/qrUrl'
 import { isNetworkError } from '../utils/network'
 
@@ -535,17 +536,14 @@ export function Scanner() {
 
       {/* Barra de progreso */}
       {event && (
-        <div className="mt-4">
-          <p className="text-center text-sm text-gray-400 mb-1">
-            {event.checkedInCount} / {event.guestCount} confirmados
-          </p>
-          <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden">
-            <div
-              className="h-full bg-primary rounded-full transition-all"
-              style={{ width: `${event.guestCount > 0 ? Math.min(100, (event.checkedInCount / event.guestCount) * 100) : 0}%` }}
-            />
-          </div>
-        </div>
+        <AttendanceProgressBar
+          className="mt-4"
+          present={event.checkedInCount}
+          expected={event.peopleCount}
+          unitLabel="confirmados"
+          showPercentage={false}
+          variant="plain"
+        />
       )}
 
       {/* Contador walk-in para eventos open/hybrid */}

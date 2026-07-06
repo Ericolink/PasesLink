@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { deleteEvent, setEventStatus, subscribeToUserEvents } from '../firebase/events'
 import type { EventData } from '../types'
+import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { WelcomeModal } from '../components/WelcomeModal'
 import { IconBarChart, IconCalendar, IconCheckCircle, IconTicket, IconUsers } from '../components/Icons'
@@ -230,14 +231,13 @@ export function Dashboard() {
           <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">Próximo evento</p>
           <h2 className="text-lg font-bold text-white">{nextEvent.name}</h2>
           <p className="text-sm text-gray-400 mt-0.5">{formatDate(nextEvent.date)} · {nextEvent.location}</p>
-          <div className="flex items-center gap-4 mt-3 text-sm text-gray-400">
-            <span className="flex items-center gap-1">
-              <IconUsers className="w-3.5 h-3.5" /> {nextEvent.peopleCount} invitados
-            </span>
-            <span className="flex items-center gap-1">
-              <IconCheckCircle className="w-3.5 h-3.5" /> {nextEvent.checkedInCount} check-ins
-            </span>
-          </div>
+          <AttendanceProgressBar
+            className="mt-3"
+            present={nextEvent.checkedInCount}
+            expected={nextEvent.peopleCount}
+            unitLabel="asistentes"
+            variant="glow"
+          />
         </div>
       )}
 
@@ -372,9 +372,6 @@ interface EventCardProps {
 }
 
 function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReactivate, onDelete }: EventCardProps) {
-  const progress = event.peopleCount > 0 ? Math.min(100, (event.checkedInCount / event.peopleCount) * 100) : 0
-  const attendanceRate = event.peopleCount > 0 ? Math.round((event.checkedInCount / event.peopleCount) * 100) : null
-
   return (
     <div
       style={{
@@ -417,29 +414,15 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
           <p className="text-sm text-gray-500 mb-3">{formatDate(event.date)} · {event.location}</p>
 
           {/* Progress */}
-          <div>
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
-              <span>
-                {event.checkedInCount} / {event.peopleCount} check-ins
-                {attendanceRate !== null && past && (
-                  <span className="ml-1.5 text-gray-600">({attendanceRate}% asistencia)</span>
-                )}
-              </span>
-              {event.capacity > 0 && (
-                <span className="text-gray-600">cap. {event.capacity}</span>
-              )}
-            </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(74,50,92,.8)' }}>
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${progress}%`,
-                  background: progress > 0 ? 'linear-gradient(90deg, #FF1464, #D40E52)' : 'transparent',
-                  boxShadow: progress > 0 ? '0 0 6px rgba(255,20,100,.5)' : 'none',
-                }}
-              />
-            </div>
-          </div>
+          <AttendanceProgressBar
+            present={event.checkedInCount}
+            expected={event.peopleCount}
+            unitLabel="check-ins"
+            variant="glow"
+            showPercentage={past}
+            percentSuffix="asistencia"
+            rightLabel={event.capacity > 0 ? <span className="text-gray-600">cap. {event.capacity}</span> : undefined}
+          />
         </button>
 
         {/* Action row */}

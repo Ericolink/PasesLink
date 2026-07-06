@@ -51,6 +51,7 @@ function makeEvent(): EventData {
     status: 'active',
     guestCount: 0,
     checkedInCount: 0,
+    peopleCount: 0,
     occupancyCount: 0,
     createdAt: 0,
     updatedAt: 0,
