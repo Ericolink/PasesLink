@@ -232,9 +232,13 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
       // resto de los temas no-default.
       fontFamily: "'Space Grotesk', system-ui, sans-serif",
       borderRadius: '0.6rem',
-      // Sombra dura y desplazada ("sticker/cartel pegado"), no un blur — la
-      // firma visual del tema. Nada de blur difuso: es tinta plana, no luz.
-      shadow: '4px 4px 0 0 var(--invite-text)',
+      // Sombra dura y desplazada ("sticker/cartel pegado") como firma
+      // principal — nunca un blur reemplazándola, es tinta plana, no luz —
+      // más una segunda capa ambiental, sutil y difusa, debajo: la que le da
+      // al boleto la sensación de estar "levantado" sobre la mesa/página en
+      // vez de pegado a ella. Es aditiva, nunca reemplaza el offset duro
+      // (ese sigue siendo el primer valor, el que más se lee).
+      shadow: '4px 4px 0 0 var(--invite-text), 0 16px 32px -18px rgba(22,35,140,.45)',
       enterAnimation: 'animate-bounce-in',
     },
   },

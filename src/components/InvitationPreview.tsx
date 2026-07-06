@@ -62,7 +62,7 @@ export function InvitationPreview({
 
         <p className="text-lg font-medium mt-6">{sample.guestName}</p>
         <div className="flex justify-center my-6">
-          <div className="p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
+          <div className="invite-qr-frame p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
             <QRCodeCanvas value="https://paselink.app/vista-previa" size={180} marginSize={2} />
           </div>
         </div>

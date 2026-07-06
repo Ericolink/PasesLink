@@ -223,7 +223,7 @@ function GuestPassInner() {
           {checkInState !== 'done' && (
             <div className="flex justify-center my-6">
               <div
-                className="p-4 border rounded-lg max-w-[250px] max-h-[250px] overflow-hidden flex items-center justify-center"
+                className="invite-qr-frame p-4 border rounded-lg max-w-[250px] max-h-[250px] overflow-hidden flex items-center justify-center"
                 style={{ borderColor: 'var(--invite-border)' }}
               >
                 <QRCodeCanvas value={passUrl} size={200} marginSize={2} />
@@ -450,7 +450,7 @@ function GuestPassInner() {
 
               <div className="relative flex justify-center my-5" ref={qrWrapperRef}>
                 <div
-                  className="p-4 border rounded-xl inline-flex items-center justify-center transition-all duration-500"
+                  className="invite-qr-frame p-4 border rounded-xl inline-flex items-center justify-center transition-all duration-500"
                   style={{
                     borderColor: 'var(--invite-border)',
                     filter: guest.rsvpStatus === 'pending' ? 'blur(6px)' : 'none',
@@ -645,8 +645,8 @@ function GuestPassInner() {
 function PassInfoCell({ label, value, className = '' }: { label: string; value: string; className?: string }) {
   return (
     <div className={className}>
-      <p className="text-[10px] uppercase tracking-widest font-semibold text-[var(--invite-text-muted)] mb-0.5">{label}</p>
-      <p className="text-sm font-medium text-[var(--invite-text)] leading-snug">{value}</p>
+      <p className="invite-pass-label text-[10px] uppercase tracking-widest font-semibold text-[var(--invite-text-muted)] mb-0.5">{label}</p>
+      <p className="invite-pass-value text-sm font-medium text-[var(--invite-text)] leading-snug">{value}</p>
     </div>
   )
 }

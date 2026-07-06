@@ -506,6 +506,15 @@ body {
     transition: none !important;
     animation: none !important;
   }
+  /* Elevación al pasar el cursor sobre el boleto de Fiesta improvisada
+     (templates.css) — sin movimiento, se queda en su sombra de reposo. */
+  [data-template='houseparty'] .invite-card {
+    transition: none !important;
+  }
+  [data-template='houseparty'] .invite-card:hover {
+    transform: none !important;
+    box-shadow: var(--invite-shadow) !important;
+  }
 }
 
 /* ── Reacciones de comentarios (ReactionPicker.tsx) ──────────────
