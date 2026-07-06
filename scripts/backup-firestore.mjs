@@ -61,7 +61,13 @@ function initFirestore() {
       'Falta FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7 (o FIRESTORE_EMULATOR_HOST para probar contra el emulador).',
     )
   }
-  initializeApp({ credential: cert(JSON.parse(raw)) })
+  const parsed = JSON.parse(raw)
+  // El email de la service account no es secreto (solo su private_key lo
+  // es) — se loguea para poder confirmar en IAM cuál es exactamente la
+  // cuenta que necesita el rol "Cloud Datastore User" si falla con
+  // PERMISSION_DENIED.
+  console.log(`Usando service account: ${parsed.client_email}`)
+  initializeApp({ credential: cert(parsed) })
   return getFirestore()
 }
 
