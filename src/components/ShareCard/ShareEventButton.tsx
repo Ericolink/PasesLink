@@ -16,28 +16,26 @@ export function ShareEventButton({ event }: { event: EventData }) {
   const content = useMemo(() => buildEventShareCard(event, joinUrl), [event, joinUrl])
 
   const cardNodeRef = useRef<HTMLDivElement>(null)
-  const [imageBlob, setImageBlob] = useState<Blob | null>(null)
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [image, setImage] = useState<{ blob: Blob; url: string } | null>(null)
   const [pending, setPending] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
 
+  // El object URL se crea junto con el blob (en ensureImage) y no en un
+  // efecto: así el efecto solo libera el URL anterior al reemplazarlo o al
+  // desmontar, sin disparar un re-render adicional con setState.
   useEffect(() => {
-    if (!imageBlob) {
-      setImageUrl(null)
-      return
+    return () => {
+      if (image) URL.revokeObjectURL(image.url)
     }
-    const url = URL.createObjectURL(imageBlob)
-    setImageUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [imageBlob])
+  }, [image])
 
   // La imagen se genera una sola vez (perezosamente, en el primer click) y se
   // reutiliza tanto para el share nativo como para la hoja de respaldo.
   async function ensureImage(): Promise<Blob | null> {
-    if (imageBlob) return imageBlob
+    if (image) return image.blob
     if (!cardNodeRef.current) return null
     const blob = await renderShareCardImage(cardNodeRef.current)
-    if (blob) setImageBlob(blob)
+    if (blob) setImage({ blob, url: URL.createObjectURL(blob) })
     return blob
   }
 
@@ -80,7 +78,7 @@ export function ShareEventButton({ event }: { event: EventData }) {
         </button>
       </div>
 
-      <ShareFallbackSheet open={sheetOpen} content={content} imageUrl={imageUrl} onClose={() => setSheetOpen(false)} />
+      <ShareFallbackSheet open={sheetOpen} content={content} imageUrl={image?.url ?? null} onClose={() => setSheetOpen(false)} />
     </>
   )
 }
