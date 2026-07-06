@@ -23,6 +23,7 @@ import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { EventCountdown } from '../components/EventCountdown'
 import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
 import { formatDate, formatTime12h } from '../utils/time'
+import { attendancePercent } from '../utils/attendance'
 import {
   IconArrowLeft,
   IconCalendar,
@@ -316,7 +317,7 @@ export function EventDetail() {
           // invitaciones daba porcentajes >100% en cuanto había acompañantes
           // o familias con varios integrantes.
           sub={totalPeople > 0
-            ? `${Math.round((event.checkedInCount / totalPeople) * 100)}% del total`
+            ? `${Math.round(attendancePercent(event.checkedInCount, totalPeople))}% del total`
             : undefined}
           valueClass="text-green-600 dark:text-green-400"
         />
@@ -361,7 +362,7 @@ export function EventDetail() {
               <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min(100, (totalPeople / event.capacity) * 100)}%` }}
+                  style={{ width: `${attendancePercent(totalPeople, event.capacity)}%` }}
                 />
               </div>
               {totalPeople > event.capacity && (

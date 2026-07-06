@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
 import { IconBarChart2 } from './Icons'
 import { LoadingInline } from './LoadingInline'
+import { partySize } from '../firebase/guests'
 import type { GuestData } from '../types'
 
 interface Props {
@@ -16,21 +17,26 @@ export const EventAnalytics = memo(function EventAnalytics({ guests, loading = f
     const checkedIn = guests.filter((g) => g.checkedInAt !== null)
     if (checkedIn.length === 0) return null
 
+    // Ponderado por partySize (invitado + acompañantes), no por documento —
+    // "Confirmados" debe contar PERSONAS igual que en Reports.tsx/EventDetail.tsx,
+    // no invitaciones, para que el mismo dato no muestre números distintos
+    // según la pantalla.
     const hourCounts: Record<number, number> = {}
     for (const g of checkedIn) {
       const hour = new Date(g.checkedInAt!).getHours()
-      hourCounts[hour] = (hourCounts[hour] || 0) + 1
+      hourCounts[hour] = (hourCounts[hour] || 0) + partySize(g)
     }
 
+    const totalPeople = checkedIn.reduce((sum, g) => sum + partySize(g), 0)
     const hours = Object.keys(hourCounts).map(Number).sort((a, b) => a - b)
     const minHour = Math.max(0, hours[0] - 1)
     const maxHour = Math.min(23, hours[hours.length - 1] + 1)
     const allHours = Array.from({ length: maxHour - minHour + 1 }, (_, i) => minHour + i)
     const maxCount = Math.max(...Object.values(hourCounts))
     const peakHour = hours.reduce((a, b) => (hourCounts[a] > hourCounts[b] ? a : b))
-    const avgPerHour = (checkedIn.length / hours.length).toFixed(1)
+    const avgPerHour = (totalPeople / hours.length).toFixed(1)
 
-    return { checkedIn, hourCounts, allHours, maxCount, peakHour, avgPerHour }
+    return { totalPeople, hourCounts, allHours, maxCount, peakHour, avgPerHour }
   }, [guests])
 
   if (loading || !stats) {
@@ -47,7 +53,7 @@ export const EventAnalytics = memo(function EventAnalytics({ guests, loading = f
     )
   }
 
-  const { checkedIn, hourCounts, allHours, maxCount, peakHour, avgPerHour } = stats
+  const { totalPeople, hourCounts, allHours, maxCount, peakHour, avgPerHour } = stats
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
@@ -58,7 +64,7 @@ export const EventAnalytics = memo(function EventAnalytics({ guests, loading = f
 
       <div className="flex gap-4 mb-4 text-center">
         <div className="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
-          <p className="text-lg font-bold text-gray-900 dark:text-white">{checkedIn.length}</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-white">{totalPeople}</p>
           <p className="text-xs text-gray-500">Confirmados</p>
         </div>
         <div className="flex-1 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">

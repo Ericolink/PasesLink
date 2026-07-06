@@ -4,6 +4,7 @@ import { subscribeToCheckins } from '../firebase/reports'
 import { partySize } from '../firebase/guests'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
+import { attendancePercent } from '../utils/attendance'
 import type { CheckinLog } from '../types'
 import { RSVP_LABELS } from '../types'
 import { IconCheck, IconCornerUpLeft } from '../components/Icons'
@@ -51,8 +52,14 @@ export function Reports() {
       </div>
     )
   }
-  const attendanceRate = event.guestCount > 0 ? Math.round((event.checkedInCount / event.guestCount) * 100) : 0
-  const pending = guests.filter((g) => g.status === 'invited')
+  // checkedInCount/peopleCount son conteos de PERSONAS (partySize suma
+  // acompañantes/familias) — dividir checkedInCount por guestCount (conteo de
+  // invitaciones) daba porcentajes de más de 100% en cuanto un invitado tenía
+  // acompañantes. Ver comentario de `attendancePercent`.
+  const attendanceRate = Math.round(attendancePercent(event.checkedInCount, event.peopleCount))
+  // Personas pendientes, no invitaciones pendientes — mismo criterio que
+  // "Pendientes" en EventDetail.tsx, para que ambas pantallas coincidan.
+  const peoplePending = Math.max(0, event.peopleCount - event.checkedInCount)
   const rsvpYes = guests.filter((g) => g.rsvpStatus === 'yes').length
   const rsvpNo = guests.filter((g) => g.rsvpStatus === 'no').length
   const rsvpPending = guests.filter((g) => g.rsvpStatus === 'pending').length
@@ -102,7 +109,7 @@ export function Reports() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <Stat label="Invitados" value={event.guestCount} />
         <Stat label="Confirmados" value={event.checkedInCount} color="text-green-600" />
-        <Stat label="Pendientes" value={pending.length} color="text-gray-400" />
+        <Stat label="Pendientes" value={peoplePending} color="text-gray-400" />
         <Stat label="Asistencia" value={`${attendanceRate}%`} />
       </div>
 

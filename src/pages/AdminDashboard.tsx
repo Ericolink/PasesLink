@@ -20,6 +20,7 @@ import {
 } from '../firebase/feedback'
 import { useAuth } from '../hooks/useAuth'
 import { deleteEvent, setEventStatus } from '../firebase/events'
+import { attendancePercent } from '../utils/attendance'
 import type { EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { AdminStatCard, AdminStatCardSkeleton } from '../components/Admin/AdminStatCard'
@@ -117,6 +118,13 @@ export function AdminDashboard() {
 
   const stats = useMemo(() => {
     const totalGuests = events.reduce((s, e) => s + e.guestCount, 0)
+    // totalPeople (suma de peopleCount, personas reales incluyendo
+    // acompañantes/familias) es el denominador correcto para checkinRate —
+    // totalGuests (invitaciones) da porcentajes >100% en cuanto hay
+    // acompañantes, igual que el bug corregido en Reports.tsx. totalGuests
+    // se sigue mostrando aparte como "Invitados totales" (conteo de
+    // invitaciones, una métrica válida por sí misma).
+    const totalPeople = events.reduce((s, e) => s + e.peopleCount, 0)
     const totalCheckins = events.reduce((s, e) => s + e.checkedInCount, 0)
     return {
       activeEvents: events.filter((e) => e.status === 'active').length,
@@ -125,7 +133,7 @@ export function AdminDashboard() {
       newUsers7d: users.filter((u) => u.createdAt && now - u.createdAt <= WEEK_MS).length,
       totalGuests,
       totalCheckins,
-      checkinRate: totalGuests > 0 ? Math.round((totalCheckins / totalGuests) * 100) : null,
+      checkinRate: totalPeople > 0 ? Math.round(attendancePercent(totalCheckins, totalPeople)) : null,
     }
   }, [events, users, now])
 

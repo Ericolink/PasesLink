@@ -281,11 +281,13 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],
     status: data.status as EventStatus,
     guestCount: (data.guestCount as number) || 0,
-    // Eventos creados antes de este campo no lo tienen — cae a 0 en vez de
-    // reventar, aunque eso subestime el "% de asistencia" hasta que se
-    // agregue/edite un invitado (que ya recalcula sobre el valor real). Ver
-    // comentario de `peopleCount` en types/index.ts.
-    peopleCount: (data.peopleCount as number) || 0,
+    // Eventos creados antes de este campo no lo tienen — cae a guestCount
+    // (no a 0) porque en esos eventos, anteriores a acompañantes/familias,
+    // cada invitación equivale exactamente a una persona. Caer a 0 rompía el
+    // "% de asistencia" (mostraba 0% con checkedInCount > 0) en cualquier
+    // evento viejo que no hubiera tenido un alta/edición de invitado desde
+    // que se agregó este campo. Ver comentario de `peopleCount` en types/index.ts.
+    peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (data.guestCount as number) || 0,
     checkedInCount: (data.checkedInCount as number) || 0,
     occupancyCount: (data.occupancyCount as number) || 0,
     coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},

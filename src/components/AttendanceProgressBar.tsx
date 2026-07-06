@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { attendancePercent } from '../utils/attendance'
 
 interface AttendanceProgressBarProps {
   /** Personas que ya hicieron check-in. */
@@ -27,7 +28,7 @@ export function AttendanceProgressBar({
   rightLabel,
   className = '',
 }: AttendanceProgressBarProps) {
-  const percent = expected > 0 ? Math.min(100, (present / expected) * 100) : 0
+  const percent = attendancePercent(present, expected)
   const percentInt = Math.round(percent)
   const isGlow = variant === 'glow'
 
