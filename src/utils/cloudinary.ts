@@ -1,7 +1,8 @@
 import { captureException, measureSpan } from '../lib/sentry'
+import { cleanEnv } from './env'
 
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
+const CLOUD_NAME = cleanEnv(import.meta.env.VITE_CLOUDINARY_CLOUD_NAME)
+const UPLOAD_PRESET = cleanEnv(import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET)
 
 // Único límite de tamaño para todo el flujo (antes había dos valores
 // distintos entre este archivo y usePhotoUpload.ts: si el resize fallaba

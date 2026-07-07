@@ -7,14 +7,22 @@ import {
   memoryLocalCache,
 } from 'firebase/firestore'
 import { captureException } from '../lib/sentry'
+import { cleanEnv } from '../utils/env'
 
+// cleanEnv() (no el valor crudo de import.meta.env) por cada campo: un
+// secret de GitHub Actions cargado con un salto de línea de más (p.ej.
+// `gh secret set NOMBRE < archivo.txt`) viaja tal cual hasta acá, y Firebase
+// Auth arma con authDomain/apiKey la URL del iframe de login — ese \n de
+// más se codifica como %0A en medio de la URL y el iframe de Google la
+// rechaza ("Illegal url for new iframe"), tumbando el login con Google/
+// Facebook por completo aunque el resto de la app funcione bien.
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: cleanEnv(import.meta.env.VITE_FIREBASE_API_KEY),
+  authDomain: cleanEnv(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
+  projectId: cleanEnv(import.meta.env.VITE_FIREBASE_PROJECT_ID),
+  storageBucket: cleanEnv(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: cleanEnv(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
+  appId: cleanEnv(import.meta.env.VITE_FIREBASE_APP_ID),
 }
 
 export const app = initializeApp(firebaseConfig)
@@ -71,7 +79,7 @@ export const facebookProvider = new FacebookAuthProvider()
 // paralelo en vez de bloquear el parseo/ejecución del bundle principal antes
 // del primer render — la protección sigue activándose de inmediato (no se
 // espera a un login ni a una acción del usuario), solo deja de viajar inline.
-const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY
+const recaptchaSiteKey = cleanEnv(import.meta.env.VITE_RECAPTCHA_SITE_KEY)
 if (recaptchaSiteKey) {
   import('firebase/app-check').then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
     initializeAppCheck(app, {

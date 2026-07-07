@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/react'
 import { useEffect } from 'react'
 import { Routes, createRoutesFromChildren, matchRoutes, useLocation, useNavigationType } from 'react-router-dom'
+import { cleanEnv } from '../utils/env'
 
 // Campos que jamás deben salir del navegador hacia Sentry — mismo criterio
 // que firestore.rules aplica a `guestContacts` (email/teléfono de invitados
@@ -30,7 +31,7 @@ function scrubPii<T>(value: T, seen = new WeakSet<object>()): T {
  * rompe el arranque de la app.
  */
 export function initSentry() {
-  const dsn = import.meta.env.VITE_SENTRY_DSN
+  const dsn = cleanEnv(import.meta.env.VITE_SENTRY_DSN)
   if (!dsn) return
 
   Sentry.init({

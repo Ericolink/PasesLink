@@ -1,14 +1,15 @@
 import emailjs from '@emailjs/browser'
 import { emitEmailNotification } from './emailNotifications'
 import { captureException } from '../lib/sentry'
+import { cleanEnv } from './env'
 
-const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID
-const WELCOME_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_WELCOME
-const CHECKIN_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CHECKIN
-const PASS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_PASS
-const REPORT_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_REPORT
-const REPORT_ADMIN_EMAIL = import.meta.env.VITE_REPORT_ADMIN_EMAIL
-const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+const SERVICE_ID = cleanEnv(import.meta.env.VITE_EMAILJS_SERVICE_ID)
+const WELCOME_TEMPLATE_ID = cleanEnv(import.meta.env.VITE_EMAILJS_TEMPLATE_ID_WELCOME)
+const CHECKIN_TEMPLATE_ID = cleanEnv(import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CHECKIN)
+const PASS_TEMPLATE_ID = cleanEnv(import.meta.env.VITE_EMAILJS_TEMPLATE_ID_PASS)
+const REPORT_TEMPLATE_ID = cleanEnv(import.meta.env.VITE_EMAILJS_TEMPLATE_ID_REPORT)
+const REPORT_ADMIN_EMAIL = cleanEnv(import.meta.env.VITE_REPORT_ADMIN_EMAIL)
+const PUBLIC_KEY = cleanEnv(import.meta.env.VITE_EMAILJS_PUBLIC_KEY)
 
 const RETRY_DELAYS_MS = [1000, 2000, 4000]
 
