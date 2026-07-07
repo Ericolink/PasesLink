@@ -59,7 +59,7 @@ tema:
 | Vaquera | rústico / material táctil (cuero, madera) |
 | Infantil | confeti controlado |
 | Formal | minimal metálico sobrio (doble filete) |
-| Fiesta improvisada | cartel serigrafiado/riso (trama de medio tono alineada, tinta plana a dos colores, sombra dura desplazada + capa ambiental de elevación, sello de tinta riso) |
+| Fiesta improvisada | night-life editorial / neón líquido (lienzo nocturno + halos de neón violeta/magenta/cian como iluminación de fondo, boleto de vidrio flotando con franja superior de neón, sello y badges como halo de luz — ver [`FIESTA_IMPROVISADA_DESIGN_SYSTEM.md`](./FIESTA_IMPROVISADA_DESIGN_SYSTEM.md)) |
 
 Un recurso asignado a un tema (grano de papel, marco institucional,
 confeti, etc.) no aparece en ningún otro, aunque el efecto sería "bonito"

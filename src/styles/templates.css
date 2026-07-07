@@ -1023,36 +1023,42 @@
   filter: saturate(1.2) contrast(1.04) brightness(1.02);
 }
 
-/* ── Fiesta improvisada: cartel serigrafiado/riso de mixtape casero ───
-   Identidad: tinta azul eléctrico (registry.ts) + una segunda tinta rosa-
-   coral solo para el "desfase de registro" típico de una impresión riso de
-   dos colores (--invite-party-ink2, token propio de este tema, mismo
-   mecanismo que --invite-grad-gold-* en Graduación). Papel de cartel sin
-   estucar, trama de medio tono (halftone) en vez de grano fotográfico
-   (eso es Bodas) o confeti suelto (eso es Infantil): una grilla PERFECTA
-   y alineada de puntos — la decisión exactamente opuesta a la de Infantil,
-   que deliberadamente rompió su grilla para no verse "cuadriculada" (ver
-   comentario de Infantil, arriba). Acá la regularidad mecánica es el
-   punto: es una trama de imprenta, no confeti fotografiado. Sombra dura
-   desplazada (registry.ts) en vez de blur — la firma "sticker/cartel
-   pegado" que reaparece en tarjeta y botón. Objeto propio: el cassette de
-   mixtape (ornaments.tsx), nunca un ícono de nota musical genérico. */
+/* ── Fiesta improvisada: night-life editorial / neón líquido ──────────
+   Materialidad exclusiva (ver DESIGN_GOVERNANCE.md) — reemplaza el cartel
+   serigrafiado/riso anterior (ver historial de este archivo). Referencia
+   oficial de dirección de arte: src/design-system/
+   FIESTA_IMPROVISADA_DESIGN_SYSTEM.md. El fondo es el protagonista (lienzo
+   nocturno + halos de neón como iluminación, nunca relleno); el boleto
+   evoluciona a una superficie de vidrio que flota sobre ese escenario —
+   misma estructura e información de siempre (ver GuestPass.tsx), solo
+   cambia la piel. Todo en gradientes/sombras, sin blur en capas grandes
+   ni animaciones nuevas — igual que el resto de los temas, el fondo de
+   este es 100% estático (el movimiento lo aporta la animación de entrada
+   'animate-fade-in-up' de registry.ts). */
 [data-template='houseparty'] {
-  /* Carmesí, no rosa chicle: a #ff4d6d el borde del mensaje fijado quedaba
-     en 2.8:1 contra el papel (por debajo del mínimo 3:1 de contraste no-
-     textual) — este tono lo sube a 4.27:1 sin perder el aire de segunda
-     tinta riso. */
-  --invite-party-ink2: #d6294b;
+  /* Tinta oscura para texto legible sobre superficies de acento brillante
+     (botón CTA, franja superior del boleto) — ningún otro tema la necesita
+     porque ninguno tiene un acento tan luminoso como para invertir el
+     contraste de su propio texto blanco. */
+  --invite-ink: #071019;
   font-family: 'Space Grotesk', system-ui, sans-serif;
-  /* Dos tramas de medio tono en rgba (nunca la variable de acento directa:
-     así cada capa nace tenue por sí sola, sin tapar el texto) corridas
-     4px/4px entre sí — el "desfase de registro" de una prensa riso real,
-     no un patrón perfecto encima de sí mismo. */
+  /* De atrás hacia adelante: viñeta superior/inferior (fixed-px, no %, para
+     que se vea igual en un boleto corto o en una página larga con muchos
+     mensajes de muro) → tres halos de neón (violeta arriba-izquierda,
+     magenta arriba-derecha, cian abajo-derecha — roles de §2 del sistema
+     de diseño: violeta/magenta son "ambiente", nunca el acento interactivo)
+     → grano de chispas sutil (círculos de 1px al 5% de opacidad, evoca luz
+     de pista de baile sin ser un patrón literal). Todas las capas son
+     gradientes puros (sin filter:blur) — el desenfoque ya viene dado por
+     los stops del propio gradiente, así no hay costo de rasterizado. */
   background-image:
-    radial-gradient(circle, rgba(46, 79, 224, .22) 1.15px, transparent 1.3px),
-    radial-gradient(circle, rgba(214, 41, 75, .16) 1.15px, transparent 1.3px);
-  background-size: 15px 15px, 15px 15px;
-  background-position: 0 0, 4px 4px;
+    linear-gradient(180deg, rgba(0,0,0,.55) 0, transparent 200px),
+    linear-gradient(0deg, rgba(0,0,0,.6) 0, transparent 240px),
+    radial-gradient(ellipse 640px 460px at 6% 0%, rgba(123,45,255,.32) 0%, transparent 72%),
+    radial-gradient(ellipse 600px 420px at 100% 220px, rgba(255,45,120,.22) 0%, transparent 74%),
+    radial-gradient(ellipse 560px 380px at 84% 100%, rgba(34,211,238,.20) 0%, transparent 74%),
+    radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1.6px);
+  background-size: auto, auto, auto, auto, auto, 30px 30px;
 }
 
 [data-template='houseparty'] h1 {
@@ -1060,128 +1066,81 @@
   text-transform: uppercase;
   letter-spacing: .01em;
   line-height: 1.15;
-  /* Duplicado plano en la segunda tinta, desplazado 3px — la misma idea
-     de "impresión mal registrada" del fondo, ahora en el titular. Nada de
-     blur: es tinta plana sobre tinta plana. */
-  text-shadow: 3px 3px 0 var(--invite-party-ink2);
+  /* Halo de luz sutil, nunca el duplicado de tinta plana de la
+     materialidad anterior — un solo blur pequeño y de baja opacidad
+     (ver §6/§11 del sistema de diseño: un glow de neón intenso puede
+     "fantasmear" al rasterizar a PNG en la descarga del pase; esta
+     versión es deliberadamente discreta para no arriesgar esa captura). */
+  text-shadow: 0 0 18px rgba(34,211,238,.35);
 }
 
-/* Tarjeta: borde de tinta plana en las cuatro caras (reemplaza la barra
-   superior de acento de InvitationCard.tsx). La forma de "boleto real" no
-   viene de un talón de texto pegado al borde ni de una cinta adhesiva —esa
-   combinación mezclaba dos objetos físicos distintos (flyer pegado +
-   credencial de aeropuerto) y quedaba desprolija—, sino de UN solo corte:
-   la costura entre "detalles del evento" e "invitado + QR", con mordidas
-   semicirculares clavadas en el borde izquierdo y derecho de la tarjeta
-   (más abajo). Es el gesto mínimo que más se lee como "esto se arrancó de
-   un boleto físico", sin competir con el resto del contenido. Sombra dura
-   + elevación al hover ya están arriba. */
+/* Tarjeta: vidrio flotando sobre el escenario de luces, no tinta pegada al
+   papel. Hairline de 1px en los tres lados (--invite-border) + franja
+   superior de neón cian de 3px (pisa el borderTopColor de acento que ya
+   trae InvitationCard.tsx/GuestPass.tsx por inline style — mismo mecanismo
+   que usa el resto de los temas para su franja superior, aquí solo se le
+   suma un poco más de grosor y un halo). Sin overflow:hidden forzado ni
+   ajuste de radio en la portada: al ser un borde de 1px (igual que el
+   resto de los temas), la portada ya encaja con el radio genérico de
+   InvitationCard.tsx/GuestPass.tsx sin necesitar corrección. */
 [data-template='houseparty'] .invite-card {
-  border-width: 3px !important;
-  border-color: var(--invite-text) !important;
+  border-width: 1px !important;
+  border-color: var(--invite-border) !important;
+  border-top-width: 3px !important;
+  border-top-color: var(--invite-accent) !important;
   position: relative;
-  /* overflow:hidden (no visible) a propósito: es lo que RECORTA cada
-     círculo del corte a la mitad exacta contra el borde de la tarjeta,
-     leyéndose como un agujero perforado real. Con overflow visible el
-     círculo completo queda flotando entero sobre la trama de medio tono
-     del fondo (no un color plano parejo), delatándose como un disco
-     decorativo en vez de una mordida en el borde. */
-  overflow: hidden !important;
-  transition: transform .2s ease, box-shadow .2s ease;
+  background-image: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 45%);
+  transition: transform .25s ease, box-shadow .25s ease;
 }
 [data-template='houseparty'] .invite-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-4px);
   box-shadow:
-    6px 6px 0 0 var(--invite-text),
-    0 22px 40px -16px rgba(22, 35, 140, .5) !important;
-}
-/* El borde de 3px (contra el 1px genérico de los otros temas) recorta 2px
-   de más el radio visible de la portada en sus esquinas superiores — sin
-   este ajuste quedaría un filo cuadrado asomando por fuera de la esquina
-   redondeada del borde. */
-[data-template='houseparty'] .invite-cover {
-  border-radius: calc(var(--invite-radius) - 2px) calc(var(--invite-radius) - 2px) 0 0;
-  overflow: hidden;
+    0 34px 70px -16px rgba(0,0,0,.7),
+    0 0 46px -8px rgba(34,211,238,.4) !important;
 }
 
-/* El corte entre "detalles del evento" e "invitado + QR": los dos círculos
-   genéricos del divisor (GuestPass.tsx) dejan de flotar cerca del borde y
-   se clavan exactamente en él — mitad adentro, mitad afuera de la tarjeta,
-   ya coloreados con el fondo de la página por el inline style compartido,
-   así que se ven como un agujero que atraviesa el papel de verdad, no un
-   disco decorativo. La sombra interior es la que ya tenía este tema (el
-   "hueco perforado" que funcionaba bien), ahora en ambos círculos, no solo
-   uno. El margen -1px genérico del contenedor (pensado para el borde de
-   1px de los otros temas) se corrige al ancho real del borde de 3px de
-   este tema — !important porque ese margen llega por inline style en
-   GuestPass.tsx. */
-[data-template='houseparty'] .invite-card > .relative.flex.items-center {
-  margin-left: -3px !important;
-  margin-right: -3px !important;
-}
+/* El corte entre "detalles del evento" e "invitado + QR": con un borde de
+   1px (igual que el resto de los temas) el margen -1px genérico del
+   contenedor y el tamaño/posición de los círculos del divisor
+   (GuestPass.tsx) ya encajan sin corrección — solo se les suma un halo
+   para que la perforación se sienta parte del mismo vidrio iluminado. */
 [data-template='houseparty'] .invite-card > .relative.flex.items-center > :first-child,
 [data-template='houseparty'] .invite-card > .relative.flex.items-center > :last-child {
-  width: 22px;
-  height: 22px;
-  margin: 0;
-  border-width: 2px;
-  border-color: var(--invite-text);
-  box-shadow: inset 0 1px 3px rgba(25, 19, 51, .35);
-}
-[data-template='houseparty'] .invite-card > .relative.flex.items-center > :first-child {
-  margin-left: -11px;
-}
-[data-template='houseparty'] .invite-card > .relative.flex.items-center > :last-child {
-  margin-right: -11px;
+  box-shadow: inset 0 0 8px rgba(0,0,0,.55), 0 0 12px -2px rgba(34,211,238,.35);
 }
 
-/* Entre las dos mordidas: puntos redondos (la perforación real de una
-   troqueladora) en vez del guión largo genérico — refuerza que esta línea
-   es donde el boleto "se arranca", coherente con las dos mordidas de los
-   extremos. */
+/* Entre las dos mordidas: puntos redondos (perforación de troqueladora),
+   ahora en blanco translúcido en vez de tinta — la línea de corte se lee
+   como un filo de luz, no un trazo impreso. */
 [data-template='houseparty'] .invite-divider-line {
   border-top: none;
-  height: 3px;
-  background-image: radial-gradient(circle, var(--invite-text) 1.3px, transparent 1.5px);
-  background-size: 7px 3px;
+  height: 2px;
+  background-image: radial-gradient(circle, rgba(255,255,255,.35) 1.2px, transparent 1.5px);
+  background-size: 7px 2px;
   background-repeat: repeat-x;
   background-position: center;
-  opacity: .55;
+  opacity: .6;
 }
 
-/* Marco del QR estilo "visor de escaneo" (dos esquinas en diagonal, no las
-   cuatro — el mismo criterio minimalista que ya usa el resto del tema: basta
-   sugerir el encuadre, no dibujarlo completo) en vez del recuadro genérico
-   con borde parejo que usan los demás temas. Reemplaza el `border` de
-   Tailwind (!important porque esa utilidad ya trae su propio color inline
-   vía borderColor) por una sombra dura del mismo lenguaje que la tarjeta.
-   Las marcas de esquina van HACIA ADENTRO del marco (nunca sobresaliendo)
-   a propósito: el wrapper del organizador usa overflow-hidden para topear
-   el tamaño del QR, así que cualquier pseudo-elemento que sobresaliera del
-   propio elemento quedaría recortado ahí — quedándose adentro, el mismo
-   marco funciona en los tres lugares donde se usa (organizador, invitado,
-   preview) sin depender de sus overflow particulares. Hook compartido
-   (.invite-qr-frame en GuestPass.tsx/InvitationPreview.tsx), invisible para
-   el resto de los temas hasta que definan su propia regla. */
+/* Marco del QR: mismo recurso de marca que el resto del sistema — dos
+   esquinas en diagonal (§8 del sistema de diseño: "corchetes de esquina",
+   cita el marco del logo de PaseLink) — solo que ahora enmarcan con un
+   halo de luz en vez de una sombra dura. El QR en sí siempre se renderiza
+   sobre fondo blanco (default de QRCodeCanvas, sin props de color), así
+   que sigue siendo perfectamente escaneable encima de un marco oscuro. */
 [data-template='houseparty'] .invite-qr-frame {
   position: relative;
   border: none !important;
-  border-radius: 3px !important;
+  border-radius: 10px !important;
   background-color: var(--invite-surface) !important;
-  box-shadow: 0 0 0 1px var(--invite-border), 3px 3px 0 0 var(--invite-text);
+  box-shadow: 0 0 0 1px var(--invite-border), 0 0 30px -6px rgba(34,211,238,.35);
 }
-/* Brazos de 8px a 4px del borde (llegan hasta los 12px): quedan dentro del
-   padding más angosto de los tres lugares donde se usa este hook (p-3 = 12px
-   en InvitationPreview.tsx; p-4 = 16px en GuestPass.tsx), sin invadir nunca
-   el margen de silencio del propio QR (marginSize de QRCodeCanvas) ni sus
-   módulos — un marco decorativo nunca debe arriesgar la lecturabilidad del
-   código. */
 [data-template='houseparty'] .invite-qr-frame::before,
 [data-template='houseparty'] .invite-qr-frame::after {
   content: '';
   position: absolute;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border: 2px solid var(--invite-accent);
 }
 [data-template='houseparty'] .invite-qr-frame::before {
@@ -1198,112 +1157,110 @@
 }
 
 /* Jerarquía tipográfica de la grilla fecha/hora/lugar/vestimenta: la
-   etiqueta pasa a la tinta de acento (como un rótulo impreso, no un gris
-   neutro) y el valor gana peso + números tabulares — lectura de manifiesto
-   de embarque, reforzando que esos cuatro datos son los que hay que poder
-   leer "de un vistazo". Hooks compartidos (PassInfoCell en GuestPass.tsx),
-   sin efecto en el resto de los temas hasta que definan su propia regla. */
+   etiqueta en la tinta de acento, el valor con números tabulares — lectura
+   de manifiesto de embarque, reforzando que esos cuatro datos son los que
+   hay que poder leer "de un vistazo". Hooks compartidos (PassInfoCell en
+   GuestPass.tsx), sin efecto en el resto de los temas hasta que definan su
+   propia regla. */
 [data-template='houseparty'] .invite-pass-label {
   color: var(--invite-accent);
+  letter-spacing: .12em;
 }
 [data-template='houseparty'] .invite-pass-value {
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-/* Muro: filete izquierdo grueso (lomo de cassette/tarjeta de canciones) en
-   vez del filete superior que usan Formal/Infantil — un objeto distinto,
-   coherente con el cassette del ornamento. El mensaje fijado cambia su
-   segunda tinta (coral) en vez del amarillo genérico compartido por el
-   resto de los temas — !important porque WallSection.tsx fija ese color
-   por inline style. */
+/* Muro: filete izquierdo (lomo de cassette, coherente con el ornamento) en
+   vez del filete superior que usan Formal/Infantil. El mensaje fijado pasa
+   a magenta (rol "calor/énfasis" de §2 del sistema de diseño) con halo en
+   vez del amarillo genérico — !important porque WallSection.tsx fija el
+   color por inline style. El pin-label pasa a accentDark (teal profundo)
+   en vez del acento cian directo: texto blanco sobre cian puro no llega al
+   contraste mínimo a 10px, sobre accentDark sí (~5.3:1). */
 [data-template='houseparty'] .invite-wall-message,
 [data-template='houseparty'] .invite-wall-form {
-  border-left-width: 4px !important;
+  border-left-width: 3px !important;
   border-left-color: var(--invite-accent) !important;
 }
 [data-template='houseparty'] .invite-wall-message[data-pinned='true'] {
-  border-color: var(--invite-party-ink2) !important;
-  border-left-color: var(--invite-party-ink2) !important;
-  box-shadow: 0 0 0 1px var(--invite-party-ink2);
+  border-color: rgba(255,45,120,.55) !important;
+  border-left-color: #ff2d78 !important;
+  box-shadow: 0 0 0 1px rgba(255,45,120,.3), 0 0 24px -4px rgba(255,45,120,.35);
 }
-/* Se queda con el fondo --invite-accent por defecto (texto blanco a propósito,
-   no la segunda tinta): contraste 3.2:1 en blanco sobre ink2, insuficiente
-   para texto de 10px — ver DESIGN_GOVERNANCE.md, la identidad nunca pisa la
-   accesibilidad mínima. */
 [data-template='houseparty'] .invite-pin-label {
   display: inline-flex;
+  background-color: var(--invite-accent-dark) !important;
+  color: #fff !important;
 }
 
-/* Botón primario: mecánica "sello/stamp" en vez de brillo o rebote — un
-   desplazamiento duro que se hunde en su propia sombra al presionar (misma
-   familia visual que el borde de tinta de la tarjeta). transform/box-shadow
-   son las dos propiedades que ya anima `.bg-primary` en index.css, así que
-   esto no suma ningún mecanismo nuevo, solo valores propios del tema.
-   Selector doble a propósito: EventJoin.tsx/GuestPass.tsx/InvitationPreview.tsx
+/* Botón primario: halo de luz + escala en vez de la mecánica "sello/stamp"
+   de la materialidad anterior — brillo del halo y ligero scale-up al
+   hover, hundimiento leve al presionar (transform/box-shadow ya son las
+   propiedades que anima `.bg-primary` en index.css, no se suma ningún
+   mecanismo nuevo). Texto forzado a --invite-ink (nunca blanco): el acento
+   cian es demasiado claro para que el texto blanco por defecto
+   (hardcodeado en GuestPass.tsx/EventJoin.tsx) llegue a 4.5:1. Selector
+   doble a propósito: EventJoin.tsx/GuestPass.tsx/InvitationPreview.tsx
    pintan el botón de acción con la utilidad arbitraria de Tailwind
    `bg-[var(--invite-accent)]` (no con la clase literal `.bg-primary`, que
    solo aparece en enlaces de error fuera del tema) — Tailwind la emite
-   como `.bg-\[var\(--invite-accent\)\]` en el CSS generado. Sin este
-   segundo selector la superficie "botón primario" no llegaría nunca a la
-   invitación real, solo a la vista previa. */
+   como `.bg-\[var\(--invite-accent\)\]` en el CSS generado. */
 [data-template='houseparty'] .bg-primary,
 [data-template='houseparty'] .bg-\[var\(--invite-accent\)\] {
-  border: 2px solid var(--invite-text);
-  box-shadow: 3px 3px 0 0 var(--invite-text);
-  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+  color: var(--invite-ink) !important;
+  border: none;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.14), 0 10px 30px -8px rgba(34,211,238,.55);
+  transition: transform .18s ease-out, box-shadow .18s ease-out, filter .18s ease-out;
 }
 [data-template='houseparty'] .bg-primary:hover,
 [data-template='houseparty'] .bg-\[var\(--invite-accent\)\]:hover {
-  filter: none;
-  transform: translate(-1px, -1px);
-  box-shadow: 4px 4px 0 0 var(--invite-text);
+  filter: brightness(1.05);
+  transform: scale(1.02);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 14px 38px -6px rgba(34,211,238,.7);
 }
 [data-template='houseparty'] .bg-primary:active,
 [data-template='houseparty'] .bg-\[var\(--invite-accent\)\]:active {
-  transform: translate(2px, 2px);
-  box-shadow: 0 0 0 0 var(--invite-text);
+  filter: brightness(.95);
+  transform: scale(.98);
 }
 
-/* Insignias (RSVP/pago/check-in confirmados): mismo lenguaje de tinta
-   plana que el botón, con un giro leve tipo sello de goma — a esta escala
-   (insignia pequeña, no la tarjeta completa) la inclinación se lee como
-   "estampado a mano", no como un elemento fuera de registro. */
+/* Insignias (RSVP/pago/check-in confirmados): borde de luz fina en vez del
+   giro "estampado a mano" de la materialidad anterior — el vidrio no se
+   sella a mano, se ilumina. */
 [data-template='houseparty'] .invite-badge-positive {
-  border: 2px solid var(--invite-text);
-  transform: rotate(-4deg);
+  border: 1px solid rgba(34,211,238,.4);
   text-transform: uppercase;
   letter-spacing: .04em;
 }
 [data-template='houseparty'] .invite-badge-icon {
   display: inline-flex;
-  border: 2px solid var(--invite-text);
+  border: 1.5px solid rgba(34,211,238,.4);
   border-radius: 50%;
   padding: .55rem;
+  box-shadow: 0 0 16px -4px rgba(34,211,238,.4);
 }
 
-/* Sello: tinta de sello riso, no el anillo grabado/institucional de
-   Graduación (esa materialidad es exclusiva de ese tema) — un núcleo de
-   tinta plana en el acento con un segundo aro en la segunda tinta (coral),
-   desplazado 1px, la misma idea de "impresión mal registrada" que ya usan
-   el fondo y el h1 de este tema, ahora en miniatura. Ligero giro para leer
-   "estampado a mano", coherente con el giro de .invite-badge-positive. */
+/* Sello: anillo de luz en el acento, no el anillo grabado/institucional de
+   Graduación (esa materialidad es exclusiva de ese tema) ni la tinta de
+   sello riso a dos tonos de la versión anterior — un halo de neón sin
+   relleno, coherente con "el color nunca rellena, ilumina" (§12 del
+   sistema de diseño). Sin giro: el vidrio no se estampa a mano. */
 [data-template='houseparty'] .invite-seal {
   display: inline-block;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 50%;
-  transform: rotate(-9deg);
   background:
-    radial-gradient(circle, transparent 0 60%, var(--invite-party-ink2) 60% 78%, transparent 78% 100%),
-    radial-gradient(circle, var(--invite-accent) 0 56%, transparent 56% 100%);
-  background-position: 1px 0, 0 0;
-  box-shadow: 0 1px 2px rgba(25, 19, 51, .3);
+    radial-gradient(circle, transparent 0 55%, var(--invite-accent) 55% 62%, transparent 62% 100%),
+    radial-gradient(circle, rgba(34,211,238,.35) 0 100%);
+  box-shadow: 0 0 14px -2px rgba(34,211,238,.6);
 }
 
-/* Mapa: contraste/saturación de impresión — nunca un viraje de época
-   (sepia) ni el filtro cálido de Infantil; un empuje frío y gráfico,
-   coherente con tinta sobre papel. */
+/* Mapa: gradación fría y ligeramente oscurecida, coherente con luz de
+   club — nunca el viraje de época (sepia) ni el filtro cálido de
+   Infantil, tampoco el empuje de contraste "tinta sobre papel" de la
+   materialidad anterior. */
 [data-template='houseparty'] .invite-map-frame iframe {
-  filter: contrast(1.12) saturate(1.25);
+  filter: contrast(1.05) saturate(1.15) brightness(.92);
 }

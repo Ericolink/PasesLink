@@ -212,34 +212,44 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
     // cuando el admin lo decida (quitar esta línea).
     adminOnly: true,
     vars: {
-      // Tinta azul eléctrico de cartel serigrafiado/riso — nunca el magenta
-      // de marca de la app (ese es el neón del chrome, no de un tema), para
-      // que la invitación no compita ni se confunda con el propio PaseLink.
-      accent: '#2E4FE0',
-      accentDark: '#16238C',
-      accentSoft: '#DCE3FF',
-      // Papel de cartel sin estucar — cálido y apagado, nunca el marfil
-      // rosado de Bodas ni el ámbar institucional de Graduación.
-      pageBg: '#F3EFE3',
-      surface: '#FFFDF7',
-      // "Negro de tinta" con un dejo azul-violeta, no un gris neutro.
-      text: '#191333',
-      textMuted: '#6B6478',
-      border: '#E2D9C4',
-      // Cuerpo en la misma grotesca ya cargada para Formal (cero peso de
-      // fuente nuevo) — el h1 recupera un display de cartel vía override en
-      // templates.css, mismo mecanismo que separa el h1 del cuerpo en el
-      // resto de los temas no-default.
+      // Materialidad: night-life editorial / neón líquido — ver
+      // src/design-system/FIESTA_IMPROVISADA_DESIGN_SYSTEM.md (reemplaza el
+      // cartel serigrafiado/riso anterior).
+      // Cian eléctrico, no el magenta/violeta de marca de la app (ese es el
+      // neón del chrome — .orb-1/.orb-2 en index.css —, no de un tema): el
+      // acento interactivo del tema tiene que seguir leyéndose como "un
+      // evento", nunca como el propio PaseLink. Los halos violeta/magenta
+      // del fondo (templates.css) sí usan esa familia de color porque ahí
+      // cumplen el rol puramente ambiental que les da el sistema de diseño
+      // ("violeta = ambiente/lugar"), nunca el de acento interactivo.
+      accent: '#22D3EE',
+      // Texto legible sobre accentSoft (Avatar.tsx, badges) — un teal
+      // profundo, no un cian más claro, para no repetir el acento.
+      accentDark: '#0E7490',
+      // Chip pálido y luminoso (Avatar/badges) — el mismo criterio de
+      // "acento diluido" que el resto de los temas, aquí con temperatura
+      // fría en vez de cálida.
+      accentSoft: '#A5F3FC',
+      // Lienzo nocturno profundo — el fondo pasa a ser el protagonista
+      // (halos de neón en templates.css), no el boleto.
+      pageBg: '#0B0714',
+      // Superficie del boleto: un violeta-negro apenas más claro que el
+      // lienzo, no gris neutro — mantiene el boleto anclado a la misma
+      // temperatura de color que el fondo en vez de sentirse "pegado
+      // encima" de otro material.
+      surface: '#150F24',
+      text: '#F5F1FF',
+      textMuted: '#B9B2CE',
+      // Hairline de vidrio (blanco a baja opacidad), no un borde de tinta
+      // sólida — el boleto flota, no está impreso.
+      border: 'rgba(255,255,255,0.14)',
       fontFamily: "'Space Grotesk', system-ui, sans-serif",
-      borderRadius: '0.6rem',
-      // Sombra dura y desplazada ("sticker/cartel pegado") como firma
-      // principal — nunca un blur reemplazándola, es tinta plana, no luz —
-      // más una segunda capa ambiental, sutil y difusa, debajo: la que le da
-      // al boleto la sensación de estar "levantado" sobre la mesa/página en
-      // vez de pegado a ella. Es aditiva, nunca reemplaza el offset duro
-      // (ese sigue siendo el primer valor, el que más se lee).
-      shadow: '4px 4px 0 0 var(--invite-text), 0 16px 32px -18px rgba(22,35,140,.45)',
-      enterAnimation: 'animate-bounce-in',
+      borderRadius: '1.1rem',
+      // Elevación suave + halo ambiental cian (nunca el offset duro de
+      // "sticker" de la materialidad anterior): el boleto flota sobre el
+      // escenario de luces, no está pegado a una superficie física.
+      shadow: '0 28px 60px -16px rgba(0,0,0,.65), 0 0 42px -10px rgba(34,211,238,.35)',
+      enterAnimation: 'animate-fade-in-up',
     },
   },
 ]
