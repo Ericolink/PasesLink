@@ -102,10 +102,42 @@ service cloud.firestore {
     // puede iterar un mapa para validar el largo de cada valor individual —
     // eso solo lo cubren la UI y src/firebase/capacity.ts). Límites deben
     // coincidir con src/utils/validation.ts.
+    //
+    // Los campos de estado (status/rsvpStatus/checkedInAt/paymentStatus/
+    // holdExpiresAt/paymentMethod) se pinean a los valores exactos que
+    // escribe registerWalkInGuest: sin esto, un cliente que hable directo
+    // contra Firestore (evitando src/firebase/capacity.ts) podía crearse a
+    // sí mismo ya 'checked_in' o 'paid' en el mismo request de alta pública,
+    // saltándose por completo el gate de pago del check-in y el cobro real.
+    //
+    // holdExpiresAt solo puede tener un número (acotado a los próximos 60
+    // min — margen sobre RESERVATION_HOLD_MINUTES=20, ver
+    // src/utils/reservation.ts) cuando paymentMethod es 'transfer'; con
+    // cualquier otro método (o sin cobro) siempre viaja null. El acotado
+    // hacia adelante es la defensa real acá: sin él, un cliente podría
+    // registrarse eligiendo "transferencia" pero mandando un holdExpiresAt
+    // en el año 2100 para nunca perder el lugar — el mismo abuso que motivó
+    // separar paymentStatus de holdExpiresAt en primer lugar.
     function isValidPublicGuestRegistration() {
       let d = request.resource.data;
       return d.name is string && d.name.size() > 0 && d.name.size() <= 121
-        && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30));
+        && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30))
+        && (!('paymentNote' in d) || (d.paymentNote is string && d.paymentNote.size() <= 300))
+        && d.status == 'invited'
+        && d.rsvpStatus == 'yes'
+        && d.checkedInAt == null
+        && d.paymentStatus == 'unpaid'
+        && d.paymentMethod in [null, 'transfer', 'cash']
+        && (
+          (d.paymentMethod == 'transfer'
+            && d.holdExpiresAt is number
+            && d.holdExpiresAt > request.time.toMillis()
+            // 60 * 60 * 1000 ms = 60 min, en milisegundos planos (no
+            // duration.value(), que solo se puede sumar a un Timestamp — acá
+            // holdExpiresAt es un número crudo, no un Timestamp).
+            && d.holdExpiresAt <= request.time.toMillis() + 3600000)
+          || (d.paymentMethod != 'transfer' && d.holdExpiresAt == null)
+        );
     }
 
     function isValidPublicGuestContact() {
@@ -308,6 +340,18 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount'])
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount))
+        // Un co-organizador (no dueño, así que no cae en la primera rama de
+        // este `allow update`) necesita poder tocar guestCount/peopleCount
+        // en dos casos: eliminar un invitado (deleteGuest, decrementa) y
+        // reconfirmar el pago de una reserva vencida (setGuestPaymentStatus,
+        // incrementa al reclamar el lugar — ver src/firebase/guests.ts).
+        // Mismo margen ±50 que counterDeltaOk ya usa para los contadores de
+        // presencia arriba, no un exacto ±1: un borrado puede quitar un
+        // grupo/familia entero de una sola vez.
+        || (isOwnerOrCoOrg(eventId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount'])
+            && counterDeltaOk(request.resource.data.guestCount, resource.data.guestCount)
+            && counterDeltaOk(request.resource.data.peopleCount, resource.data.peopleCount))
         // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
         // invitación en 1 (guestCount), sumando entre 1 y GUEST_MAX_PARTY_SIZE
         // personas (peopleCount) — ese invitado puede traer acompañantes (ver
@@ -330,6 +374,33 @@ service cloud.firestore {
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&
             (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken)
+          ) ||
+          // El propio invitado marca "ya pagué / comprobante enviado"
+          // (submitPaymentProof, src/firebase/guests.ts) — solo desde el
+          // dispositivo que ya reclamó el pase (mismo chequeo de lockToken
+          // que rsvpStatus arriba), solo para transferencia, y solo puede
+          // aterrizar en 'pending_confirmation' viniendo de 'unpaid' o
+          // 'expired' (reclamo tardío) — nunca puede escribirse a sí mismo
+          // 'paid' por esta vía. holdExpiresAt acotado hacia adelante por la
+          // misma razón que en isValidPublicGuestRegistration: sin el tope,
+          // un cliente podría fijar una fecha lejana para nunca vencer.
+          // paymentNote (número de referencia) es OBLIGATORIO acá — pedido
+          // explícito: sin una referencia concreta, el organizador no tiene
+          // nada que cotejar contra su resumen bancario para aprobar/rechazar.
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'holdExpiresAt', 'paymentNote']) &&
+            (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken) &&
+            resource.data.paymentMethod == 'transfer' &&
+            resource.data.paymentStatus in ['unpaid', 'expired'] &&
+            request.resource.data.paymentStatus == 'pending_confirmation' &&
+            request.resource.data.holdExpiresAt is number &&
+            request.resource.data.holdExpiresAt > request.time.toMillis() &&
+            // 72 * 3600000 ms = 72h en milisegundos planos (mismo motivo que
+            // el comentario en isValidPublicGuestRegistration).
+            request.resource.data.holdExpiresAt <= request.time.toMillis() + 259200000 &&
+            request.resource.data.paymentNote is string &&
+            request.resource.data.paymentNote.size() > 0 &&
+            request.resource.data.paymentNote.size() <= 300
           );
       }
 

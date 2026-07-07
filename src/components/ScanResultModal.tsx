@@ -22,6 +22,10 @@ export function ScanResultModal({
     success: { bg: 'bg-green-600', icon: IconCheckCircle, title: 'Bienvenido/a' },
     already: { bg: 'bg-red-600', icon: IconCopy, title: 'QR ya registrado' },
     invalid: { bg: 'bg-red-600', icon: IconXCircle, title: 'No válido' },
+    // No entra en AUTO_CLOSE_TYPES (ver Scanner.tsx) a propósito: el pago
+    // pendiente exige una decisión consciente del guardia (negar el acceso),
+    // no debe desaparecer solo mientras lo está leyendo.
+    payment_required: { bg: 'bg-red-700', icon: IconBan, title: 'Acceso denegado — no pagó' },
     checkout: { bg: 'bg-blue-600', icon: IconLogOut, title: 'Hasta luego' },
     already_out: { bg: 'bg-amber-500', icon: IconAlertTriangle, title: 'Ya había salido' },
     not_checked_in: { bg: 'bg-amber-500', icon: IconAlertTriangle, title: 'Sin check-in' },

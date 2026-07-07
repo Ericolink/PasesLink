@@ -43,6 +43,7 @@ function makeEvent(): EventData {
     entryMode: 'list',
     capacity: 100,
     requiresPayment: false,
+    paymentMethods: [],
     ticketPrice: 0,
     currency: '',
     paymentInstructions: '',
@@ -74,6 +75,8 @@ function makeGuests(count: number): GuestData[] {
     exitType: null,
     lockToken: null,
     paymentStatus: 'unpaid',
+    paymentMethod: null,
+    holdExpiresAt: null,
     createdAt: 0,
   }))
 }

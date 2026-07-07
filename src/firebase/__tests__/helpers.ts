@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs'
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore'
 
 // El `Firestore` que devuelve @firebase/rules-unit-testing es estructuralmente distinto
 // (a nivel de tipos) del `Firestore` de 'firebase/firestore', aunque en runtime sea
@@ -100,6 +100,17 @@ export async function getGuestDoc(testEnv: RulesTestEnvironment, eventId: string
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const snap = await getDoc(doc(context.firestore(), 'events', eventId, 'guests', guestId))
     result = snap.data()
+  })
+  return result
+}
+
+/** Encuentra el id de un guest por su qrToken (registerWalkInGuest solo devuelve el token, no el id). */
+export async function guestIdByToken(testEnv: RulesTestEnvironment, eventId: string, qrToken: string): Promise<string> {
+  let result = ''
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const q = query(collection(context.firestore(), 'events', eventId, 'guests'), where('qrToken', '==', qrToken))
+    const snap = await getDocs(q)
+    result = snap.docs[0]?.id || ''
   })
   return result
 }

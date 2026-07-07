@@ -3,9 +3,10 @@ import { Link, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent, subscribeToEvent } from '../firebase/events'
-import { checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
+import { checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp, submitPaymentProof } from '../firebase/guests'
 import { useAuth } from '../hooks/useAuth'
-import type { EventData, GuestData, RsvpStatus } from '../types'
+import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
+import { canSubmitPaymentProof, holdMsRemaining, isHoldExpired } from '../utils/reservation'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
@@ -23,6 +24,33 @@ import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadPassImage } from '../utils/downloadPass'
 import { getTemplate } from '../templates/registry'
 import { buildPassUrl } from '../utils/qrUrl'
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  transfer: 'Transferencia',
+  cash: 'Efectivo',
+}
+
+// "Xh Ym" / "Ym" — nunca segundos (el cronómetro recalcula cada 30s, no
+// tiene sentido mostrar más precisión de la que en verdad tiene).
+function formatCountdown(ms: number): string {
+  const totalMinutes = Math.max(0, Math.ceil(ms / 60_000))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
+
+// Mismo canal (WhatsApp) que ya se usa para "compartir pase con
+// acompañantes" más abajo en este archivo — reutiliza wa.me en vez de sumar
+// un proveedor nuevo (EmailJS ya está en su tope de plantillas gratis, ver
+// memoria del proyecto). `context` arma el mensaje prellenado según lo que el
+// invitado necesita resolver (enviar comprobante, consultar, pedir
+// devolución o reportar un problema de acceso — todo el mismo canal, pedido
+// explícito).
+function organizerWhatsappUrl(phone: string, message: string): string {
+  const digits = phone.replace(/[^\d+]/g, '')
+  return `https://wa.me/${digits.replace(/^\+/, '')}?text=${encodeURIComponent(message)}`
+}
 
 // El navegador reutiliza la misma instancia de GuestPass al navegar entre dos
 // URLs /pass/:eventId/:qrToken distintas (mismo patrón de ruta) — sin esta key,
@@ -48,8 +76,24 @@ function GuestPassInner() {
   const [showDeclineModal, setShowDeclineModal] = useState(false)
   const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required' | 'blocked' | 'not_found'>('idle')
   const [paymentSaving, setPaymentSaving] = useState(false)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [proofNote, setProofNote] = useState('')
+  const [proofFormOpen, setProofFormOpen] = useState(false)
+  const [proofSubmitting, setProofSubmitting] = useState(false)
+  const [proofError, setProofError] = useState<string | null>(null)
+  const [nowTick, setNowTick] = useState(() => Date.now())
   const qrWrapperRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+
+  // Solo mientras hay un cronómetro activo corriendo (holding inicial por
+  // transferencia, ver GuestPaymentStatus) — recalcula cada 30s para que la
+  // cuenta regresiva del pase y la detección de "venció" (isHoldExpired) se
+  // actualicen solas sin que el invitado tenga que recargar la página.
+  useEffect(() => {
+    if (guest?.paymentStatus !== 'unpaid' || guest.holdExpiresAt === null) return
+    const id = setInterval(() => setNowTick(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [guest?.paymentStatus, guest?.holdExpiresAt])
 
   useEffect(() => {
     // Esperar a que useAuth() confirme la sesión antes de decidir si el visor
@@ -164,16 +208,64 @@ function GuestPassInner() {
     }
   }
 
-  async function handleTogglePayment() {
+  async function handleMarkPaid(method?: PaymentMethod) {
     if (!eventId || !guest) return
     setPaymentSaving(true)
+    setPaymentError(null)
     try {
-      const next = guest.paymentStatus === 'paid' ? 'unpaid' : 'paid'
-      await setGuestPaymentStatus(eventId, guest.id, next)
-      setGuest((g) => g ? { ...g, paymentStatus: next } : g)
-      if (checkInState === 'payment_required' && next === 'paid') setCheckInState('idle')
+      await setGuestPaymentStatus(eventId, guest.id, 'paid', method)
+      setGuest((g) => g ? { ...g, paymentStatus: 'paid', paymentMethod: method ?? g.paymentMethod, holdExpiresAt: null } : g)
+      if (checkInState === 'payment_required') setCheckInState('idle')
+    } catch (err) {
+      console.error('Error marking guest as paid:', err)
+      setPaymentError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
     } finally {
       setPaymentSaving(false)
+    }
+  }
+
+  // Deshace un pago confirmado, o rechaza un comprobante en revisión — cuál
+  // de los dos depende de en qué estado esté el invitado ahora mismo (lo
+  // decide setGuestPaymentStatus, ver el comentario ahí): si estaba
+  // 'pending_confirmation' esto es un rechazo y termina en 'expired'
+  // (libera el cupo); si estaba 'paid' vuelve a 'unpaid' sin tocar el cupo.
+  async function handleMarkUnpaid() {
+    if (!eventId || !guest) return
+    setPaymentSaving(true)
+    setPaymentError(null)
+    try {
+      const wasPendingConfirmation = guest.paymentStatus === 'pending_confirmation'
+      await setGuestPaymentStatus(eventId, guest.id, 'unpaid')
+      setGuest((g) => g ? { ...g, paymentStatus: wasPendingConfirmation ? 'expired' : 'unpaid' } : g)
+    } catch (err) {
+      console.error('Error marking guest as unpaid:', err)
+      setPaymentError('No se pudo actualizar el estado de pago. Intenta de nuevo.')
+    } finally {
+      setPaymentSaving(false)
+    }
+  }
+
+  // Acción del invitado: "Ya pagué / Comprobante enviado" — pausa el
+  // cronómetro original (o el reclamo tardío si ya venció) y pasa a esperar
+  // que el organizador lo apruebe o lo rechace (ver submitPaymentProof en
+  // firebase/guests.ts).
+  async function handleSubmitProof() {
+    if (!eventId || !guest) return
+    if (!proofNote.trim()) {
+      setProofError('Ingresá el número de referencia de tu transferencia.')
+      return
+    }
+    setProofSubmitting(true)
+    setProofError(null)
+    try {
+      await submitPaymentProof(eventId, guest.id, proofNote)
+      setGuest((g) => g ? { ...g, paymentStatus: 'pending_confirmation', paymentNote: proofNote.trim() } : g)
+      setProofFormOpen(false)
+    } catch (err) {
+      console.error('Error submitting payment proof:', err)
+      setProofError('No se pudo enviar. Intenta de nuevo.')
+    } finally {
+      setProofSubmitting(false)
     }
   }
 
@@ -207,16 +299,81 @@ function GuestPassInner() {
               >
                 <IconTicket className={`w-4 h-4 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />
                 {guest.paymentStatus === 'paid'
-                  ? 'Pago confirmado'
-                  : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}`}
+                  ? `Pago confirmado${guest.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[guest.paymentMethod]})` : ''}`
+                  : guest.paymentStatus === 'pending_confirmation'
+                    ? 'Comprobante enviado — a revisar'
+                    : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}`}
               </span>
-              <button
-                onClick={handleTogglePayment}
-                disabled={paymentSaving}
-                className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
-              >
-                {guest.paymentStatus === 'paid' ? 'Marcar como no pagado' : 'Marcar como pagado'}
-              </button>
+
+              {(guest.paymentStatus === 'unpaid' || guest.paymentStatus === 'pending_confirmation') && guest.holdExpiresAt !== null && (
+                isHoldExpired(guest, nowTick) ? (
+                  <p className="text-xs font-medium text-red-600">
+                    {guest.paymentStatus === 'pending_confirmation'
+                      ? 'Se venció el plazo para revisar este comprobante.'
+                      : 'Su reserva venció'} — al aprobar el pago se le vuelve a asegurar el lugar si hay cupo.
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-700">
+                    {guest.paymentStatus === 'pending_confirmation' ? 'Revisalo' : 'Lugar reservado'} en {formatCountdown(holdMsRemaining(guest, nowTick) || 0)}
+                  </p>
+                )
+              )}
+              {guest.paymentNote && (
+                <div className="w-full rounded-md border px-3 py-2 text-left" style={{ borderColor: 'var(--invite-border)' }}>
+                  <p className="text-[10px] uppercase tracking-wide font-semibold text-[var(--invite-text-muted)]">Número de referencia</p>
+                  <p className="text-sm font-mono font-medium text-[var(--invite-text)] break-all">{guest.paymentNote}</p>
+                </div>
+              )}
+
+              {paymentError && <p className="text-xs text-red-600">{paymentError}</p>}
+
+              {guest.paymentStatus === 'paid' ? (
+                <button
+                  onClick={() => handleMarkUnpaid()}
+                  disabled={paymentSaving}
+                  className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
+                >
+                  Marcar como no pagado
+                </button>
+              ) : guest.paymentStatus === 'pending_confirmation' ? (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleMarkPaid(guest.paymentMethod || undefined)}
+                    disabled={paymentSaving}
+                    className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
+                  >
+                    Aprobar pago
+                  </button>
+                  <button
+                    onClick={() => handleMarkUnpaid()}
+                    disabled={paymentSaving}
+                    className="text-sm font-medium disabled:opacity-50 text-red-600"
+                  >
+                    Rechazar comprobante
+                  </button>
+                </div>
+              ) : event.paymentMethods.length > 1 ? (
+                <div className="flex items-center gap-3">
+                  {event.paymentMethods.map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => handleMarkPaid(m)}
+                      disabled={paymentSaving}
+                      className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
+                    >
+                      Marcar pagado ({PAYMENT_METHOD_LABELS[m]})
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleMarkPaid(event.paymentMethods[0])}
+                  disabled={paymentSaving}
+                  className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
+                >
+                  Marcar como pagado
+                </button>
+              )}
             </div>
           )}
 
@@ -252,7 +409,13 @@ function GuestPassInner() {
               </div>
             )}
             {checkInState === 'payment_required' && (
-              <p className="text-sm text-amber-600 mb-3">Cobra la entrada y marcá el pago antes de registrar el ingreso.</p>
+              <p className="text-sm text-amber-600 mb-3">
+                {guest.paymentStatus === 'expired'
+                  ? 'Su reserva venció sin pago confirmado. Aprobá el pago arriba para poder registrar el ingreso.'
+                  : guest.paymentStatus === 'pending_confirmation'
+                    ? 'Tiene un comprobante esperando revisión. Aprobalo arriba para poder registrar el ingreso.'
+                    : 'Cobra la entrada y marcá el pago antes de registrar el ingreso.'}
+              </p>
             )}
             {checkInState === 'blocked' && (
               <div className="flex flex-col items-center gap-3 mb-3">
@@ -597,12 +760,111 @@ function GuestPassInner() {
                     }`}
                   >
                     <IconTicket className={`w-3.5 h-3.5 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />
-                    {guest.paymentStatus === 'paid' ? 'Pagado' : 'Pendiente'}
+                    {guest.paymentStatus === 'paid' ? 'Pagado' : guest.paymentStatus === 'pending_confirmation' ? 'En revisión' : 'Pendiente'}
                   </span>
                 </span>
               </div>
-              {event.paymentInstructions && (
+
+              {/* Cuenta regresiva / aviso de vencimiento — solo mientras hay
+                  un cronómetro activo (holdExpiresAt), ver GuestPaymentStatus.
+                  Eventos gratis, efectivo o invitados de lista no tienen
+                  cronómetro y no muestran nada acá. */}
+              {(guest.paymentStatus === 'unpaid' || guest.paymentStatus === 'pending_confirmation') && guest.holdExpiresAt !== null && (
+                isHoldExpired(guest, nowTick) ? (
+                  <p className="text-sm font-medium mb-2 text-red-600">
+                    {guest.paymentStatus === 'pending_confirmation'
+                      ? 'Se venció el plazo de revisión de tu comprobante.'
+                      : 'Tu lugar reservado venció sin que confirmáramos tu pago.'} Escribile al organizador (abajo) para que lo reconfirme si todavía hay cupo.
+                  </p>
+                ) : guest.paymentStatus === 'pending_confirmation' ? (
+                  <p className="text-sm font-medium mb-2 text-amber-700">
+                    Comprobante recibido — el organizador lo va a revisar pronto.
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium mb-2 text-amber-700">
+                    Tenés tu lugar reservado por {formatCountdown(holdMsRemaining(guest, nowTick) || 0)} más — enviá tu comprobante antes de que venza.
+                  </p>
+                )
+              )}
+
+              {(guest.paymentMethod === 'transfer' || (!guest.paymentMethod && event.paymentInstructions)) && event.paymentInstructions && (
                 <p className="text-sm whitespace-pre-line text-[var(--invite-text-muted)]">{event.paymentInstructions}</p>
+              )}
+              {guest.paymentMethod === 'cash' && (
+                <p className="text-sm text-[var(--invite-text-muted)]">Pagás en efectivo, presencialmente, el día del evento.</p>
+              )}
+
+              {/* "Ya pagué" — solo transferencia, y solo mientras tenga algo
+                  que confirmar (ver canSubmitPaymentProof). Independiente del
+                  botón de WhatsApp de abajo: este marca el estado en la app
+                  (pausa el cronómetro), WhatsApp sigue siendo el canal para
+                  mandar la imagen real del comprobante. */}
+              {canSubmitPaymentProof(guest) && (
+                <div className="mt-3">
+                  {!proofFormOpen ? (
+                    <button
+                      onClick={() => setProofFormOpen(true)}
+                      className="w-full border rounded-md px-4 py-3 text-sm font-semibold hover:opacity-80 transition-opacity text-[var(--invite-accent)]"
+                      style={{ borderColor: 'var(--invite-accent)' }}
+                    >
+                      Ya pagué / Comprobante enviado
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-[var(--invite-text-muted)]">
+                        Número de referencia de tu transferencia *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={proofNote}
+                        onChange={(e) => setProofNote(e.target.value)}
+                        maxLength={300}
+                        placeholder="Ej: op. 123456789"
+                        className="w-full rounded-md border px-3 py-2 text-sm bg-[var(--invite-surface)] text-[var(--invite-text)]"
+                        style={{ borderColor: 'var(--invite-border)' }}
+                      />
+                      <p className="text-xs text-[var(--invite-text-muted)]">
+                        Lo va a ver el organizador para poder cotejarlo con su resumen bancario.
+                      </p>
+                      {proofError && <p className="text-xs text-red-600">{proofError}</p>}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSubmitProof}
+                          disabled={proofSubmitting || !proofNote.trim()}
+                          className="flex-1 text-white rounded-md px-4 py-3 text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
+                        >
+                          {proofSubmitting ? 'Enviando…' : 'Confirmar'}
+                        </button>
+                        <button
+                          onClick={() => setProofFormOpen(false)}
+                          disabled={proofSubmitting}
+                          className="border rounded-md px-4 py-3 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
+                          style={{ borderColor: 'var(--invite-border)' }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {event.organizerContactPhone && (
+                <a
+                  href={organizerWhatsappUrl(
+                    event.organizerContactPhone,
+                    guest.paymentStatus === 'paid' || guest.paymentStatus === 'pending_confirmation'
+                      ? `Hola! Tengo una consulta sobre mi pago de "${event.name}" (invitado: ${guest.name} ${guest.lastName || ''}).`
+                      : `Hola! Te envío mi comprobante de pago para "${event.name}" (invitado: ${guest.name} ${guest.lastName || ''}).`,
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center justify-center gap-2 w-full bg-[#25D366] text-white rounded-md px-4 py-3 text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  <IconWhatsApp className="w-4 h-4" />
+                  {guest.paymentStatus === 'paid' || guest.paymentStatus === 'pending_confirmation' ? 'Contactar al organizador' : 'Enviar comprobante por WhatsApp'}
+                </a>
               )}
             </div>
           )}

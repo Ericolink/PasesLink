@@ -17,7 +17,12 @@ import { IconCheckCircle } from '../components/Icons'
 import { WizardContainer, WizardStep } from '../components/Wizard'
 import { EntryModeSelector } from '../components/EventCreation/EntryModeSelector'
 import { getTemplate } from '../templates/registry'
-import type { CustomField, EntryMode, TemplateId, TimelineEntry } from '../types'
+import type { CustomField, EntryMode, PaymentMethod, TemplateId, TimelineEntry } from '../types'
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  transfer: 'Transferencia',
+  cash: 'Efectivo',
+}
 
 interface EventDraftFields {
   name: string
@@ -35,9 +40,11 @@ interface EventDraftFields {
   capacity: string
   customFields: CustomField[]
   requiresPayment: boolean
+  paymentMethods: PaymentMethod[]
   ticketPrice: string
   currency: string
   paymentInstructions: string
+  organizerContactPhone: string
   coverImage: string
   timeline: TimelineEntry[]
 }
@@ -89,9 +96,11 @@ export function EventCreate() {
   const [capacity, setCapacity] = useState('100')
   const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [requiresPayment, setRequiresPayment] = useState(false)
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(['transfer'])
   const [ticketPrice, setTicketPrice] = useState('')
   const [currency, setCurrency] = useState('$')
   const [paymentInstructions, setPaymentInstructions] = useState('')
+  const [organizerContactPhone, setOrganizerContactPhone] = useState('')
   const [timeline, setTimeline] = useState<TimelineEntry[]>([])
 
   // — Estado del wizard —
@@ -121,9 +130,11 @@ export function EventCreate() {
     setCapacity(fields.capacity || '100')
     setCustomFields(fields.customFields)
     setRequiresPayment(fields.requiresPayment)
+    setPaymentMethods(fields.paymentMethods?.length ? fields.paymentMethods : ['transfer'])
     setTicketPrice(fields.ticketPrice)
     setCurrency(fields.currency)
     setPaymentInstructions(fields.paymentInstructions)
+    setOrganizerContactPhone(fields.organizerContactPhone || '')
     setTimeline(fields.timeline || [])
     if (fields.coverImage) setCoverImage(fields.coverImage)
   }
@@ -135,15 +146,15 @@ export function EventCreate() {
       if (!hasContent) return
       saveDraft({
         name, date, startTime, endTime, location, description, dressCode, templateId, accentColor,
-        welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment,
-        ticketPrice, currency, paymentInstructions, coverImage, timeline,
+        welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment, paymentMethods,
+        ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
       })
     }, DRAFT_SAVE_INTERVAL_MS)
     return () => clearInterval(id)
   }, [
     draftKey, pendingDraft, name, date, startTime, endTime, location, description, dressCode, templateId,
-    accentColor, welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment,
-    ticketPrice, currency, paymentInstructions, coverImage, timeline, saveDraft,
+    accentColor, welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment, paymentMethods,
+    ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline, saveDraft,
   ])
 
   // — Validación por paso —
@@ -153,7 +164,14 @@ export function EventCreate() {
       const { error: capErr } = parseCapacity(capacity)
       return capErr === null
     }
+    if (s === 3 && requiresPayment) return paymentMethods.length > 0
     return true
+  }
+
+  function togglePaymentMethod(method: PaymentMethod) {
+    setPaymentMethods((methods) =>
+      methods.includes(method) ? methods.filter((m) => m !== method) : [...methods, method],
+    )
   }
 
   const canProceed = canProceedStep(step)
@@ -200,9 +218,11 @@ export function EventCreate() {
         capacity: parsedCapacity,
         customFields,
         requiresPayment,
+        paymentMethods: requiresPayment ? paymentMethods : [],
         ticketPrice: requiresPayment ? parseFloat(ticketPrice) || 0 : 0,
         currency: requiresPayment ? currency.trim() : '',
         paymentInstructions: requiresPayment ? paymentInstructions.trim() : '',
+        organizerContactPhone: requiresPayment ? organizerContactPhone.trim() : '',
         timeline,
       })
       clearDraft()
@@ -590,6 +610,41 @@ export function EventCreate() {
                   <p className="text-xs text-gray-500">
                     El pago se confirma manualmente: marcás a cada invitado como pagado desde la lista o al escanear su pase.
                   </p>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      Métodos de cobro *
+                    </label>
+                    <div className="flex gap-2">
+                      {(['transfer', 'cash'] as PaymentMethod[]).map((m) => (
+                        <label
+                          key={m}
+                          className={`flex-1 flex items-center justify-center gap-2 border rounded-lg px-3 py-2.5 text-sm font-medium cursor-pointer transition-colors ${
+                            paymentMethods.includes(m)
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={paymentMethods.includes(m)}
+                            onChange={() => togglePaymentMethod(m)}
+                            className="sr-only"
+                          />
+                          {PAYMENT_METHOD_LABELS[m]}
+                        </label>
+                      ))}
+                    </div>
+                    {paymentMethods.length === 0 && (
+                      <p className="text-xs text-red-500 mt-1">Elegí al menos un método.</p>
+                    )}
+                    {paymentMethods.includes('transfer') && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Transferencia: el lugar se reserva por tiempo limitado hasta confirmar el pago.
+                      </p>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-2">
                       <label htmlFor="event-ticket-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -620,20 +675,40 @@ export function EventCreate() {
                       />
                     </div>
                   </div>
+
+                  {paymentMethods.includes('transfer') && (
+                    <div>
+                      <label htmlFor="event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Datos para transferencia
+                      </label>
+                      <textarea
+                        id="event-payment-instructions"
+                        value={paymentInstructions}
+                        onChange={(e) => setPaymentInstructions(e.target.value)}
+                        rows={3}
+                        placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://..."
+                        className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Los invitados verán esto en su pase junto al monto a pagar.
+                      </p>
+                    </div>
+                  )}
+
                   <div>
-                    <label htmlFor="event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Instrucciones de pago
+                    <label htmlFor="event-organizer-contact" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Tu WhatsApp para pagos
                     </label>
-                    <textarea
-                      id="event-payment-instructions"
-                      value={paymentInstructions}
-                      onChange={(e) => setPaymentInstructions(e.target.value)}
-                      rows={3}
-                      placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://..."
+                    <input
+                      id="event-organizer-contact"
+                      type="tel"
+                      value={organizerContactPhone}
+                      onChange={(e) => setOrganizerContactPhone(e.target.value)}
+                      placeholder="Ej: +52 55 1234 5678"
                       className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     <p className="text-xs text-gray-400 mt-1">
-                      Los invitados verán esto en su pase junto al monto a pagar.
+                      Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución.
                     </p>
                   </div>
                 </>

@@ -13,7 +13,12 @@ import { DraftRecoveryModal } from './DraftRecoveryModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import { EventScheduleField } from './EventScheduleField'
 import { getTemplate } from '../templates/registry'
-import type { CustomField, EntryMode, EventData, TemplateId, TimelineEntry } from '../types'
+import type { CustomField, EntryMode, EventData, PaymentMethod, TemplateId, TimelineEntry } from '../types'
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  transfer: 'Transferencia',
+  cash: 'Efectivo',
+}
 
 interface EventEditDraftFields {
   name: string
@@ -30,9 +35,11 @@ interface EventEditDraftFields {
   capacity: string
   customFields: CustomField[]
   requiresPayment: boolean
+  paymentMethods: PaymentMethod[]
   ticketPrice: string
   currency: string
   paymentInstructions: string
+  organizerContactPhone: string
   coverImage: string
   timeline: TimelineEntry[]
 }
@@ -111,9 +118,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [capacity, setCapacity] = useState(event.capacity ? String(event.capacity) : '')
   const [customFields, setCustomFields] = useState<CustomField[]>(event.customFields || [])
   const [requiresPayment, setRequiresPayment] = useState(event.requiresPayment || false)
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(event.paymentMethods?.length ? event.paymentMethods : ['transfer'])
   const [ticketPrice, setTicketPrice] = useState(event.ticketPrice ? String(event.ticketPrice) : '')
   const [currency, setCurrency] = useState(event.currency || '$')
   const [paymentInstructions, setPaymentInstructions] = useState(event.paymentInstructions || '')
+  const [organizerContactPhone, setOrganizerContactPhone] = useState(event.organizerContactPhone || '')
   const [timeline, setTimeline] = useState<TimelineEntry[]>(event.timeline || [])
   const [saving, setSaving] = useState(false)
   const [networkRetry, setNetworkRetry] = useState(false)
@@ -145,11 +154,19 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     setCapacity(fields.capacity)
     setCustomFields(fields.customFields)
     setRequiresPayment(fields.requiresPayment)
+    setPaymentMethods(fields.paymentMethods?.length ? fields.paymentMethods : ['transfer'])
     setTicketPrice(fields.ticketPrice)
     setCurrency(fields.currency)
     setPaymentInstructions(fields.paymentInstructions)
+    setOrganizerContactPhone(fields.organizerContactPhone || '')
     setTimeline(fields.timeline || [])
     if (fields.coverImage) setCoverImage(fields.coverImage)
+  }
+
+  function togglePaymentMethod(method: PaymentMethod) {
+    setPaymentMethods((methods) =>
+      methods.includes(method) ? methods.filter((m) => m !== method) : [...methods, method],
+    )
   }
 
   // Autoguardado del borrador c/5s mientras haya cambios sin guardar — protege
@@ -159,13 +176,13 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     const id = setInterval(() => {
       saveDraft({
         name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
-        capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage, timeline,
+        capacity, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
       })
     }, DRAFT_SAVE_INTERVAL_MS)
     return () => clearInterval(id)
   }, [
     pendingDraft, name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
-    capacity, customFields, requiresPayment, ticketPrice, currency, paymentInstructions, coverImage, timeline,
+    capacity, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
     saveDraft,
   ])
 
@@ -224,11 +241,16 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       const parsedPrice = parseFloat(ticketPrice) || 0
       const trimmedCurrency = currency.trim()
       const trimmedInstructions = paymentInstructions.trim()
+      const trimmedContact = organizerContactPhone.trim()
+      if (JSON.stringify(event.paymentMethods || []) !== JSON.stringify(paymentMethods)) {
+        changes.push({ label: 'Métodos de cobro', detail: paymentMethods.map((m) => PAYMENT_METHOD_LABELS[m]).join(' + ') || 'Ninguno' })
+      }
       if ((event.ticketPrice || 0) !== parsedPrice) {
         changes.push({ label: 'Precio por persona', detail: `${event.currency}${event.ticketPrice || 0} → ${trimmedCurrency}${parsedPrice}` })
       }
       if ((event.currency || '') !== trimmedCurrency) changes.push({ label: 'Moneda', detail: `${event.currency || '—'} → ${trimmedCurrency}` })
       if ((event.paymentInstructions || '') !== trimmedInstructions) changes.push({ label: 'Instrucciones de pago', detail: 'Actualizadas' })
+      if ((event.organizerContactPhone || '') !== trimmedContact) changes.push({ label: 'WhatsApp de contacto', detail: trimmedContact ? 'Actualizado' : 'Quitado' })
     }
     return changes
   }
@@ -262,9 +284,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         capacity: parsedCapacity,
         customFields,
         requiresPayment,
+        paymentMethods: requiresPayment ? paymentMethods : [],
         ticketPrice: requiresPayment ? parseFloat(ticketPrice) || 0 : 0,
         currency: requiresPayment ? currency.trim() : '',
         paymentInstructions: requiresPayment ? paymentInstructions.trim() : '',
+        organizerContactPhone: requiresPayment ? organizerContactPhone.trim() : '',
         timeline,
       })
       clearDraft()
@@ -287,6 +311,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   function handleReviewSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !date || !location.trim()) return
+    if (requiresPayment && paymentMethods.length === 0) {
+      setSubmitError('Elegí al menos un método de cobro.')
+      return
+    }
     const { value: parsedCapacity, error: capacityValidationError } = parseCapacity(capacity)
     if (capacityValidationError) {
       setCapacityError(capacityValidationError)
@@ -511,6 +539,25 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         </label>
         {requiresPayment && (
           <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Métodos de cobro</label>
+              <div className="flex gap-2">
+                {(['transfer', 'cash'] as PaymentMethod[]).map((m) => (
+                  <label
+                    key={m}
+                    className={`flex-1 flex items-center justify-center gap-2 border rounded-lg px-3 py-2.5 text-sm font-medium cursor-pointer transition-colors ${
+                      paymentMethods.includes(m)
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    <input type="checkbox" checked={paymentMethods.includes(m)} onChange={() => togglePaymentMethod(m)} className="sr-only" />
+                    {PAYMENT_METHOD_LABELS[m]}
+                  </label>
+                ))}
+              </div>
+              {paymentMethods.length === 0 && <p className="text-xs text-red-500 mt-1">Elegí al menos un método.</p>}
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
                 <label htmlFor="edit-event-ticket-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio por persona</label>
@@ -537,16 +584,32 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                 />
               </div>
             </div>
+            {paymentMethods.includes('transfer') && (
+              <div>
+                <label htmlFor="edit-event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Datos para transferencia</label>
+                <textarea
+                  id="edit-event-payment-instructions"
+                  value={paymentInstructions}
+                  onChange={(e) => setPaymentInstructions(e.target.value)}
+                  rows={3}
+                  placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            )}
             <div>
-              <label htmlFor="edit-event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instrucciones de pago</label>
-              <textarea
-                id="edit-event-payment-instructions"
-                value={paymentInstructions}
-                onChange={(e) => setPaymentInstructions(e.target.value)}
-                rows={3}
-                placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
+              <label htmlFor="edit-event-organizer-contact" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tu WhatsApp para pagos</label>
+              <input
+                id="edit-event-organizer-contact"
+                type="tel"
+                value={organizerContactPhone}
+                onChange={(e) => setOrganizerContactPhone(e.target.value)}
+                placeholder="Ej: +52 55 1234 5678"
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
+              <p className="text-xs text-gray-400 mt-1">
+                Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución.
+              </p>
             </div>
           </>
         )}

@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { createTestEnv, getEventDoc, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
+import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
+import { addDoc, collection, doc, updateDoc } from 'firebase/firestore'
+import { createTestEnv, getEventDoc, getGuestDoc, guestIdByToken, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
 
 // capacity.ts y guests.ts importan `db` de './config' como singleton de producción.
 // Lo reemplazamos por un getter que apunta al Firestore del emulador activo en cada
@@ -122,6 +123,106 @@ describe('capacity.ts', () => {
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.guestCount).toBe(1)
     expect(event?.peopleCount).toBe(4)
+  })
+
+  it('should reserve the spot with an expiry when self-registering by transfer on a paid event', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, requiresPayment: true, paymentMethods: ['transfer', 'cash'] })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const before = Date.now()
+    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Transferencia', undefined, undefined, undefined, undefined, 'transfer')
+
+    expect(result.status).toBe('success')
+    const guestId = await guestIdByToken(testEnv, EVENT_ID, result.qrToken!)
+    const guest = await getGuestDoc(testEnv, EVENT_ID, guestId)
+    expect(guest?.paymentStatus).toBe('unpaid')
+    expect(guest?.paymentMethod).toBe('transfer')
+    expect(guest?.holdExpiresAt as number).toBeGreaterThan(before)
+  })
+
+  it('should confirm the spot without an expiry when self-registering by cash on a paid event', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, requiresPayment: true, paymentMethods: ['transfer', 'cash'] })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Efectivo', undefined, undefined, undefined, undefined, 'cash')
+
+    expect(result.status).toBe('success')
+    const guestId = await guestIdByToken(testEnv, EVENT_ID, result.qrToken!)
+    const guest = await getGuestDoc(testEnv, EVENT_ID, guestId)
+    expect(guest?.paymentStatus).toBe('unpaid')
+    expect(guest?.paymentMethod).toBe('cash')
+    expect(guest?.holdExpiresAt).toBeNull()
+  })
+
+  it('should reject a raw public write that tries to self-mark as paid or checked-in', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0 })
+    const publicDb = testEnv.unauthenticatedContext().firestore()
+
+    await assertFails(addDoc(collection(publicDb, 'events', EVENT_ID, 'guests'), {
+      name: 'Invitado Malicioso',
+      qrToken: 'fake-token',
+      status: 'checked_in',
+      rsvpStatus: 'yes',
+      companions: 0,
+      checkedInAt: Date.now(),
+      checkedInBy: null,
+      checkedInByEmail: null,
+      checkedOutAt: null,
+      checkedOutByEmail: null,
+      exitType: null,
+      lockToken: null,
+      paymentStatus: 'paid',
+      paymentMethod: null,
+      holdExpiresAt: null,
+      customData: {},
+      createdAt: Date.now(),
+    }))
+  })
+
+  it('should reject a raw public write that fabricates a far-future holdExpiresAt to never lose the spot', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, requiresPayment: true, paymentMethods: ['transfer'] })
+    const publicDb = testEnv.unauthenticatedContext().firestore()
+
+    await assertFails(addDoc(collection(publicDb, 'events', EVENT_ID, 'guests'), {
+      name: 'Invitado Malicioso',
+      qrToken: 'fake-token',
+      status: 'invited',
+      rsvpStatus: 'yes',
+      companions: 0,
+      checkedInAt: null,
+      checkedInBy: null,
+      checkedInByEmail: null,
+      checkedOutAt: null,
+      checkedOutByEmail: null,
+      exitType: null,
+      lockToken: null,
+      paymentStatus: 'unpaid',
+      paymentMethod: 'transfer',
+      holdExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+      customData: {},
+      createdAt: Date.now(),
+    }))
+  })
+
+  it('should reject a guest marking "ya pagué" without a reference number', async () => {
+    await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['transfer'] })
+    await seedGuest(testEnv, EVENT_ID, 'guest-1', {
+      qrToken: 'qr-1',
+      paymentMethod: 'transfer',
+      paymentStatus: 'unpaid',
+      holdExpiresAt: Date.now() + 10 * 60 * 1000,
+    })
+    const publicDb = testEnv.unauthenticatedContext().firestore()
+
+    await assertFails(updateDoc(doc(publicDb, 'events', EVENT_ID, 'guests', 'guest-1'), {
+      paymentStatus: 'pending_confirmation',
+      holdExpiresAt: Date.now() + 48 * 60 * 60 * 1000,
+      paymentNote: '',
+    }))
+    await assertFails(updateDoc(doc(publicDb, 'events', EVENT_ID, 'guests', 'guest-1'), {
+      paymentStatus: 'pending_confirmation',
+      holdExpiresAt: Date.now() + 48 * 60 * 60 * 1000,
+    }))
   })
 
   it('should enforce the same checkedInCount limit for normal check-ins and walk-ins', async () => {

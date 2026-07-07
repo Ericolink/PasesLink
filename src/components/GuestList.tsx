@@ -1,8 +1,10 @@
 import { memo, useEffect, useState } from 'react'
 import { allowGuestReentry, deleteGuest, guestPresence, partySize, resetGuestRsvp, setGuestPaymentStatus, unlockGuestPass, updateGuest } from '../firebase/guests'
 import { getGuestCheckins } from '../firebase/reports'
-import type { CheckinLog, CompanionData, GuestData } from '../types'
+import type { CheckinLog, CompanionData, GuestData, PaymentMethod } from '../types'
+import { isHoldExpired } from '../utils/reservation'
 import {
+  IconAlertTriangle,
   IconCheck,
   IconCheckCircle,
   IconClock,
@@ -20,6 +22,11 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { buildPassUrl } from '../utils/qrUrl'
 import { GUEST_GROUP_MAX_MEMBERS } from '../utils/validation'
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  transfer: 'transferencia',
+  cash: 'efectivo',
+}
 
 // Paginación de RENDERIZADO, no de datos: `guests` ya llega completo a este
 // componente (EventDetail lo carga entero vía useEvent/subscribeToGuests,
@@ -95,6 +102,7 @@ export const GuestList = memo(function GuestList({
   eventId,
   guests,
   requiresPayment = false,
+  paymentMethods = [],
   ticketPrice = 0,
   currency = '',
   hasActiveFilters = false,
@@ -102,6 +110,7 @@ export const GuestList = memo(function GuestList({
   eventId: string
   guests: GuestData[]
   requiresPayment?: boolean
+  paymentMethods?: PaymentMethod[]
   ticketPrice?: number
   currency?: string
   // true cuando `guests` ya viene reducido por búsqueda/filtro de estado (no
@@ -179,12 +188,25 @@ export const GuestList = memo(function GuestList({
     }
   }
 
-  async function handleTogglePayment(guest: GuestData) {
+  async function handleMarkPaid(guest: GuestData, method?: PaymentMethod) {
     setActionError('')
     try {
-      await setGuestPaymentStatus(eventId, guest.id, guest.paymentStatus === 'paid' ? 'unpaid' : 'paid')
+      await setGuestPaymentStatus(eventId, guest.id, 'paid', method)
     } catch (err) {
-      console.error('Error updating guest payment status:', err)
+      console.error('Error marking guest as paid:', err)
+      // setGuestPaymentStatus puede rechazar el reclamo de una reserva
+      // vencida si el cupo ya se llenó con alguien de la lista de espera —
+      // ese mensaje es más útil que el genérico, así que se muestra tal cual.
+      setActionError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
+    }
+  }
+
+  async function handleMarkUnpaid(guest: GuestData) {
+    setActionError('')
+    try {
+      await setGuestPaymentStatus(eventId, guest.id, 'unpaid')
+    } catch (err) {
+      console.error('Error marking guest as unpaid:', err)
       setActionError('No se pudo actualizar el estado de pago. Intenta de nuevo.')
     }
   }
@@ -299,12 +321,67 @@ export const GuestList = memo(function GuestList({
                 >
                   <IconTicket className="w-3.5 h-3.5" />
                   {guest.paymentStatus === 'paid'
-                    ? 'Pagó'
-                    : `Pendiente · ${currency}${(ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}`}
+                    ? `Pagó${guest.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[guest.paymentMethod]})` : ''}`
+                    : guest.paymentStatus === 'pending_confirmation'
+                      ? 'Comprobante enviado — a revisar'
+                      : `Pendiente · ${currency}${(ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}`}
                 </span>
-                <button onClick={() => handleTogglePayment(guest)} className="text-xs text-primary font-medium">
-                  {guest.paymentStatus === 'paid' ? 'Marcar como no pagado' : 'Marcar como pagado'}
-                </button>
+
+                {/* Cronómetro: solo tiene sentido mientras hay uno activo
+                    (holdExpiresAt), ver GuestPaymentStatus — 'confirmed' de
+                    facto (gratis/efectivo/lista) no muestra nada acá. */}
+                {(guest.paymentStatus === 'unpaid' || guest.paymentStatus === 'pending_confirmation') && guest.holdExpiresAt !== null && (
+                  <span
+                    className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                      isHoldExpired(guest) ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
+                    }`}
+                  >
+                    {isHoldExpired(guest) ? (
+                      <>
+                        <IconAlertTriangle className="w-3.5 h-3.5" />
+                        {guest.paymentStatus === 'pending_confirmation' ? 'Plazo de revisión vencido' : 'Reserva vencida'}
+                      </>
+                    ) : (
+                      <>
+                        <IconClock className="w-3.5 h-3.5" />
+                        {guest.paymentStatus === 'pending_confirmation' ? 'Revisar antes de' : 'Reservado hasta'} {new Date(guest.holdExpiresAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                      </>
+                    )}
+                  </span>
+                )}
+                {guest.paymentNote && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-mono font-medium bg-gray-100 text-gray-700"
+                    title="Número de referencia informado por el invitado"
+                  >
+                    Ref: {guest.paymentNote}
+                  </span>
+                )}
+
+                {guest.paymentStatus === 'paid' ? (
+                  <button onClick={() => handleMarkUnpaid(guest)} className="text-xs text-primary font-medium">
+                    Marcar como no pagado
+                  </button>
+                ) : guest.paymentStatus === 'pending_confirmation' ? (
+                  <>
+                    <button onClick={() => handleMarkPaid(guest, guest.paymentMethod || undefined)} className="text-xs text-primary font-medium">
+                      Aprobar pago
+                    </button>
+                    <button onClick={() => handleMarkUnpaid(guest)} className="text-xs text-red-600 font-medium">
+                      Rechazar comprobante
+                    </button>
+                  </>
+                ) : paymentMethods.length > 1 ? (
+                  paymentMethods.map((m) => (
+                    <button key={m} onClick={() => handleMarkPaid(guest, m)} className="text-xs text-primary font-medium">
+                      Marcar pagado ({PAYMENT_METHOD_LABELS[m]})
+                    </button>
+                  ))
+                ) : (
+                  <button onClick={() => handleMarkPaid(guest, paymentMethods[0])} className="text-xs text-primary font-medium">
+                    Marcar como pagado
+                  </button>
+                )}
               </div>
             )}
             <div className="grid grid-cols-3 divide-x divide-gray-100 border-t border-gray-100">

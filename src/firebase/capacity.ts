@@ -16,6 +16,8 @@ import {
   requireMaxLength,
   requireNonEmpty,
 } from '../utils/validation'
+import { initialHoldExpiresAt } from '../utils/reservation'
+import type { PaymentMethod } from '../types'
 
 /**
  * Opción A / C — Incrementa el contador walk-in atómicamente. Respeta el cupo
@@ -63,6 +65,13 @@ export async function walkOut(eventId: string): Promise<void> {
  * valida contra el máximo combinado, no el de una sola parte. Mismos límites
  * que firestore.rules (ver isValidPublicGuestRegistration ahí).
  *
+ * `paymentMethod` solo importa si el evento cobra entrada — decide, vía
+ * initialHoldExpiresAt, si el lugar queda con cronómetro (transferencia) o
+ * sin límite de tiempo (efectivo o evento gratuito). El QR/pase se crea
+ * siempre, pague o no — el gate real está en checkInGuest (ver
+ * GuestData.paymentStatus, que nunca es 'paid' hasta que el organizador o
+ * una futura pasarela lo confirme).
+ *
  * ADVERTENCIA: esta función abre su propia runTransaction — no se puede
  * llamar desde dentro de otra runTransaction (p.ej. una de guests.ts), eso
  * falla en runtime y TypeScript no lo detecta porque ambas son simplemente
@@ -79,6 +88,7 @@ export async function registerWalkInGuest(
   phone?: string,
   customData?: Record<string, string>,
   partySize?: number,
+  paymentMethod?: PaymentMethod,
 ): Promise<{ status: 'success' | 'full'; qrToken?: string }> {
   const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
   const trimmedEmail = email?.trim() ? requireMaxLength(email.trim(), GUEST_EMAIL_MAX, 'El email') : ''
@@ -105,6 +115,9 @@ export async function registerWalkInGuest(
     const guestCount = (data.guestCount as number) || 0
     if (capacity && guestCount >= capacity) return { status: 'full' }
 
+    const requiresPayment = (data.requiresPayment as boolean) || false
+    const resolvedMethod = requiresPayment ? paymentMethod || null : null
+
     const qrToken = crypto.randomUUID().replace(/-/g, '')
     const guestRef = doc(collection(db, 'events', eventId, 'guests'))
     tx.set(guestRef, {
@@ -124,6 +137,8 @@ export async function registerWalkInGuest(
       lockToken: null,
       notes: '',
       paymentStatus: 'unpaid',
+      paymentMethod: resolvedMethod,
+      holdExpiresAt: initialHoldExpiresAt(requiresPayment, resolvedMethod),
       customData: customData || {},
       createdAt: serverTimestamp(),
     })

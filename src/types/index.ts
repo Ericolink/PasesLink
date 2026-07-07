@@ -9,7 +9,33 @@ export type EventStatus = 'active' | 'cancelled' | 'archived'
 
 export type EntryMode = 'list' | 'open' | 'hybrid'
 
-export type GuestPaymentStatus = 'unpaid' | 'paid'
+// Ciclo de vida del pago de un invitado. Deliberadamente el ÚNICO campo que
+// responde "¿está pagado?" — no mezcla si hay un cronómetro corriendo ni si
+// el invitado cuenta para el cupo (eso es responsabilidad de `holdExpiresAt`
+// y de los contadores del evento, campos independientes, ver GuestData).
+// - 'unpaid': sin pago confirmado. Puede o no tener un cronómetro activo
+//   (`holdExpiresAt`) — un invitado de lista, uno que paga en efectivo o un
+//   evento gratuito están 'unpaid' indefinidamente sin que eso signifique
+//   ningún riesgo de perder su lugar.
+// - 'pending_confirmation': el invitado marcó "ya pagué / comprobante
+//   enviado" (solo aplica a transferencia) — deja de correr el cronómetro
+//   original y pasa a esperar que el organizador apruebe o rechace, con su
+//   propio plazo (`holdExpiresAt` se reutiliza como el nuevo vencimiento,
+//   ver PENDING_CONFIRMATION_SLA_HOURS en src/utils/reservation.ts). Pensado
+//   para que el día que exista una pasarela de pago real, este estado lo
+//   resuelva un webhook en segundos en vez de un organizador a mano — la
+//   máquina de estados no cambia, solo quién la dispara.
+// - 'paid': pago confirmado (por el organizador o, a futuro, la pasarela).
+// - 'expired': tenía un cronómetro (`holdExpiresAt`) y venció sin
+//   resolverse — ver scripts/sweep-reservations.mjs. El invitado conserva su
+//   pase/QR pero deja de contar para el cupo del evento hasta que alguien
+//   (el organizador, reconfirmando el pago) lo reclame de nuevo.
+export type GuestPaymentStatus = 'unpaid' | 'pending_confirmation' | 'paid' | 'expired'
+
+// Formas de cobro que un organizador puede activar para un evento con costo
+// (EventCreate/EditEventForm). Un evento puede ofrecer una sola o ambas a la
+// vez — ver `paymentMethods` en EventData.
+export type PaymentMethod = 'transfer' | 'cash'
 
 export type CustomFieldType = 'text' | 'number' | 'email' | 'phone'
 
@@ -57,9 +83,21 @@ export interface EventData {
   capacity: number
   customFields?: CustomField[]
   requiresPayment: boolean
+  // Métodos de cobro activos cuando requiresPayment es true — puede incluir
+  // uno u otro, o ambos a la vez (EventCreate/EditEventForm). Vacío si el
+  // evento no cobra entrada. `paymentInstructions` abajo solo aplica a
+  // 'transfer' (datos bancarios/alias); 'cash' no necesita instrucciones,
+  // se cobra presencialmente y el organizador lo marca a mano.
+  paymentMethods: PaymentMethod[]
   ticketPrice: number
   currency: string
   paymentInstructions: string
+  // Teléfono del organizador (o de quien gestione los pagos) en formato
+  // internacional para el link de WhatsApp (wa.me) que ve el invitado en su
+  // pase cuando el evento cobra entrada — enviar comprobante, resolver
+  // dudas, pedir devolución o reportar un problema de acceso, todo por el
+  // mismo canal. Opcional: si está vacío, ese apartado no se muestra.
+  organizerContactPhone?: string
   timeline?: TimelineEntry[]
   plan: Plan
   paymentStatus: PaymentStatus
@@ -191,6 +229,22 @@ export interface GuestData {
   lockToken: string | null
   customData?: Record<string, string>
   paymentStatus: GuestPaymentStatus
+  // Método elegido al autoregistrarse (o fijado por el organizador al
+  // marcar el pago) — null en eventos gratuitos y en invitados agregados
+  // por el organizador que todavía no pagaron. Ver PaymentMethod.
+  paymentMethod: PaymentMethod | null
+  // Vencimiento del cronómetro ACTIVO en este momento — el mismo campo sirve
+  // para las dos etapas que pueden tener plazo (holding inicial por
+  // transferencia, y luego pending_confirmation esperando al organizador),
+  // reutilizado en vez de duplicado porque conceptualmente es la misma
+  // pregunta ("¿hasta cuándo tiene este invitado antes de perder el lugar?").
+  // null: sin cronómetro (lista, efectivo, evento gratuito) o ya resuelto
+  // (paid). Independiente de `paymentStatus` a propósito — ver GuestPaymentStatus.
+  holdExpiresAt: number | null
+  // Referencia opcional que deja el invitado al marcar "ya pagué" (número de
+  // operación, hora del depósito, etc.) — le ahorra al organizador tener que
+  // ir a buscarlo por WhatsApp para revisar el comprobante.
+  paymentNote?: string
   createdAt: number
 }
 

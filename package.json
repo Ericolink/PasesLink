@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:firebase": "firebase emulators:exec --only firestore --project demo-paselink-test \"vitest run --config vitest.firebase.config.ts\"",
     "backup:firestore": "node scripts/backup-firestore.mjs",
-    "restore:firestore": "node scripts/restore-firestore.mjs"
+    "restore:firestore": "node scripts/restore-firestore.mjs",
+    "sweep:reservations": "node scripts/sweep-reservations.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

@@ -17,7 +17,7 @@ import {
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
-import type { CustomField, EntryMode, EventData, EventStatus, TemplateId, TimelineEntry } from '../types'
+import type { CustomField, EntryMode, EventData, EventStatus, PaymentMethod, TemplateId, TimelineEntry } from '../types'
 import { EventSchema, warnIfInvalidShape } from '../types/schemas'
 
 export interface NewEventInput {
@@ -37,9 +37,11 @@ export interface NewEventInput {
   capacity: number
   customFields?: CustomField[]
   requiresPayment?: boolean
+  paymentMethods?: PaymentMethod[]
   ticketPrice?: number
   currency?: string
   paymentInstructions?: string
+  organizerContactPhone?: string
   timeline?: TimelineEntry[]
 }
 
@@ -62,9 +64,11 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     capacity: input.capacity,
     customFields: input.customFields || [],
     requiresPayment: input.requiresPayment || false,
+    paymentMethods: input.requiresPayment ? input.paymentMethods || [] : [],
     ticketPrice: input.ticketPrice || 0,
     currency: input.currency || '',
     paymentInstructions: input.paymentInstructions || '',
+    organizerContactPhone: input.organizerContactPhone?.trim() || '',
     timeline: input.timeline || [],
     // Premium gratis mientras se da a conocer el servicio — sin plan a elegir
     // ni pago que confirmar. Cuando se reintroduzcan pagos, esto vuelve a
@@ -145,9 +149,11 @@ export interface UpdateEventInput {
   capacity: number
   customFields?: CustomField[]
   requiresPayment?: boolean
+  paymentMethods?: PaymentMethod[]
   ticketPrice?: number
   currency?: string
   paymentInstructions?: string
+  organizerContactPhone?: string
   timeline?: TimelineEntry[]
 }
 
@@ -169,9 +175,11 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     capacity: input.capacity,
     customFields: input.customFields || [],
     requiresPayment: input.requiresPayment || false,
+    paymentMethods: input.requiresPayment ? input.paymentMethods || [] : [],
     ticketPrice: input.ticketPrice || 0,
     currency: input.currency ?? '',
     paymentInstructions: input.paymentInstructions ?? '',
+    organizerContactPhone: input.organizerContactPhone?.trim() ?? '',
     timeline: input.timeline || [],
     updatedAt: serverTimestamp(),
   })
@@ -274,9 +282,17 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     capacity: (data.capacity as number) || 0,
     customFields: (data.customFields as CustomField[]) || [],
     requiresPayment: (data.requiresPayment as boolean) || false,
+    // Eventos creados antes de este campo (con requiresPayment ya activado)
+    // solo tenían transferencia — se lo asignamos acá para no dejarlos sin
+    // ningún método configurado. `data.requiresPayment` (no el campo ya
+    // mapeado arriba) porque `paymentMethods` no depende de él, es un default
+    // sobre datos crudos de Firestore, igual que el resto de este mapper.
+    paymentMethods: (data.paymentMethods as EventData['paymentMethods'])
+      || (data.requiresPayment ? ['transfer'] : []),
     ticketPrice: (data.ticketPrice as number) || 0,
     currency: (data.currency as string) || '',
     paymentInstructions: (data.paymentInstructions as string) || '',
+    organizerContactPhone: (data.organizerContactPhone as string) || '',
     timeline: (data.timeline as TimelineEntry[]) || [],
     plan: data.plan as EventData['plan'],
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],

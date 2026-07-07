@@ -35,8 +35,13 @@ import {
   IconFrown,
   IconListOrdered,
 } from '../components/Icons'
-import type { EventData } from '../types'
+import type { EventData, PaymentMethod } from '../types'
 import { buildPassUrl } from '../utils/qrUrl'
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  transfer: 'Transferencia',
+  cash: 'Efectivo',
+}
 
 type State = 'loading' | 'form' | 'submitting' | 'full' | 'not_found' | 'error'
 type WaitlistState = 'idle' | 'form' | 'submitting' | 'joined'
@@ -68,6 +73,7 @@ export function EventJoin() {
   const [email, setEmail] = useState('')
   const [partySize, setPartySize] = useState(1)
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
   const [waitlistState, setWaitlistState] = useState<WaitlistState>('idle')
   const [wlSubmitting, setWlSubmitting] = useState(false)
   const [wlName, setWlName] = useState('')
@@ -130,14 +136,25 @@ export function EventJoin() {
   }, [profile, user])
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
+  const needsMethodChoice = !!event?.requiresPayment && (event?.paymentMethods.length || 0) > 1
+  const resolvedPaymentMethod: PaymentMethod | undefined = !event?.requiresPayment
+    ? undefined
+    : needsMethodChoice
+      ? paymentMethod || undefined
+      : event.paymentMethods[0]
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!id || !name.trim() || !lastName.trim()) return
+    if (needsMethodChoice && !resolvedPaymentMethod) {
+      setRegError('Elegí cómo vas a pagar antes de continuar.')
+      return
+    }
     setState('submitting')
     setRegError('')
     try {
       const fullName = `${name.trim()} ${lastName.trim()}`
-      const result = await registerWalkInGuest(id, fullName, undefined, phone, customValues, partySize)
+      const result = await registerWalkInGuest(id, fullName, undefined, phone, customValues, partySize, resolvedPaymentMethod)
       if (result.status === 'full') {
         setState('full')
       } else {
@@ -446,6 +463,40 @@ export function EventJoin() {
               </div>
             ))}
 
+            {event?.requiresPayment && (
+              <div>
+                <label className={labelClass}>
+                  Entrada: {event.currency}{(event.ticketPrice * partySize).toLocaleString('es')}
+                  {needsMethodChoice && ' — ¿cómo vas a pagar? *'}
+                </label>
+                {needsMethodChoice ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {event.paymentMethods.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setPaymentMethod(m)}
+                        className={`min-h-11 rounded-full border text-sm font-semibold transition-colors ${
+                          paymentMethod === m
+                            ? 'bg-[var(--invite-accent)] text-white border-[var(--invite-accent)]'
+                            : 'border-[var(--invite-border)] text-[var(--invite-text)]'
+                        }`}
+                      >
+                        {PAYMENT_METHOD_LABELS[m]}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-[var(--invite-text-muted)]">
+                    {event.paymentMethods[0] === 'cash' ? 'Se paga en efectivo el día del evento.' : 'Se paga por transferencia.'}
+                  </p>
+                )}
+                {event.paymentMethods.includes('transfer') && (needsMethodChoice ? paymentMethod === 'transfer' : true) && (
+                  <p className="text-xs mt-1.5 text-[var(--invite-text-muted)]">Tu lugar queda reservado por un tiempo limitado hasta que envíes tu comprobante.</p>
+                )}
+              </div>
+            )}
+
             {event?.capacity && (
               <p className="text-xs text-center text-[var(--invite-text-muted)]">
                 {event.guestCount} / {event.capacity} registros
@@ -454,7 +505,7 @@ export function EventJoin() {
             {regError && <p className="text-xs text-red-500">{regError}</p>}
             <button
               type="submit"
-              disabled={state === 'submitting'}
+              disabled={state === 'submitting' || (needsMethodChoice && !paymentMethod)}
               className="w-full text-white rounded-full py-3.5 font-bold text-base hover:opacity-90 active:scale-[.98] transition-all disabled:opacity-50 bg-[var(--invite-accent)]"
             >
               {state === 'submitting' ? 'Registrando…' : 'Confirmar asistencia'}

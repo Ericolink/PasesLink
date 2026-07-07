@@ -38,6 +38,8 @@ export function generateGuests(count: number, checkedInCount: number): GuestData
       exitType: null,
       lockToken: null,
       paymentStatus: 'unpaid',
+      paymentMethod: null,
+      holdExpiresAt: null,
       createdAt: now,
     })
   }

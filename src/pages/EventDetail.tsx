@@ -492,6 +492,7 @@ export function EventDetail() {
             eventId={event.id}
             guests={filteredGuests}
             requiresPayment={event.requiresPayment}
+            paymentMethods={event.paymentMethods}
             ticketPrice={event.ticketPrice}
             currency={event.currency}
             hasActiveFilters={Boolean(search.trim()) || statusFilter !== 'all'}

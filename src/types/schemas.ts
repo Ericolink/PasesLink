@@ -55,9 +55,11 @@ export const EventSchema = z.object({
   capacity: z.number(),
   customFields: z.array(CustomFieldSchema),
   requiresPayment: z.boolean(),
+  paymentMethods: z.array(z.enum(['transfer', 'cash'])),
   ticketPrice: z.number(),
   currency: z.string(),
   paymentInstructions: z.string(),
+  organizerContactPhone: z.string().optional(),
   timeline: z.array(TimelineEntrySchema).optional(),
   plan: z.enum(['premium']),
   paymentStatus: z.enum(['pending', 'paid', 'free_trial']),
@@ -98,7 +100,10 @@ export const GuestSchema = z.object({
   exitType: z.enum(['temporary', 'final']).nullable(),
   lockToken: z.string().nullable(),
   customData: z.record(z.string(), z.string()).optional(),
-  paymentStatus: z.enum(['unpaid', 'paid']),
+  paymentStatus: z.enum(['unpaid', 'pending_confirmation', 'paid', 'expired']),
+  paymentMethod: z.enum(['transfer', 'cash']).nullable(),
+  holdExpiresAt: z.number().nullable(),
+  paymentNote: z.string().optional(),
   createdAt: z.number(),
 })
 
