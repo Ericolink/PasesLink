@@ -245,6 +245,14 @@ export interface GuestData {
   // operación, hora del depósito, etc.) — le ahorra al organizador tener que
   // ir a buscarlo por WhatsApp para revisar el comprobante.
   paymentNote?: string
+  // Presentes solo cuando el invitado se autoregistró logueado con una
+  // cuenta PaseLink (ver registerWalkInGuest en src/firebase/capacity.ts) —
+  // null en alta manual del organizador y en todo invitado creado antes de
+  // este campo. guestPhotoURL es una copia (denormalizada al momento del
+  // registro, no sincronizada después) del photoURL del perfil en ese
+  // instante — ver GuestAvatar.tsx para el porqué de no leerlo en vivo.
+  guestUid?: string | null
+  guestPhotoURL?: string | null
   createdAt: number
 }
 

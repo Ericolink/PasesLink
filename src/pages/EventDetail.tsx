@@ -496,6 +496,7 @@ export function EventDetail() {
             ticketPrice={event.ticketPrice}
             currency={event.currency}
             hasActiveFilters={Boolean(search.trim()) || statusFilter !== 'all'}
+            hasSearchText={Boolean(search.trim())}
           />
         </div>
       </div>

@@ -154,7 +154,17 @@ export function EventJoin() {
     setRegError('')
     try {
       const fullName = `${name.trim()} ${lastName.trim()}`
-      const result = await registerWalkInGuest(id, fullName, undefined, phone, customValues, partySize, resolvedPaymentMethod)
+      const result = await registerWalkInGuest(
+        id,
+        fullName,
+        undefined,
+        phone,
+        customValues,
+        partySize,
+        resolvedPaymentMethod,
+        user?.uid,
+        profile?.photoURL,
+      )
       if (result.status === 'full') {
         setState('full')
       } else {

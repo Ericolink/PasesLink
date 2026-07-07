@@ -58,6 +58,25 @@ export async function seedEvent(
   })
 }
 
+/** Perfil mínimo para probar el cross-check de guestPhotoURL en isValidPublicGuestRegistration. */
+export async function seedUserProfile(
+  testEnv: RulesTestEnvironment,
+  uid: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'users', uid), {
+      email: `${uid}@test.com`,
+      firstName: 'Test',
+      lastName: 'User',
+      displayName: 'Test User',
+      birthDate: '2000-01-01',
+      createdAt: Date.now(),
+      ...overrides,
+    })
+  })
+}
+
 export async function seedGuest(
   testEnv: RulesTestEnvironment,
   eventId: string,

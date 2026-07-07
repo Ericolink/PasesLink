@@ -606,3 +606,20 @@ export function IconTwitterX({ className = 'w-4 h-4' }: IconProps) {
     </svg>
   )
 }
+
+export function IconChevronDown({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  )
+}
+
+export function IconLock({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="4" y="10" width="16" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  )
+}

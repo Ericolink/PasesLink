@@ -104,6 +104,8 @@ export const GuestSchema = z.object({
   paymentMethod: z.enum(['transfer', 'cash']).nullable(),
   holdExpiresAt: z.number().nullable(),
   paymentNote: z.string().optional(),
+  guestUid: z.string().nullable().optional(),
+  guestPhotoURL: z.string().nullable().optional(),
   createdAt: z.number(),
 })
 

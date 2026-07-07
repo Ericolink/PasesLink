@@ -137,6 +137,25 @@ service cloud.firestore {
             // holdExpiresAt es un número crudo, no un Timestamp).
             && d.holdExpiresAt <= request.time.toMillis() + 3600000)
           || (d.paymentMethod != 'transfer' && d.holdExpiresAt == null)
+        )
+        && (
+          // guestUid/guestPhotoURL: src/firebase/capacity.ts los escribe SIEMPRE
+          // en el auto-registro (null si no hay sesión). Sin esta validación, un
+          // cliente que hable directo contra Firestore podría adjudicarse el uid
+          // de otra persona (apareciendo en el dashboard del organizador como si
+          // esa cuenta ajena se hubiera autoregistrado) o mandar cualquier URL
+          // arbitraria como foto. Defensa: guestUid debe ser el uid autenticado
+          // del propio request, y guestPhotoURL debe coincidir con el photoURL
+          // que ESE usuario ya tiene en su propio perfil — nunca inventado.
+          (request.auth == null && d.guestUid == null && d.guestPhotoURL == null)
+          || (
+            request.auth != null
+            && d.guestUid == request.auth.uid
+            // .data.get('photoURL', null), no .data.photoURL: leer una clave
+            // ausente de un mapa en reglas de Firestore lanza error, no null —
+            // un usuario sin foto debe poder autoregistrarse igual.
+            && d.guestPhotoURL == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('photoURL', null)
+          )
         );
     }
 

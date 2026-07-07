@@ -793,6 +793,8 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     // que ya tenían.
     holdExpiresAt: (data.holdExpiresAt as number) ?? null,
     paymentNote: (data.paymentNote as string) || undefined,
+    guestUid: (data.guestUid as string) || null,
+    guestPhotoURL: (data.guestPhotoURL as string) || null,
     createdAt: toMillisOrNull(data.createdAt) || 0,
   }
   warnIfInvalidShape(GuestSchema, 'Guest', guest)

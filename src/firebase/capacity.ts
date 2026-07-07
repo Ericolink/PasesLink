@@ -89,6 +89,14 @@ export async function registerWalkInGuest(
   customData?: Record<string, string>,
   partySize?: number,
   paymentMethod?: PaymentMethod,
+  // Presentes solo si quien se autoregistra está logueado con una cuenta
+  // PaseLink (ver EventJoin.tsx) — permiten mostrar su foto real en vez de
+  // iniciales en la lista del organizador. Ver firestore.rules,
+  // isValidPublicGuestRegistration: guestUid debe ser el uid autenticado del
+  // propio request y guestPhotoURL debe coincidir con el de su perfil, así
+  // que mandar valores falsos acá no tiene efecto (las reglas lo rechazan).
+  guestUid?: string,
+  guestPhotoURL?: string,
 ): Promise<{ status: 'success' | 'full'; qrToken?: string }> {
   const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
   const trimmedEmail = email?.trim() ? requireMaxLength(email.trim(), GUEST_EMAIL_MAX, 'El email') : ''
@@ -140,6 +148,8 @@ export async function registerWalkInGuest(
       paymentMethod: resolvedMethod,
       holdExpiresAt: initialHoldExpiresAt(requiresPayment, resolvedMethod),
       customData: customData || {},
+      guestUid: guestUid || null,
+      guestPhotoURL: guestPhotoURL || null,
       createdAt: serverTimestamp(),
     })
     // email/phone son PII: se guardan aparte en guestContacts (no público), no
