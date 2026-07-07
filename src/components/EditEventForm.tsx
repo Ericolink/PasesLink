@@ -419,7 +419,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             <input id="edit-event-cover-image" ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
             {coverImage ? (
               <div className="relative rounded-lg overflow-hidden h-28 bg-gray-100">
-                <img src={optimizedImageUrl(coverImage, 800)} alt="Portada" loading="lazy" className="w-full h-full object-cover" />
+                <img src={optimizedImageUrl(coverImage, 800)} alt="Portada" loading="lazy" crossOrigin="anonymous" className="w-full h-full object-cover" />
                 <button type="button" onClick={clearCover} className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1">
                   Quitar
                 </button>

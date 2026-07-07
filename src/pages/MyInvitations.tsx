@@ -86,7 +86,7 @@ export function MyInvitations() {
               )}
               <div className="flex items-center gap-4 pr-8">
                 {inv.eventCoverImage
-                  ? <img src={optimizedImageUrl(inv.eventCoverImage, 128)} alt="" loading="lazy" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                  ? <img src={optimizedImageUrl(inv.eventCoverImage, 128)} alt="" loading="lazy" crossOrigin="anonymous" className="w-16 h-16 rounded-lg object-cover shrink-0" />
                   : <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <IconCalendar className="w-7 h-7 text-primary" />
                     </div>

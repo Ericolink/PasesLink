@@ -215,6 +215,7 @@ export function EventDetail() {
               src={optimizedImageUrl(event.coverImage, 800)}
               alt="Portada del evento"
               loading="lazy"
+              crossOrigin="anonymous"
               className="w-full h-full object-cover"
             />
           </div>

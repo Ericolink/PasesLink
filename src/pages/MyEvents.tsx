@@ -79,7 +79,7 @@ export function MyEvents() {
           >
             {/* Cover or placeholder */}
             {ev.coverImage
-              ? <img src={optimizedImageUrl(ev.coverImage, 128)} alt="" loading="lazy" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+              ? <img src={optimizedImageUrl(ev.coverImage, 128)} alt="" loading="lazy" crossOrigin="anonymous" className="w-16 h-16 rounded-lg object-cover shrink-0" />
               : (
                 <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <IconTicket className="w-7 h-7 text-primary" />

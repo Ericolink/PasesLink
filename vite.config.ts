@@ -105,7 +105,22 @@ export default defineConfig({
             urlPattern: /^https:\/\/res\.cloudinary\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'cloudinary-images',
+              // v2 (antes 'cloudinary-images'): antes de este fix, GuestPass
+              // era la única página que pedía la portada con
+              // crossOrigin="anonymous" (modo CORS) mientras el resto la
+              // pedía en modo normal — el Cache API de este service worker
+              // indexa por URL nomás, sin distinguir el modo del request, así
+              // que la respuesta que llegara primero (CORS u opaca) quedaba
+              // cacheada para AMBOS modos durante hasta 30 días. Resultado:
+              // en un dispositivo que ya había cacheado la versión opaca
+              // (p.ej. viéndola antes en MyInvitations/EventDetail), la
+              // portada dejaba de renderizar en GuestPass — el navegador
+              // rechaza servir una respuesta opaca donde se pidió CORS. Ya
+              // unificado (todo componente que muestra coverImage ahora pide
+              // crossOrigin="anonymous"), pero cambiar el nombre del cache es
+              // necesario para que los dispositivos con una entrada opaca ya
+              // guardada no se queden pegados a ella hasta que expire sola.
+              cacheName: 'cloudinary-images-v2',
               expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] },
             },

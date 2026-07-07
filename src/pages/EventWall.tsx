@@ -315,7 +315,7 @@ export function EventWall() {
   const content = (
     <>
       {event?.coverImage && (
-        <img src={optimizedImageUrl(event.coverImage, 800)} alt="" loading="eager" fetchPriority="high" className="w-full h-28 object-cover rounded-xl mb-4" />
+        <img src={optimizedImageUrl(event.coverImage, 800)} alt="" loading="eager" fetchPriority="high" crossOrigin="anonymous" className="w-full h-28 object-cover rounded-xl mb-4" />
       )}
       {isOwner && (
         <Link to={`/events/${id}`} className="text-sm text-gray-500 hover:text-primary transition-colors inline-flex items-center gap-1 mb-3">

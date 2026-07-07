@@ -428,6 +428,7 @@ export function EventCreate() {
                       src={optimizedImageUrl(coverImage, 800)}
                       alt="Portada"
                       loading="lazy"
+                      crossOrigin="anonymous"
                       className="w-full h-full object-cover"
                     />
                     <button

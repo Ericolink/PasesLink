@@ -24,7 +24,7 @@ export function InvitationCard({ coverImage, coverAlt, children }: InvitationCar
     >
       <div className="invite-cover w-full overflow-hidden">
         {coverImage && (
-          <img src={optimizedImageUrl(coverImage, 800)} alt={coverAlt || ''} loading="lazy" className="w-full h-full object-cover" />
+          <img src={optimizedImageUrl(coverImage, 800)} alt={coverAlt || ''} loading="lazy" crossOrigin="anonymous" className="w-full h-full object-cover" />
         )}
       </div>
       <div className="p-6">{children}</div>
