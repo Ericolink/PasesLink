@@ -1,0 +1,69 @@
+name: Uptime check
+
+on:
+  schedule:
+    # Cada 10 min. GitHub a veces atrasa los cron jobs varios minutos en
+    # momentos de mucha carga en la plataforma — no es un reemplazo de un
+    # servicio dedicado de uptime, pero no cuesta nada y cubre caídas reales
+    # de hosting/DNS (no cubre "la app cargó pero el JS se rompió", eso lo
+    # cubre Sentry).
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  # Dominio propio real (www.paselink.com) — el código todavía referencia
+  # el dominio .web.app en index.html/firebase.json, pero el que usan los
+  # usuarios de verdad es este.
+  SITE_URL: https://www.paselink.com/
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # No hay estado persistente entre corridas de un workflow — se usa el
+      # resultado del run anterior de ESTE MISMO workflow (vía la API) como
+      # "memoria", para avisar solo en la transición (se cayó / se
+      # recuperó) y no un mensaje cada 10 min mientras sigue caído.
+      - name: Leer resultado del check anterior
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREV=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow=uptime-check.yml --branch=main --status=completed --limit=1 --json conclusion --jq '.[0].conclusion // "success"')
+          echo "conclusion=$PREV" >> "$GITHUB_OUTPUT"
+
+      - name: Verificar sitio
+        id: site
+        run: |
+          CODE=$(curl -s -o /tmp/body.html -w "%{http_code}" -L --max-time 15 "$SITE_URL" || echo "000")
+          echo "http_code=$CODE" >> "$GITHUB_OUTPUT"
+          if [ "$CODE" = "200" ] && grep -q "PaseLink" /tmp/body.html; then
+            echo "up=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "up=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Avisar caída (transición a down)
+        if: steps.site.outputs.up == 'false' && steps.prev.outputs.conclusion == 'success'
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"🔴 **PaseLink no responde** — $SITE_URL devolvió código ${{ steps.site.outputs.http_code }} o contenido inesperado. Chequeo automático cada 10 min vía GitHub Actions.\"}"
+
+      - name: Avisar recuperación (transición a up)
+        if: steps.site.outputs.up == 'true' && steps.prev.outputs.conclusion == 'failure'
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{"content": "🟢 **PaseLink se recuperó** — el sitio vuelve a responder normalmente."}'
+
+      # Al final: si está caído, este run queda como "failure" — así el
+      # PRÓXIMO run puede leerlo (paso "Leer resultado del check anterior")
+      # y saber que ya se avisó, sin repetir el mensaje cada 10 min.
+      - name: Marcar el run como fallido si el sitio está caído
+        if: steps.site.outputs.up == 'false'
+        run: exit 1

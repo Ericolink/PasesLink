@@ -3,6 +3,12 @@ on:
   push:
     branches:
       - main
+
+# Least-privilege explícito (hallazgo de CodeQL) — ningún job de este
+# workflow necesita escribir en el repo, channelId:live no comenta en PRs.
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -63,3 +69,17 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7 }}'
           channelId: live
           projectId: app-pases-9e6e7
+
+  # Job aparte en vez de un paso dentro de build_and_deploy: así también
+  # avisa si lo que falla es `validate` (lint/tsc/test), no solo el build.
+  # `if: failure()` a nivel de job dispara si CUALQUIERA de `needs` falló.
+  notify_failure:
+    needs: [validate, build_and_deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Avisar a Discord
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"🔴 **Deploy de PaseLink falló** — https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"

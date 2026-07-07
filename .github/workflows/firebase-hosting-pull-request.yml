@@ -1,5 +1,12 @@
 name: Deploy to Firebase Hosting on PR
 on: pull_request
+
+# Least-privilege explícito (hallazgo de CodeQL). pull-requests:write se
+# otorga solo en build_and_preview, que es el único job que comenta el link
+# de preview en la PR — validate no necesita más que leer el código.
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -28,6 +35,9 @@ jobs:
     needs: validate
     if: '${{ github.event.pull_request.head.repo.full_name == github.repository }}'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
