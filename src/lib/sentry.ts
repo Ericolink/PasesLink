@@ -53,12 +53,12 @@ export function initSentry() {
         createRoutesFromChildren,
         matchRoutes,
       }),
-      // Solo graba el buffer previo a un error real (~30s) en vez de
-      // sesiones completas — así entra cómodo en la cuota gratis de Sentry
-      // incluso si el tráfico crece. maskAllText/blockAllMedia evitan que la
-      // grabación capture texto o imágenes visibles en pantalla (nombres,
-      // fotos de invitados, etc.).
-      Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),
+      // Replay NO se agrega acá — ver loadReplayLazily más abajo. El paquete
+      // @sentry/replay pesa ~100 KB gzip por sí solo (graba DOM/rrweb) y
+      // referenciarlo en este array estático lo mete en el chunk que carga
+      // CUALQUIER página, incluidas las de cara al invitado (/pass, /join,
+      // /wall) que son justamente las que hay que abrir rápido en el wifi
+      // congestionado de un evento.
     ],
     tracesSampleRate: 1,
     replaysSessionSampleRate: 0,
@@ -68,6 +68,26 @@ export function initSentry() {
       if (event.contexts) event.contexts = scrubPii(event.contexts)
       return event
     },
+  })
+
+  loadReplayLazily()
+}
+
+// Carga @sentry/replay en un chunk aparte, después de que el navegador queda
+// libre (idle) tras el primer render — nunca compite por ancho de banda con
+// el bundle inicial ni con las primeras lecturas a Firestore. `addIntegration`
+// deja que el cliente ya inicializado (con sus replaysSessionSampleRate/
+// replaysOnErrorSampleRate de arriba) empiece a grabar apenas está listo; los
+// primeros 1-2s de la sesión, antes del callback de idle, quedan sin buffer
+// de replay en el caso (raro) de un error inmediato — trade-off aceptado a
+// cambio de no pagarle ese peso a cada página, incluidas las públicas.
+function loadReplayLazily() {
+  const schedule = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 2000))
+  schedule(() => {
+    import('@sentry/react').then(({ replayIntegration }) => {
+      const client = Sentry.getClient()
+      client?.addIntegration(replayIntegration({ maskAllText: true, blockAllMedia: true }))
+    })
   })
 }
 

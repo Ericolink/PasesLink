@@ -13,6 +13,31 @@ export default defineConfig({
     // filesToDeleteAfterUpload). Sin token, no hay upload ni borrado: los
     // .map quedarían en dist/, por eso sourcemap solo se activa junto al plugin.
     sourcemap: process.env.SENTRY_AUTH_TOKEN ? 'hidden' : false,
+    rollupOptions: {
+      output: {
+        // @sentry/replay (~90 KB gzip) solo se importa dinámicamente, en
+        // idle, desde lib/sentry.ts (ver loadReplayLazily) — a propósito
+        // para que NINGUNA página, ni siquiera las públicas de cara al
+        // invitado, tenga que bajarlo antes de poder pintar. Sin este
+        // manualChunks, Rollup igual lo separa en su propio chunk, pero con
+        // un nombre hasheado que no se puede distinguir del resto para
+        // excluirlo de los <link rel="modulepreload"> de abajo — nombrarlo
+        // explícito es lo que permite ese filtro.
+        manualChunks(id) {
+          if (id.includes('node_modules/@sentry/replay')) return 'sentry-replay'
+        },
+      },
+    },
+    modulePreload: {
+      // Vite precarga por defecto TODO chunk alcanzable por un import()
+      // dinámico desde el entrypoint, aunque nunca se ejecute hasta idle —
+      // eso anula el ahorro de ancho de banda de loadReplayLazily, porque el
+      // navegador igual lo baja de entrada. Se excluye únicamente el chunk
+      // de replay (ver manualChunks arriba); el resto de los dynamic
+      // imports legítimos (páginas lazy, exportPdf, etc.) se siguen
+      // precargando normalmente.
+      resolveDependencies: (_filename, deps) => deps.filter((dep) => !dep.includes('sentry-replay')),
+    },
   },
   plugins: [
     react(),
