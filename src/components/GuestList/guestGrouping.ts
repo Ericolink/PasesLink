@@ -16,12 +16,19 @@ export function guestDisplayName(guest: Pick<GuestData, 'name' | 'lastName' | 'i
 // dentro de plazo) o sin cronómetro (efectivo, se cobra al ingresar) no
 // requiere que el organizador haga nada TODAVÍA — se resuelve solo cuando el
 // invitado paga o cuando el plazo vence (y ahí sí pasa a 'attention'). Lo
-// urgente de verdad es: comprobante esperando aprobación, reserva ya vencida,
-// o pase bloqueado en otro dispositivo.
+// urgente de verdad es: comprobante esperando aprobación, o reserva ya
+// vencida.
+//
+// `lockToken` NO cuenta acá a propósito: se setea la primera vez que el
+// invitado abre su pase (caso normal, esperado, de casi todo invitado que
+// asiste) — no indica ningún conflicto. Hoy no existe una señal separada
+// para "alguien intentó abrir el pase en un segundo dispositivo y fue
+// bloqueado" (ver claimGuestPass en firebase/guests.ts), así que no hay
+// nada real que mostrarle al organizador todavía; "Desbloquear pase" sigue
+// disponible en el detalle del invitado para cuando lo necesite a mano.
 export type GuestUrgency = 'attention' | 'confirmed' | 'unanswered' | 'declined'
 
 export function needsAttention(guest: GuestData, requiresPayment: boolean): boolean {
-  if (guest.lockToken) return true
   if (!requiresPayment) return false
   if (guest.paymentStatus === 'pending_confirmation') return true
   return guest.paymentStatus === 'unpaid' && guest.holdExpiresAt !== null && isHoldExpired(guest)
@@ -75,8 +82,6 @@ export function getGuestSubtitle(
   ctx: { requiresPayment: boolean; ticketPrice: number; currency: string },
 ): string {
   const amount = ctx.ticketPrice * partySize(guest)
-
-  if (guest.lockToken) return 'Pase abierto en otro dispositivo'
 
   if (guest.paymentStatus === 'pending_confirmation') {
     return guest.paymentNote ? `Comprobante enviado · ref. ${guest.paymentNote}` : 'Comprobante enviado · a revisar'

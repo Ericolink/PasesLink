@@ -2,11 +2,13 @@ import { IconCheck, IconTrash, IconX } from '../Icons'
 
 export function GuestSelectionBar({
   count,
+  requiresPayment,
   onMarkPaid,
   onDelete,
   onCancel,
 }: {
   count: number
+  requiresPayment: boolean
   onMarkPaid: () => void
   onDelete: () => void
   onCancel: () => void
@@ -18,14 +20,16 @@ export function GuestSelectionBar({
       <div className="bg-gray-900 dark:bg-gray-950 text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center justify-between gap-3">
         <span className="text-sm font-semibold shrink-0">{count} seleccionado{count > 1 ? 's' : ''}</span>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onMarkPaid}
-            className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
-          >
-            <IconCheck className="w-3.5 h-3.5" />
-            Marcar pagado
-          </button>
+          {requiresPayment && (
+            <button
+              type="button"
+              onClick={onMarkPaid}
+              className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
+            >
+              <IconCheck className="w-3.5 h-3.5" />
+              Marcar pagado
+            </button>
+          )}
           <button
             type="button"
             onClick={onDelete}

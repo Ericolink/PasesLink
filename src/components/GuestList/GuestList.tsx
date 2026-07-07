@@ -325,6 +325,7 @@ export const GuestList = memo(function GuestList({
       {selectMode && (
         <GuestSelectionBar
           count={selected.size}
+          requiresPayment={requiresPayment}
           onMarkPaid={bulkMarkPaid}
           onDelete={() => setBulkDeleteConfirmOpen(true)}
           onCancel={exitSelectMode}

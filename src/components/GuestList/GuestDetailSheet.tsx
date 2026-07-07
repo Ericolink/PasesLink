@@ -160,7 +160,8 @@ export function GuestDetailSheet({
                   {presence === 'inside' && <Pill tone="blue" icon={<IconCheckCircle className="w-3.5 h-3.5" />}>Adentro</Pill>}
                   {presence === 'temp_out' && <Pill tone="amber" icon={<IconLogOut className="w-3.5 h-3.5" />}>Salida temporal</Pill>}
                   {presence === 'final_out' && <Pill tone="gray" icon={<IconLogOut className="w-3.5 h-3.5" />}>Fuera del evento</Pill>}
-                  {guest.lockToken && <Pill tone="amber" icon={<IconLock className="w-3.5 h-3.5" />}>Pase bloqueado</Pill>}
+                  {/* Informativo, no urgente — ver needsAttention en guestGrouping.ts */}
+                  {guest.lockToken && <Pill tone="gray" icon={<IconLock className="w-3.5 h-3.5" />}>Pase abierto</Pill>}
                 </div>
                 {!guest.isGroup && guest.companions.length > 0 && (
                   <p className="text-sm text-gray-600 dark:text-gray-300">
