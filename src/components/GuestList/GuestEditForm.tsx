@@ -1,22 +1,52 @@
 import { useState } from 'react'
 import { partySize, updateGuest } from '../../firebase/guests'
-import type { CompanionData, GuestData } from '../../types'
+import type { CompanionData, CustomField, GuestData } from '../../types'
 import { CompanionFieldsEditor } from '../CompanionFields'
-import { GUEST_GROUP_MAX_MEMBERS } from '../../utils/validation'
+import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_GROUP_MAX_MEMBERS } from '../../utils/validation'
+
+function CustomFieldsEditRow({
+  customFields,
+  values,
+  onChange,
+}: {
+  customFields: CustomField[]
+  values: Record<string, string>
+  onChange: (values: Record<string, string>) => void
+}) {
+  if (customFields.length === 0) return null
+  return (
+    <>
+      {customFields.map((field) => (
+        <input
+          key={field.id}
+          type="text"
+          placeholder={field.label}
+          maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
+          value={values[field.id] || ''}
+          onChange={(e) => onChange({ ...values, [field.id]: e.target.value })}
+          className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      ))}
+    </>
+  )
+}
 
 export function EditGuestRow({
   eventId,
   guest,
+  customFields = [],
   onDone,
 }: {
   eventId: string
   guest: GuestData
+  customFields?: CustomField[]
   onDone: () => void
 }) {
   const [name, setName] = useState(guest.name)
   const [lastName, setLastName] = useState(guest.lastName || '')
   const [phone, setPhone] = useState(guest.phone || '')
   const [companions, setCompanions] = useState<CompanionData[]>(guest.companions)
+  const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -31,6 +61,7 @@ export function EditGuestRow({
         lastName: lastName.trim(),
         phone: phone.trim(),
         companions,
+        customData: customValues,
       })
       onDone()
     } catch (err) {
@@ -69,6 +100,7 @@ export function EditGuestRow({
           placeholder="Teléfono"
         />
         <CompanionFieldsEditor companions={companions} onChange={setCompanions} />
+        <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />
         <div className="flex gap-2">
           <button
             type="submit"
@@ -99,14 +131,17 @@ export function EditGuestRow({
 export function EditGroupRow({
   eventId,
   guest,
+  customFields = [],
   onDone,
 }: {
   eventId: string
   guest: GuestData
+  customFields?: CustomField[]
   onDone: () => void
 }) {
   const [name, setName] = useState(guest.name)
   const [memberCount, setMemberCount] = useState(partySize(guest))
+  const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -121,7 +156,7 @@ export function EditGroupRow({
         { length: targetCompanionCount },
         (_, i) => guest.companions[i] || {},
       )
-      await updateGuest(eventId, guest.id, { name: name.trim(), companions })
+      await updateGuest(eventId, guest.id, { name: name.trim(), companions, customData: customValues })
       onDone()
     } catch (err) {
       console.error('Error updating group:', err)
@@ -153,6 +188,7 @@ export function EditGroupRow({
           className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="Integrantes"
         />
+        <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />
         <div className="flex gap-2">
           <button
             type="submit"
@@ -174,10 +210,20 @@ export function EditGroupRow({
   )
 }
 
-export function GuestEditForm({ eventId, guest, onDone }: { eventId: string; guest: GuestData; onDone: () => void }) {
+export function GuestEditForm({
+  eventId,
+  guest,
+  customFields = [],
+  onDone,
+}: {
+  eventId: string
+  guest: GuestData
+  customFields?: CustomField[]
+  onDone: () => void
+}) {
   return guest.isGroup ? (
-    <EditGroupRow eventId={eventId} guest={guest} onDone={onDone} />
+    <EditGroupRow eventId={eventId} guest={guest} customFields={customFields} onDone={onDone} />
   ) : (
-    <EditGuestRow eventId={eventId} guest={guest} onDone={onDone} />
+    <EditGuestRow eventId={eventId} guest={guest} customFields={customFields} onDone={onDone} />
   )
 }

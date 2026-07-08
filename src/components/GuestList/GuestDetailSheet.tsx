@@ -150,7 +150,7 @@ export function GuestDetailSheet({
 
         <div className="px-5 py-4 overflow-y-auto space-y-5">
           {editing ? (
-            <GuestEditForm eventId={eventId} guest={guest} onDone={() => setEditing(false)} />
+            <GuestEditForm eventId={eventId} guest={guest} customFields={customFields} onDone={() => setEditing(false)} />
           ) : (
             <>
               <section className="space-y-2">

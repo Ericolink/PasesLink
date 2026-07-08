@@ -24,6 +24,7 @@ import type { CompanionData, GuestData, PaymentMethod, RsvpStatus } from '../typ
 import { GuestSchema, warnIfInvalidShape } from '../types/schemas'
 import { pendingConfirmationDeadlineFromNow } from '../utils/reservation'
 import {
+  GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_FULL_NAME_MAX,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
@@ -37,6 +38,7 @@ export interface NewGuestInput {
   phone?: string
   companions?: CompanionData[]
   isGroup?: boolean
+  customData?: Record<string, string>
 }
 
 function generateQrToken(): string {
@@ -67,12 +69,14 @@ function buildNewGuestPayload(input: {
   lastName?: string
   companions?: CompanionData[]
   isGroup?: boolean
+  customData?: Record<string, string>
 }) {
   return {
     name: input.name,
     lastName: input.lastName || '',
     companions: input.companions || [],
     isGroup: input.isGroup || false,
+    customData: input.customData || {},
     rsvpStatus: 'pending' as const,
     qrToken: generateQrToken(),
     status: 'invited' as const,
@@ -109,6 +113,9 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<A
     ? requireMaxLength(input.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
     : ''
   const phone = input.phone ? requireMaxLength(input.phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
+  for (const value of Object.values(input.customData || {})) {
+    requireMaxLength(value, GUEST_CUSTOM_FIELD_VALUE_MAX, 'Uno de los campos personalizados')
+  }
 
   return measureSpan('firestore.addGuest', 'db.firestore', async () => {
     const event = await getEvent(eventId)
@@ -172,6 +179,7 @@ export interface UpdateGuestInput {
   lastName?: string
   phone?: string
   companions?: CompanionData[]
+  customData?: Record<string, string>
 }
 
 export async function updateGuest(eventId: string, guestId: string, input: UpdateGuestInput) {

@@ -485,7 +485,7 @@ export function EventDetail() {
         {/* Formulario de agregar (solo propietario en modo lista o mixto) */}
         {isOwner && event.entryMode !== 'open' && (
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
-            <GuestAddForm eventId={event.id} guests={guests} />
+            <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} />
           </div>
         )}
 

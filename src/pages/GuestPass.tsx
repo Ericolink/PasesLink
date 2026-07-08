@@ -4,6 +4,7 @@ import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent, subscribeToEvent } from '../firebase/events'
 import { checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp, submitPaymentProof } from '../firebase/guests'
+import { saveUserInvitation } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { canSubmitPaymentProof, holdMsRemaining, isHoldExpired } from '../utils/reservation'
@@ -119,6 +120,26 @@ function GuestPassInner() {
           setGuest(guestData)
           if (guestData.status === 'checked_in') setCheckInState('already')
           return
+        }
+
+        // Vincula (o revincula) este pase a "Mis invitaciones" cada vez que su
+        // dueño lo abre logueado — cubre tanto al que se autoregistró sin
+        // cuenta y la creó después (EventJoin.tsx solo guarda esto si YA
+        // estaba logueado al registrarse, así que ese caso nunca queda
+        // guardado si no se repite acá) como a cualquier invitado de lista
+        // que recién ahora abre sesión. `saveUserInvitation` es un upsert
+        // (merge:true), así que repetirlo en cada vista es inofensivo.
+        if (user) {
+          void saveUserInvitation(user.uid, {
+            eventId,
+            eventName: eventData.name,
+            eventDate: eventData.date,
+            eventLocation: eventData.location,
+            eventCoverImage: eventData.coverImage,
+            guestName: guestData.isGroup ? guestData.name : `${guestData.name} ${guestData.lastName || ''}`.trim(),
+            qrToken: guestData.qrToken,
+            type: 'walkin',
+          })
         }
 
         const storageKey = `paselink_lock_${eventId}_${qrToken}`

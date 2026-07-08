@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react'
 import { addGuest, addGuestsBulk } from '../firebase/guests'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
-import { GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
+import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
 import { captureException } from '../lib/sentry'
-import type { CompanionData, GuestData } from '../types'
+import type { CompanionData, CustomField, GuestData } from '../types'
 
 function normalizeName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -19,12 +19,14 @@ function parseBulkNames(raw: string): string[] {
 
 type PendingDuplicate = { type: 'single' } | { type: 'group' } | { type: 'bulk'; duplicates: string[] }
 
-export function GuestAddForm({ eventId, guests }: { eventId: string; guests: GuestData[] }) {
+export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: string; guests: GuestData[]; customFields?: CustomField[] }) {
   const [mode, setMode] = useState<'single' | 'group' | 'bulk'>('single')
   const [name, setName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
   const [companions, setCompanions] = useState<CompanionData[]>([])
+  const [customValues, setCustomValues] = useState<Record<string, string>>({})
+  const [groupCustomValues, setGroupCustomValues] = useState<Record<string, string>>({})
   const [groupName, setGroupName] = useState('')
   const [memberCount, setMemberCount] = useState(2)
   const [bulkNames, setBulkNames] = useState('')
@@ -58,7 +60,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
     setWaitlistedMsg('')
     try {
       const fullName = `${name.trim()} ${lastName.trim()}`
-      const result = await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions })
+      const result = await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions, customData: customValues })
       if (result.status === 'waitlisted') {
         setWaitlistedMsg(`El cupo está lleno — ${fullName} se agregó a la lista de espera en vez de a los invitados.`)
       }
@@ -66,6 +68,7 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
       setLastName('')
       setPhone('')
       setCompanions([])
+      setCustomValues({})
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_single' } })
       setError(err instanceof Error ? err.message : 'No se pudo agregar el invitado. Intenta de nuevo.')
@@ -99,12 +102,14 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
         name: trimmedGroupName,
         companions: Array.from({ length: Math.max(0, memberCount - 1) }, () => ({})),
         isGroup: true,
+        customData: groupCustomValues,
       })
       if (result.status === 'waitlisted') {
         setWaitlistedMsg(`El cupo está lleno — ${trimmedGroupName} se agregó a la lista de espera en vez de a los invitados.`)
       }
       setGroupName('')
       setMemberCount(2)
+      setGroupCustomValues({})
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_group' } })
       setError(err instanceof Error ? err.message : 'No se pudo agregar la familia o grupo. Intenta de nuevo.')
@@ -227,6 +232,22 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
 
           <CompanionFieldsEditor companions={companions} onChange={setCompanions} />
 
+          {customFields.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {customFields.map((field) => (
+                <input
+                  key={field.id}
+                  type="text"
+                  placeholder={field.label}
+                  maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
+                  value={customValues[field.id] || ''}
+                  onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              ))}
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -262,6 +283,22 @@ export function GuestAddForm({ eventId, guests }: { eventId: string; guests: Gue
             Se genera un solo pase con un único código QR para todo el grupo — al escanearlo en la entrada, se suman
             los {memberCount} integrantes de una vez.
           </p>
+
+          {customFields.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {customFields.map((field) => (
+                <input
+                  key={field.id}
+                  type="text"
+                  placeholder={field.label}
+                  maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
+                  value={groupCustomValues[field.id] || ''}
+                  onChange={(e) => setGroupCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              ))}
+            </div>
+          )}
 
           <button
             type="submit"
