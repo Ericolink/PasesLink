@@ -16,6 +16,7 @@ export function useGuestStats(guests: GuestData[], ticketPrice: number) {
         .reduce((sum, g) => sum + ticketPrice * partySize(g), 0),
       rsvpYes: guests.filter((g) => g.rsvpStatus === 'yes').length,
       rsvpNo: guests.filter((g) => g.rsvpStatus === 'no').length,
+      rsvpPending: guests.filter((g) => g.rsvpStatus === 'pending').length,
     }
   }, [guests, ticketPrice])
 }

@@ -17,14 +17,13 @@ import { GuestSearchSheet } from '../components/GuestSearchSheet'
 import { EditEventForm } from '../components/EditEventForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { SkeletonBlock } from '../components/Skeleton'
-import { EventAnalytics } from '../components/EventAnalytics'
 import { ReminderSection } from '../components/ReminderSection'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { EventCountdown } from '../components/EventCountdown'
+import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { formatDate, formatTime12h } from '../utils/time'
-import { attendancePercent } from '../utils/attendance'
 import {
   IconCalendar,
   IconCheck,
@@ -44,7 +43,7 @@ export function EventDetail() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const { event, guests, loading, guestsLoading, error } = useEvent(eventId)
+  const { event, guests, loading, error } = useEvent(eventId)
   useDocumentTitle(event?.name || 'Evento')
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -100,7 +99,9 @@ export function EventDetail() {
   // en el propio botón disparador) para el badge de "Buscar y filtrar".
   const activeFilterCount = (statusFilter !== 'all' ? 1 : 0) + (sortBy !== 'newest' ? 1 : 0)
 
-  const { totalPeople, totalCollected, rsvpYes, rsvpNo } = useGuestStats(guests, event?.ticketPrice ?? 0)
+  // Solo `totalPeople` se usa aquí (aviso de cupo) — el resto de las métricas
+  // que este hook expone (recaudado, RSVP) ahora se consumen desde Reports.tsx.
+  const { totalPeople } = useGuestStats(guests, event?.ticketPrice ?? 0)
 
   if (loading) {
     return (
@@ -377,95 +378,31 @@ export function EventDetail() {
         </div>
       )}
 
-      {/* ── ESTADÍSTICAS PRINCIPALES ── */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <MetricCard
-          label="Registrados"
-          value={event.guestCount}
-          sub={`${totalPeople} personas en total`}
+      {/* ── RESUMEN RÁPIDO ── el detalle analítico completo (métricas, RSVP,
+          recaudado, hora pico, línea de tiempo) vive en Reportes; acá solo el
+          estado operativo que hace falta de un vistazo mientras se gestiona
+          el evento. */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-3">
+        <AttendanceProgressBar
+          present={event.checkedInCount}
+          expected={totalPeople}
+          unitLabel="check-ins"
+          showPercentage
         />
-        <MetricCard
-          label="Escaneados"
-          value={event.checkedInCount}
-          // % sobre personas totales (totalPeople, ya suma partySize de cada
-          // invitado/familia), no sobre guestCount (cantidad de invitaciones/
-          // documentos) — checkedInCount es un conteo de PERSONAS (ver
-          // partySize en checkInGuest), dividirlo por la cantidad de
-          // invitaciones daba porcentajes >100% en cuanto había acompañantes
-          // o familias con varios integrantes.
-          sub={totalPeople > 0
-            ? `${Math.round(attendancePercent(event.checkedInCount, totalPeople))}% del total`
-            : undefined}
-          valueClass="text-green-600 dark:text-green-400"
-        />
-        {event.requiresPayment && (
-          <MetricCard
-            label="Pagados"
-            value={event.paidCount}
-            sub={totalPeople > 0
-              ? `${Math.round(attendancePercent(event.paidCount, totalPeople))}% del total`
-              : undefined}
-            valueClass="text-emerald-600 dark:text-emerald-400"
-          />
-        )}
-        <MetricCard
-          label="Dentro ahora"
-          value={event.occupancyCount}
-          valueClass="text-primary"
-        />
-        <MetricCard
-          label="Pendientes"
-          value={Math.max(0, totalPeople - event.checkedInCount)}
-        />
+        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mt-3">
+          <span>{event.guestCount} registrados</span>
+          <span className="text-primary font-medium">{event.occupancyCount} dentro ahora</span>
+        </div>
       </div>
 
-      {/* Aviso siempre visible (no enterrado en "Más estadísticas") — el
-          cupo es solo una capacidad recomendada, informativa, nunca bloquea
-          nuevos registros. */}
+      {/* Aviso siempre visible — el cupo es solo una capacidad recomendada,
+          informativa, nunca bloquea nuevos registros. */}
       {event.capacity > 0 && totalPeople > event.capacity && (
-        <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-4 py-3 mb-3">
+        <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-4 py-3 mb-5">
           Este evento superó su cupo recomendado ({totalPeople} / {event.capacity} personas). Los nuevos registros
           siguen entrando — el ingreso el día del evento dependerá del orden de llegada.
         </p>
       )}
-
-      {/* Estadísticas secundarias + cupo (colapsable) */}
-      <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 mb-5">
-        <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none list-none text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-          <span className="font-medium">Más estadísticas</span>
-          <span className="text-xs opacity-60">
-            <span className="group-open:hidden">▾ Ver</span>
-            <span className="hidden group-open:inline">▴ Ocultar</span>
-          </span>
-        </summary>
-        <div className="border-t border-gray-100 dark:border-gray-700 p-4">
-          <div className="grid grid-cols-2 gap-3">
-            <MetricCard label="Asistirán" value={rsvpYes} />
-            <MetricCard label="No asistirán" value={rsvpNo} />
-            {event.requiresPayment && (
-              <MetricCard
-                label={`Recaudado (${event.currency})`}
-                value={totalCollected}
-                valueClass="text-green-600 dark:text-green-400"
-              />
-            )}
-          </div>
-          {event.capacity > 0 && (
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-                <span>Cupo recomendado del evento</span>
-                <span className="font-semibold">{totalPeople} / {event.capacity}</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${attendancePercent(totalPeople, event.capacity)}%` }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </details>
 
       {/* ── GESTIÓN DE INVITADOS ── */}
       <div id="add-guests" className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden mb-5">
@@ -556,22 +493,6 @@ export function EventDetail() {
       {guests.length > 0 && (
         <ReminderSection event={event} guests={guests} />
       )}
-
-      {/* ── ANALÍTICA (colapsable) ── */}
-      <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 mb-5">
-        <summary className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-            Analítica
-          </span>
-          <span className="text-xs text-gray-400">
-            <span className="group-open:hidden">▾ Ver</span>
-            <span className="hidden group-open:inline">▴ Ocultar</span>
-          </span>
-        </summary>
-        <div className="border-t border-gray-100 dark:border-gray-700 p-5">
-          <EventAnalytics guests={guests} loading={guestsLoading} />
-        </div>
-      </details>
 
       {/* ── RESUMEN DE CHECK-INS ── */}
       {isOwner && organizerNotifyEnabled && checkinsThisSession.length > 0 && (
@@ -712,27 +633,6 @@ export function EventDetail() {
   }
 
   return <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">{content}</div>
-}
-
-// Tarjeta de métrica: etiqueta arriba, número grande abajo.
-function MetricCard({
-  label,
-  value,
-  sub,
-  valueClass = 'text-gray-900 dark:text-white',
-}: {
-  label: string
-  value: number
-  sub?: string
-  valueClass?: string
-}) {
-  return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-      <p className={`text-2xl font-bold tabular-nums ${valueClass}`}>{value}</p>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{label}</p>
-      {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 leading-tight">{sub}</p>}
-    </div>
-  )
 }
 
 // Píldora de estado con punto de color.

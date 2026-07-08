@@ -5,6 +5,7 @@ import { partySize } from '../firebase/guests'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useGuestStats } from '../hooks/useGuestStats'
 import { attendancePercent } from '../utils/attendance'
 import type { CheckinLog } from '../types'
 import { RSVP_LABELS } from '../types'
@@ -12,6 +13,8 @@ import { IconCheck, IconCornerUpLeft } from '../components/Icons'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { LoadingInline } from '../components/LoadingInline'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { StatCard } from '../components/StatCard'
+import { EventAnalytics } from '../components/EventAnalytics'
 
 export function Reports() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -20,6 +23,11 @@ export function Reports() {
   useDocumentTitle(event ? `Reportes · ${event.name}` : 'Reportes')
   const [checkins, setCheckins] = useState<CheckinLog[]>([])
   const [checkinsLoading, setCheckinsLoading] = useState(true)
+
+  // Mismo cálculo que usaba EventDetail.tsx antes del rediseño dashboard/
+  // reportes — se llama sin condicionales (regla de hooks) aunque `event`
+  // todavía pueda ser null en el primer render.
+  const { totalPeople, totalCollected, rsvpYes, rsvpNo, rsvpPending } = useGuestStats(guests, event?.ticketPrice ?? 0)
 
   // Resetea el loading al cambiar de evento, antes de (re)suscribirse —
   // necesario para no mostrar datos del evento anterior como si fueran del nuevo.
@@ -55,17 +63,6 @@ export function Reports() {
       </div>
     )
   }
-  // checkedInCount/peopleCount son conteos de PERSONAS (partySize suma
-  // acompañantes/familias) — dividir checkedInCount por guestCount (conteo de
-  // invitaciones) daba porcentajes de más de 100% en cuanto un invitado tenía
-  // acompañantes. Ver comentario de `attendancePercent`.
-  const attendanceRate = Math.round(attendancePercent(event.checkedInCount, event.peopleCount))
-  // Personas pendientes, no invitaciones pendientes — mismo criterio que
-  // "Pendientes" en EventDetail.tsx, para que ambas pantallas coincidan.
-  const peoplePending = Math.max(0, event.peopleCount - event.checkedInCount)
-  const rsvpYes = guests.filter((g) => g.rsvpStatus === 'yes').length
-  const rsvpNo = guests.filter((g) => g.rsvpStatus === 'no').length
-  const rsvpPending = guests.filter((g) => g.rsvpStatus === 'pending').length
 
   const checkIns = checkins.filter((c) => c.type === 'check_in')
   const hourCounts = new Map<string, number>()
@@ -100,71 +97,127 @@ export function Reports() {
   const content = (
     <>
       <ScreenHeader title="Reportes" backTo={`/events/${event.id}`} />
-      <p className="text-sm text-gray-500 -mt-2 mb-6">{event.name}</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-6">{event.name}</p>
 
+      {/* ── ESTADÍSTICAS PRINCIPALES ── (extraído de EventDetail.tsx, misma
+          fórmula de cada valor, solo que ahora vive acá) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-        <Stat label="Invitados" value={event.guestCount} />
-        <Stat label="Confirmados" value={event.checkedInCount} color="text-green-600" />
-        <Stat label="Pendientes" value={peoplePending} color="text-gray-400" />
-        <Stat label="Asistencia" value={`${attendanceRate}%`} />
+        <StatCard
+          label="Registrados"
+          value={event.guestCount}
+          sub={`${totalPeople} personas en total`}
+        />
+        <StatCard
+          label="Escaneados"
+          value={event.checkedInCount}
+          // % sobre personas totales (totalPeople, ya suma partySize de cada
+          // invitado/familia), no sobre guestCount (cantidad de invitaciones/
+          // documentos) — checkedInCount es un conteo de PERSONAS, dividirlo
+          // por la cantidad de invitaciones daba porcentajes >100% en cuanto
+          // había acompañantes o familias con varios integrantes.
+          sub={totalPeople > 0
+            ? `${Math.round(attendancePercent(event.checkedInCount, totalPeople))}% del total`
+            : undefined}
+          valueClass="text-green-600 dark:text-green-400"
+        />
+        {event.requiresPayment && (
+          <StatCard
+            label="Pagados"
+            value={event.paidCount}
+            sub={totalPeople > 0
+              ? `${Math.round(attendancePercent(event.paidCount, totalPeople))}% del total`
+              : undefined}
+            valueClass="text-emerald-600 dark:text-emerald-400"
+          />
+        )}
+        <StatCard label="Dentro ahora" value={event.occupancyCount} valueClass="text-primary" />
+        <StatCard label="Pendientes" value={Math.max(0, totalPeople - event.checkedInCount)} />
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <Stat label="Asistirán" value={rsvpYes} color="text-primary" />
-        <Stat label="No asistirán" value={rsvpNo} color="text-gray-400" />
-        <Stat label="Sin responder" value={rsvpPending} color="text-gray-400" />
+      {/* Cupo recomendado (informativo, nunca bloquea nuevos registros) */}
+      {event.capacity > 0 && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-6">
+          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+            <span>Cupo recomendado del evento</span>
+            <span className="font-semibold">{totalPeople} / {event.capacity}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${attendancePercent(totalPeople, event.capacity)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── CONFIRMACIONES Y PAGOS ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <StatCard label="Asistirán" value={rsvpYes} valueClass="text-primary" />
+        <StatCard label="No asistirán" value={rsvpNo} />
+        <StatCard label="Sin responder" value={rsvpPending} />
+        {event.requiresPayment && (
+          <StatCard
+            label={`Recaudado (${event.currency})`}
+            value={totalCollected}
+            valueClass="text-green-600 dark:text-green-400"
+          />
+        )}
       </div>
 
-      <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
-        <h2 className="font-medium text-gray-900 mb-3">Llegadas por hora</h2>
+      {/* ── ACTIVIDAD DE LLEGADA ── (extraído de EventDetail.tsx, mismo
+          componente reutilizado, sin cambios en su lógica interna) */}
+      <EventAnalytics guests={guests} loading={guestsLoading} />
+
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
+        <h2 className="font-medium text-gray-900 dark:text-white mb-3">Llegadas por hora</h2>
         {checkinsLoading ? (
           <LoadingInline label="Cargando asistentes…" />
         ) : hourEntries.length === 0 ? (
-          <p className="text-sm text-gray-500">Aún no hay check-ins registrados.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Aún no hay check-ins registrados.</p>
         ) : (
           <div className="space-y-2">
             {hourEntries.map(([hour, count]) => (
               <div key={hour} className="flex items-center gap-2 text-sm">
-                <span className="w-12 text-gray-500">{hour}</span>
-                <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                <span className="w-12 text-gray-500 dark:text-gray-400">{hour}</span>
+                <div className="flex-1 h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full"
                     style={{ width: `${(count / maxHourCount) * 100}%` }}
                   />
                 </div>
-                <span className="w-8 text-right text-gray-700">{count}</span>
+                <span className="w-8 text-right text-gray-700 dark:text-gray-300">{count}</span>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium text-gray-900">Detalle por invitado</h2>
+          <h2 className="font-medium text-gray-900 dark:text-white">Detalle por invitado</h2>
           <button onClick={exportCsv} className="text-sm text-primary font-medium">
             Exportar CSV
           </button>
         </div>
         {guestsLoading && <LoadingInline label="Cargando asistentes…" />}
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
           {!guestsLoading && guests.map((guest) => (
             <div key={guest.id} className="flex items-center justify-between py-2 text-sm gap-2">
-              <span className="text-gray-900">
+              <span className="text-gray-900 dark:text-white">
                 {guest.isGroup ? (
                   <>
                     {guest.name}
-                    <span className="text-gray-400"> · {partySize(guest)} integrantes</span>
+                    <span className="text-gray-400 dark:text-gray-500"> · {partySize(guest)} integrantes</span>
                   </>
                 ) : (
                   <>
                     {guest.name} {guest.lastName}
-                    {guest.companions.length > 0 && <span className="text-gray-400"> +{guest.companions.length}</span>}
+                    {guest.companions.length > 0 && <span className="text-gray-400 dark:text-gray-500"> +{guest.companions.length}</span>}
                   </>
                 )}
               </span>
-              <span className="text-gray-400 text-xs">{RSVP_LABELS[guest.rsvpStatus]}</span>
-              <span className="text-gray-500 text-right">
+              <span className="text-gray-400 dark:text-gray-500 text-xs">{RSVP_LABELS[guest.rsvpStatus]}</span>
+              <span className="text-gray-500 dark:text-gray-400 text-right">
                 {guest.status === 'checked_in' && guest.checkedInAt ? (
                   <>
                     Entró {new Date(guest.checkedInAt).toLocaleTimeString()}
@@ -181,30 +234,30 @@ export function Reports() {
         </div>
       </div>
 
-      <div className="border border-gray-200 rounded-lg bg-white p-4">
-        <h2 className="font-medium text-gray-900 mb-3">Línea de tiempo</h2>
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4">
+        <h2 className="font-medium text-gray-900 dark:text-white mb-3">Línea de tiempo</h2>
         {checkinsLoading ? (
           <LoadingInline label="Cargando asistentes…" />
         ) : checkins.length === 0 ? (
-          <p className="text-sm text-gray-500">Aún no hay check-ins registrados.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Aún no hay check-ins registrados.</p>
         ) : (
           <ul className="text-sm space-y-1">
             {checkins.map((c) => (
-              <li key={c.id} className="flex justify-between text-gray-700">
+              <li key={c.id} className="flex justify-between text-gray-700 dark:text-gray-300">
                 <span className="inline-flex items-center gap-1.5">
                   {c.type === 'check_out' ? (
-                    <IconCornerUpLeft className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <IconCornerUpLeft className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0" />
                   ) : (
-                    <IconCheck className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                    <IconCheck className="w-3.5 h-3.5 text-green-600 dark:text-green-400 shrink-0" />
                   )}
                   {c.guestName}
                   {c.type === 'check_out' && (
-                    <span className="text-gray-400"> · {c.exitKind === 'final' ? 'salida definitiva' : 'salida temporal'}</span>
+                    <span className="text-gray-400 dark:text-gray-500"> · {c.exitKind === 'final' ? 'salida definitiva' : 'salida temporal'}</span>
                   )}
-                  {c.type === 'check_in' && c.reentry && <span className="text-gray-400"> · reingreso</span>}
-                  {c.scannedByEmail && <span className="text-gray-400"> · {c.scannedByEmail}</span>}
+                  {c.type === 'check_in' && c.reentry && <span className="text-gray-400 dark:text-gray-500"> · reingreso</span>}
+                  {c.scannedByEmail && <span className="text-gray-400 dark:text-gray-500"> · {c.scannedByEmail}</span>}
                 </span>
-                <span className="text-gray-400">{new Date(c.timestamp).toLocaleTimeString()}</span>
+                <span className="text-gray-400 dark:text-gray-500">{new Date(c.timestamp).toLocaleTimeString()}</span>
               </li>
             ))}
           </ul>
@@ -219,14 +272,5 @@ export function Reports() {
     </InvitationThemeRoot>
   ) : (
     <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">{content}</div>
-  )
-}
-
-function Stat({ label, value, color }: { label: string; value: number | string; color?: string }) {
-  return (
-    <div className="invite-stat-card border border-gray-200 rounded-lg p-3 bg-white text-center">
-      <p className={`text-2xl font-semibold ${color || 'text-gray-900'}`}>{value}</p>
-      <p className="text-xs text-gray-500">{label}</p>
-    </div>
   )
 }
