@@ -33,6 +33,7 @@ export function Login() {
   }
 
   async function handleGoogle() {
+    if (loading) return
     setErrorInfo(null)
     setLoading(true)
     try {

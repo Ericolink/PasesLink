@@ -71,6 +71,7 @@ export function Register() {
   }
 
   async function handleGoogle() {
+    if (loading) return
     setErrorInfo(null)
     setLoading(true)
     try {
