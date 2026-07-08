@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { PhotoData } from '../firebase/photos'
 import { optimizedImageUrl } from '../utils/cloudinary'
+import { useScrollLock } from '../hooks/useScrollLock'
 import { IconX, IconArrowLeft } from './Icons'
 import { ProgressiveImage } from './ProgressiveImage'
 
@@ -107,6 +109,8 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, photos.length])
 
+  useScrollLock(true)
+
   if (!photo) return null
 
   function handleTouchStart(e: React.TouchEvent) {
@@ -132,11 +136,26 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
     else if (deltaX < -SWIPE_THRESHOLD_PX) goNext()
   }
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col" onClick={isStory ? undefined : onClose}>
+  // Portal a document.body: montado in-place, este `fixed inset-0` quedaba a
+  // veces mal posicionado porque GuestPass/EventWall envuelven el muro en
+  // InvitationThemeRoot, que aplica una clase de entrada con `transform`
+  // (fade-in-up/bounce-in/slide-in-up, fill-mode `both`) al contenedor padre.
+  // Un ancestro con `transform` distinto de `none` pasa a ser el containing
+  // block de sus descendientes `position: fixed` (spec CSS), así que el
+  // visor terminaba posicionado contra el alto de toda la página en vez del
+  // viewport — de ahí el fondo oscurecido "bien" pero la imagen desplazada
+  // hacia abajo, visible solo haciendo scroll. Portaling saca el visor de ese
+  // subárbol por completo, así que es inmune a cualquier transform/filter
+  // que un wrapper de tema (actual o futuro) le ponga a sus ancestros.
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 bg-black flex flex-col"
+      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      onClick={isStory ? undefined : onClose}
+    >
       {/* Progress bars — solo story */}
       {isStory && (
-        <div className="flex gap-1 px-3 pt-safe pt-3">
+        <div className="flex gap-1 px-3 pt-3">
           {photos.map((_, i) => (
             <div key={i} className="h-0.5 flex-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,.3)' }}>
               <div
@@ -149,7 +168,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 pt-safe" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center justify-between px-4 py-2" onClick={(e) => e.stopPropagation()}>
         <span className="text-white text-sm font-medium">
           {isStory ? photo.authorName : `${index + 1} / ${photos.length}`}
         </span>
@@ -222,7 +241,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
       </div>
 
       {/* Caption / footer */}
-      <div className="text-center pb-safe pb-6 px-6" onClick={(e) => e.stopPropagation()}>
+      <div className="text-center pb-6 px-6" onClick={(e) => e.stopPropagation()}>
         {photo.caption && <p className="text-white/80 text-sm mb-1">{photo.caption}</p>}
         {!isStory && <p className="text-white/50 text-xs">{photo.authorName}</p>}
         {!isStory && isOrg && onDelete && (
@@ -234,6 +253,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

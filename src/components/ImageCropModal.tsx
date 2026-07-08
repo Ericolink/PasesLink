@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import Cropper, { type Area } from 'react-easy-crop'
 import { useModalA11y } from '../hooks/useModalA11y'
+import { useScrollLock } from '../hooks/useScrollLock'
 import { cropImageToBlob } from '../utils/imageCrop'
 
 interface Props {
@@ -23,28 +24,7 @@ export function ImageCropModal({ imageSrc, aspect, cropShape = 'rect', maxOutput
   // El padre monta/desmonta este componente en vez de pasar un flag `open`
   // interno — el montaje ya equivale a "abierto", por eso `true` fijo.
   const dialogRef = useModalA11y<HTMLDivElement>(true, onCancel)
-
-  // Bloqueo de scroll robusto para iOS Safari: `overflow: hidden` en el body
-  // NO alcanza ahí (Safari sigue permitiendo scroll por touchmove), lo que
-  // deja que la barra de direcciones colapse/expanda mientras el usuario
-  // arrastra o hace pinch-zoom dentro del cropper — y con eso, el modal
-  // `fixed` puede recalcular su layout contra un viewport distinto al que
-  // tenía al montarse, empujando el header fuera de la pantalla visible.
-  // Fijar el body en su posición actual elimina esa fuente de scroll.
-  useEffect(() => {
-    const scrollY = window.scrollY
-    const { body } = document
-    const prev = { position: body.style.position, top: body.style.top, width: body.style.width }
-    body.style.position = 'fixed'
-    body.style.top = `-${scrollY}px`
-    body.style.width = '100%'
-    return () => {
-      body.style.position = prev.position
-      body.style.top = prev.top
-      body.style.width = prev.width
-      window.scrollTo(0, scrollY)
-    }
-  }, [])
+  useScrollLock(true)
 
   const onCropComplete = useCallback((_: Area, areaPixels: Area) => {
     setCroppedArea(areaPixels)
