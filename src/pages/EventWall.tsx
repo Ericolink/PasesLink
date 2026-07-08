@@ -15,6 +15,7 @@ import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
+import { markWallSeen } from '../hooks/useWallActivity'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { WALL_NAME_MAX, WALL_TEXT_MAX } from '../utils/validation'
 import { mergeWallFeed } from '../utils/wallFeed'
@@ -129,6 +130,7 @@ export function EventWall() {
 
   useEffect(() => {
     if (!id) return
+    markWallSeen(id)
     getEvent(id).then(setEvent)
     const unsub = subscribeToWall(id, (msgs) => {
       setMessages(msgs)

@@ -9,6 +9,7 @@ import { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { useGuestStats } from '../hooks/useGuestStats'
 import { useCheckinSessionAccumulator } from '../hooks/useCheckinSessionAccumulator'
 import { useModalA11y } from '../hooks/useModalA11y'
+import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { deleteEvent, setEventStatus } from '../firebase/events'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
@@ -55,6 +56,7 @@ export function EventDetail() {
   const [manageCoOrgOpen, setManageCoOrgOpen] = useState(false)
   const [removingCoOrg, setRemovingCoOrg] = useState<{ uid: string; email: string } | null>(null)
   const checkinToast = useCheckinToast(eventId)
+  const hasUnseenWallMessage = useHasUnseenWallMessage(eventId)
   const { exporting, exportProgress, exportPdfError, handleExportPdf, handleCancelExportPdf, handleExportCsv } =
     useEventExport(event, guests)
   const {
@@ -352,9 +354,12 @@ export function EventDetail() {
         </Link>
         <Link
           to={`/events/${event.id}/wall`}
-          className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
+          className="relative border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
         >
           Muro
+          {hasUnseenWallMessage && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
+          )}
         </Link>
         <Link
           to={`/events/${event.id}/reports`}

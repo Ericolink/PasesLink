@@ -95,6 +95,34 @@ export function subscribeToWall(
   }
 }
 
+// Un solo listener con limit(1), no las 2 suscripciones de subscribeToWall
+// (recent + pinned) — pensado para el puntito de "mensaje nuevo" en
+// EventDetail.tsx (organizador), que se monta mucho más seguido que el muro
+// mismo y no necesita el feed completo, solo saber si hay algo más nuevo que
+// lo último que se vio (ver useWallActivity.ts).
+export function subscribeToLatestWallMessage(
+  eventId: string,
+  callback: (message: WallMessage | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  // limit(5), no 1: los borrados son soft-delete (`deleted: true`, se filtran
+  // acá) — si el post más reciente estuviera borrado, limit(1) lo devolvería
+  // vacío y ocultaría actividad real más vieja que sí sigue sin verse.
+  const q = query(
+    collection(db, 'events', eventId, 'wall'),
+    orderBy('createdAt', 'desc'),
+    limit(5),
+  )
+  return onSnapshot(
+    q,
+    (snap) => {
+      const doc = snap.docs.find((d) => !d.data().deleted)
+      callback(doc ? mapMessage(doc.id, doc.data()) : null)
+    },
+    withListenerReporting('wall.latest', onError),
+  )
+}
+
 // Variante sin listener: una sola lectura (recent + pinned, mismo criterio
 // que subscribeToWall) en vez de una suscripción permanente. Pensada para
 // widgets embebidos en páginas públicas de alto tráfico (WallSection en
