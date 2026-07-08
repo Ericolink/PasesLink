@@ -88,7 +88,11 @@ export function Dashboard() {
       setEvents(data)
       setLoading(false)
       data.forEach((ev) => {
-        if (ev.status === 'active' && isEventPast(ev.date) && !archivingRef.current.has(ev.id)) {
+        // Solo el dueño puede escribir `status` (ver firestore.rules) — ahora
+        // que esta lista también trae eventos co-organizados (subscribeToUserEvents
+        // fusiona ambos), sin este chequeo un co-anfitrión intentaría archivar
+        // el evento de otro y le rebotaría permission-denied en cada snapshot.
+        if (ev.status === 'active' && isEventPast(ev.date) && ev.ownerId === user.uid && !archivingRef.current.has(ev.id)) {
           archivingRef.current.add(ev.id)
           setEventStatus(ev.id, 'archived').catch((err) => {
             archivingRef.current.delete(ev.id)
@@ -304,8 +308,8 @@ export function Dashboard() {
             index={i}
             isLoading={actionLoading === event.id}
             onNavigate={() => navigate(`/events/${event.id}`)}
-            onCancel={() => handleStatusChange(event.id, 'cancelled')}
-            onDelete={() => setConfirmDeleteId(event.id)}
+            onCancel={event.ownerId === user?.uid ? () => handleStatusChange(event.id, 'cancelled') : undefined}
+            onDelete={event.ownerId === user?.uid ? () => setConfirmDeleteId(event.id) : undefined}
           />
         ))}
       </div>
@@ -330,8 +334,8 @@ export function Dashboard() {
                   past
                   isLoading={actionLoading === event.id}
                   onNavigate={() => navigate(`/events/${event.id}`)}
-                  onReactivate={event.status !== 'active' ? () => handleStatusChange(event.id, 'active') : undefined}
-                  onDelete={() => setConfirmDeleteId(event.id)}
+                  onReactivate={event.status !== 'active' && event.ownerId === user?.uid ? () => handleStatusChange(event.id, 'active') : undefined}
+                  onDelete={event.ownerId === user?.uid ? () => setConfirmDeleteId(event.id) : undefined}
                 />
               ))}
             </div>
@@ -368,7 +372,7 @@ interface EventCardProps {
   onNavigate: () => void
   onCancel?: () => void
   onReactivate?: () => void
-  onDelete: () => void
+  onDelete?: () => void
 }
 
 function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReactivate, onDelete }: EventCardProps) {
@@ -460,14 +464,16 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
                 Reactivar
               </button>
             )}
-            <button
-              onClick={onDelete}
-              disabled={isLoading}
-              className="text-xs px-2.5 py-2 rounded-md transition-colors disabled:opacity-40"
-              style={{ background: 'rgba(255,20,100,.1)', border: '1px solid rgba(255,20,100,.3)', color: '#FF1464' }}
-            >
-              {isLoading ? '…' : 'Eliminar'}
-            </button>
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                disabled={isLoading}
+                className="text-xs px-2.5 py-2 rounded-md transition-colors disabled:opacity-40"
+                style={{ background: 'rgba(255,20,100,.1)', border: '1px solid rgba(255,20,100,.3)', color: '#FF1464' }}
+              >
+                {isLoading ? '…' : 'Eliminar'}
+              </button>
+            )}
           </div>
         </div>
       </div>

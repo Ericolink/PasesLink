@@ -7,7 +7,6 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -86,19 +85,45 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
   return ref.id
 }
 
+// "Mis eventos" tiene que incluir tanto los eventos propios como aquellos
+// donde el usuario es co-organizador (coOrganizersMap, ver addCoOrganizer) —
+// antes solo filtraba por ownerId, así que un co-anfitrión agregado nunca
+// veía el evento en su propio menú aunque sí tuviera acceso de edición vía
+// firestore.rules. Dos listeners separados (Firestore no permite un OR entre
+// un campo simple y una key de mapa en la misma query) fusionados por id, sin
+// orderBy en ninguno de los dos para no requerir un índice compuesto — el
+// orden final se resuelve acá, sobre la lista ya combinada.
 export function subscribeToUserEvents(
-  ownerId: string,
+  uid: string,
   callback: (events: EventData[]) => void,
 ): Unsubscribe {
-  const q = query(
-    collection(db, 'events'),
-    where('ownerId', '==', ownerId),
-    orderBy('createdAt', 'desc'),
-  )
-  return onSnapshot(q, (snapshot) => {
-    const events = snapshot.docs.map((d) => mapEvent(d.id, d.data()))
-    callback(events)
-  }, withListenerReporting('userEvents'))
+  let owned: EventData[] | null = null
+  let coOrganized: EventData[] | null = null
+
+  function emitIfReady() {
+    if (owned === null || coOrganized === null) return
+    const merged = new Map<string, EventData>()
+    for (const ev of owned) merged.set(ev.id, ev)
+    for (const ev of coOrganized) merged.set(ev.id, ev)
+    callback(Array.from(merged.values()).sort((a, b) => b.createdAt - a.createdAt))
+  }
+
+  const ownedQuery = query(collection(db, 'events'), where('ownerId', '==', uid))
+  const unsubOwned = onSnapshot(ownedQuery, (snapshot) => {
+    owned = snapshot.docs.map((d) => mapEvent(d.id, d.data()))
+    emitIfReady()
+  }, withListenerReporting('userEvents.owned'))
+
+  const coOrgQuery = query(collection(db, 'events'), where(`coOrganizersMap.${uid}`, '!=', null))
+  const unsubCoOrganized = onSnapshot(coOrgQuery, (snapshot) => {
+    coOrganized = snapshot.docs.map((d) => mapEvent(d.id, d.data()))
+    emitIfReady()
+  }, withListenerReporting('userEvents.coOrganized'))
+
+  return () => {
+    unsubOwned()
+    unsubCoOrganized()
+  }
 }
 
 export function subscribeToEvent(
