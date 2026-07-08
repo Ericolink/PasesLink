@@ -52,6 +52,7 @@ export function EventDetail() {
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'az' | 'za'>('newest')
   const [guestSearchSheetOpen, setGuestSearchSheetOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(false)
+  const [manageCoOrgOpen, setManageCoOrgOpen] = useState(false)
   const [removingCoOrg, setRemovingCoOrg] = useState<{ uid: string; email: string } | null>(null)
   const checkinToast = useCheckinToast(eventId)
   const { exporting, exportProgress, exportPdfError, handleExportPdf, handleCancelExportPdf, handleExportCsv } =
@@ -232,17 +233,36 @@ export function EventDetail() {
               {event.name}
             </h1>
             {isOwner && (
-              <button
-                onClick={() => setEditingEvent((v) => !v)}
-                aria-label="Editar evento"
-                className={`shrink-0 p-2 rounded-lg transition-colors ${
-                  editingEvent
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <IconEdit className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setEditingEvent((v) => !v)}
+                  aria-label="Editar evento"
+                  className={`p-2 rounded-lg transition-colors ${
+                    editingEvent
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <IconEdit className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setManageCoOrgOpen((v) => !v)}
+                  aria-label="Coorganizadores"
+                  title="Coorganizadores"
+                  className={`relative p-2 rounded-lg transition-colors ${
+                    manageCoOrgOpen
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <IconUserPlus className="w-4 h-4" />
+                  {Object.entries(coOrgsMap).length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                      {Object.entries(coOrgsMap).length}
+                    </span>
+                  )}
+                </button>
+              </div>
             )}
           </div>
 
@@ -276,6 +296,49 @@ export function EventDetail() {
       {isOwner && editingEvent && (
         <div className="mb-5">
           <EditEventForm event={event} onDone={() => setEditingEvent(false)} />
+        </div>
+      )}
+
+      {/* Gestión de co-organizadores (inline, visible al hacer clic en el ícono junto al lápiz) */}
+      {isOwner && manageCoOrgOpen && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-5 animate-fade-in-up">
+          <h2 className="font-medium text-gray-900 dark:text-white mb-1">Coorganizadores</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Permite a otras personas escanear pases y ver el evento.
+          </p>
+          {Object.entries(coOrgsMap).length > 0 && (
+            <div className="space-y-2 mb-3">
+              {Object.entries(coOrgsMap).map(([uid, email]) => (
+                <div key={uid} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{email}</span>
+                  <button
+                    onClick={() => setRemovingCoOrg({ uid, email })}
+                    aria-label={`Quitar a ${email} como co-organizador`}
+                    className="text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <IconX className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <form onSubmit={handleAddCoOrg} className="flex gap-2">
+            <input
+              type="email"
+              value={coOrgEmail}
+              onChange={(e) => { setCoOrgEmail(e.target.value); setCoOrgError('') }}
+              placeholder="email@ejemplo.com"
+              className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={coOrgLoading || !coOrgEmail.trim()}
+              className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {coOrgLoading ? '…' : 'Agregar'}
+            </button>
+          </form>
+          {coOrgError && <p className="text-xs text-red-500 mt-1.5">{coOrgError}</p>}
         </div>
       )}
 
@@ -590,50 +653,6 @@ export function EventDetail() {
           </summary>
 
           <div className="bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
-
-            {/* Co-organizadores */}
-            <div className="p-5">
-              <div className="flex items-center gap-2 mb-1">
-                <IconUserPlus className="w-4 h-4 text-gray-400" />
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Co-organizadores</h3>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Permite a otras personas escanear pases y ver el evento.
-              </p>
-              {Object.entries(coOrgsMap).length > 0 && (
-                <div className="space-y-2 mb-3">
-                  {Object.entries(coOrgsMap).map(([uid, email]) => (
-                    <div key={uid} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">{email}</span>
-                      <button
-                        onClick={() => setRemovingCoOrg({ uid, email })}
-                        aria-label={`Quitar a ${email} como co-organizador`}
-                        className="text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <IconX className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <form onSubmit={handleAddCoOrg} className="flex gap-2">
-                <input
-                  type="email"
-                  value={coOrgEmail}
-                  onChange={(e) => { setCoOrgEmail(e.target.value); setCoOrgError('') }}
-                  placeholder="email@ejemplo.com"
-                  className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
-                />
-                <button
-                  type="submit"
-                  disabled={coOrgLoading || !coOrgEmail.trim()}
-                  className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-                >
-                  {coOrgLoading ? '…' : 'Agregar'}
-                </button>
-              </form>
-              {coOrgError && <p className="text-xs text-red-500 mt-1.5">{coOrgError}</p>}
-            </div>
 
             {/* Estado del evento */}
             <div className="p-5">

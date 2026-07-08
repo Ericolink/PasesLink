@@ -145,6 +145,11 @@ export const GuestRow = memo(function GuestRow({
   const indicator = guestIndicator(guest, requiresPayment)
   const subtitle = getGuestSubtitle(guest, { requiresPayment, ticketPrice, currency })
   const name = guest.isGroup ? guest.name : guestDisplayName(guest)
+  const offset = dragOffset !== null ? dragOffset : revealedOffset(revealed)
+  // La fila no corta en seco arriba del panel de acción — una sombra que
+  // crece con el arrastre da la sensación de que se despega/eleva sobre el
+  // panel en vez de quedar pegada encima de un bloque de color plano.
+  const lift = Math.min(Math.abs(offset) / SWIPE_MAX_REVEAL_PX, 1)
 
   return (
     <div className="relative border-b border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -177,8 +182,9 @@ export const GuestRow = memo(function GuestRow({
         onClick={handleContentClick}
         className="relative bg-white dark:bg-gray-800 flex items-center gap-3 px-3 py-2.5 cursor-pointer"
         style={{
-          transform: `translateX(${dragOffset !== null ? dragOffset : revealedOffset(revealed)}px)`,
-          transition: dragOffset !== null ? 'none' : SWIPE_SETTLE_TRANSITION,
+          transform: `translateX(${offset}px)`,
+          transition: dragOffset !== null ? 'none' : `${SWIPE_SETTLE_TRANSITION}, box-shadow 240ms ease-out`,
+          boxShadow: lift > 0 ? `0 0 ${16 * lift}px rgba(0, 0, 0, ${0.28 * lift})` : 'none',
         }}
       >
         {selectMode && (
