@@ -7,6 +7,7 @@ interface WizardContainerProps {
   stepLabels: string[]
   onNext: () => void
   onPrevious: () => void
+  onCancel: () => void
   canProceed: boolean
   isSubmitting: boolean
   children: ReactNode
@@ -18,6 +19,7 @@ export function WizardContainer({
   stepLabels,
   onNext,
   onPrevious,
+  onCancel,
   canProceed,
   isSubmitting,
   children,
@@ -27,6 +29,13 @@ export function WizardContainer({
       {/* Encabezado con progreso */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+          >
+            Cancelar
+          </button>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Crear evento</h1>
           <span className="text-sm text-gray-400">{currentStep} / {totalSteps}</span>
         </div>

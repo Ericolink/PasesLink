@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { deleteEvent, setEventStatus, subscribeToUserEvents } from '../firebase/events'
 import type { EventData } from '../types'
@@ -47,6 +48,7 @@ function eventsPerMonth(events: EventData[], n: number): number[] {
 }
 
 export function Dashboard() {
+  useDocumentTitle('Inicio')
   const { user } = useAuth()
   const { profile } = useUserProfile()
   const navigate = useNavigate()

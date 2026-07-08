@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deleteUserInvitation, getUserInvitations } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { QRCodeCanvas } from 'qrcode.react'
 import type { UserInvitation } from '../types'
@@ -15,6 +16,7 @@ function todayString() {
 }
 
 export function MyInvitations() {
+  useDocumentTitle('Mis invitaciones')
   const { user } = useAuth()
   const [invitations, setInvitations] = useState<UserInvitation[]>([])
   const [loading, setLoading] = useState(true)

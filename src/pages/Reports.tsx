@@ -4,17 +4,20 @@ import { subscribeToCheckins } from '../firebase/reports'
 import { partySize } from '../firebase/guests'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { attendancePercent } from '../utils/attendance'
 import type { CheckinLog } from '../types'
 import { RSVP_LABELS } from '../types'
 import { IconCheck, IconCornerUpLeft } from '../components/Icons'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { LoadingInline } from '../components/LoadingInline'
+import { ScreenHeader } from '../components/ScreenHeader'
 
 export function Reports() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
   const { event, guests, loading, guestsLoading } = useEvent(eventId)
+  useDocumentTitle(event ? `Reportes · ${event.name}` : 'Reportes')
   const [checkins, setCheckins] = useState<CheckinLog[]>([])
   const [checkinsLoading, setCheckinsLoading] = useState(true)
 
@@ -96,15 +99,8 @@ export function Reports() {
 
   const content = (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Reportes</h1>
-          <p className="text-sm text-gray-500">{event.name}</p>
-        </div>
-        <Link to={`/events/${event.id}`} className="text-sm text-primary font-medium">
-          Volver al evento
-        </Link>
-      </div>
+      <ScreenHeader title="Reportes" backTo={`/events/${event.id}`} />
+      <p className="text-sm text-gray-500 -mt-2 mb-6">{event.name}</p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <Stat label="Invitados" value={event.guestCount} />

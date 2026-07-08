@@ -2,12 +2,14 @@ import React, { useState } from 'react'
 import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { submitFeedback } from '../firebase/feedback'
 import { FEEDBACK_CATEGORY_LABELS } from '../types'
 import type { FeedbackCategory } from '../types'
 import { FEEDBACK_EMAIL_MAX, FEEDBACK_MESSAGE_MAX, FEEDBACK_MESSAGE_MIN, FEEDBACK_SUBJECT_MAX } from '../utils/validation'
 import { IconCheckCircle } from '../components/Icons'
 import { FeedbackCategoryIcon } from '../components/FeedbackCategoryIcon'
+import { ScreenHeader } from '../components/ScreenHeader'
 
 // Orden pensado para la grilla del formulario, no el orden de FeedbackCategory
 // en src/types/index.ts (ahí van agrupados con sus labels).
@@ -25,8 +27,10 @@ const inputClass =
   'w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary'
 
 export function Feedback() {
+  useDocumentTitle('Buzón de sugerencias')
   const { user } = useAuth()
   const { profile } = useUserProfile()
+  const backTo = user ? '/profile' : '/'
 
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
@@ -76,11 +80,13 @@ export function Feedback() {
 
   if (sent) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
+      <div className="max-w-lg mx-auto px-4 py-10 animate-fade-in">
+        <ScreenHeader title="Buzón de sugerencias" backTo={backTo} />
+        <div className="text-center py-6">
         <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
           <IconCheckCircle className="w-8 h-8 text-green-600" />
         </div>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">¡Gracias por tu comentario!</h1>
+        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">¡Gracias por tu comentario!</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           Lo recibimos y el equipo de PaseLink lo va a revisar pronto.
         </p>
@@ -90,14 +96,15 @@ export function Feedback() {
         >
           Enviar otro comentario
         </button>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="max-w-lg mx-auto px-4 py-10 animate-fade-in">
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">Buzón de sugerencias</h1>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <ScreenHeader title="Buzón de sugerencias" backTo={backTo} />
+      <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-6">
         ¿Encontraste un error, tienes una idea o quieres dejarnos un comentario? Cuéntanos — solo el equipo de
         PaseLink puede ver este mensaje.
       </p>

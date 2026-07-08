@@ -18,7 +18,7 @@ export function NotFound() {
         className="inline-flex items-center gap-2 bg-primary text-white rounded-lg px-6 py-3 text-sm font-semibold hover:bg-primary-dark transition-colors active:scale-95"
       >
         <IconHome className="w-4 h-4" />
-        Ir al Dashboard
+        Ir a Inicio
       </Link>
       <div className="mt-10 text-sm space-y-2 border-t border-gray-200 dark:border-gray-800 pt-8">
         <p className="text-gray-400">¿Quizás buscabas?</p>

@@ -4,6 +4,7 @@ import { Html5Qrcode } from 'html5-qrcode'
 import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEventOnly } from '../hooks/useEventOnly'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { checkInGuest, checkOutGuest, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
@@ -43,6 +44,7 @@ export function Scanner() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
   const { event, loading: eventLoading, error: eventError } = useEventOnly(eventId)
+  useDocumentTitle(event ? `Escanear · ${event.name}` : 'Escanear')
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
   const [scanning, setScanning] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -419,7 +421,7 @@ export function Scanner() {
           onClick={() => { void stopScanning() }}
           className="text-sm text-primary font-medium"
         >
-          Volver
+          Salir
         </Link>
       </div>
 

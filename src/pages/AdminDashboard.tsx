@@ -19,6 +19,7 @@ import {
   updateFeedbackTags,
 } from '../firebase/feedback'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { deleteEvent, setEventStatus } from '../firebase/events'
 import { attendancePercent } from '../utils/attendance'
 import type { EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
@@ -31,6 +32,7 @@ import { AdminActivityLog } from '../components/Admin/AdminActivityLog'
 import { AdminFeedbackTable } from '../components/Admin/AdminFeedbackTable'
 import { AdminFeedbackDetail } from '../components/Admin/AdminFeedbackDetail'
 import { AdminReportsTab } from '../components/Admin/AdminReportsTab'
+import { ScreenHeader } from '../components/ScreenHeader'
 import {
   IconBarChart,
   IconBarChart2,
@@ -53,6 +55,7 @@ type BulkAction = 'archive' | 'cancel' | 'delete'
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 export function AdminDashboard() {
+  useDocumentTitle('Admin')
   const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<EventData[]>([])
@@ -301,8 +304,8 @@ export function AdminDashboard() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">Panel de administración</h1>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Visión general de eventos y clientes de PaseLink</p>
+      <ScreenHeader title="Panel de administración" backTo="/profile" />
+      <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-6">Visión general de eventos y clientes de PaseLink</p>
 
       {actionError && (
         <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 mb-4">{actionError}</p>

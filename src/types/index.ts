@@ -109,8 +109,8 @@ export interface EventData {
   // companions.length) de cada invitado/familia — a diferencia de
   // guestCount, que cuenta invitaciones, no personas. Existe como contador
   // denormalizado (no derivado en el cliente) para que las vistas que
-  // listan varios eventos sin cargar su subcolección `guests` (Dashboard,
-  // MyEvents) puedan calcular "% de asistencia" correctamente: dividir
+  // listan varios eventos sin cargar su subcolección `guests` (Dashboard)
+  // puedan calcular "% de asistencia" correctamente: dividir
   // checkedInCount (personas) entre guestCount (invitaciones) da porcentajes
   // incorrectos en cuanto un invitado tiene acompañantes o es una familia de
   // varios integrantes. EventDetail, que sí carga `guests`, sigue usando

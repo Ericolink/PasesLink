@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useCheckinToast } from '../hooks/useCheckinToast'
 import { useEventExport } from '../hooks/useEventExport'
 import { useWaitlistPanel } from '../hooks/useWaitlistPanel'
@@ -23,10 +24,10 @@ import { ReminderSection } from '../components/ReminderSection'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { EventCountdown } from '../components/EventCountdown'
 import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
+import { ScreenHeader } from '../components/ScreenHeader'
 import { formatDate, formatTime12h } from '../utils/time'
 import { attendancePercent } from '../utils/attendance'
 import {
-  IconArrowLeft,
   IconCalendar,
   IconCheckCircle,
   IconEdit,
@@ -44,6 +45,7 @@ export function EventDetail() {
   const navigate = useNavigate()
   const location = useLocation()
   const { event, guests, loading, guestsLoading, error } = useEvent(eventId)
+  useDocumentTitle(event?.name || 'Evento')
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -206,9 +208,7 @@ export function EventDetail() {
       )}
 
       {/* Navegación */}
-      <Link to="/dashboard" className="text-sm text-gray-500 hover:text-primary transition-colors inline-flex items-center gap-1.5 mb-5">
-        <IconArrowLeft className="w-4 h-4" /> Mis eventos
-      </Link>
+      <ScreenHeader title={event.name} backTo="/dashboard" />
 
       {/* ── HERO DEL EVENTO ── */}
       <div className="rounded-2xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mb-5">

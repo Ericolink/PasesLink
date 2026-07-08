@@ -8,6 +8,7 @@ import { optimizedImageUrl } from '../utils/cloudinary'
 import { isNetworkError } from '../utils/network'
 import { parseCapacity } from '../utils/validationRules'
 import { ImageCropModal } from '../components/ImageCropModal'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CustomFieldsBuilder } from '../components/CustomFieldsBuilder'
 import { TimelineEditor } from '../components/TimelineEditor'
 import { TemplatePicker } from '../components/TemplatePicker'
@@ -109,6 +110,7 @@ export function EventCreate() {
   const [error, setError] = useState('')
   const [networkRetry, setNetworkRetry] = useState(false)
   const [createdEventId, setCreatedEventId] = useState<string | null>(null)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   // — Draft —
   const draftKey = user ? `eventDraft_${user.uid}_new` : ''
@@ -289,12 +291,24 @@ export function EventCreate() {
         />
       )}
 
+      <ConfirmDialog
+        open={showCancelConfirm}
+        danger
+        title="¿Salir sin terminar?"
+        message="Tu evento todavía no se creó. Lo que ya escribiste queda guardado y te lo ofrecemos la próxima vez que entres acá."
+        confirmLabel="Salir"
+        cancelLabel="Seguir editando"
+        onConfirm={() => navigate('/dashboard')}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
+
       <WizardContainer
         currentStep={step}
         totalSteps={TOTAL_STEPS}
         stepLabels={STEP_LABELS}
         onNext={handleNext}
         onPrevious={handlePrevious}
+        onCancel={() => setShowCancelConfirm(true)}
         canProceed={canProceed}
         isSubmitting={loading}
       >

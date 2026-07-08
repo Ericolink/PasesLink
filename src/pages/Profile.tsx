@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { updateProfile } from 'firebase/auth'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
+import { useIsAdmin } from '../hooks/useIsAdmin'
+import { useUnreadFeedbackCount } from '../hooks/useUnreadFeedbackCount'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import {
   changePassword,
   linkEmailPassword,
   linkGoogleAccount,
+  logout,
   unlinkProvider,
   uploadProfilePhoto,
 } from '../firebase/auth'
@@ -20,6 +25,9 @@ import {
   IconCheckCircle,
   IconEdit,
   IconLink,
+  IconLogOut,
+  IconMessageSquare,
+  IconShield,
   IconUsers,
   IconX,
 } from '../components/Icons'
@@ -116,8 +124,12 @@ function EditNameModal({
 
 /* ── Main Page ── */
 export function Profile() {
+  useDocumentTitle('Perfil')
   const { user } = useAuth()
   const { profile } = useUserProfile()
+  const { isAdmin } = useIsAdmin()
+  const unreadFeedback = useUnreadFeedbackCount()
+  const navigate = useNavigate()
 
   /* Photo */
   const [photoURL, setPhotoURL]         = useState('')
@@ -188,6 +200,11 @@ export function Profile() {
   const birthDisplay = birthDate
     ? new Date(birthDate + 'T12:00:00').toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' })
     : '—'
+
+  async function handleLogout() {
+    await logout()
+    navigate('/login')
+  }
 
   async function handleSaveName(first: string, last: string) {
     const displayName = `${first} ${last}`.trim()
@@ -279,7 +296,40 @@ export function Profile() {
   /* ── Render ── */
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Mi perfil</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Perfil</h1>
+
+      {/* ── Hub: solo aparece la fila Admin si corresponde — misma pantalla
+          para todos, oculta sin romper la consistencia de navegación. ── */}
+      <section className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-700 overflow-hidden">
+        {isAdmin && (
+          <Link
+            to="/admin"
+            className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          >
+            <IconShield className="w-5 h-5 text-amber-500 shrink-0" />
+            <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">Admin</span>
+            {unreadFeedback > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-white text-[10px] font-bold leading-none">
+                {unreadFeedback > 99 ? '99+' : unreadFeedback}
+              </span>
+            )}
+          </Link>
+        )}
+        <Link
+          to="/feedback"
+          className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+        >
+          <IconMessageSquare className="w-5 h-5 text-gray-400 shrink-0" />
+          <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">Buzón de sugerencias</span>
+        </Link>
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+        >
+          <IconLogOut className="w-5 h-5 text-primary shrink-0" />
+          <span className="flex-1 text-sm font-medium text-primary">Cerrar sesión</span>
+        </button>
+      </section>
 
       {/* ── Datos personales ── */}
       <section className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">

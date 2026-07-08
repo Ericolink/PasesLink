@@ -1,14 +1,15 @@
 import { Suspense, lazy } from 'react'
-import { Route } from 'react-router-dom'
+import { Navigate, Route } from 'react-router-dom'
 import { SentryRoutes } from './lib/sentry'
-import { Navbar } from './components/Navbar'
-import { Footer } from './components/Footer'
 import { Background } from './components/Background'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { GlobalToastHost } from './components/GlobalToastHost'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
 import { LoadingInline } from './components/LoadingInline'
+import { PublicLayout } from './components/PublicLayout'
+import { BrowseLayout } from './components/BrowseLayout'
+import { AppShell } from './components/AppShell'
 import { Landing } from './pages/Landing'
 import { NotFound } from './pages/NotFound'
 
@@ -31,7 +32,6 @@ const EventJoin = lazy(() => import('./pages/EventJoin').then((m) => ({ default:
 const EventWall = lazy(() => import('./pages/EventWall').then((m) => ({ default: m.EventWall })))
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile').then((m) => ({ default: m.CompleteProfile })))
 const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => ({ default: m.MyInvitations })))
-const MyEvents        = lazy(() => import('./pages/MyEvents').then((m) => ({ default: m.MyEvents })))
 const Feedback        = lazy(() => import('./pages/Feedback').then((m) => ({ default: m.Feedback })))
 
 function PageFallback() {
@@ -47,37 +47,31 @@ function App() {
     <>
       <Background />
       <GlobalToastHost />
-      <Navbar />
-      <main>
       <ErrorBoundary>
       <Suspense fallback={<PageFallback />}>
       <SentryRoutes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/terminos" element={<Terms />} />
-        <Route path="/privacidad" element={<Privacy />} />
-        <Route path="/feedback" element={<Feedback />} />
-        <Route path="/pass/:eventId/:qrToken" element={<GuestPass />} />
-        <Route path="/events/:id/arrive" element={<EventArrive />} />
-        <Route path="/events/:id/join" element={<EventJoin />} />
-        <Route path="/events/:id/wall" element={<EventWall />} />
+        {/* Público: marketing, legal, auth — Navbar + Footer */}
+        <Route path="/" element={<PublicLayout><Landing /></PublicLayout>} />
+        <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
+        <Route path="/register" element={<PublicLayout><Register /></PublicLayout>} />
+        <Route path="/forgot-password" element={<PublicLayout><ForgotPassword /></PublicLayout>} />
+        <Route path="/reset-password" element={<PublicLayout><ResetPassword /></PublicLayout>} />
+        <Route path="/terminos" element={<PublicLayout><Terms /></PublicLayout>} />
+        <Route path="/privacidad" element={<PublicLayout><Privacy /></PublicLayout>} />
+        <Route path="/feedback" element={<PublicLayout><Feedback /></PublicLayout>} />
 
+        {/* Kiosko público: pases y flujos de invitado, sin chrome de marketing */}
+        <Route path="/pass/:eventId/:qrToken" element={<AppShell mode="kiosk"><GuestPass /></AppShell>} />
+        <Route path="/events/:id/arrive" element={<AppShell mode="kiosk"><EventArrive /></AppShell>} />
+        <Route path="/events/:id/join" element={<AppShell mode="kiosk"><EventJoin /></AppShell>} />
+        <Route path="/events/:id/wall" element={<AppShell mode="kiosk"><EventWall /></AppShell>} />
+
+        {/* Modo navegación: Inicio, Invitaciones, Perfil y sus drill-downs */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/events/new"
-          element={
-            <ProtectedRoute>
-              <EventCreate />
+              <BrowseLayout><Dashboard /></BrowseLayout>
             </ProtectedRoute>
           }
         />
@@ -85,15 +79,7 @@ function App() {
           path="/events/:eventId"
           element={
             <ProtectedRoute>
-              <EventDetail />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/events/:eventId/scan"
-          element={
-            <ProtectedRoute>
-              <Scanner />
+              <BrowseLayout><EventDetail /></BrowseLayout>
             </ProtectedRoute>
           }
         />
@@ -101,7 +87,7 @@ function App() {
           path="/events/:eventId/reports"
           element={
             <ProtectedRoute>
-              <Reports />
+              <BrowseLayout><Reports /></BrowseLayout>
             </ProtectedRoute>
           }
         />
@@ -109,7 +95,15 @@ function App() {
           path="/profile"
           element={
             <ProtectedRoute>
-              <Profile />
+              <BrowseLayout><Profile /></BrowseLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-invitations"
+          element={
+            <ProtectedRoute>
+              <BrowseLayout><MyInvitations /></BrowseLayout>
             </ProtectedRoute>
           }
         />
@@ -117,21 +111,46 @@ function App() {
           path="/admin"
           element={
             <AdminRoute>
-              <AdminDashboard />
+              <BrowseLayout><AdminDashboard /></BrowseLayout>
             </AdminRoute>
           }
         />
 
-        <Route path="/complete-profile" element={<CompleteProfile />} />
-        <Route path="/my-invitations" element={<MyInvitations />} />
-        <Route path="/my-events" element={<MyEvents />} />
+        {/* Modo foco: tareas de varios pasos, sin barra inferior */}
+        <Route
+          path="/events/new"
+          element={
+            <ProtectedRoute>
+              <AppShell mode="focus"><EventCreate /></AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/complete-profile"
+          element={
+            <ProtectedRoute>
+              <AppShell mode="focus"><CompleteProfile /></AppShell>
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="*" element={<NotFound />} />
+        {/* Modo kiosko autenticado: escaneo en la puerta */}
+        <Route
+          path="/events/:eventId/scan"
+          element={
+            <ProtectedRoute>
+              <AppShell mode="kiosk"><Scanner /></AppShell>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Duplicado de Inicio, fusionado — ver fase 2 del rediseño de navegación */}
+        <Route path="/my-events" element={<Navigate to="/dashboard" replace />} />
+
+        <Route path="*" element={<PublicLayout><NotFound /></PublicLayout>} />
       </SentryRoutes>
       </Suspense>
       </ErrorBoundary>
-      </main>
-      <Footer />
     </>
   )
 }
