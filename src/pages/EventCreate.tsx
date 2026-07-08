@@ -408,7 +408,8 @@ export function EventCreate() {
               </p>
             )}
             <p className="text-xs text-gray-400 mt-1">
-              Si el cupo se llena, los nuevos invitados se agregan a lista de espera.
+              Es una capacidad recomendada, no un límite estricto: si se supera, los nuevos invitados igual pueden
+              registrarse.
             </p>
           </div>
         </WizardStep>

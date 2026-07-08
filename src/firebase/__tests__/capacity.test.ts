@@ -89,16 +89,18 @@ describe('capacity.ts', () => {
     expect(event?.occupancyCount).toBe(0)
   })
 
-  it('should reject registerWalkInGuest when capacity is full', async () => {
+  it('should still create the guest and increment guestCount even when capacity is already full', async () => {
+    // El cupo es puramente informativo — el registro nunca se bloquea, ni
+    // siquiera cuando guestCount ya alcanzó (o superó) capacity.
     await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 1, guestCount: 1 })
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
     const result = await registerWalkInGuest(EVENT_ID, 'Invitado Nuevo')
 
-    expect(result.status).toBe('full')
-    expect(result.qrToken).toBeUndefined()
+    expect(result.status).toBe('success')
+    expect(result.qrToken).toBeTruthy()
     const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(1)
+    expect(event?.guestCount).toBe(2)
   })
 
   it('should create the guest and increment guestCount on a successful registerWalkInGuest', async () => {
@@ -125,11 +127,10 @@ describe('capacity.ts', () => {
     expect(event?.peopleCount).toBe(4)
   })
 
-  it('should reserve the spot with an expiry when self-registering by transfer on a paid event', async () => {
+  it('should register by transfer without any hold/expiry (no more apartado temporal)', async () => {
     await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, requiresPayment: true, paymentMethods: ['transfer', 'cash'] })
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
-    const before = Date.now()
     const result = await registerWalkInGuest(EVENT_ID, 'Invitado Transferencia', undefined, undefined, undefined, undefined, 'transfer')
 
     expect(result.status).toBe('success')
@@ -137,10 +138,9 @@ describe('capacity.ts', () => {
     const guest = await getGuestDoc(testEnv, EVENT_ID, guestId)
     expect(guest?.paymentStatus).toBe('unpaid')
     expect(guest?.paymentMethod).toBe('transfer')
-    expect(guest?.holdExpiresAt as number).toBeGreaterThan(before)
   })
 
-  it('should confirm the spot without an expiry when self-registering by cash on a paid event', async () => {
+  it('should register by cash the same way, without any hold/expiry', async () => {
     await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, requiresPayment: true, paymentMethods: ['transfer', 'cash'] })
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
@@ -151,7 +151,6 @@ describe('capacity.ts', () => {
     const guest = await getGuestDoc(testEnv, EVENT_ID, guestId)
     expect(guest?.paymentStatus).toBe('unpaid')
     expect(guest?.paymentMethod).toBe('cash')
-    expect(guest?.holdExpiresAt).toBeNull()
   })
 
   it('should store guestUid and guestPhotoURL when a logged-in user self-registers', async () => {
@@ -265,11 +264,11 @@ describe('capacity.ts', () => {
     }))
   })
 
-  it('should reject a raw public write that fabricates a far-future holdExpiresAt to never lose the spot', async () => {
+  it('should reject a raw public write that sets any non-null holdExpiresAt (no more apartado temporal)', async () => {
     await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, requiresPayment: true, paymentMethods: ['transfer'] })
     const publicDb = testEnv.unauthenticatedContext().firestore()
 
-    await assertFails(addDoc(collection(publicDb, 'events', EVENT_ID, 'guests'), {
+    const basePayload = {
       name: 'Invitado Malicioso',
       qrToken: 'fake-token',
       status: 'invited',
@@ -284,9 +283,20 @@ describe('capacity.ts', () => {
       lockToken: null,
       paymentStatus: 'unpaid',
       paymentMethod: 'transfer',
-      holdExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
       customData: {},
       createdAt: Date.now(),
+    }
+
+    // Ni un valor lejano (el viejo intento de "nunca vencer")...
+    await assertFails(addDoc(collection(publicDb, 'events', EVENT_ID, 'guests'), {
+      ...basePayload,
+      holdExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+    }))
+    // ...ni uno cercano: el campo debe llegar SIEMPRE en null, ya no existe
+    // ningún cronómetro válido.
+    await assertFails(addDoc(collection(publicDb, 'events', EVENT_ID, 'guests'), {
+      ...basePayload,
+      holdExpiresAt: Date.now() + 60_000,
     }))
   })
 
@@ -296,18 +306,15 @@ describe('capacity.ts', () => {
       qrToken: 'qr-1',
       paymentMethod: 'transfer',
       paymentStatus: 'unpaid',
-      holdExpiresAt: Date.now() + 10 * 60 * 1000,
     })
     const publicDb = testEnv.unauthenticatedContext().firestore()
 
     await assertFails(updateDoc(doc(publicDb, 'events', EVENT_ID, 'guests', 'guest-1'), {
       paymentStatus: 'pending_confirmation',
-      holdExpiresAt: Date.now() + 48 * 60 * 60 * 1000,
       paymentNote: '',
     }))
     await assertFails(updateDoc(doc(publicDb, 'events', EVENT_ID, 'guests', 'guest-1'), {
       paymentStatus: 'pending_confirmation',
-      holdExpiresAt: Date.now() + 48 * 60 * 60 * 1000,
     }))
   })
 

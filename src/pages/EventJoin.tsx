@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getEvent, subscribeToEvent } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
-import { addToWaitlist } from '../firebase/waitlist'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
@@ -13,8 +12,6 @@ import {
   GUEST_MAX_PARTY_SIZE,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
-  WAITLIST_NAME_MAX,
-  WAITLIST_PHONE_MAX,
 } from '../utils/validation'
 
 // Look del formulario de cara al invitado: inputs en pill (forma fija, no
@@ -29,12 +26,7 @@ import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { EventCountdown } from '../components/EventCountdown'
 import { formatTime12h } from '../utils/time'
-import {
-  IconBan,
-  IconCheckCircle,
-  IconFrown,
-  IconListOrdered,
-} from '../components/Icons'
+import { IconBan } from '../components/Icons'
 import type { EventData, PaymentMethod } from '../types'
 import { buildPassUrl } from '../utils/qrUrl'
 
@@ -43,8 +35,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Efectivo',
 }
 
-type State = 'loading' | 'form' | 'submitting' | 'full' | 'not_found' | 'error'
-type WaitlistState = 'idle' | 'form' | 'submitting' | 'joined'
+type State = 'loading' | 'form' | 'submitting' | 'not_found' | 'error'
 
 interface SavedReg {
   qrToken: string
@@ -74,12 +65,6 @@ export function EventJoin() {
   const [partySize, setPartySize] = useState(1)
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
-  const [waitlistState, setWaitlistState] = useState<WaitlistState>('idle')
-  const [wlSubmitting, setWlSubmitting] = useState(false)
-  const [wlName, setWlName] = useState('')
-  const [wlLastName, setWlLastName] = useState('')
-  const [wlPhone, setWlPhone] = useState('')
-  const [wlError, setWlError] = useState('')
   const [regError, setRegError] = useState('')
 
   useEffect(() => {
@@ -165,36 +150,37 @@ export function EventJoin() {
         user?.uid,
         profile?.photoURL,
       )
-      if (result.status === 'full') {
-        setState('full')
-      } else {
-        const token = result.qrToken!
-        localStorage.setItem(regKey(id), JSON.stringify({ qrToken: token }))
-        localStorage.setItem('wall_guest_name', fullName)
-        // Best-effort: si no hay plantilla de EmailJS configurada, no hace
-        // nada (ver sendGuestPassEmail) — el pase sigue funcionando solo con
-        // el link de /pass, esto es una red de seguridad adicional para
-        // cuando el invitado pierde el link guardado en el navegador.
-        if (email.trim() && event) {
-          void sendGuestPassEmail(email.trim(), event.name, buildPassUrl(id, token))
-        }
-        if (user && id && event) {
-          void saveUserInvitation(user.uid, {
-            eventId: id,
-            eventName: event.name,
-            eventDate: event.date,
-            eventLocation: event.location,
-            eventCoverImage: event.coverImage,
-            guestName: fullName,
-            qrToken: token,
-            type: 'walkin',
-          })
-        }
-        // Mismo destino que un invitado de lista (GuestList.tsx) — una sola
-        // pantalla de pase (GuestPass) con descarga, compartir y RSVP, en vez
-        // de una vista de éxito propia y más limitada acá.
-        navigate(`/pass/${id}/${token}`, { replace: true })
+      if (result.status === 'error') {
+        setRegError('Este evento ya no está disponible. Actualiza la página e intenta de nuevo.')
+        setState('form')
+        return
       }
+      const token = result.qrToken!
+      localStorage.setItem(regKey(id), JSON.stringify({ qrToken: token }))
+      localStorage.setItem('wall_guest_name', fullName)
+      // Best-effort: si no hay plantilla de EmailJS configurada, no hace
+      // nada (ver sendGuestPassEmail) — el pase sigue funcionando solo con
+      // el link de /pass, esto es una red de seguridad adicional para
+      // cuando el invitado pierde el link guardado en el navegador.
+      if (email.trim() && event) {
+        void sendGuestPassEmail(email.trim(), event.name, buildPassUrl(id, token))
+      }
+      if (user && id && event) {
+        void saveUserInvitation(user.uid, {
+          eventId: id,
+          eventName: event.name,
+          eventDate: event.date,
+          eventLocation: event.location,
+          eventCoverImage: event.coverImage,
+          guestName: fullName,
+          qrToken: token,
+          type: 'walkin',
+        })
+      }
+      // Mismo destino que un invitado de lista (GuestList.tsx) — una sola
+      // pantalla de pase (GuestPass) con descarga, compartir y RSVP, en vez
+      // de una vista de éxito propia y más limitada acá.
+      navigate(`/pass/${id}/${token}`, { replace: true })
     } catch (err) {
       console.error('Error registering guest:', err)
       setRegError(err instanceof Error ? err.message : 'No se pudo completar el registro. Intenta de nuevo.')
@@ -222,122 +208,6 @@ export function EventJoin() {
           </p>
         </div>
       </div>
-    )
-  }
-
-  if (state === 'full') {
-    async function handleWaitlist(e: React.FormEvent) {
-      e.preventDefault()
-      if (!id || !wlName.trim() || !wlLastName.trim()) return
-      setWlSubmitting(true)
-      setWlError('')
-      try {
-        await addToWaitlist(id, wlName, wlLastName, wlPhone)
-        setWaitlistState('joined')
-      } catch (err) {
-        console.error('Error joining waitlist:', err)
-        setWlError(err instanceof Error ? err.message : 'No se pudo anotar en la lista de espera. Intenta de nuevo.')
-      } finally {
-        setWlSubmitting(false)
-      }
-    }
-
-    if (waitlistState === 'joined') {
-      return (
-        <InvitationThemeRoot
-          templateId={event?.templateId}
-          accentOverride={event?.accentColor}
-          className="min-h-screen flex items-center justify-center text-center p-4"
-        >
-          <div className="w-full max-w-sm text-center">
-            <IconCheckCircle className="w-14 h-14 mx-auto mb-4 text-green-500" />
-            <h1 className="text-xl font-bold text-[var(--invite-text)] mb-2">Estás en la lista</h1>
-            <p className="text-sm text-[var(--invite-text-muted)]">
-              Te anotamos en la lista de espera. Si se libera un lugar, el organizador te contactará.
-            </p>
-          </div>
-        </InvitationThemeRoot>
-      )
-    }
-
-    if (waitlistState === 'form') {
-      return (
-        <InvitationThemeRoot
-          templateId={event?.templateId}
-          accentOverride={event?.accentColor}
-          className="min-h-screen flex items-center justify-center text-center p-4"
-        >
-          <div className="w-full max-w-sm">
-            <InvitationCard>
-              <div className="flex items-center gap-2 mb-4">
-                <IconListOrdered className="w-5 h-5 text-[var(--invite-accent)]" />
-                <h1 className="text-lg font-bold">Lista de espera</h1>
-              </div>
-              <p className="text-sm mb-4 text-[var(--invite-text-muted)]">
-                El cupo está lleno. Déjanos tus datos y te avisamos si se libera un lugar.
-              </p>
-              <form onSubmit={handleWaitlist} className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={labelClass}>Nombre *</label>
-                    <input type="text" required autoComplete="given-name" maxLength={WAITLIST_NAME_MAX} value={wlName} onChange={(e) => setWlName(e.target.value)}
-                      placeholder="Ana"
-                      className={inputClass} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Apellido *</label>
-                    <input type="text" required autoComplete="family-name" maxLength={WAITLIST_NAME_MAX} value={wlLastName} onChange={(e) => setWlLastName(e.target.value)}
-                      placeholder="García"
-                      className={inputClass} />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Teléfono <span className="font-normal normal-case">(opcional)</span></label>
-                  <input type="tel" autoComplete="tel" maxLength={WAITLIST_PHONE_MAX} value={wlPhone} onChange={(e) => setWlPhone(e.target.value)}
-                    placeholder="+1 234 567 8900"
-                    className={inputClass} />
-                </div>
-                {wlError && <p className="text-xs text-red-500">{wlError}</p>}
-                <button type="submit" disabled={wlSubmitting}
-                  className="w-full text-white rounded-full py-3.5 font-bold text-base hover:opacity-90 active:scale-[.98] transition-all disabled:opacity-50 bg-[var(--invite-accent)]">
-                  {wlSubmitting ? 'Anotando…' : 'Unirme a la lista'}
-                </button>
-              </form>
-            </InvitationCard>
-          </div>
-        </InvitationThemeRoot>
-      )
-    }
-
-    return (
-      <InvitationThemeRoot
-        templateId={event?.templateId}
-        accentOverride={event?.accentColor}
-        className="min-h-screen flex items-center justify-center text-center p-4"
-      >
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <IconFrown className="w-14 h-14 text-gray-400" />
-          </div>
-          <h1 className="text-xl font-bold text-[var(--invite-text)] mb-2">Cupo agotado</h1>
-          <p className="mb-5 text-[var(--invite-text-muted)]">El evento ya alcanzó su capacidad máxima.</p>
-          <button
-            onClick={() => {
-              // El nombre/apellido/teléfono ya se escribieron en el formulario de
-              // registro de arriba (el que descubrió que el cupo estaba lleno) —
-              // se reutilizan acá para no pedirlos de nuevo.
-              setWlName(name)
-              setWlLastName(lastName)
-              setWlPhone(phone)
-              setWaitlistState('form')
-            }}
-            className="inline-flex items-center gap-2 text-white rounded-lg px-5 py-3.5 text-sm font-semibold hover:opacity-90 transition-opacity bg-[var(--invite-accent)]"
-          >
-            <IconListOrdered className="w-4 h-4" />
-            Unirme a la lista de espera
-          </button>
-        </div>
-      </InvitationThemeRoot>
     )
   }
 
@@ -502,15 +372,22 @@ export function EventJoin() {
                   </p>
                 )}
                 {event.paymentMethods.includes('transfer') && (needsMethodChoice ? paymentMethod === 'transfer' : true) && (
-                  <p className="text-xs mt-1.5 text-[var(--invite-text-muted)]">Tu lugar queda reservado por un tiempo limitado hasta que envíes tu comprobante.</p>
+                  <p className="text-xs mt-1.5 text-[var(--invite-text-muted)]">Podés enviar tu comprobante cuando quieras después de registrarte.</p>
                 )}
               </div>
             )}
 
-            {event?.capacity && (
-              <p className="text-xs text-center text-[var(--invite-text-muted)]">
-                {event.guestCount} / {event.capacity} registros
-              </p>
+            {!!event?.capacity && (
+              event.peopleCount >= event.capacity ? (
+                <p className="text-xs text-center text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                  Este evento ya superó el número recomendado de asistentes. Aún puedes obtener tu boleto y asistir, pero
+                  el ingreso dependerá del orden de llegada el día del evento.
+                </p>
+              ) : (
+                <p className="text-xs text-center text-[var(--invite-text-muted)]">
+                  {event.peopleCount} / {event.capacity} registros
+                </p>
+              )
             )}
             {regError && <p className="text-xs text-red-500">{regError}</p>}
             <button

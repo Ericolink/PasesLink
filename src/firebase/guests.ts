@@ -17,13 +17,11 @@ import {
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { getEvent } from './events'
-import { addToWaitlist, tryPromoteWaitlist } from './waitlist'
 import { getUserProfile } from './userProfile'
 import { sendCheckinSummaryEmail } from '../utils/emailjs'
 import { captureException, measureSpan, withListenerReporting } from '../lib/sentry'
 import type { CompanionData, CustomField, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { GuestSchema, warnIfInvalidShape } from '../types/schemas'
-import { pendingConfirmationDeadlineFromNow } from '../utils/reservation'
 import {
   GUEST_CUSTOM_FIELD_MAX_COUNT,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
@@ -59,15 +57,8 @@ export function partySize(guest: { companions: CompanionData[] }): number {
 
 // `phone` NUNCA se guarda en el documento de `guests`: ese documento es
 // legible públicamente (necesario para que el pase /pass/:eventId/:qrToken
-// funcione sin login) y es PII. Vive aparte, en `guestContacts/{guestId}`,
-// cuya regla de Firestore solo permite lectura al organizador/co-organizador/
-// admin. Ver firestore.rules.
-// Invitados agregados por el organizador (lista curada) nunca llevan
-// cronómetro: a diferencia del autoregistro (registerWalkInGuest, en
-// capacity.ts), acá no hay una carrera en tiempo real por cupo escaso — el
-// organizador ya decidió invitarlos. `holdExpiresAt` queda null sin importar
-// si el evento cobra entrada; el pago (si aplica) se sigue exigiendo recién
-// en el check-in, igual que siempre (ver GuestPaymentStatus).
+// funcione sin login) y es PII. Vive aparte, en `guestContacts/{guestId}`.
+// Ver firestore.rules.
 function buildNewGuestPayload(input: {
   name: string
   lastName?: string
@@ -93,7 +84,6 @@ function buildNewGuestPayload(input: {
     lockToken: null,
     paymentStatus: 'unpaid' as const,
     paymentMethod: null,
-    holdExpiresAt: null,
     createdAt: serverTimestamp(),
   }
 }
@@ -102,16 +92,9 @@ function contactRef(eventId: string, guestId: string) {
   return doc(db, 'events', eventId, 'guestContacts', guestId)
 }
 
-export type AddGuestResult = { status: 'added'; id: string } | { status: 'waitlisted' }
-
-// Si el cupo ya está lleno, el invitado no se rechaza: se manda directo a la
-// lista de espera (misma colección/flujo que usa el organizador para
-// promover manualmente, ver firebase/waitlist.ts) en vez de devolver un
-// error sin alternativa. Chequeo no transaccional a propósito: este flujo lo
-// dispara un organizador escribiendo en su propio formulario (baja
-// concurrencia), a diferencia de registerWalkInGuest (registro público,
-// donde sí hace falta una transacción por el volumen de tráfico concurrente).
-export async function addGuest(eventId: string, input: NewGuestInput): Promise<AddGuestResult> {
+// Registro nunca se bloquea por cupo (capacity es puramente informativo, ver
+// EventData.capacity) — el invitado siempre se crea.
+export async function addGuest(eventId: string, input: NewGuestInput): Promise<{ id: string }> {
   const name = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
   const lastName = input.lastName
     ? requireMaxLength(input.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
@@ -122,12 +105,6 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<A
   }
 
   return measureSpan('firestore.addGuest', 'db.firestore', async () => {
-    const event = await getEvent(eventId)
-    if (event && event.capacity > 0 && event.guestCount >= event.capacity) {
-      await addToWaitlist(eventId, name, lastName, phone)
-      return { status: 'waitlisted' }
-    }
-
     const batch = writeBatch(db)
     const guestRef = doc(collection(db, 'events', eventId, 'guests'))
     const payload = buildNewGuestPayload({ ...input, name, lastName })
@@ -140,7 +117,7 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<A
       peopleCount: increment(partySize(payload)),
     })
     await batch.commit()
-    return { status: 'added', id: guestRef.id }
+    return { id: guestRef.id }
   })
 }
 
@@ -191,23 +168,29 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
 
   // Si `companions` cambia de largo (acompañantes agregados/quitados, o
   // cantidad de integrantes editada en una familia), partySize() de este
-  // invitado cambia — hay que ajustar peopleCount por la diferencia exacta,
-  // en la misma transacción que guarda el nuevo array, para que no quede
-  // desalineado con la suma real de personas del evento.
+  // invitado cambia — hay que ajustar peopleCount (y paidCount, si ya había
+  // pagado) por la diferencia exacta, en la misma transacción que guarda el
+  // nuevo array, para que no quede desalineado con la suma real de personas
+  // del evento.
   if (guestFields.companions !== undefined) {
     const guestRef = doc(db, 'events', eventId, 'guests', guestId)
     const eventRef = doc(db, 'events', eventId)
     await runTransaction(db, async (transaction) => {
       const snap = await transaction.get(guestRef)
       if (!snap.exists()) return
-      const before = partySize(mapGuest(snap.id, snap.data()))
+      const existing = mapGuest(snap.id, snap.data())
+      const before = partySize(existing)
       const after = 1 + guestFields.companions!.length
       transaction.update(guestRef, { ...guestFields })
       if (phone !== undefined) {
         transaction.set(contactRef(eventId, guestId), { phone }, { merge: true })
       }
       if (after !== before) {
-        transaction.update(eventRef, { peopleCount: increment(after - before) })
+        const eventUpdates: Record<string, unknown> = { peopleCount: increment(after - before) }
+        if (existing.paymentStatus === 'paid') {
+          eventUpdates.paidCount = increment(after - before)
+        }
+        transaction.update(eventRef, eventUpdates)
       }
     })
     return
@@ -322,23 +305,11 @@ export async function deleteGuest(
       updates.occupancyCount = increment(-size)
     }
   }
+  if (guest.paymentStatus === 'paid') {
+    updates.paidCount = increment(-size)
+  }
   batch.update(doc(db, 'events', eventId), updates)
   await batch.commit()
-
-  // Cancelar un invitado libera su lugar (pedido explícito: cualquier lugar
-  // liberado — reserva vencida, cancelación del organizador, devolución
-  // aprobada — debe ofrecerse solo a la lista de espera). Un invitado
-  // 'expired' ya no contaba para guestCount/peopleCount (el barrido ya lo
-  // había liberado), así que borrarlo no abre un lugar nuevo y no vale la
-  // pena intentar promover. Best-effort y después del commit: si falla, el
-  // borrado ya quedó guardado y el organizador puede promover a mano desde
-  // el panel de lista de espera, como hoy.
-  if (guest.paymentStatus !== 'expired') {
-    void tryPromoteWaitlist(eventId).catch((err) => {
-      console.error('deleteGuest: no se pudo promover la lista de espera tras liberar un lugar.', { eventId, err })
-      captureException(err, { tags: { flow: 'waitlist.autoPromote' }, extra: { trigger: 'deleteGuest' } })
-    })
-  }
 }
 
 // El organizador necesita el teléfono junto con el resto del invitado (lista,
@@ -439,31 +410,21 @@ export async function unlockGuestPass(eventId: string, guestId: string) {
   await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { lockToken: null })
 }
 
-// Acción del ORGANIZADOR: aprobar (`'paid'`) o rechazar/deshacer (`'unpaid'`)
+// Acción del ORGANIZADOR: aprobar (`'paid'`) o revertir/rechazar (`'unpaid'`)
 // el pago de un invitado — botón "Marcar como pagado/no pagado" en
 // GuestList/GuestPass, y también "Aprobar pago"/"Rechazar comprobante"
-// cuando el invitado está en `pending_confirmation` (ver submitPaymentProof
-// más abajo). `method` es opcional: si no se pasa, se conserva el que ya
-// tenía el invitado.
+// cuando está en `pending_confirmation` (ver submitPaymentProof más abajo).
+// `method` es opcional: si no se pasa, se conserva el que ya tenía el
+// invitado.
 //
-// El comportamiento de `'unpaid'` depende de en qué estado esté el invitado
-// AHORA (se resuelve dentro de la transacción, no lo decide el llamador):
-// - Estaba `pending_confirmation` (había un comprobante esperando revisión):
-//   esto es un RECHAZO explícito — pasa directo a `expired` y libera el
-//   cupo, exactamente igual que si el plazo se hubiera vencido solo. No
-//   tiene sentido dejarlo "flotando" en unpaid sin cronómetro después de un
-//   rechazo activo.
-// - Estaba `paid` (el organizador deshace una confirmación): vuelve a
-//   `unpaid` sin tocar el cupo — ya estaba contado desde que se registró, un
-//   error corregido no debe expulsarlo de la lista de espera hacia atrás.
-// - Cualquier otro caso (`unpaid`/`expired` ya de por sí): no-op sobre el
-//   cupo, solo por si se pisa el método.
-//
-// Aprobar (`'paid'`) desde `expired` necesita reclamar un lugar en el cupo
-// — puede fallar si mientras tanto se llenó con alguien de la lista de
-// espera, por eso corre en una transacción que revisa `capacity` antes de
-// sumar, en vez de un updateDoc simple. Aprobar desde cualquier otro estado
-// no toca el cupo (el invitado ya contaba desde que se registró).
+// Nunca toca guestCount/peopleCount: el invitado ya cuenta desde que se
+// registró, pague o no (capacity es solo informativo). Lo único que cambia
+// es `paidCount` (personas), y solo en la transición real de pagado <->
+// no pagado — aprobar un pago ya aprobado o revertir uno que nunca se
+// aprobó no debe mover el contador. Un invitado legacy en `paymentStatus:
+// 'expired'` (valor que este código ya no escribe, ver GuestPaymentStatus)
+// se trata igual que uno `unpaid`: puede aprobarse sin ningún chequeo de
+// cupo, ya que el cupo nunca lo había perdido.
 export async function setGuestPaymentStatus(
   eventId: string,
   guestId: string,
@@ -473,70 +434,34 @@ export async function setGuestPaymentStatus(
   const guestRef = doc(db, 'events', eventId, 'guests', guestId)
   const eventRef = doc(db, 'events', eventId)
 
-  let releasedCapacity = false
-
   await runTransaction(db, async (transaction) => {
     const guestSnap = await transaction.get(guestRef)
     if (!guestSnap.exists()) return
     const guest = mapGuest(guestSnap.id, guestSnap.data())
+    const wasPaid = guest.paymentStatus === 'paid'
 
-    const updates: Record<string, unknown> = {}
+    const updates: Record<string, unknown> = { paymentStatus }
     if (method !== undefined) updates.paymentMethod = method
 
-    if (paymentStatus === 'paid') {
-      if (guest.paymentStatus === 'expired') {
-        const eventSnap = await transaction.get(eventRef)
-        const eventData = eventSnap.data()
-        const capacity = (eventData?.capacity as number) || 0
-        const guestCount = (eventData?.guestCount as number) || 0
-        if (capacity && guestCount >= capacity) {
-          throw new Error(
-            'El cupo del evento ya está lleno (probablemente se le ofreció este lugar a alguien de la lista de espera). Liberá otro lugar antes de reconfirmar este pago.',
-          )
-        }
-        transaction.update(eventRef, {
-          guestCount: increment(1),
-          peopleCount: increment(partySize(guest)),
-        })
-      }
-      updates.paymentStatus = 'paid'
-      updates.holdExpiresAt = null
-    } else if (guest.paymentStatus === 'pending_confirmation') {
-      // Rechazo: mismo destino que un vencimiento por SLA (ver
-      // scripts/sweep-reservations.mjs) — libera el cupo de inmediato.
-      transaction.update(eventRef, {
-        guestCount: increment(-1),
-        peopleCount: increment(-partySize(guest)),
-      })
-      updates.paymentStatus = 'expired'
-      releasedCapacity = true
-    } else if (guest.paymentStatus === 'paid') {
-      updates.paymentStatus = 'unpaid'
+    if (paymentStatus === 'paid' && !wasPaid) {
+      transaction.update(eventRef, { paidCount: increment(partySize(guest)) })
+    } else if (paymentStatus === 'unpaid' && wasPaid) {
+      transaction.update(eventRef, { paidCount: increment(-partySize(guest)) })
     }
-    // unpaid -> unpaid / expired -> unpaid: no-op sobre `paymentStatus`
-    // (nada que deshacer, el cupo ya está en el estado correcto).
+    // paid -> paid (solo cambia método) y no-pagado (unpaid/pending_confirmation/
+    // legacy 'expired') -> unpaid: no-op sobre paidCount.
 
     transaction.update(guestRef, updates)
   })
-
-  if (releasedCapacity) {
-    void tryPromoteWaitlist(eventId).catch((err) => {
-      console.error('setGuestPaymentStatus: no se pudo promover la lista de espera tras rechazar un comprobante.', { eventId, guestId, err })
-      captureException(err, { tags: { flow: 'waitlist.autoPromote' }, extra: { trigger: 'rejectPaymentProof' } })
-    })
-  }
 }
 
 // Acción del INVITADO: "Ya pagué / Comprobante enviado" (GuestPass). Solo
 // tiene sentido para transferencia — efectivo no tiene nada que "confirmar"
-// de antemano, se paga presencialmente. Pausa el cronómetro original (o el
-// reclamo tardío si ya venció, ver canSubmitPaymentProof en
-// src/utils/reservation.ts) y abre uno nuevo, más largo, mientras el
-// organizador revisa — no toca el cupo del evento en ningún caso: si el
-// invitado todavía contaba (unpaid dentro o fuera de plazo antes del
-// barrido), sigue contando igual; si ya no contaba (expired, el barrido ya
-// liberó el lugar), reclamarlo de nuevo es responsabilidad de
-// setGuestPaymentStatus al aprobar, no de este paso.
+// de antemano, se paga presencialmente. Sin límite de tiempo: puede mandarlo
+// cuando quiera mientras no esté ya pagado ni ya tenga un comprobante en
+// revisión (cualquier otro valor, incluido el legacy 'expired', cuenta como
+// "puede enviar"). No toca el cupo del evento en ningún caso — el invitado
+// ya contaba desde que se registró.
 //
 // `note` (número de referencia de la transferencia) es obligatorio: sin él,
 // el organizador no tiene nada concreto que cotejar contra su resumen
@@ -553,14 +478,23 @@ export async function submitPaymentProof(eventId: string, guestId: string, note:
     if (!guestSnap.exists()) return
     const guest = mapGuest(guestSnap.id, guestSnap.data())
     if (guest.paymentMethod !== 'transfer') return
-    if (guest.paymentStatus !== 'unpaid' && guest.paymentStatus !== 'expired') return
+    if (guest.paymentStatus === 'paid' || guest.paymentStatus === 'pending_confirmation') return
 
     transaction.update(guestRef, {
       paymentStatus: 'pending_confirmation',
-      holdExpiresAt: pendingConfirmationDeadlineFromNow(),
       paymentNote: trimmedNote,
     })
   })
+}
+
+// Puede el invitado mandar/re-mandar su comprobante ahora mismo — solo
+// transferencia, y solo si no está ya pagado ni ya en revisión. Sin límite
+// de tiempo (ver submitPaymentProof). Movida acá desde utils/reservation.ts
+// al eliminar el "apartado temporal de lugar" (ya no depende del reloj).
+export function canSubmitPaymentProof(guest: Pick<GuestData, 'paymentMethod' | 'paymentStatus'>): boolean {
+  return guest.paymentMethod === 'transfer'
+    && guest.paymentStatus !== 'paid'
+    && guest.paymentStatus !== 'pending_confirmation'
 }
 
 /**
@@ -874,10 +808,6 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     customData: (data.customData as Record<string, string>) || undefined,
     paymentStatus: (data.paymentStatus as GuestData['paymentStatus']) || 'unpaid',
     paymentMethod: (data.paymentMethod as GuestData['paymentMethod']) || null,
-    // Invitados creados antes de este campo (todo pase existente) no tienen
-    // holdExpiresAt guardado — cae a null (sin cronómetro), el comportamiento
-    // que ya tenían.
-    holdExpiresAt: (data.holdExpiresAt as number) ?? null,
     paymentNote: (data.paymentNote as string) || undefined,
     guestUid: (data.guestUid as string) || null,
     guestPhotoURL: (data.guestPhotoURL as string) || null,

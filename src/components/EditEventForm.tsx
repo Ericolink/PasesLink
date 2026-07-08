@@ -514,8 +514,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <input id="edit-event-capacity" type="number" required min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)}
             placeholder="Ej: 200" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <p className="text-xs text-gray-400 mt-1">
-            Total de personas permitidas (invitados + acompañantes). Si se llena el cupo, los
-            invitados nuevos se agregan automáticamente a la lista de espera.
+            Total de personas recomendado (invitados + acompañantes) — informativo, no bloquea nuevos registros si
+            se supera.
           </p>
           {capacityError && <p className="text-xs text-red-500 mt-1">{capacityError}</p>}
         </div>

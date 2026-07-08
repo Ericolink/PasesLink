@@ -32,7 +32,6 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
   const [bulkNames, setBulkNames] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [waitlistedMsg, setWaitlistedMsg] = useState('')
   const [pendingDuplicate, setPendingDuplicate] = useState<PendingDuplicate | null>(null)
 
   // Nombre completo normalizado de cada invitado ya cargado — usado para
@@ -57,13 +56,8 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
   async function submitSingleGuest() {
     setLoading(true)
     setError('')
-    setWaitlistedMsg('')
     try {
-      const fullName = `${name.trim()} ${lastName.trim()}`
-      const result = await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions, customData: customValues })
-      if (result.status === 'waitlisted') {
-        setWaitlistedMsg(`El cupo está lleno — ${fullName} se agregó a la lista de espera en vez de a los invitados.`)
-      }
+      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions, customData: customValues })
       setName('')
       setLastName('')
       setPhone('')
@@ -95,18 +89,14 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
   async function submitGroupGuest() {
     setLoading(true)
     setError('')
-    setWaitlistedMsg('')
     try {
       const trimmedGroupName = groupName.trim()
-      const result = await addGuest(eventId, {
+      await addGuest(eventId, {
         name: trimmedGroupName,
         companions: Array.from({ length: Math.max(0, memberCount - 1) }, () => ({})),
         isGroup: true,
         customData: groupCustomValues,
       })
-      if (result.status === 'waitlisted') {
-        setWaitlistedMsg(`El cupo está lleno — ${trimmedGroupName} se agregó a la lista de espera en vez de a los invitados.`)
-      }
       setGroupName('')
       setMemberCount(2)
       setGroupCustomValues({})
@@ -197,7 +187,6 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
       </div>
 
       {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
-      {waitlistedMsg && <p className="text-xs text-amber-600 mb-3">{waitlistedMsg}</p>}
 
       {mode === 'single' ? (
         <form onSubmit={handleSingleSubmit} className="space-y-3">

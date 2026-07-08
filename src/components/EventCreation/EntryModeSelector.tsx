@@ -23,7 +23,7 @@ const MODES: ModeOption[] = [
     Icon: IconGlobe,
     title: 'Acceso público',
     badge: 'Registro abierto a cualquiera',
-    description: 'Cualquiera puede registrarse hasta llenar el cupo — evento público, feria, conferencia.',
+    description: 'Cualquiera puede registrarse — el cupo configurado es solo una referencia. Evento público, feria, conferencia.',
   },
   {
     id: 'hybrid',

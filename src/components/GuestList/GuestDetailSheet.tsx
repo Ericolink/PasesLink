@@ -3,12 +3,9 @@ import { createPortal } from 'react-dom'
 import { useModalA11y } from '../../hooks/useModalA11y'
 import { guestPresence, partySize } from '../../firebase/guests'
 import type { CustomField, GuestData, PaymentMethod } from '../../types'
-import { isHoldExpired } from '../../utils/reservation'
 import {
-  IconAlertTriangle,
   IconCheck,
   IconCheckCircle,
-  IconClock,
   IconEdit,
   IconHelpCircle,
   IconLock,
@@ -215,13 +212,6 @@ export function GuestDetailSheet({
                     ) : (
                       <Pill tone="amber" icon={<IconTicket className="w-3.5 h-3.5" />}>Pendiente · {currency}{amount.toLocaleString('es')}</Pill>
                     )}
-                    {(guest.paymentStatus === 'unpaid' || guest.paymentStatus === 'pending_confirmation') && guest.holdExpiresAt !== null && (
-                      <Pill tone={isHoldExpired(guest) ? 'red' : 'blue'} icon={isHoldExpired(guest) ? <IconAlertTriangle className="w-3.5 h-3.5" /> : <IconClock className="w-3.5 h-3.5" />}>
-                        {isHoldExpired(guest)
-                          ? guest.paymentStatus === 'pending_confirmation' ? 'Plazo de revisión vencido' : 'Reserva vencida'
-                          : `${guest.paymentStatus === 'pending_confirmation' ? 'Revisar antes de' : 'Reservado hasta'} ${new Date(guest.holdExpiresAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}`}
-                      </Pill>
-                    )}
                     {guest.paymentNote && <Pill tone="gray">Ref: {guest.paymentNote}</Pill>}
                   </div>
                 </section>
@@ -250,7 +240,7 @@ export function GuestDetailSheet({
                     </ActionButton>
                   </>
                 )}
-                {requiresPayment && (guest.paymentStatus === 'unpaid' || guest.paymentStatus === 'expired') && (
+                {requiresPayment && guest.paymentStatus !== 'paid' && guest.paymentStatus !== 'pending_confirmation' && (
                   paymentMethods.length > 1 ? (
                     paymentMethods.map((m) => (
                       <ActionButton key={m} icon={<IconTicket className="w-4 h-4" />} onClick={() => onMarkPaid(guest, m)}>

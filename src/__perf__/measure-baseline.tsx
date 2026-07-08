@@ -39,7 +39,6 @@ export function generateGuests(count: number, checkedInCount: number): GuestData
       lockToken: null,
       paymentStatus: 'unpaid',
       paymentMethod: null,
-      holdExpiresAt: null,
       createdAt: now,
     })
   }

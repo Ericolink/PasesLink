@@ -79,6 +79,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     peopleCount: 0,
     checkedInCount: 0,
     occupancyCount: 0,
+    paidCount: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -332,6 +333,10 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (data.guestCount as number) || 0,
     checkedInCount: (data.checkedInCount as number) || 0,
     occupancyCount: (data.occupancyCount as number) || 0,
+    // Eventos creados antes de este campo caen a 0 — ver
+    // scripts/backfill-paid-count.mjs para recalcularlo a partir de guests
+    // ya pagados si hace falta reflejarlo de inmediato.
+    paidCount: (data.paidCount as number) || 0,
     coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),

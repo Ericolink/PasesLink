@@ -3,12 +3,11 @@ import { Link, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent, subscribeToEvent } from '../firebase/events'
-import { checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp, submitPaymentProof } from '../firebase/guests'
+import { canSubmitPaymentProof, checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp, submitPaymentProof } from '../firebase/guests'
 import { GuestEditModal } from '../components/GuestEditModal'
 import { saveUserInvitation } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
-import { canSubmitPaymentProof, holdMsRemaining, isHoldExpired } from '../utils/reservation'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
@@ -30,16 +29,6 @@ import { buildPassUrl } from '../utils/qrUrl'
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   transfer: 'Transferencia',
   cash: 'Efectivo',
-}
-
-// "Xh Ym" / "Ym" — nunca segundos (el cronómetro recalcula cada 30s, no
-// tiene sentido mostrar más precisión de la que en verdad tiene).
-function formatCountdown(ms: number): string {
-  const totalMinutes = Math.max(0, Math.ceil(ms / 60_000))
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-  if (hours > 0) return `${hours}h ${minutes}m`
-  return `${minutes}m`
 }
 
 // Mismo canal (WhatsApp) que ya se usa para "compartir pase con
@@ -84,19 +73,8 @@ function GuestPassInner() {
   const [proofFormOpen, setProofFormOpen] = useState(false)
   const [proofSubmitting, setProofSubmitting] = useState(false)
   const [proofError, setProofError] = useState<string | null>(null)
-  const [nowTick, setNowTick] = useState(() => Date.now())
   const qrWrapperRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
-
-  // Solo mientras hay un cronómetro activo corriendo (holding inicial por
-  // transferencia, ver GuestPaymentStatus) — recalcula cada 30s para que la
-  // cuenta regresiva del pase y la detección de "venció" (isHoldExpired) se
-  // actualicen solas sin que el invitado tenga que recargar la página.
-  useEffect(() => {
-    if (guest?.paymentStatus !== 'unpaid' || guest.holdExpiresAt === null) return
-    const id = setInterval(() => setNowTick(Date.now()), 30_000)
-    return () => clearInterval(id)
-  }, [guest?.paymentStatus, guest?.holdExpiresAt])
 
   useEffect(() => {
     // Esperar a que useAuth() confirme la sesión antes de decidir si el visor
@@ -237,7 +215,7 @@ function GuestPassInner() {
     setPaymentError(null)
     try {
       await setGuestPaymentStatus(eventId, guest.id, 'paid', method)
-      setGuest((g) => g ? { ...g, paymentStatus: 'paid', paymentMethod: method ?? g.paymentMethod, holdExpiresAt: null } : g)
+      setGuest((g) => g ? { ...g, paymentStatus: 'paid', paymentMethod: method ?? g.paymentMethod } : g)
       if (checkInState === 'payment_required') setCheckInState('idle')
     } catch (err) {
       console.error('Error marking guest as paid:', err)
@@ -247,19 +225,17 @@ function GuestPassInner() {
     }
   }
 
-  // Deshace un pago confirmado, o rechaza un comprobante en revisión — cuál
-  // de los dos depende de en qué estado esté el invitado ahora mismo (lo
-  // decide setGuestPaymentStatus, ver el comentario ahí): si estaba
-  // 'pending_confirmation' esto es un rechazo y termina en 'expired'
-  // (libera el cupo); si estaba 'paid' vuelve a 'unpaid' sin tocar el cupo.
+  // Deshace un pago confirmado, o rechaza un comprobante en revisión — en
+  // ambos casos el invitado queda en 'unpaid' (ver setGuestPaymentStatus),
+  // sin ningún efecto sobre guestCount/peopleCount: el invitado ya contaba
+  // desde que se registró, pague o no.
   async function handleMarkUnpaid() {
     if (!eventId || !guest) return
     setPaymentSaving(true)
     setPaymentError(null)
     try {
-      const wasPendingConfirmation = guest.paymentStatus === 'pending_confirmation'
       await setGuestPaymentStatus(eventId, guest.id, 'unpaid')
-      setGuest((g) => g ? { ...g, paymentStatus: wasPendingConfirmation ? 'expired' : 'unpaid' } : g)
+      setGuest((g) => g ? { ...g, paymentStatus: 'unpaid' } : g)
     } catch (err) {
       console.error('Error marking guest as unpaid:', err)
       setPaymentError('No se pudo actualizar el estado de pago. Intenta de nuevo.')
@@ -268,10 +244,9 @@ function GuestPassInner() {
     }
   }
 
-  // Acción del invitado: "Ya pagué / Comprobante enviado" — pausa el
-  // cronómetro original (o el reclamo tardío si ya venció) y pasa a esperar
+  // Acción del invitado: "Ya pagué / Comprobante enviado" — pasa a esperar
   // que el organizador lo apruebe o lo rechace (ver submitPaymentProof en
-  // firebase/guests.ts).
+  // firebase/guests.ts). Sin límite de tiempo.
   async function handleSubmitProof() {
     if (!eventId || !guest) return
     if (!proofNote.trim()) {
@@ -328,19 +303,6 @@ function GuestPassInner() {
                     : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}`}
               </span>
 
-              {(guest.paymentStatus === 'unpaid' || guest.paymentStatus === 'pending_confirmation') && guest.holdExpiresAt !== null && (
-                isHoldExpired(guest, nowTick) ? (
-                  <p className="text-xs font-medium text-red-600">
-                    {guest.paymentStatus === 'pending_confirmation'
-                      ? 'Se venció el plazo para revisar este comprobante.'
-                      : 'Su reserva venció'} — al aprobar el pago se le vuelve a asegurar el lugar si hay cupo.
-                  </p>
-                ) : (
-                  <p className="text-xs text-amber-700">
-                    {guest.paymentStatus === 'pending_confirmation' ? 'Revisalo' : 'Lugar reservado'} en {formatCountdown(holdMsRemaining(guest, nowTick) || 0)}
-                  </p>
-                )
-              )}
               {guest.paymentNote && (
                 <div className="w-full rounded-md border px-3 py-2 text-left" style={{ borderColor: 'var(--invite-border)' }}>
                   <p className="text-[10px] uppercase tracking-wide font-semibold text-[var(--invite-text-muted)]">Número de referencia</p>
@@ -433,11 +395,9 @@ function GuestPassInner() {
             )}
             {checkInState === 'payment_required' && (
               <p className="text-sm text-amber-600 mb-3">
-                {guest.paymentStatus === 'expired'
-                  ? 'Su reserva venció sin pago confirmado. Aprobá el pago arriba para poder registrar el ingreso.'
-                  : guest.paymentStatus === 'pending_confirmation'
-                    ? 'Tiene un comprobante esperando revisión. Aprobalo arriba para poder registrar el ingreso.'
-                    : 'Cobra la entrada y marcá el pago antes de registrar el ingreso.'}
+                {guest.paymentStatus === 'pending_confirmation'
+                  ? 'Tiene un comprobante esperando revisión. Aprobalo arriba para poder registrar el ingreso.'
+                  : 'Cobra la entrada y marcá el pago antes de registrar el ingreso.'}
               </p>
             )}
             {checkInState === 'blocked' && (
@@ -798,26 +758,10 @@ function GuestPassInner() {
                 </span>
               </div>
 
-              {/* Cuenta regresiva / aviso de vencimiento — solo mientras hay
-                  un cronómetro activo (holdExpiresAt), ver GuestPaymentStatus.
-                  Eventos gratis, efectivo o invitados de lista no tienen
-                  cronómetro y no muestran nada acá. */}
-              {(guest.paymentStatus === 'unpaid' || guest.paymentStatus === 'pending_confirmation') && guest.holdExpiresAt !== null && (
-                isHoldExpired(guest, nowTick) ? (
-                  <p className="text-sm font-medium mb-2 text-red-600">
-                    {guest.paymentStatus === 'pending_confirmation'
-                      ? 'Se venció el plazo de revisión de tu comprobante.'
-                      : 'Tu lugar reservado venció sin que confirmáramos tu pago.'} Escribile al organizador (abajo) para que lo reconfirme si todavía hay cupo.
-                  </p>
-                ) : guest.paymentStatus === 'pending_confirmation' ? (
-                  <p className="text-sm font-medium mb-2 text-amber-700">
-                    Comprobante recibido — el organizador lo va a revisar pronto.
-                  </p>
-                ) : (
-                  <p className="text-sm font-medium mb-2 text-amber-700">
-                    Tenés tu lugar reservado por {formatCountdown(holdMsRemaining(guest, nowTick) || 0)} más — enviá tu comprobante antes de que venza.
-                  </p>
-                )
+              {guest.paymentStatus === 'pending_confirmation' && (
+                <p className="text-sm font-medium mb-2 text-amber-700">
+                  Comprobante recibido — el organizador lo va a revisar pronto.
+                </p>
               )}
 
               {(guest.paymentMethod === 'transfer' || (!guest.paymentMethod && event.paymentInstructions)) && event.paymentInstructions && (

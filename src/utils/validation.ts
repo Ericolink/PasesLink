@@ -1,15 +1,12 @@
-// Límites compartidos para contenido público (Wall, Waitlist). Estos valores
-// deben coincidir con los que validan firestore.rules — son la última línea
-// de defensa real, ya que cualquier cliente puede escribir directo a
-// Firestore sin pasar por estas funciones. Ver firestore.rules.
+// Límites compartidos para contenido público (Wall). Estos valores deben
+// coincidir con los que validan firestore.rules — son la última línea de
+// defensa real, ya que cualquier cliente puede escribir directo a Firestore
+// sin pasar por estas funciones. Ver firestore.rules.
 export const WALL_TEXT_MAX = 500
 export const WALL_NAME_MAX = 60
 export const WALL_TOKEN_MAX = 100
 export const WALL_PHOTO_URL_MAX = 500
 export const WALL_TYPES = ['comment', 'question', 'music', 'idea'] as const
-
-export const WAITLIST_NAME_MAX = 60
-export const WAITLIST_PHONE_MAX = 30
 
 // Auto-registro público de invitados (registerWalkInGuest). `name`/`lastName`
 // se capturan por separado en la UI pero se combinan en un solo `name` antes

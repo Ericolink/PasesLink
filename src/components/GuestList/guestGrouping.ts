@@ -1,6 +1,5 @@
 import type { GuestData, PaymentMethod } from '../../types'
 import { partySize, guestPresence } from '../../firebase/guests'
-import { isHoldExpired } from '../../utils/reservation'
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   transfer: 'transferencia',
@@ -12,12 +11,10 @@ export function guestDisplayName(guest: Pick<GuestData, 'name' | 'lastName' | 'i
 }
 
 // Sección donde cae la fila. Deliberadamente más angosta que "todo lo que
-// falta cobrar": un `unpaid` con cronómetro todavía corriendo (transferencia
-// dentro de plazo) o sin cronómetro (efectivo, se cobra al ingresar) no
-// requiere que el organizador haga nada TODAVÍA — se resuelve solo cuando el
-// invitado paga o cuando el plazo vence (y ahí sí pasa a 'attention'). Lo
-// urgente de verdad es: comprobante esperando aprobación, o reserva ya
-// vencida.
+// falta cobrar": un `unpaid` sin límite de tiempo (transferencia sin
+// confirmar, o efectivo a cobrar al ingresar) no requiere que el organizador
+// haga nada TODAVÍA — se resuelve solo cuando el invitado paga o envía su
+// comprobante. Lo urgente de verdad es un comprobante esperando aprobación.
 //
 // `lockToken` NO cuenta acá a propósito: se setea la primera vez que el
 // invitado abre su pase (caso normal, esperado, de casi todo invitado que
@@ -30,8 +27,7 @@ export type GuestUrgency = 'attention' | 'confirmed' | 'unanswered' | 'declined'
 
 export function needsAttention(guest: GuestData, requiresPayment: boolean): boolean {
   if (!requiresPayment) return false
-  if (guest.paymentStatus === 'pending_confirmation') return true
-  return guest.paymentStatus === 'unpaid' && guest.holdExpiresAt !== null && isHoldExpired(guest)
+  return guest.paymentStatus === 'pending_confirmation'
 }
 
 export function guestUrgency(guest: GuestData, requiresPayment: boolean): GuestUrgency {
@@ -87,12 +83,7 @@ export function getGuestSubtitle(
     return guest.paymentNote ? `Comprobante enviado · ref. ${guest.paymentNote}` : 'Comprobante enviado · a revisar'
   }
 
-  if (ctx.requiresPayment && guest.paymentStatus === 'unpaid') {
-    if (isHoldExpired(guest)) return `Reserva vencida · ${money(ctx.currency, amount)}`
-    if (guest.holdExpiresAt !== null) {
-      const time = new Date(guest.holdExpiresAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
-      return `${money(ctx.currency, amount)} pendiente · vence ${time}`
-    }
+  if (ctx.requiresPayment && guest.paymentStatus !== 'paid') {
     return `${money(ctx.currency, amount)} pendiente`
   }
 

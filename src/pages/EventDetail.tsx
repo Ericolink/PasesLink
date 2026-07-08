@@ -5,11 +5,9 @@ import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useCheckinToast } from '../hooks/useCheckinToast'
 import { useEventExport } from '../hooks/useEventExport'
-import { useWaitlistPanel } from '../hooks/useWaitlistPanel'
 import { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { useGuestStats } from '../hooks/useGuestStats'
 import { useCheckinSessionAccumulator } from '../hooks/useCheckinSessionAccumulator'
-import { useModalA11y } from '../hooks/useModalA11y'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { deleteEvent, setEventStatus } from '../firebase/events'
 import { optimizedImageUrl } from '../utils/cloudinary'
@@ -29,13 +27,15 @@ import { formatDate, formatTime12h } from '../utils/time'
 import { attendancePercent } from '../utils/attendance'
 import {
   IconCalendar,
+  IconCheck,
   IconCheckCircle,
+  IconCopy,
   IconEdit,
-  IconListOrdered,
+  IconLink,
   IconMapPin,
   IconSearch,
+  IconShare,
   IconUserPlus,
-  IconWhatsApp,
   IconX,
 } from '../components/Icons'
 
@@ -61,18 +61,6 @@ export function EventDetail() {
   const hasUnseenWallMessage = useHasUnseenWallMessage(eventId)
   const { exporting, exportProgress, exportPdfError, handleExportPdf, handleCancelExportPdf, handleExportCsv } =
     useEventExport(event, guests)
-  const {
-    waitlist,
-    waitingEntries,
-    promotedEntries,
-    promotingId,
-    promoteResult,
-    promoteLinkCopied,
-    handlePromote,
-    handleCopyPromoteLink,
-    setPromoteResult,
-  } = useWaitlistPanel(eventId)
-  const promoteDialogRef = useModalA11y<HTMLDivElement>(!!promoteResult, () => setPromoteResult(null))
   const { coOrgEmail, setCoOrgEmail, coOrgLoading, coOrgError, setCoOrgError, handleAddCoOrg, handleRemoveCoOrg } =
     useCoOrganizers(eventId, event?.ownerId)
   const { checkinsThisSession, organizerNotifyEnabled, summarySending, summaryToast, handleSendCheckinSummary } =
@@ -369,10 +357,30 @@ export function EventDetail() {
         </Link>
       </div>
 
+      {/* ── AUTO-REGISTRO ── arriba y compacto: es de las acciones más usadas
+          durante la organización (copiar/compartir el enlace), así que no
+          debe requerir scroll hasta el final de la pantalla. */}
+      {event.entryMode !== 'list' && (
+        <div id="open-entry-links" className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">
+            <IconLink className="w-3.5 h-3.5 text-primary" />
+            Auto-registro
+          </h2>
+          <PublicLink
+            label="Enlace de registro"
+            desc="Los asistentes se registran y obtienen su QR propio"
+            path={`/events/${event.id}/join`}
+          />
+          <div className="mt-3">
+            <ShareEventButton event={event} />
+          </div>
+        </div>
+      )}
+
       {/* ── ESTADÍSTICAS PRINCIPALES ── */}
       <div className="grid grid-cols-2 gap-3 mb-3">
         <MetricCard
-          label="Invitados"
+          label="Registrados"
           value={event.guestCount}
           sub={`${totalPeople} personas en total`}
         />
@@ -390,6 +398,16 @@ export function EventDetail() {
             : undefined}
           valueClass="text-green-600 dark:text-green-400"
         />
+        {event.requiresPayment && (
+          <MetricCard
+            label="Pagados"
+            value={event.paidCount}
+            sub={totalPeople > 0
+              ? `${Math.round(attendancePercent(event.paidCount, totalPeople))}% del total`
+              : undefined}
+            valueClass="text-emerald-600 dark:text-emerald-400"
+          />
+        )}
         <MetricCard
           label="Dentro ahora"
           value={event.occupancyCount}
@@ -400,6 +418,16 @@ export function EventDetail() {
           value={Math.max(0, totalPeople - event.checkedInCount)}
         />
       </div>
+
+      {/* Aviso siempre visible (no enterrado en "Más estadísticas") — el
+          cupo es solo una capacidad recomendada, informativa, nunca bloquea
+          nuevos registros. */}
+      {event.capacity > 0 && totalPeople > event.capacity && (
+        <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-4 py-3 mb-3">
+          Este evento superó su cupo recomendado ({totalPeople} / {event.capacity} personas). Los nuevos registros
+          siguen entrando — el ingreso el día del evento dependerá del orden de llegada.
+        </p>
+      )}
 
       {/* Estadísticas secundarias + cupo (colapsable) */}
       <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 mb-5">
@@ -425,7 +453,7 @@ export function EventDetail() {
           {event.capacity > 0 && (
             <div className="mt-4">
               <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-                <span>Cupo del evento</span>
+                <span>Cupo recomendado del evento</span>
                 <span className="font-semibold">{totalPeople} / {event.capacity}</span>
               </div>
               <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
@@ -434,56 +462,10 @@ export function EventDetail() {
                   style={{ width: `${attendancePercent(totalPeople, event.capacity)}%` }}
                 />
               </div>
-              {totalPeople > event.capacity && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
-                  Los acompañantes hacen que el total supere el cupo configurado.
-                </p>
-              )}
             </div>
           )}
         </div>
       </details>
-
-      {/* ── LISTA DE ESPERA ── */}
-      {waitlist.length > 0 && (
-        <div className="border border-amber-200 dark:border-amber-700/50 rounded-xl bg-white dark:bg-gray-800 overflow-hidden mb-5">
-          <div className="flex items-center gap-2 px-5 pt-5 pb-3">
-            <IconListOrdered className="w-4 h-4 text-amber-500" />
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Lista de espera</h2>
-            {waitingEntries.length > 0 && (
-              <span className="ml-auto text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 rounded-full px-2 py-0.5 font-medium">
-                {waitingEntries.length} esperando
-              </span>
-            )}
-          </div>
-          <div className="px-5 pb-5 space-y-2">
-            {waitlist.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2.5">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{entry.name} {entry.lastName}</p>
-                  {entry.phone && <p className="text-xs text-gray-500 dark:text-gray-400">{entry.phone}</p>}
-                </div>
-                {entry.status === 'waiting' ? (
-                  <button
-                    onClick={() => handlePromote(entry)}
-                    disabled={promotingId === entry.id}
-                    className="text-xs shrink-0 bg-primary text-white rounded-lg px-3 py-1.5 font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-                  >
-                    {promotingId === entry.id ? 'Promoviendo…' : 'Promover'}
-                  </button>
-                ) : (
-                  <span className="text-xs shrink-0 text-green-600 dark:text-green-400 font-medium">Promovido ✓</span>
-                )}
-              </div>
-            ))}
-            {promotedEntries.length > 0 && (
-              <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">
-                Los promovidos ya tienen su pase. Al promover, se muestra el enlace para avisarles por WhatsApp.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ── GESTIÓN DE INVITADOS ── */}
       <div id="add-guests" className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden mb-5">
@@ -573,40 +555,6 @@ export function EventDetail() {
       {/* ── RECORDATORIOS ── */}
       {guests.length > 0 && (
         <ReminderSection event={event} guests={guests} />
-      )}
-
-      {/* ── INGRESO LIBRE / MIXTO ── */}
-      {event.entryMode !== 'list' && (
-        <details
-          id="open-entry-links"
-          className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 mb-5"
-          open
-        >
-          <summary className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                {event.entryMode === 'hybrid' ? 'Ingreso mixto' : 'Ingreso libre'}
-              </h2>
-            </div>
-            <span className="text-xs text-gray-400">
-              <span className="group-open:hidden">▾</span>
-              <span className="hidden group-open:inline">▴</span>
-            </span>
-          </summary>
-          <div className="border-t border-gray-100 dark:border-gray-700 p-5 space-y-3">
-            <ShareEventButton event={event} />
-            <PublicLink
-              label="Auto-registro"
-              desc="Los asistentes se registran y obtienen su QR propio"
-              path={`/events/${event.id}/join`}
-            />
-            <PublicLink
-              label="Ingreso directo"
-              desc="Solo confirman llegada — sin QR individual"
-              path={`/events/${event.id}/arrive`}
-            />
-          </div>
-        </details>
       )}
 
       {/* ── ANALÍTICA (colapsable) ── */}
@@ -749,58 +697,6 @@ export function EventDetail() {
         onCancel={() => setRemovingCoOrg(null)}
       />
 
-      {/* Diálogo de promover desde lista de espera — tiene dos acciones
-          (WhatsApp + copiar enlace) que no encajan en ConfirmDialog. */}
-      {promoteResult && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-black/50 backdrop-blur-sm"
-          onClick={(e) => { if (e.target === e.currentTarget) setPromoteResult(null) }}
-        >
-          <div
-            ref={promoteDialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Invitado promovido"
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm animate-bounce-in p-6"
-          >
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Invitado promovido</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-4">
-              {promoteResult.name} ya tiene su pase. Avisale por WhatsApp o copiá el enlace.
-            </p>
-            <div className="flex flex-col gap-2">
-              {promoteResult.phone.replace(/\D/g, '') ? (
-                <a
-                  href={`https://wa.me/${promoteResult.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                    `¡Felicidades! Te hemos promovido a invitado de ${event.name}. Toca aquí: ${promoteResult.passUrl}`,
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-xl py-2.5 text-sm font-medium hover:opacity-90 transition-opacity"
-                >
-                  <IconWhatsApp className="w-4 h-4" /> Abrir WhatsApp
-                </a>
-              ) : (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Este invitado no tiene teléfono registrado — solo podés copiar el enlace.
-                </p>
-              )}
-              <button
-                onClick={handleCopyPromoteLink}
-                className="border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                {promoteLinkCopied ? 'Copiado ✓' : 'Copiar enlace'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-400 mt-3 break-all">{promoteResult.passUrl}</p>
-            <button
-              onClick={() => setPromoteResult(null)}
-              className="w-full text-sm text-gray-500 dark:text-gray-400 mt-4 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-      )}
     </>
   )
 
@@ -869,6 +765,12 @@ function PublicLink({ label, desc, path }: { label: string; desc: string; path: 
   const [copied, setCopied] = useState(false)
   const url = window.location.origin + path
 
+  async function copy() {
+    await navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   // En celular, `navigator.share` abre la hoja nativa (WhatsApp, mensajes,
   // etc.) — mismo patrón ya validado en GuestList.handleShare. Sin esa API
   // (desktop/navegadores viejos) cae al copiado al portapapeles de siempre.
@@ -881,24 +783,33 @@ function PublicLink({ label, desc, path }: { label: string; desc: string; path: 
         return
       }
     }
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    copy()
   }
 
   return (
-    <div className="flex items-start justify-between gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+    <div className="flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{desc}</p>
       </div>
-      <button
-        onClick={share}
-        className="text-xs shrink-0 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-2.5 py-2.5 font-medium hover:bg-white dark:hover:bg-gray-600 transition-colors"
-      >
-        {copied ? 'Copiado ✓' : 'Compartir'}
-      </button>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          onClick={copy}
+          aria-label="Copiar enlace"
+          title="Copiar enlace"
+          className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition-colors"
+        >
+          {copied ? <IconCheck className="w-4 h-4 text-primary" /> : <IconCopy className="w-4 h-4" />}
+        </button>
+        <button
+          onClick={share}
+          aria-label="Compartir enlace"
+          title="Compartir enlace"
+          className="p-2.5 rounded-lg bg-primary text-white hover:opacity-90 transition-colors"
+        >
+          <IconShare className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   )
 }

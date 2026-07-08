@@ -10,26 +10,28 @@ export type EventStatus = 'active' | 'cancelled' | 'archived'
 export type EntryMode = 'list' | 'open' | 'hybrid'
 
 // Ciclo de vida del pago de un invitado. Deliberadamente el ÚNICO campo que
-// responde "¿está pagado?" — no mezcla si hay un cronómetro corriendo ni si
-// el invitado cuenta para el cupo (eso es responsabilidad de `holdExpiresAt`
-// y de los contadores del evento, campos independientes, ver GuestData).
-// - 'unpaid': sin pago confirmado. Puede o no tener un cronómetro activo
-//   (`holdExpiresAt`) — un invitado de lista, uno que paga en efectivo o un
-//   evento gratuito están 'unpaid' indefinidamente sin que eso signifique
-//   ningún riesgo de perder su lugar.
+// responde "¿está pagado?" — independiente de si el invitado cuenta para el
+// cupo (el registro nunca se bloquea ni se libera por pago, ver
+// EventData.capacity/paidCount).
+// - 'unpaid': sin pago confirmado. Sin límite de tiempo — un invitado puede
+//   subir su comprobante o esperar a pagar en efectivo el día del evento
+//   cuando quiera, no hay cronómetro ni vencimiento.
 // - 'pending_confirmation': el invitado marcó "ya pagué / comprobante
-//   enviado" (solo aplica a transferencia) — deja de correr el cronómetro
-//   original y pasa a esperar que el organizador apruebe o rechace, con su
-//   propio plazo (`holdExpiresAt` se reutiliza como el nuevo vencimiento,
-//   ver PENDING_CONFIRMATION_SLA_HOURS en src/utils/reservation.ts). Pensado
+//   enviado" (solo transferencia) — espera que el organizador apruebe o
+//   rechace. Un rechazo lo vuelve a 'unpaid' (nunca a 'expired'). Pensado
 //   para que el día que exista una pasarela de pago real, este estado lo
 //   resuelva un webhook en segundos en vez de un organizador a mano — la
 //   máquina de estados no cambia, solo quién la dispara.
-// - 'paid': pago confirmado (por el organizador o, a futuro, la pasarela).
-// - 'expired': tenía un cronómetro (`holdExpiresAt`) y venció sin
-//   resolverse — ver scripts/sweep-reservations.mjs. El invitado conserva su
-//   pase/QR pero deja de contar para el cupo del evento hasta que alguien
-//   (el organizador, reconfirmando el pago) lo reclame de nuevo.
+// - 'paid': pago confirmado por el organizador (o, a futuro, la pasarela).
+//   Es la ÚNICA transición que mueve EventData.paidCount — nunca al solo
+//   enviar comprobante.
+// - 'expired': valor LEGACY, de antes de eliminar el "apartado temporal de
+//   lugar" (holdExpiresAt + un barrido periódico que lo vencía solo). El
+//   código actual nunca vuelve a escribir este valor, pero puede seguir
+//   apareciendo en documentos ya guardados en producción — no se migran a
+//   mano. Toda la UI/lógica debe tratarlo como equivalente a 'unpaid'
+//   (comparar con `!== 'paid' && !== 'pending_confirmation'`, no enumerar
+//   los 3 valores "no pagados" a mano).
 export type GuestPaymentStatus = 'unpaid' | 'pending_confirmation' | 'paid' | 'expired'
 
 // Formas de cobro que un organizador puede activar para un evento con costo
@@ -129,19 +131,18 @@ export interface EventData {
   // (EventDetail, Reports, la barra de progreso del Scanner) que no deben
   // fluctuar hacia abajo cuando alguien sale y vuelve.
   occupancyCount: number
+  // Personas con pago aprobado (partySize(), no invitaciones) — sube SOLO al
+  // aprobar (nunca al enviar comprobante), baja si se revierte el pago o se
+  // borra un invitado que ya estaba pagado (ver setGuestPaymentStatus/
+  // deleteGuest/updateGuest en src/firebase/guests.ts). No aplica a eventos
+  // gratuitos (requiresPayment: false) — la UI no debe mostrarlo ahí.
+  // Eventos creados antes de este campo caen a 0 (ver mapEvent) — correr
+  // scripts/backfill-paid-count.mjs una vez si hace falta reflejar pagos ya
+  // aprobados antes de este cambio.
+  paidCount: number
   coOrganizersMap?: Record<string, string>  // { [uid]: email }
   createdAt: number
   updatedAt: number
-}
-
-export interface WaitlistEntry {
-  id: string
-  name: string
-  lastName: string
-  phone: string
-  createdAt: number
-  status: 'waiting' | 'promoted'
-  qrToken?: string
 }
 
 export type WallMessageType = 'comment' | 'question' | 'music' | 'idea'
@@ -233,14 +234,6 @@ export interface GuestData {
   // marcar el pago) — null en eventos gratuitos y en invitados agregados
   // por el organizador que todavía no pagaron. Ver PaymentMethod.
   paymentMethod: PaymentMethod | null
-  // Vencimiento del cronómetro ACTIVO en este momento — el mismo campo sirve
-  // para las dos etapas que pueden tener plazo (holding inicial por
-  // transferencia, y luego pending_confirmation esperando al organizador),
-  // reutilizado en vez de duplicado porque conceptualmente es la misma
-  // pregunta ("¿hasta cuándo tiene este invitado antes de perder el lugar?").
-  // null: sin cronómetro (lista, efectivo, evento gratuito) o ya resuelto
-  // (paid). Independiente de `paymentStatus` a propósito — ver GuestPaymentStatus.
-  holdExpiresAt: number | null
   // Referencia opcional que deja el invitado al marcar "ya pagué" (número de
   // operación, hora del depósito, etc.) — le ahorra al organizador tener que
   // ir a buscarlo por WhatsApp para revisar el comprobante.

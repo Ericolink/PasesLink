@@ -148,9 +148,6 @@ export const GuestList = memo(function GuestList({
       await setGuestPaymentStatus(eventId, guest.id, 'paid', method)
     } catch (err) {
       console.error('Error marking guest as paid:', err)
-      // setGuestPaymentStatus puede rechazar el reclamo de una reserva
-      // vencida si el cupo ya se llenó con alguien de la lista de espera —
-      // ese mensaje es más útil que el genérico, así que se muestra tal cual.
       setActionError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
     }
   }

@@ -16,7 +16,6 @@ import {
   requireMaxLength,
   requireNonEmpty,
 } from '../utils/validation'
-import { initialHoldExpiresAt } from '../utils/reservation'
 import type { PaymentMethod } from '../types'
 
 /**
@@ -59,18 +58,19 @@ export async function walkOut(eventId: string): Promise<void> {
 }
 
 /**
- * Opción B — Crea un invitado al instante (auto-registro público). Respeta el cupo.
+ * Opción B — Crea un invitado al instante (auto-registro público). NUNCA se
+ * bloquea por cupo: `capacity` es puramente informativo (ver EventData.capacity
+ * y el aviso en EventJoin.tsx cuando peopleCount ya lo superó), no un límite
+ * duro — así que esta función no lo consulta en absoluto.
  * Capa de aplicación: no confiar en que la UI ya validó. `name` llega ya
  * combinado por el llamador (EventJoin) como "Nombre Apellido" — por eso se
  * valida contra el máximo combinado, no el de una sola parte. Mismos límites
  * que firestore.rules (ver isValidPublicGuestRegistration ahí).
  *
- * `paymentMethod` solo importa si el evento cobra entrada — decide, vía
- * initialHoldExpiresAt, si el lugar queda con cronómetro (transferencia) o
- * sin límite de tiempo (efectivo o evento gratuito). El QR/pase se crea
- * siempre, pague o no — el gate real está en checkInGuest (ver
- * GuestData.paymentStatus, que nunca es 'paid' hasta que el organizador o
- * una futura pasarela lo confirme).
+ * El QR/pase se crea siempre, pague o no — el gate real está en checkInGuest
+ * (ver GuestData.paymentStatus, que nunca es 'paid' hasta que el organizador
+ * lo confirme). Ya no existe el "apartado temporal de lugar" (cronómetro):
+ * el invitado puede subir su comprobante cuando quiera, sin plazo.
  *
  * ADVERTENCIA: esta función abre su propia runTransaction — no se puede
  * llamar desde dentro de otra runTransaction (p.ej. una de guests.ts), eso
@@ -97,7 +97,7 @@ export async function registerWalkInGuest(
   // que mandar valores falsos acá no tiene efecto (las reglas lo rechazan).
   guestUid?: string,
   guestPhotoURL?: string,
-): Promise<{ status: 'success' | 'full'; qrToken?: string }> {
+): Promise<{ status: 'success' | 'error'; qrToken?: string }> {
   const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
   const trimmedEmail = email?.trim() ? requireMaxLength(email.trim(), GUEST_EMAIL_MAX, 'El email') : ''
   const trimmedPhone = phone?.trim() ? requireMaxLength(phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
@@ -117,12 +117,10 @@ export async function registerWalkInGuest(
 
   return runTransaction(db, async (tx) => {
     const snap = await tx.get(eventRef)
-    if (!snap.exists()) return { status: 'full' }
+    // Único motivo de fallo posible: el evento se borró entre que se cargó
+    // el formulario y se envió el registro — ya no hay ningún chequeo de cupo.
+    if (!snap.exists()) return { status: 'error' }
     const data = snap.data()
-    const capacity = data.capacity as number | null
-    const guestCount = (data.guestCount as number) || 0
-    if (capacity && guestCount >= capacity) return { status: 'full' }
-
     const requiresPayment = (data.requiresPayment as boolean) || false
     const resolvedMethod = requiresPayment ? paymentMethod || null : null
 
@@ -146,14 +144,12 @@ export async function registerWalkInGuest(
       notes: '',
       paymentStatus: 'unpaid',
       paymentMethod: resolvedMethod,
-      holdExpiresAt: initialHoldExpiresAt(requiresPayment, resolvedMethod),
+      holdExpiresAt: null,
       customData: customData || {},
       guestUid: guestUid || null,
       guestPhotoURL: guestPhotoURL || null,
       createdAt: serverTimestamp(),
     })
-    // email/phone son PII: se guardan aparte en guestContacts (no público), no
-    // en el documento de guests (legible por cualquiera vía /pass/:eventId/:qrToken).
     if (trimmedEmail || trimmedPhone) {
       tx.set(doc(db, 'events', eventId, 'guestContacts', guestRef.id), {
         email: trimmedEmail,

@@ -211,13 +211,11 @@ export function Scanner() {
       } else if (result.status === 'payment_required') {
         const ev = eventRef.current
         const amountDue = ev ? `${ev.currency}${(ev.ticketPrice * partySize(result.guest)).toLocaleString('es')}` : undefined
-        const detail = result.guest.paymentStatus === 'expired'
-          ? 'Su reserva venció sin confirmar el pago. No puede ingresar hasta que el organizador reconfirme el pago.'
-          : result.guest.paymentStatus === 'pending_confirmation'
-            ? 'Envió comprobante y está esperando que el organizador lo confirme. No puede ingresar todavía.'
-            : amountDue
-              ? `Debe pagar ${amountDue} antes de ingresar.`
-              : 'Debe pagar la entrada antes de ingresar.'
+        const detail = result.guest.paymentStatus === 'pending_confirmation'
+          ? 'Envió comprobante y está esperando que el organizador lo confirme. No puede ingresar todavía.'
+          : amountDue
+            ? `Debe pagar ${amountDue} antes de ingresar.`
+            : 'Debe pagar la entrada antes de ingresar.'
         showFeedback({ type: 'payment_required', guestName: result.guest.name, detail })
       } else if (result.status === 'blocked_final_exit') {
         showFeedback({

@@ -54,6 +54,7 @@ function makeEvent(): EventData {
     checkedInCount: 0,
     peopleCount: 0,
     occupancyCount: 0,
+    paidCount: 0,
     createdAt: 0,
     updatedAt: 0,
   }
@@ -76,7 +77,6 @@ function makeGuests(count: number): GuestData[] {
     lockToken: null,
     paymentStatus: 'unpaid',
     paymentMethod: null,
-    holdExpiresAt: null,
     createdAt: 0,
   }))
 }

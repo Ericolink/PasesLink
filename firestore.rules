@@ -48,10 +48,10 @@ service cloud.firestore {
         || (newVal > oldVal && newVal <= oldVal + 50);
     }
 
-    // Cualquier cliente puede crear wall/waitlist sin autenticarse — estos
-    // límites son la última barrera real si alguien evita por completo la
-    // capa de aplicación (src/firebase/wall.ts, src/firebase/waitlist.ts) y
-    // escribe directo contra Firestore. Deben coincidir con src/utils/validation.ts.
+    // Cualquier cliente puede crear mensajes del muro sin autenticarse —
+    // estos límites son la última barrera real si alguien evita por completo
+    // la capa de aplicación (src/firebase/wall.ts) y escribe directo contra
+    // Firestore. Deben coincidir con src/utils/validation.ts.
     function isValidWallMessage() {
       let d = request.resource.data;
       return d.text is string && d.text.size() > 0 && d.text.size() <= 500
@@ -87,13 +87,6 @@ service cloud.firestore {
         && isValidWallReply(newReplies[oldReplies.size()]);
     }
 
-    function isValidWaitlistEntry() {
-      let d = request.resource.data;
-      return d.name is string && d.name.size() > 0 && d.name.size() <= 60
-        && d.lastName is string && d.lastName.size() > 0 && d.lastName.size() <= 60
-        && d.phone is string && d.phone.size() <= 30;
-    }
-
     // Auto-registro público de invitados (registerWalkInGuest, eventos
     // open/hybrid). Solo se valida esta rama pública — el alta hecha por el
     // organizador (addGuest/addGuestsBulk) no pasa por isOpenEvent y queda
@@ -110,14 +103,14 @@ service cloud.firestore {
     // sí mismo ya 'checked_in' o 'paid' en el mismo request de alta pública,
     // saltándose por completo el gate de pago del check-in y el cobro real.
     //
-    // holdExpiresAt solo puede tener un número (acotado a los próximos 60
-    // min — margen sobre RESERVATION_HOLD_MINUTES=20, ver
-    // src/utils/reservation.ts) cuando paymentMethod es 'transfer'; con
-    // cualquier otro método (o sin cobro) siempre viaja null. El acotado
-    // hacia adelante es la defensa real acá: sin él, un cliente podría
-    // registrarse eligiendo "transferencia" pero mandando un holdExpiresAt
-    // en el año 2100 para nunca perder el lugar — el mismo abuso que motivó
-    // separar paymentStatus de holdExpiresAt en primer lugar.
+    // Ya no existe el "apartado temporal de lugar" (cronómetro/vencimiento):
+    // el registro nunca se bloquea por cupo y el invitado puede subir su
+    // comprobante cuando quiera, sin plazo. holdExpiresAt siempre debe
+    // llegar en null — se sigue exigiendo el campo (no se omite) para que
+    // este chequeo no dependa de leer una clave ausente (que Firestore
+    // Rules trata como error, no como null). Queda como defensa en
+    // profundidad: nadie, ni hablando directo contra Firestore, puede
+    // fabricarse un cronómetro que ya no existe en la app.
     function isValidPublicGuestRegistration() {
       let d = request.resource.data;
       return d.name is string && d.name.size() > 0 && d.name.size() <= 121
@@ -128,16 +121,7 @@ service cloud.firestore {
         && d.checkedInAt == null
         && d.paymentStatus == 'unpaid'
         && d.paymentMethod in [null, 'transfer', 'cash']
-        && (
-          (d.paymentMethod == 'transfer'
-            && d.holdExpiresAt is number
-            && d.holdExpiresAt > request.time.toMillis()
-            // 60 * 60 * 1000 ms = 60 min, en milisegundos planos (no
-            // duration.value(), que solo se puede sumar a un Timestamp — acá
-            // holdExpiresAt es un número crudo, no un Timestamp).
-            && d.holdExpiresAt <= request.time.toMillis() + 3600000)
-          || (d.paymentMethod != 'transfer' && d.holdExpiresAt == null)
-        )
+        && d.holdExpiresAt == null
         && (
           // guestUid/guestPhotoURL: src/firebase/capacity.ts los escribe SIEMPRE
           // en el auto-registro (null si no hay sesión). Sin esta validación, un
@@ -411,17 +395,22 @@ service cloud.firestore {
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount))
         // Un co-organizador (no dueño, así que no cae en la primera rama de
-        // este `allow update`) necesita poder tocar guestCount/peopleCount
-        // en dos casos: eliminar un invitado (deleteGuest, decrementa) y
-        // reconfirmar el pago de una reserva vencida (setGuestPaymentStatus,
-        // incrementa al reclamar el lugar — ver src/firebase/guests.ts).
-        // Mismo margen ±50 que counterDeltaOk ya usa para los contadores de
-        // presencia arriba, no un exacto ±1: un borrado puede quitar un
-        // grupo/familia entero de una sola vez.
+        // este `allow update`) necesita poder tocar guestCount/peopleCount/
+        // paidCount en estos casos: eliminar un invitado (deleteGuest,
+        // decrementa guestCount/peopleCount y también paidCount si ya había
+        // pagado), aprobar o revertir un pago (setGuestPaymentStatus, suma o
+        // resta paidCount sin tocar guestCount/peopleCount — el invitado ya
+        // contaba desde que se registró, pague o no) y cambiar la cantidad
+        // de acompañantes de un invitado ya pagado (updateGuest ajusta
+        // peopleCount y paidCount por la misma diferencia). Mismo margen ±50
+        // que counterDeltaOk ya usa para los contadores de presencia arriba,
+        // no un exacto ±1: un borrado puede quitar un grupo/familia entero
+        // de una sola vez.
         || (isOwnerOrCoOrg(eventId)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'paidCount'])
             && counterDeltaOk(request.resource.data.guestCount, resource.data.guestCount)
-            && counterDeltaOk(request.resource.data.peopleCount, resource.data.peopleCount))
+            && counterDeltaOk(request.resource.data.peopleCount, resource.data.peopleCount)
+            && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
         // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
         // invitación en 1 (guestCount), sumando entre 1 y GUEST_MAX_PARTY_SIZE
         // personas (peopleCount) — ese invitado puede traer acompañantes (ver
@@ -448,26 +437,25 @@ service cloud.firestore {
           // El propio invitado marca "ya pagué / comprobante enviado"
           // (submitPaymentProof, src/firebase/guests.ts) — solo desde el
           // dispositivo que ya reclamó el pase (mismo chequeo de lockToken
-          // que rsvpStatus arriba), solo para transferencia, y solo puede
-          // aterrizar en 'pending_confirmation' viniendo de 'unpaid' o
-          // 'expired' (reclamo tardío) — nunca puede escribirse a sí mismo
-          // 'paid' por esta vía. holdExpiresAt acotado hacia adelante por la
-          // misma razón que en isValidPublicGuestRegistration: sin el tope,
-          // un cliente podría fijar una fecha lejana para nunca vencer.
-          // paymentNote (número de referencia) es OBLIGATORIO acá — pedido
-          // explícito: sin una referencia concreta, el organizador no tiene
-          // nada que cotejar contra su resumen bancario para aprobar/rechazar.
+          // que rsvpStatus arriba), solo para transferencia. Sin límite de
+          // tiempo (ya no existe el apartado temporal/cronómetro): puede
+          // mandarlo cuando quiera mientras no esté ya pagado ni ya tenga un
+          // comprobante en revisión. `!= 'paid' && != 'pending_confirmation'`
+          // (en vez de enumerar 'unpaid'/'expired') para que un invitado
+          // legacy con el valor 'expired' (escrito por el barrido de
+          // reservas que este proyecto ya no usa) también pueda mandar su
+          // comprobante, igual que cualquier invitado sin pagar — no hace
+          // falta migrar esos documentos viejos. paymentNote (número de
+          // referencia) sigue siendo OBLIGATORIO — pedido explícito: sin una
+          // referencia concreta, el organizador no tiene nada que cotejar
+          // contra su resumen bancario para aprobar/rechazar.
           (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'holdExpiresAt', 'paymentNote']) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentNote']) &&
             (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken) &&
             resource.data.paymentMethod == 'transfer' &&
-            resource.data.paymentStatus in ['unpaid', 'expired'] &&
+            resource.data.paymentStatus != 'paid' &&
+            resource.data.paymentStatus != 'pending_confirmation' &&
             request.resource.data.paymentStatus == 'pending_confirmation' &&
-            request.resource.data.holdExpiresAt is number &&
-            request.resource.data.holdExpiresAt > request.time.toMillis() &&
-            // 72 * 3600000 ms = 72h en milisegundos planos (mismo motivo que
-            // el comentario en isValidPublicGuestRegistration).
-            request.resource.data.holdExpiresAt <= request.time.toMillis() + 259200000 &&
             request.resource.data.paymentNote is string &&
             request.resource.data.paymentNote.size() > 0 &&
             request.resource.data.paymentNote.size() <= 300
@@ -522,9 +510,15 @@ service cloud.firestore {
         allow update: if false;
       }
 
+      // Funcionalidad eliminada (ver src/firebase/waitlist.ts, borrado). Ya
+      // no hay ningún camino en la app que lleve a un invitado a esperar
+      // cupo — el registro nunca se bloquea — así que no debe quedar
+      // ninguna forma de escribir acá, ni siquiera hablando directo contra
+      // Firestore. Entries viejas de antes de este cambio pueden seguir
+      // existiendo (huérfanas, invisibles) — no hace falta borrarlas, y esta
+      // regla no las afecta retroactivamente.
       match /waitlist/{entryId} {
-        allow read, update, delete: if isOwner(eventId) || isAdmin();
-        allow create: if isValidWaitlistEntry();
+        allow read, write: if false;
       }
 
       match /wall/{messageId} {
