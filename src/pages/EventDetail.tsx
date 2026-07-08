@@ -558,6 +558,7 @@ export function EventDetail() {
             paymentMethods={event.paymentMethods}
             ticketPrice={event.ticketPrice}
             currency={event.currency}
+            customFields={event.customFields}
             hasActiveFilters={Boolean(search.trim()) || statusFilter !== 'all'}
             hasSearchText={Boolean(search.trim())}
           />

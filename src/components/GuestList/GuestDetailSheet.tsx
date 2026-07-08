@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useModalA11y } from '../../hooks/useModalA11y'
 import { guestPresence, partySize } from '../../firebase/guests'
-import type { GuestData, PaymentMethod } from '../../types'
+import type { CustomField, GuestData, PaymentMethod } from '../../types'
 import { isHoldExpired } from '../../utils/reservation'
 import {
   IconAlertTriangle,
@@ -82,6 +82,7 @@ export function GuestDetailSheet({
   paymentMethods,
   ticketPrice,
   currency,
+  customFields = [],
   copiedId,
   onClose,
   onShare,
@@ -98,6 +99,7 @@ export function GuestDetailSheet({
   paymentMethods: PaymentMethod[]
   ticketPrice: number
   currency: string
+  customFields?: CustomField[]
   copiedId: string | null
   onClose: () => void
   onShare: (guest: GuestData) => void
@@ -181,6 +183,24 @@ export function GuestDetailSheet({
                 )}
                 {historyOpen && <GuestHistory eventId={eventId} guestId={guest.id} />}
               </section>
+
+              {customFields.some((field) => guest.customData?.[field.id]) && (
+                <section className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Datos adicionales</p>
+                  <dl className="space-y-1">
+                    {customFields.map((field) => {
+                      const value = guest.customData?.[field.id]
+                      if (!value) return null
+                      return (
+                        <div key={field.id} className="flex justify-between gap-3 text-sm">
+                          <dt className="text-gray-500 dark:text-gray-400">{field.label}</dt>
+                          <dd className="text-gray-900 dark:text-white font-medium text-right truncate">{value}</dd>
+                        </div>
+                      )
+                    })}
+                  </dl>
+                </section>
+              )}
 
               {requiresPayment && (
                 <section className="space-y-2">

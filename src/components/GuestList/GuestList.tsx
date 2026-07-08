@@ -6,7 +6,7 @@ import {
   setGuestPaymentStatus,
   unlockGuestPass,
 } from '../../firebase/guests'
-import type { GuestData, PaymentMethod } from '../../types'
+import type { CustomField, GuestData, PaymentMethod } from '../../types'
 import { IconChevronDown, IconInbox } from '../Icons'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { buildPassUrl } from '../../utils/qrUrl'
@@ -94,6 +94,7 @@ export const GuestList = memo(function GuestList({
   paymentMethods = [],
   ticketPrice = 0,
   currency = '',
+  customFields = [],
   hasActiveFilters = false,
   hasSearchText = false,
 }: {
@@ -103,6 +104,7 @@ export const GuestList = memo(function GuestList({
   paymentMethods?: PaymentMethod[]
   ticketPrice?: number
   currency?: string
+  customFields?: CustomField[]
   // true cuando `guests` ya viene reducido por búsqueda/filtro de estado (no
   // por el orden, que nunca produce cero resultados) — distingue "todavía no
   // hay invitados" de "ninguno coincide con lo que buscás", que antes
@@ -339,6 +341,7 @@ export const GuestList = memo(function GuestList({
         paymentMethods={paymentMethods}
         ticketPrice={ticketPrice}
         currency={currency}
+        customFields={customFields}
         copiedId={copiedId}
         onClose={() => setDetailGuest(null)}
         onShare={handleShare}
