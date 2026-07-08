@@ -123,6 +123,15 @@ export async function getGuestDoc(testEnv: RulesTestEnvironment, eventId: string
   return result
 }
 
+export async function getGuestContactDoc(testEnv: RulesTestEnvironment, eventId: string, guestId: string) {
+  let result: Record<string, unknown> | undefined
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const snap = await getDoc(doc(context.firestore(), 'events', eventId, 'guestContacts', guestId))
+    result = snap.data()
+  })
+  return result
+}
+
 /** Encuentra el id de un guest por su qrToken (registerWalkInGuest solo devuelve el token, no el id). */
 export async function guestIdByToken(testEnv: RulesTestEnvironment, eventId: string, qrToken: string): Promise<string> {
   let result = ''

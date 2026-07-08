@@ -4,11 +4,12 @@ import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent, subscribeToEvent } from '../firebase/events'
 import { checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp, submitPaymentProof } from '../firebase/guests'
+import { GuestEditModal } from '../components/GuestEditModal'
 import { saveUserInvitation } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { canSubmitPaymentProof, holdMsRemaining, isHoldExpired } from '../utils/reservation'
-import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
+import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 import { InvitationCard } from '../components/InvitationCard'
@@ -75,6 +76,7 @@ function GuestPassInner() {
   const [downloaded, setDownloaded] = useState(false)
   const [showMaybeMessage, setShowMaybeMessage] = useState(false)
   const [showDeclineModal, setShowDeclineModal] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required' | 'blocked' | 'not_found'>('idle')
   const [paymentSaving, setPaymentSaving] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
@@ -632,6 +634,16 @@ function GuestPassInner() {
                 )
               )}
 
+              {!guest.isGroup && (
+                <button
+                  data-pass-exclude="true"
+                  onClick={() => setEditOpen(true)}
+                  className="inline-flex items-center gap-1 text-xs mb-3 text-[var(--invite-text-muted)] hover:text-[var(--invite-text)] underline underline-offset-2"
+                >
+                  <IconEdit className="w-3 h-3" /> Editar mis datos
+                </button>
+              )}
+
               <div className="relative flex justify-center my-5" ref={qrWrapperRef}>
                 <div
                   className="invite-qr-frame p-4 border rounded-xl inline-flex items-center justify-center transition-all duration-500"
@@ -919,6 +931,16 @@ function GuestPassInner() {
             <p className="text-sm text-[var(--invite-text-muted)]">Confirma tu asistencia para ver el muro del evento.</p>
           </div>
         )
+      )}
+      {editOpen && eventId && (
+        <GuestEditModal
+          eventId={eventId}
+          event={event}
+          guest={guest}
+          lockToken={guest.lockToken}
+          onClose={() => setEditOpen(false)}
+          onSaved={(patch) => setGuest((g) => (g ? { ...g, ...patch } : g))}
+        />
       )}
     </InvitationThemeRoot>
   )

@@ -165,6 +165,57 @@ service cloud.firestore {
         && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30));
     }
 
+    // Tamaño de `companions` ANTES de esta escritura, sea cual sea su
+    // representación actual: array (organizador, o cualquier invitado que ya
+    // haya editado su información una vez) o número legado (autoregistro
+    // público vía registerWalkInGuest/capacity.ts, que nunca escribe un
+    // array — ver normalizeCompanions() en src/firebase/guests.ts, misma
+    // traducción del lado cliente). Sin esto, resource.data.companions.size()
+    // lanzaría un error de tipo para todo invitado autoregistrado en un
+    // evento open/hybrid, bloqueando el self-edit justo para el público que
+    // más lo necesita.
+    function companionsCountBefore() {
+      return resource.data.companions is list
+        ? resource.data.companions.size()
+        : (resource.data.companions is number ? resource.data.companions : 0);
+    }
+
+    // Auto-edición del propio invitado desde su pase (GuestPass, "Editar mis
+    // datos"). NO permite variar la CANTIDAD de acompañantes — solo sus
+    // datos (ver companionsCountBefore). Límites deben coincidir con
+    // GUEST_NAME_PART_MAX/GUEST_CUSTOM_FIELD_MAX_COUNT en
+    // src/utils/validation.ts. El largo individual de cada nombre/apellido/
+    // teléfono dentro de `companions` y de cada valor de `customData` NO se
+    // valida acá — Firestore Rules no puede iterar los elementos de un
+    // array/mapa para exigir una condición por elemento (misma limitación ya
+    // documentada arriba en isValidPublicGuestRegistration para customData);
+    // esa validación por elemento la hace solo el cliente (ver
+    // updateGuestSelf en src/firebase/guests.ts).
+    function isValidGuestSelfEdit() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 121
+        && (!('lastName' in d) || (d.lastName is string && d.lastName.size() <= 60))
+        && d.companions is list
+        && d.companions.size() == companionsCountBefore()
+        && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30));
+    }
+
+    // Cruza con guests/{guestId} (que sí tiene lockToken) para autorizar la
+    // auto-edición de guestContacts (email/phone) del mismo invitado — ese
+    // documento no tiene su propio lockToken. Mismo criterio que en
+    // guests/{guestId}: si el pase todavía no está reclamado (lockToken ==
+    // null) cualquiera puede escribir su contacto por primera vez; si ya
+    // está reclamado, el valor recibido en ESTE mismo request debe coincidir
+    // con el guardado en guests/{guestId}.
+    function guestSelfEditContactLockOk(eventId, guestId) {
+      let guestPath = /databases/$(database)/documents/events/$(eventId)/guests/$(guestId);
+      return exists(guestPath) &&
+        (
+          get(guestPath).data.lockToken == null ||
+          get(guestPath).data.lockToken == request.resource.data.get('lockToken', null)
+        );
+    }
+
     // Sin alta pública ni desde la app: la única forma de agregar/quitar un
     // admin es a mano desde la consola de Firebase (que opera con acceso de
     // propietario del proyecto y no pasa por estas reglas). `allow read`
@@ -420,17 +471,48 @@ service cloud.firestore {
             request.resource.data.paymentNote is string &&
             request.resource.data.paymentNote.size() > 0 &&
             request.resource.data.paymentNote.size() <= 300
+          ) ||
+          // El propio invitado edita su información de registro (GuestPass,
+          // "Editar mis datos") — mismo gate de lockToken que las dos ramas
+          // de arriba. qrToken/status/checkedIn*/paymentStatus/etc. quedan
+          // FUERA de este hasOnly a propósito: si un intento de escritura
+          // toca cualquiera de esos campos junto con estos, cae toda la
+          // rama (no solo esos campos).
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'lastName', 'companions', 'customData', 'lockToken']) &&
+            (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken) &&
+            isValidGuestSelfEdit()
           );
       }
 
-      // email/phone del invitado: nunca público. A diferencia de `guests`
-      // (que necesita `allow get: if true` para que el pase compartible
-      // funcione sin login), esta colección solo la lee el organizador.
+      // email/phone del invitado: antes nunca público. Ahora `get` por id
+      // conocido es público — mismo modelo de confianza que ya tiene
+      // guests/{guestId} (`allow get: if true`): quien tiene el link /pass
+      // ya puede leer el resto del invitado. `list`/búsqueda sigue vedada al
+      // público — nadie puede enumerar la colección ni buscar por campo,
+      // solo pedir el contacto de un guestId puntual ya resuelto vía
+      // guests/{guestId}.
       match /guestContacts/{guestId} {
-        allow read, delete: if isOwnerOrCoOrg(eventId) || isAdmin();
+        allow get: if true;
+        allow list, delete: if isOwnerOrCoOrg(eventId) || isAdmin();
         allow create: if isOwnerOrCoOrg(eventId) || isAdmin()
-          || (isOpenEvent(eventId) && isValidPublicGuestContact());
-        allow update: if isOwnerOrCoOrg(eventId) || isAdmin();
+          || (isOpenEvent(eventId) && isValidPublicGuestContact())
+          // Primer guardado de contacto del propio invitado (p.ej. un
+          // invitado de lista, agregado sin teléfono, que ahora carga el
+          // suyo por primera vez) — a diferencia de la rama de arriba, no
+          // exige isOpenEvent: esto aplica a cualquier invitado con pase,
+          // venga de lista o autoregistro.
+          || (
+            request.resource.data.keys().hasOnly(['email', 'phone', 'lockToken']) &&
+            isValidPublicGuestContact() &&
+            guestSelfEditContactLockOk(eventId, guestId)
+          );
+        allow update: if isOwnerOrCoOrg(eventId) || isAdmin()
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email', 'phone', 'lockToken']) &&
+            isValidPublicGuestContact() &&
+            guestSelfEditContactLockOk(eventId, guestId)
+          );
       }
 
       match /checkins/{checkinId} {

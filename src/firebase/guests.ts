@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   increment,
   limit,
@@ -20,16 +21,19 @@ import { addToWaitlist, tryPromoteWaitlist } from './waitlist'
 import { getUserProfile } from './userProfile'
 import { sendCheckinSummaryEmail } from '../utils/emailjs'
 import { captureException, measureSpan, withListenerReporting } from '../lib/sentry'
-import type { CompanionData, GuestData, PaymentMethod, RsvpStatus } from '../types'
+import type { CompanionData, CustomField, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { GuestSchema, warnIfInvalidShape } from '../types/schemas'
 import { pendingConfirmationDeadlineFromNow } from '../utils/reservation'
 import {
+  GUEST_CUSTOM_FIELD_MAX_COUNT,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
+  GUEST_EMAIL_MAX,
   GUEST_FULL_NAME_MAX,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
   requireMaxLength,
   requireNonEmpty,
+  requireValidEmail,
 } from '../utils/validation'
 
 export interface NewGuestInput {
@@ -216,6 +220,80 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
   if (phone !== undefined) {
     batch.set(contactRef(eventId, guestId), { phone }, { merge: true })
   }
+  await batch.commit()
+}
+
+export interface GuestSelfEditInput {
+  name: string
+  lastName: string
+  phone: string
+  email: string
+  companions: CompanionData[]
+  customData: Record<string, string>
+}
+
+// Lee email/phone actuales para precargar el formulario de auto-edición
+// (GuestEditModal). Se llama recién al abrir el modal, no en la carga
+// inicial del pase, para no gastar una lectura extra en cada visita de
+// invitados que nunca editan. Si el invitado nunca tuvo contacto cargado
+// (p.ej. de lista, agregado sin teléfono), devuelve strings vacíos.
+export async function getGuestContact(eventId: string, guestId: string): Promise<{ email: string; phone: string }> {
+  const snap = await getDoc(contactRef(eventId, guestId))
+  const data = snap.data()
+  return { email: (data?.email as string) || '', phone: (data?.phone as string) || '' }
+}
+
+// Auto-edición del propio invitado desde su pase (GuestPass, "Editar mis
+// datos") — a diferencia de updateGuest() (organizador), NUNCA cambia la
+// CANTIDAD de acompañantes (isValidGuestSelfEdit en firestore.rules lo
+// exige), así que no hay ningún contador de evento que ajustar y un
+// writeBatch alcanza (no hace falta runTransaction). Valida cada campo
+// individualmente porque Firestore Rules no puede iterar el contenido de
+// `companions`/`customData` elemento por elemento — esta es la única
+// barrera real de longitud para esos valores.
+export async function updateGuestSelf(
+  eventId: string,
+  guestId: string,
+  lockToken: string | null,
+  input: GuestSelfEditInput,
+  customFields: CustomField[],
+): Promise<void> {
+  const name = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
+  const lastName = requireMaxLength((input.lastName || '').trim(), GUEST_NAME_PART_MAX, 'El apellido')
+  const phone = requireMaxLength((input.phone || '').trim(), GUEST_PHONE_MAX, 'El teléfono')
+  const emailTrimmed = (input.email || '').trim()
+  const email = emailTrimmed
+    ? requireMaxLength(requireValidEmail(emailTrimmed, 'El email'), GUEST_EMAIL_MAX, 'El email')
+    : ''
+
+  const companions = input.companions.map((c, i) => ({
+    name: requireMaxLength((c.name || '').trim(), GUEST_NAME_PART_MAX, `El nombre del acompañante ${i + 1}`),
+    lastName: requireMaxLength((c.lastName || '').trim(), GUEST_NAME_PART_MAX, `El apellido del acompañante ${i + 1}`),
+    phone: requireMaxLength((c.phone || '').trim(), GUEST_PHONE_MAX, `El teléfono del acompañante ${i + 1}`),
+  }))
+
+  // Solo se guardan claves que correspondan a un customField vigente del
+  // evento — un campo borrado por el organizador después del registro no se
+  // vuelve a arrastrar para siempre.
+  const allowedFieldIds = new Set(customFields.map((f) => f.id))
+  const customData: Record<string, string> = {}
+  for (const [key, value] of Object.entries(input.customData || {})) {
+    if (!allowedFieldIds.has(key)) continue
+    customData[key] = requireMaxLength(value, GUEST_CUSTOM_FIELD_VALUE_MAX, 'Uno de los campos personalizados')
+  }
+  if (Object.keys(customData).length > GUEST_CUSTOM_FIELD_MAX_COUNT) {
+    throw new Error('El formulario tiene demasiados campos.')
+  }
+
+  const batch = writeBatch(db)
+  batch.update(doc(db, 'events', eventId, 'guests', guestId), {
+    name,
+    lastName,
+    companions,
+    customData,
+    lockToken,
+  })
+  batch.set(contactRef(eventId, guestId), { email, phone, lockToken }, { merge: true })
   await batch.commit()
 }
 

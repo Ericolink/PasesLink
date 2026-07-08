@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
+import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore'
-import { createTestEnv, getEventDoc, getGuestDoc, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
+import { createTestEnv, getEventDoc, getGuestContactDoc, getGuestDoc, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
 
 // Mismo mock que capacity.test.ts: redirige el `db` singleton de guests.ts/capacity.ts
 // al Firestore del emulador activo en cada test (ver comentario en capacity.test.ts).
@@ -13,7 +13,7 @@ vi.mock('../config', () => ({
 }))
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, checkInGuest, checkOutGuest, deleteGuest, setGuestPaymentStatus, submitPaymentProof, updateGuest } from '../guests'
+import { addGuest, addGuestsBulk, checkInGuest, checkOutGuest, deleteGuest, setGuestPaymentStatus, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 import { addToWaitlist } from '../waitlist'
 
 const OWNER_UID = 'owner-uid'
@@ -410,5 +410,158 @@ describe('guests.ts', () => {
 
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.peopleCount).toBe(6)
+  })
+
+  describe('updateGuestSelf (auto-edición del invitado)', () => {
+    it('should let the guest edit name/companions/customData when companions was still the legacy numeric format', async () => {
+      await seedEvent(testEnv, EVENT_ID, { peopleCount: 1 })
+      // registerWalkInGuest nunca escribe un array de companions, solo un
+      // número — companionsCountBefore() en firestore.rules debe tolerar esto.
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: 0, lockToken: null })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await updateGuestSelf(
+        EVENT_ID,
+        GUEST_ID,
+        null,
+        { name: 'Juan', lastName: 'Pérez', phone: '+54 9 11 1234-5678', email: 'juan@test.com', companions: [], customData: {} },
+        [],
+      )
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.name).toBe('Juan')
+      expect(guest?.lastName).toBe('Pérez')
+      expect(guest?.companions).toEqual([])
+      const contact = await getGuestContactDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(contact?.phone).toBe('+54 9 11 1234-5678')
+      expect(contact?.email).toBe('juan@test.com')
+      // No debe tocar ningún contador del evento: no cambia la cantidad de acompañantes.
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.peopleCount).toBe(1)
+    })
+
+    it('should let the guest edit companion details without changing how many there are', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
+        qrToken: QR_TOKEN,
+        companions: [{ name: 'Uno' }, { name: 'Dos' }],
+        lockToken: null,
+      })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await updateGuestSelf(
+        EVENT_ID,
+        GUEST_ID,
+        null,
+        {
+          name: 'Ana',
+          lastName: '',
+          phone: '',
+          email: '',
+          companions: [{ name: 'Uno editado' }, { name: 'Dos editado' }],
+          customData: {},
+        },
+        [],
+      )
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.companions).toEqual([
+        { name: 'Uno editado', lastName: '', phone: '' },
+        { name: 'Dos editado', lastName: '', phone: '' },
+      ])
+    })
+
+    it('should reject a direct write that changes the companions COUNT (bypassing the app function)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}], lockToken: null })
+      const publicDb = testEnv.unauthenticatedContext().firestore()
+
+      await assertFails(
+        updateDoc(doc(publicDb, 'events', EVENT_ID, 'guests', GUEST_ID), {
+          name: 'Intento',
+          companions: [{}, {}, {}],
+        }),
+      )
+    })
+
+    it('should reject self-edit when lockToken does not match (pass claimed by another device)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: 'device-a' })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await expect(
+        updateGuestSelf(
+          EVENT_ID,
+          GUEST_ID,
+          'device-b',
+          { name: 'Intento', lastName: '', phone: '', email: '', companions: [], customData: {} },
+          [],
+        ),
+      ).rejects.toThrow()
+    })
+
+    it('should allow self-edit when the pass was never claimed (lockToken null)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: null })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await updateGuestSelf(
+        EVENT_ID,
+        GUEST_ID,
+        null,
+        { name: 'Nuevo Nombre', lastName: '', phone: '', email: '', companions: [], customData: {} },
+        [],
+      )
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.name).toBe('Nuevo Nombre')
+    })
+
+    it('should reject a direct write that sneaks status/paymentStatus alongside name (hasOnly protects check-in/payment)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: null, status: 'invited', paymentStatus: 'unpaid' })
+      const publicDb = testEnv.unauthenticatedContext().firestore()
+
+      await assertFails(
+        updateDoc(doc(publicDb, 'events', EVENT_ID, 'guests', GUEST_ID), {
+          name: 'Intento',
+          status: 'checked_in',
+        }),
+      )
+      await assertFails(
+        updateDoc(doc(publicDb, 'events', EVENT_ID, 'guests', GUEST_ID), {
+          name: 'Intento',
+          paymentStatus: 'paid',
+        }),
+      )
+    })
+
+    it('should create guestContacts on first self-edit for a list guest that never had a phone', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: null })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await updateGuestSelf(
+        EVENT_ID,
+        GUEST_ID,
+        null,
+        { name: 'Lista', lastName: '', phone: '11-2222-3333', email: '', companions: [], customData: {} },
+        [],
+      )
+
+      const contact = await getGuestContactDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(contact?.phone).toBe('11-2222-3333')
+    })
+
+    it('should still allow the organizer to edit everything, unaffected by the new self-edit rule', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: 'device-a' })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Editado por organizador' })
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.name).toBe('Editado por organizador')
+    })
   })
 })

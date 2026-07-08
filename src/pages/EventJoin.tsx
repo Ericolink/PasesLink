@@ -21,8 +21,8 @@ import {
 // depende del --invite-radius de cada tema — el objetivo es que se vea
 // "amigable" en las 6 plantillas por igual) y labels en mayúscula con
 // tracking. Colores (foco, texto, fondo) sí siguen el tema vía --invite-*.
-const labelClass = 'block text-xs font-bold uppercase tracking-wide mb-1.5 text-[var(--invite-text-muted)]'
-const inputClass =
+export const labelClass = 'block text-xs font-bold uppercase tracking-wide mb-1.5 text-[var(--invite-text-muted)]'
+export const inputClass =
   'w-full rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { InvitationCard } from '../components/InvitationCard'

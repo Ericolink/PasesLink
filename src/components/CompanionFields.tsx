@@ -4,9 +4,16 @@ import { IconTrash } from './Icons'
 export function CompanionFieldsEditor({
   companions,
   onChange,
+  allowAddRemove = true,
 }: {
   companions: CompanionData[]
   onChange: (companions: CompanionData[]) => void
+  // false para auto-edición del propio invitado (GuestEditModal): esa vía
+  // tiene prohibido cambiar la CANTIDAD de acompañantes (ver
+  // isValidGuestSelfEdit en firestore.rules) — solo puede editar los datos
+  // de los que ya existen, así que ocultar "agregar"/"quitar" evita una UI
+  // que promete algo que el guardado va a rechazar.
+  allowAddRemove?: boolean
 }) {
   function addCompanion() {
     onChange([...companions, {}])
@@ -22,13 +29,15 @@ export function CompanionFieldsEditor({
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={addCompanion}
-        className="text-xs text-primary font-medium hover:underline"
-      >
-        + Agregar acompañante
-      </button>
+      {allowAddRemove && (
+        <button
+          type="button"
+          onClick={addCompanion}
+          className="text-xs text-primary font-medium hover:underline"
+        >
+          + Agregar acompañante
+        </button>
+      )}
       {companions.map((companion, index) => (
         <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-gray-50 rounded-md p-2">
           <input
@@ -53,14 +62,16 @@ export function CompanionFieldsEditor({
               onChange={(e) => updateCompanion(index, 'phone', e.target.value)}
               className="flex-1 min-w-0 border border-gray-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <button
-              type="button"
-              onClick={() => removeCompanion(index)}
-              className="shrink-0 text-gray-400 hover:text-red-500 transition-colors p-2.5"
-              aria-label="Eliminar acompañante"
-            >
-              <IconTrash className="w-4 h-4" />
-            </button>
+            {allowAddRemove && (
+              <button
+                type="button"
+                onClick={() => removeCompanion(index)}
+                className="shrink-0 text-gray-400 hover:text-red-500 transition-colors p-2.5"
+                aria-label="Eliminar acompañante"
+              >
+                <IconTrash className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       ))}
