@@ -30,6 +30,12 @@ Ningún tema reordena, esconde o duplica un bloque de esta secuencia.
 Variar la identidad de un bloque (color, tipografía, forma) está permitido;
 moverlo, quitarlo o agregar uno nuevo no lo está.
 
+Este contrato rige la invitación en pantalla (`GuestPass.tsx` visible). El
+boleto exportable (`GuestPassTicket.tsx`, generado por "Descargar pase") es
+un artefacto distinto — hereda la paleta/tipografía/ornamentos del tema
+pero, a propósito, no incluye Acciones, Mensajes ni Muro: no es una
+violación de este contrato, es un documento con otro propósito.
+
 ## Superficies obligatorias (6 por tema)
 
 Todo tema debe implementar **exactamente** estas seis superficies — ni

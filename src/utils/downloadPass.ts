@@ -1,5 +1,5 @@
-// Descarga el pase como PNG capturando el DOM real de la boarding-pass card
-// (misma tarjeta que ve el invitado en pantalla) en vez de redibujarla a mano
+// Descarga el pase como PNG capturando el DOM real del boleto exportable
+// (GuestPassTicket, no la invitación completa) en vez de redibujarlo a mano
 // en un <canvas>. Así el pase descargado hereda automáticamente colores,
 // tipografía, fondo, radios, sombras y ornamentos de la plantilla del
 // evento (src/templates/registry.ts) sin lógica por plantilla: cualquier
@@ -27,9 +27,10 @@ export async function downloadPassImage(node: HTMLElement, filename: string): Pr
       filter: (n) => !isExcluded(n),
     })
   } catch (err) {
-    // La causa más probable es una imagen de portada externa (Cloudinary)
-    // que taintea el canvas por CORS — se reintenta sin imágenes para que
-    // el invitado igual se lleve su pase en vez de un error duro.
+    // Red de seguridad ante cualquier <img> que taintee el canvas por CORS
+    // (recurso servido desde un dominio externo sin cabeceras adecuadas) —
+    // se reintenta sin imágenes para que el invitado igual se lleve su pase
+    // en vez de un error duro.
     console.error('Error generando la imagen del pase, reintentando sin imágenes:', err)
     dataUrl = await toPng(node, {
       pixelRatio: PIXEL_RATIO,

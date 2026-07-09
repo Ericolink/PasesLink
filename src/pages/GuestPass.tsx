@@ -20,6 +20,9 @@ import { EventCountdown } from '../components/EventCountdown'
 import { TimelineDisplay } from '../components/TimelineDisplay'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
 import { SkeletonBlock } from '../components/Skeleton'
+import { PerforatedDivider } from '../components/PerforatedDivider'
+import { PassInfoCell } from '../components/PassInfoCell'
+import { GuestPassTicket } from '../components/GuestPassTicket'
 import { formatDate, formatTime12h } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadPassImage } from '../utils/downloadPass'
@@ -74,7 +77,7 @@ function GuestPassInner() {
   const [proofSubmitting, setProofSubmitting] = useState(false)
   const [proofError, setProofError] = useState<string | null>(null)
   const qrWrapperRef = useRef<HTMLDivElement>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
+  const ticketRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Esperar a que useAuth() confirme la sesión antes de decidir si el visor
@@ -450,9 +453,9 @@ function GuestPassInner() {
   }
 
   async function handleDownload() {
-    if (!cardRef.current || !guest) return
+    if (!ticketRef.current || !guest) return
     const filename = `pase-${guest.name.replace(/\s+/g, '_').slice(0, 30)}.png`
-    await downloadPassImage(cardRef.current, filename)
+    await downloadPassImage(ticketRef.current, filename)
     setDownloaded(true)
     setTimeout(() => setDownloaded(false), 2000)
   }
@@ -471,7 +474,6 @@ function GuestPassInner() {
           Sin overflow-hidden en el wrapper para que el divisor perforado
           pueda extenderse de borde a borde con sus semicírculos notch. */}
       <div
-        ref={cardRef}
         className="invite-card border bg-[var(--invite-surface)] text-[var(--invite-text)] [font-family:var(--invite-font)] [border-radius:var(--invite-radius)]"
         style={{
           boxShadow: 'var(--invite-shadow)',
@@ -533,21 +535,7 @@ function GuestPassInner() {
           )}
         </div>
 
-        {/* ── DIVISOR PERFORADO ── */}
-        <div className="relative flex items-center" style={{ marginLeft: '-1px', marginRight: '-1px' }}>
-          <div
-            className="shrink-0 w-5 h-5 rounded-full border-2 -ml-2.5"
-            style={{ background: 'var(--invite-page-bg)', borderColor: 'var(--invite-border)' }}
-          />
-          <div
-            className="flex-1 border-t-2"
-            style={{ borderColor: 'var(--invite-border)', borderTopStyle: 'dashed' }}
-          />
-          <div
-            className="shrink-0 w-5 h-5 rounded-full border-2 -mr-2.5"
-            style={{ background: 'var(--invite-page-bg)', borderColor: 'var(--invite-border)' }}
-          />
-        </div>
+        <PerforatedDivider />
 
         {/* ── SECCIÓN INFERIOR: Invitado + QR ── */}
         <div className="px-6 pb-6 pt-4 text-center">
@@ -859,6 +847,17 @@ function GuestPassInner() {
           )}
         </div>
       </div>
+      {/* Boleto exclusivo para exportar (GuestPassTicket) — montado siempre
+          que el botón "Descargar pase" existe (mismo gate), fuera de
+          pantalla vía position:fixed (nunca display:none/visibility:hidden,
+          que impiden el pintado necesario para toPng). Se mantiene montado
+          en vez de crearse recién al hacer click para que el QR (SVG,
+          síncrono) ya esté pintado y estable en el momento de la captura. */}
+      {!locked && guest.rsvpStatus === 'yes' && (
+        <div aria-hidden="true" className="fixed top-0 pointer-events-none" style={{ left: '-9999px' }}>
+          <GuestPassTicket ref={ticketRef} event={event} guest={guest} passUrl={passUrl} />
+        </div>
+      )}
       {/* ── Secciones externas al boarding pass ── */}
       {event.mapsUrl && (
         <>
@@ -887,15 +886,5 @@ function GuestPassInner() {
         />
       )}
     </InvitationThemeRoot>
-  )
-}
-
-// Celda de info para el boarding pass
-function PassInfoCell({ label, value, className = '' }: { label: string; value: string; className?: string }) {
-  return (
-    <div className={className}>
-      <p className="invite-pass-label text-[10px] uppercase tracking-widest font-semibold text-[var(--invite-text-muted)] mb-0.5">{label}</p>
-      <p className="invite-pass-value text-sm font-medium text-[var(--invite-text)] leading-snug">{value}</p>
-    </div>
   )
 }
