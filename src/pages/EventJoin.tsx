@@ -172,6 +172,8 @@ export function EventJoin() {
           eventDate: event.date,
           eventLocation: event.location,
           eventCoverImage: event.coverImage,
+          eventTemplateId: event.templateId,
+          eventAccentColor: event.accentColor,
           guestName: fullName,
           qrToken: token,
           type: 'walkin',

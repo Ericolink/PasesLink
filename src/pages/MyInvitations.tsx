@@ -9,6 +9,7 @@ import type { UserInvitation } from '../types'
 import { IconCalendar, IconTrash } from '../components/Icons'
 import { LoadingInline } from '../components/LoadingInline'
 import { EmptyState } from '../components/Empty'
+import { EventTicketCard } from '../components/EventTicketCard'
 import { formatDate } from '../utils/time'
 
 function todayString() {
@@ -77,38 +78,37 @@ export function MyInvitations() {
       <div className="space-y-4">
         {invitations.map((inv, index) => (
           <div key={inv.eventId} className="relative">
-            <Link
-              to={`/pass/${inv.eventId}/${inv.qrToken}`}
-              className="block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 card-hover"
-            >
-              {index === 0 && (
-                <span className="absolute -top-2.5 left-4 bg-primary text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full shadow-sm">
-                  Próximo
-                </span>
-              )}
-              <div className="flex items-center gap-4 pr-8">
-                {inv.eventCoverImage
-                  ? <img src={optimizedImageUrl(inv.eventCoverImage, 128)} alt="" loading="lazy" crossOrigin="anonymous" className="w-16 h-16 rounded-lg object-cover shrink-0" />
-                  : <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <IconCalendar className="w-7 h-7 text-primary" />
-                    </div>
-                }
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 dark:text-white truncate">{inv.eventName}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(inv.eventDate)}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">{inv.eventLocation}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Como: {inv.guestName}</p>
+            <EventTicketCard
+              href={`/pass/${inv.eventId}/${inv.qrToken}`}
+              index={index}
+              date={inv.eventDate}
+              templateId={inv.eventTemplateId}
+              accentColor={inv.eventAccentColor}
+              highlight={index === 0}
+              title={inv.eventName}
+              subtitle={`${formatDate(inv.eventDate)} · ${inv.eventLocation}`}
+              body={
+                <div className="flex items-center gap-4">
+                  {inv.eventCoverImage
+                    ? <img src={optimizedImageUrl(inv.eventCoverImage, 128)} alt="" loading="lazy" crossOrigin="anonymous" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                    : <div className="w-12 h-12 rounded-lg bg-[var(--invite-accent-soft,rgba(255,20,100,.1))] flex items-center justify-center shrink-0">
+                        <IconCalendar className="w-5 h-5 text-[var(--invite-accent,#FF1464)]" />
+                      </div>
+                  }
+                  <p className="flex-1 min-w-0 text-xs text-[var(--invite-text-muted,#6b7280)] truncate">Como: {inv.guestName}</p>
+                  <div className="shrink-0 flex flex-col items-center">
+                    <QRCodeCanvas value={inv.qrToken} size={52} marginSize={1} className="rounded" />
+                    <p className="text-[10px] text-[var(--invite-accent,#FF1464)] text-center mt-1 font-medium">Ver pase</p>
+                  </div>
                 </div>
-                <div className="shrink-0 flex flex-col items-center">
-                  <QRCodeCanvas value={inv.qrToken} size={52} marginSize={1} className="rounded" />
-                  <p className="text-[10px] text-primary text-center mt-1 font-medium">Ver pase</p>
-                </div>
-              </div>
-            </Link>
+              }
+            />
 
+            {/* Colores fijos (no dark:): el ticket ahora tiene su propio fondo
+                oscuro/temático sin importar el modo claro/oscuro de la app. */}
             <button
               onClick={() => setConfirmDelete(inv)}
-              className="absolute top-2 right-2 p-2.5 rounded-lg text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+              className="absolute top-2 right-2 p-2.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
               aria-label="Eliminar invitación"
             >
               <IconTrash className="w-4 h-4" />

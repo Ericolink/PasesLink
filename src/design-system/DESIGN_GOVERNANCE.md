@@ -88,6 +88,15 @@ El sistema de temas aplica **solo** a la capa de invitación:
 - Backend
 - Auth
 
+**Extensión explícita (2026-07):** los "tickets" de `Dashboard.tsx` (Mis
+eventos) y `MyInvitations.tsx` (Mis invitaciones) sí toman identidad de
+plantilla, vía `src/templates/ticketTheme.ts` — reutiliza `registry.ts`
+tal cual, sin tokens nuevos. No es una ampliación del alcance de este
+documento: sigue sin aplicar a `EventDetail.tsx`, `Reports.tsx` ni al
+resto del dashboard/organizador. La regla de "solo el título hereda
+`--invite-font`, nunca las etiquetas chicas" (legibilidad a tamaño
+reducido) vive en `EventTicketCard.tsx`, no acá.
+
 ## Regla de evolución
 
 > El proceso obligatorio que opera esta regla — clasificación del cambio,

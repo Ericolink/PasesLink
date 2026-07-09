@@ -656,17 +656,17 @@ body {
 }
 .ticket-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(255, 20, 100, 0.45) !important;
+  border-color: var(--invite-accent, rgba(255, 20, 100, 0.45)) !important;
   box-shadow: 0 12px 32px -8px rgba(0,0,0,.5);
 }
 .ticket-card--next {
   box-shadow: 0 0 0 1px rgba(255,20,100,.18), 0 0 26px rgba(255,20,100,.12);
 }
 .ticket-stub {
-  border-right: 2px dashed rgba(74, 50, 92, .8);
+  border-right: 2px dashed var(--invite-border, rgba(74, 50, 92, .8));
 }
 .ticket-perforation {
-  border-top: 2px dashed rgba(74, 50, 92, .6);
+  border-top: 2px dashed var(--invite-border, rgba(74, 50, 92, .6));
 }
 
 @media (prefers-reduced-motion: reduce) {

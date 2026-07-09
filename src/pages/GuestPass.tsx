@@ -119,6 +119,8 @@ function GuestPassInner() {
             eventDate: eventData.date,
             eventLocation: eventData.location,
             eventCoverImage: eventData.coverImage,
+            eventTemplateId: eventData.templateId,
+            eventAccentColor: eventData.accentColor,
             guestName: guestData.isGroup ? guestData.name : `${guestData.name} ${guestData.lastName || ''}`.trim(),
             qrToken: guestData.qrToken,
             type: 'walkin',

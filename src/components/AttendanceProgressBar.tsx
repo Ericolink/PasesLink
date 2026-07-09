@@ -49,7 +49,7 @@ export function AttendanceProgressBar({
       </div>
       <div
         className={`h-1.5 rounded-full overflow-hidden ${isGlow ? '' : 'bg-gray-800'}`}
-        style={isGlow ? { background: 'rgba(74,50,92,.8)' } : undefined}
+        style={isGlow ? { background: 'var(--invite-border, rgba(74,50,92,.8))' } : undefined}
       >
         <div
           className={`h-full rounded-full transition-all duration-500 ${isGlow ? '' : 'bg-primary'}`}
@@ -57,8 +57,10 @@ export function AttendanceProgressBar({
             isGlow
               ? {
                   width: `${percent}%`,
-                  background: percent > 0 ? 'linear-gradient(90deg, #FF1464, #D40E52)' : 'transparent',
-                  boxShadow: percent > 0 ? '0 0 6px rgba(255,20,100,.5)' : 'none',
+                  background: percent > 0
+                    ? 'linear-gradient(90deg, var(--invite-accent, #FF1464), var(--invite-accent-dark, #D40E52))'
+                    : 'transparent',
+                  boxShadow: percent > 0 ? '0 0 6px var(--invite-accent, rgba(255,20,100,.5))' : 'none',
                 }
               : { width: `${percent}%` }
           }

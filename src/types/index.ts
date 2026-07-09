@@ -302,6 +302,12 @@ export interface UserInvitation {
   eventDate: string
   eventLocation: string
   eventCoverImage?: string
+  // Plantilla del evento al momento del registro — alimenta el theming del
+  // ticket en MyInvitations.tsx (ver src/templates/ticketTheme.ts).
+  // Opcionales: invitaciones guardadas antes de este campo caen al ticket
+  // "default" (look actual de PaseLink), sin backfill necesario.
+  eventTemplateId?: TemplateId
+  eventAccentColor?: string
   guestName: string
   qrToken: string
   type: 'walkin' | 'invited'

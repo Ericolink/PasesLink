@@ -1,16 +1,17 @@
 import { useMemo, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useUserProfile } from '../hooks/useUserProfile'
-import { deleteEvent, setEventStatus, subscribeToUserEvents } from '../firebase/events'
+import { setEventStatus, subscribeToUserEvents } from '../firebase/events'
 import type { EventData } from '../types'
 import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
-import { ConfirmDialog } from '../components/ConfirmDialog'
+import { EventTicketCard } from '../components/EventTicketCard'
+import { PassInfoCell } from '../components/PassInfoCell'
 import { WelcomeModal } from '../components/WelcomeModal'
-import { IconBarChart, IconCalendar, IconCheckCircle, IconStar, IconTicket, IconUsers } from '../components/Icons'
+import { IconBarChart, IconCalendar, IconCheckCircle, IconUsers } from '../components/Icons'
 import { LoadingInline } from '../components/LoadingInline'
-import { formatDate } from '../utils/time'
+import { formatDate, formatTime12h } from '../utils/time'
 import { consumeWelcomePending, hasSeenNovedades, markNovedadesSeen } from '../utils/onboarding'
 
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -19,19 +20,6 @@ function isEventPast(date: string): boolean {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return new Date(date + 'T00:00:00') < today
-}
-
-const STATUS_LABELS: Record<EventData['status'], string> = {
-  active: 'Activo',
-  cancelled: 'Cancelado',
-  archived: 'Archivado',
-}
-
-// Día + mes abreviado para el talón del ticket, ej. { day: '25', month: 'Jun' }.
-function ticketDateParts(date: string): { day: string; month: string } {
-  const d = new Date(date + 'T00:00:00')
-  if (isNaN(d.getTime())) return { day: '--', month: '' }
-  return { day: String(d.getDate()), month: MONTH_LABELS[d.getMonth()] }
 }
 
 // Devuelve los últimos N meses como etiquetas cortas ['Ene', 'Feb', ...]
@@ -59,12 +47,8 @@ export function Dashboard() {
   useDocumentTitle('Inicio')
   const { user } = useAuth()
   const { profile } = useUserProfile()
-  const navigate = useNavigate()
   const [events, setEvents] = useState<EventData[]>([])
   const [loading, setLoading] = useState(true)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [actionError, setActionError] = useState('')
   const [showPast, setShowPast] = useState(false)
   const [onboardingModal, setOnboardingModal] = useState<'welcome' | 'novedades' | null>(null)
   const archivingRef = useRef<Set<string>>(new Set())
@@ -144,32 +128,6 @@ export function Dashboard() {
   const monthCounts = eventsPerMonth(events, CHART_MONTHS)
   const maxMonthCount = Math.max(...monthCounts, 1)
 
-  async function handleStatusChange(eventId: string, status: 'cancelled' | 'archived' | 'active') {
-    setActionLoading(eventId)
-    setActionError('')
-    try {
-      await setEventStatus(eventId, status)
-    } catch {
-      setActionError('No se pudo actualizar el estado del evento. Intenta de nuevo.')
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  async function handleDelete(eventId: string) {
-    setActionLoading(eventId)
-    setActionError('')
-    try {
-      await deleteEvent(eventId)
-    } catch {
-      setActionError('No se pudo eliminar el evento por completo. Es posible que parte de los datos ya se haya borrado — revisa el evento e intenta de nuevo.')
-    } finally {
-      setActionLoading(null)
-      setConfirmDeleteId(null)
-    }
-  }
-
-  const eventToDelete = events.find((e) => e.id === confirmDeleteId)
   const firstName = profile?.firstName || user?.email?.split('@')[0] || ''
 
   return (
@@ -192,15 +150,6 @@ export function Dashboard() {
           + Nuevo evento
         </Link>
       </div>
-
-      {actionError && (
-        <p
-          className="text-sm rounded-lg px-3 py-2 mb-4"
-          style={{ background: 'rgba(255,20,100,.1)', border: '1px solid rgba(255,20,100,.3)', color: '#FF1464' }}
-        >
-          {actionError}
-        </p>
-      )}
 
       {/* Stats bar */}
       {!loading && events.length > 0 && (
@@ -287,16 +236,7 @@ export function Dashboard() {
       {/* Active events */}
       <div className="space-y-3">
         {activeEvents.map((event, i) => (
-          <EventCard
-            key={event.id}
-            event={event}
-            index={i}
-            isNext={nextEvent?.id === event.id}
-            isLoading={actionLoading === event.id}
-            onNavigate={() => navigate(`/events/${event.id}`)}
-            onCancel={event.ownerId === user?.uid ? () => handleStatusChange(event.id, 'cancelled') : undefined}
-            onDelete={event.ownerId === user?.uid ? () => setConfirmDeleteId(event.id) : undefined}
-          />
+          <EventTicket key={event.id} event={event} index={i} isNext={nextEvent?.id === event.id} />
         ))}
       </div>
 
@@ -313,32 +253,12 @@ export function Dashboard() {
           {showPast && (
             <div className="space-y-3">
               {pastEvents.map((event, i) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  index={i}
-                  past
-                  isLoading={actionLoading === event.id}
-                  onNavigate={() => navigate(`/events/${event.id}`)}
-                  onReactivate={event.status !== 'active' && event.ownerId === user?.uid ? () => handleStatusChange(event.id, 'active') : undefined}
-                  onDelete={event.ownerId === user?.uid ? () => setConfirmDeleteId(event.id) : undefined}
-                />
+                <EventTicket key={event.id} event={event} index={i} past />
               ))}
             </div>
           )}
         </div>
       )}
-
-      <ConfirmDialog
-        open={!!confirmDeleteId}
-        danger
-        title={`Eliminar "${eventToDelete?.name ?? ''}"`}
-        message="Se borrarán todos los invitados y el historial de check-ins. Esta acción no se puede deshacer."
-        confirmLabel={actionLoading ? 'Eliminando…' : 'Sí, eliminar'}
-        cancelLabel="Cancelar"
-        onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
-        onCancel={() => setConfirmDeleteId(null)}
-      />
 
       <WelcomeModal
         open={onboardingModal !== null}
@@ -350,145 +270,54 @@ export function Dashboard() {
   )
 }
 
-interface EventCardProps {
+interface EventTicketProps {
   event: EventData
   index: number
   past?: boolean
   /** El evento activo con fecha más próxima entre los que se muestran — resalta la tarjeta como "boleto destacado". */
   isNext?: boolean
-  isLoading: boolean
-  onNavigate: () => void
-  onCancel?: () => void
-  onReactivate?: () => void
-  onDelete?: () => void
 }
 
-function EventCard({ event, index, past, isNext, isLoading, onNavigate, onCancel, onReactivate, onDelete }: EventCardProps) {
-  const { day, month } = ticketDateParts(event.date)
+// Boleto 100% informativo: tap abre EventDetail, que ya tiene "Escanear
+// pases" (fila primaria) y Cancelar/Eliminar (colapsable "Gestión del
+// evento", solo dueño, con ConfirmDialog) — nada de eso vive acá para
+// evitar toques accidentales en una lista que se scrollea rápido.
+function EventTicket({ event, index, past, isNext }: EventTicketProps) {
   const highlight = !!isNext && !past
 
   return (
-    <div
-      style={{
-        animationDelay: `${Math.min(index, 6) * 0.06}s`,
-        border: `1px solid ${highlight ? 'rgba(255,20,100,.4)' : 'rgba(74,50,92,.7)'}`,
-      }}
-      className={`ticket-card animate-fade-in-up rounded-2xl overflow-hidden flex ${past ? 'opacity-70' : ''} ${highlight ? 'ticket-card--next' : ''}`}
-    >
-      {/* Talón: fecha */}
-      <div
-        className="ticket-stub shrink-0 w-[60px] sm:w-[72px] flex flex-col items-center justify-center gap-0.5"
-        style={{
-          background: highlight
-            ? 'linear-gradient(180deg, rgba(255,20,100,.22), rgba(255,20,100,.06))'
-            : 'rgba(74,50,92,.35)',
-        }}
-      >
-        <span className={`text-2xl font-bold leading-none ${highlight ? 'text-primary' : 'text-white'}`}>
-          {day}
-        </span>
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{month}</span>
-      </div>
-
-      {/* Cuerpo del boleto */}
-      <div
-        className="flex-1 min-w-0"
-        style={{
-          background: highlight
-            ? 'linear-gradient(135deg, rgba(255,20,100,.1), rgba(30,20,40,.9))'
-            : 'rgba(30,20,40,.8)',
-        }}
-      >
-        {/* Clickable body */}
-        <button onClick={onNavigate} disabled={isLoading} className="w-full text-left p-4 pb-3">
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <h2 className="font-semibold text-white flex items-center gap-2 min-w-0">
-              <IconTicket className="w-4 h-4 text-primary shrink-0" />
-              <span className="truncate min-w-0">{event.name}</span>
-            </h2>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {highlight && (
-                <span
-                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide"
-                  style={{ background: 'rgba(232,184,75,.15)', color: '#E8B84B', border: '1px solid rgba(232,184,75,.4)' }}
-                >
-                  <IconStar className="w-2.5 h-2.5" /> Próximo
-                </span>
-              )}
-              {event.status !== 'active' && (
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{
-                    background: event.status === 'cancelled' ? 'rgba(255,20,100,.15)' : 'rgba(74,50,92,.8)',
-                    color: event.status === 'cancelled' ? '#FF1464' : '#9C8FA8',
-                    border: `1px solid ${event.status === 'cancelled' ? 'rgba(255,20,100,.3)' : 'rgba(74,50,92,.9)'}`,
-                  }}
-                >
-                  {STATUS_LABELS[event.status]}
-                </span>
-              )}
-            </div>
+    <EventTicketCard
+      href={`/events/${event.id}`}
+      index={index}
+      date={event.date}
+      templateId={event.templateId}
+      accentColor={event.accentColor}
+      status={event.status}
+      highlight={highlight}
+      dimmed={past}
+      title={event.name}
+      subtitle={`${formatDate(event.date)} · ${event.location}`}
+      body={
+        event.startTime ? (
+          <div className="flex items-center gap-6">
+            <PassInfoCell label="Inicio" value={formatTime12h(event.startTime)} />
+            {event.endTime && <PassInfoCell label="Fin" value={formatTime12h(event.endTime)} />}
           </div>
-
-          <p className="text-sm text-gray-500 mb-3">{formatDate(event.date)} · {event.location}</p>
-
-          {/* Progress */}
-          <AttendanceProgressBar
-            present={event.checkedInCount}
-            expected={event.peopleCount}
-            unitLabel="check-ins"
-            variant="glow"
-            showPercentage={past}
-            percentSuffix="asistencia"
-            rightLabel={event.capacity > 0 ? <span className="text-gray-600">cap. {event.capacity}</span> : undefined}
-          />
-        </button>
-
-        {/* Action row — separada por la perforación del boleto */}
-        <div className="ticket-perforation px-4 pb-3 pt-2.5 flex items-center justify-between gap-2">
-          {!past ? (
-            <Link
-              to={`/events/${event.id}/scan`}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              Escanear QR
-            </Link>
-          ) : <span />}
-
-          <div className="flex items-center gap-1.5">
-            {onCancel && (
-              <button
-                onClick={onCancel}
-                disabled={isLoading}
-                className="text-xs px-2.5 py-2 rounded-md transition-colors disabled:opacity-40"
-                style={{ background: 'rgba(74,50,92,.5)', border: '1px solid rgba(74,50,92,.9)', color: '#A89FB3' }}
-              >
-                Cancelar
-              </button>
-            )}
-            {onReactivate && (
-              <button
-                onClick={onReactivate}
-                disabled={isLoading}
-                className="text-xs px-2.5 py-2 rounded-md transition-colors disabled:opacity-40"
-                style={{ background: 'rgba(26,100,26,.2)', border: '1px solid rgba(34,197,94,.2)', color: '#4ade80' }}
-              >
-                Reactivar
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={onDelete}
-                disabled={isLoading}
-                className="text-xs px-2.5 py-2 rounded-md transition-colors disabled:opacity-40"
-                style={{ background: 'rgba(255,20,100,.1)', border: '1px solid rgba(255,20,100,.3)', color: '#FF1464' }}
-              >
-                {isLoading ? '…' : 'Eliminar'}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+        ) : (
+          <p className="text-xs text-[var(--invite-text-muted,#6b7280)]">Horario no definido</p>
+        )
+      }
+      footer={
+        <AttendanceProgressBar
+          present={event.checkedInCount}
+          expected={event.peopleCount}
+          unitLabel="check-ins"
+          variant="glow"
+          showPercentage
+          percentSuffix="asistencia"
+          rightLabel={event.capacity > 0 ? <span className="text-[var(--invite-text-muted,#4b5563)]">cap. {event.capacity}</span> : undefined}
+        />
+      }
+    />
   )
 }
