@@ -6,7 +6,8 @@ import { useAuth } from '../hooks/useAuth'
 import { useEventOnly } from '../hooks/useEventOnly'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useEventPermissions } from '../hooks/useEventPermissions'
-import { checkInGuest, checkOutGuest, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
+import { checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
+import type { PaymentMethod } from '../types'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
 import { ExitConfirmDialog, type PendingExit } from '../components/ExitConfirmDialog'
@@ -27,6 +28,10 @@ export type ScanFeedback = {
   qrToken?: string
   companionsCount?: number
   isGroup?: boolean
+  // Solo para type: 'payment_required' — método ya elegido por el invitado
+  // (p.ej. 'transfer' si mandó comprobante), para preservarlo al confirmar
+  // el pago desde el botón "Sí, ya pagó" (ver handleConfirmPayment).
+  paymentMethod?: PaymentMethod | null
 }
 
 type ScanMode = 'entrada' | 'salida'
@@ -56,6 +61,8 @@ export function Scanner() {
   const [scanMode, setScanMode] = useState<ScanMode>('entrada')
   const [pendingExit, setPendingExit] = useState<PendingExit | null>(null)
   const [exitSubmitting, setExitSubmitting] = useState(false)
+  const [confirmingPayment, setConfirmingPayment] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
 
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const startingRef = useRef(false)
@@ -73,6 +80,12 @@ export function Scanner() {
   useEffect(() => { scanModeRef.current = scanMode }, [scanMode])
   const pendingExitRef = useRef(pendingExit)
   useEffect(() => { pendingExitRef.current = pendingExit }, [pendingExit])
+  // Igual que pendingExitRef: mientras el diálogo "¿Ya pagó?" está abierto
+  // (type 'payment_required'), un frame de cámara de fondo no debe pisarlo
+  // con otro invitado — el cooldown de SCAN_COOLDOWN_MS es mucho más corto
+  // que lo que tarda el guardia en decidir Sí/No.
+  const feedbackRef = useRef(feedback)
+  useEffect(() => { feedbackRef.current = feedback }, [feedback])
 
   useEffect(() => {
     return () => { void stopScanning() }
@@ -155,6 +168,7 @@ export function Scanner() {
     // Ya hay una salida esperando confirmación (Volverá / Se retira) — no
     // dejar que un frame de cámara de por medio la pise con otro invitado.
     if (pendingExitRef.current) return
+    if (feedbackRef.current?.type === 'payment_required') return
 
     if (scanModeRef.current === 'salida') {
       await processExitScan(decodedText, attempt)
@@ -217,7 +231,13 @@ export function Scanner() {
           : amountDue
             ? `Debe pagar ${amountDue} antes de ingresar.`
             : 'Debe pagar la entrada antes de ingresar.'
-        showFeedback({ type: 'payment_required', guestName: result.guest.name, detail })
+        showFeedback({
+          type: 'payment_required',
+          guestName: result.guest.name,
+          detail,
+          qrToken,
+          paymentMethod: result.guest.paymentMethod,
+        })
       } else if (result.status === 'blocked_final_exit') {
         showFeedback({
           type: 'exit_blocked',
@@ -317,6 +337,80 @@ export function Scanner() {
       isGroup: feedback.isGroup,
     })
     setFeedback(null)
+  }
+
+  // Disparado desde el botón "Sí, ya pagó" del ScanResultModal (modo entrada,
+  // invitado no pagado en un evento de pago) — marca el pago y registra el
+  // check-in en una sola operación atómica (confirmPaymentAndCheckIn), sin
+  // que el guardia tenga que volver a escanear ni salir del flujo.
+  async function handleConfirmPayment(attempt = 1) {
+    // Guard síncrono: mismo motivo que exitSubmitting en submitExit (evita
+    // doble-tap táctil disparando dos confirmaciones en paralelo).
+    if (confirmingPayment || !eventId || !user) return
+    const current = feedbackRef.current
+    if (!current || current.type !== 'payment_required' || !current.qrToken) return
+    const { qrToken } = current
+    const ev = eventRef.current
+    const method: PaymentMethod | undefined = current.paymentMethod ?? ev?.paymentMethods[0]
+
+    setConfirmingPayment(true)
+    setConfirmError(null)
+    try {
+      const result = await confirmPaymentAndCheckIn(eventId, qrToken, user.uid, user.email, method)
+      if (result.status === 'success') {
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+        const welcome = ev?.welcomeMessage || undefined
+        const companions = result.guest.isGroup
+          ? `${partySize(result.guest)} integrantes`
+          : result.guest.companions.length > 0
+            ? `+${result.guest.companions.length} acompañante(s)`
+            : undefined
+        const reentryMsg = result.reentry ? 'Reingreso registrado' : undefined
+        showFeedback({
+          type: 'success',
+          guestName: result.guest.name,
+          detail: ['Pago confirmado', reentryMsg, companions, welcome].filter(Boolean).join(' · '),
+        })
+      } else if (result.status === 'already_checked_in') {
+        showFeedback({
+          type: 'already',
+          guestName: result.guest.name,
+          checkedInAt: result.guest.checkedInAt,
+          checkedInByEmail: result.guest.checkedInByEmail,
+          qrToken,
+          companionsCount: result.guest.companions.length,
+          isGroup: result.guest.isGroup,
+        })
+      } else if (result.status === 'blocked_final_exit') {
+        showFeedback({
+          type: 'exit_blocked',
+          guestName: result.guest.name,
+          detail: 'Este invitado se retiró definitivamente del evento. Un organizador puede habilitar su reingreso desde la lista de invitados.',
+        })
+      } else {
+        showFeedback({ type: 'not_found', detail: 'Este código no corresponde a ningún invitado de este evento.' })
+      }
+    } catch (err) {
+      console.error('Error confirmando pago:', err)
+      if (!isNetworkError(err) || attempt >= 2) {
+        captureException(err, { tags: { component: 'scanner', action: 'confirm_payment' } })
+      }
+      if (isNetworkError(err) && attempt < 2) {
+        setConfirmError('Sin conexión. Reintentando en unos segundos…')
+        await new Promise((resolve) => setTimeout(resolve, NETWORK_RETRY_MS))
+        await handleConfirmPayment(attempt + 1)
+        return
+      }
+      // Se mantiene el modal 'payment_required' (no se pisa con showFeedback)
+      // para que el guardia pueda reintentar sin volver a escanear el QR.
+      setConfirmError(
+        isNetworkError(err)
+          ? 'No hay conexión a internet. Verifica tu WiFi/datos e intenta de nuevo.'
+          : 'No se pudo confirmar el pago. Intenta de nuevo.',
+      )
+    } finally {
+      setConfirmingPayment(false)
+    }
   }
 
   async function handleProcessError(err: unknown, attempt: number, retry: () => Promise<void>) {
@@ -538,8 +632,11 @@ export function Scanner() {
       {feedback && (
         <ScanResultModal
           feedback={feedback}
-          onClose={() => setFeedback(null)}
-          onRequestCheckout={feedback.qrToken ? handleRequestCheckoutFromModal : undefined}
+          onClose={() => { setConfirmError(null); setFeedback(null) }}
+          onRequestCheckout={feedback.type === 'already' && feedback.qrToken ? handleRequestCheckoutFromModal : undefined}
+          onConfirmPayment={feedback.type === 'payment_required' && perms.confirmPayments ? () => { void handleConfirmPayment() } : undefined}
+          confirmingPayment={confirmingPayment}
+          confirmError={confirmError}
         />
       )}
 

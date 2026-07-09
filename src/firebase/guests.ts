@@ -619,6 +619,86 @@ export async function checkInGuest(
   }))
 }
 
+// Fusión de setGuestPaymentStatus + checkInGuest en UNA sola transacción —
+// botón "Sí, ya pagó" del escáner (invitado no pagado en un evento de pago).
+// Firestore no permite dos transaction.update() separados sobre el mismo doc
+// dentro de la misma transacción, así que acá se combinan los campos de
+// ambas operaciones en un único update por doc. `wasPaid` se relee dentro de
+// la transacción para no duplicar paidCount si el pago ya se había aprobado
+// desde otra pantalla mientras el diálogo estaba abierto.
+export type ConfirmPaymentAndCheckInResult =
+  | { status: 'success'; guest: GuestData; reentry: boolean }
+  | { status: 'already_checked_in'; guest: GuestData }
+  | { status: 'blocked_final_exit'; guest: GuestData }
+  | { status: 'not_found' }
+
+export async function confirmPaymentAndCheckIn(
+  eventId: string,
+  qrToken: string,
+  scannedBy: string,
+  scannedByEmail: string | null,
+  method?: PaymentMethod,
+): Promise<ConfirmPaymentAndCheckInResult> {
+  const guestRef = await findGuestRefByToken(eventId, qrToken)
+  if (!guestRef) {
+    return { status: 'not_found' }
+  }
+
+  const eventRef = doc(db, 'events', eventId)
+
+  return measureSpan('firestore.confirmPaymentAndCheckIn', 'db.firestore', () => runTransaction(db, async (transaction) => {
+    const guestSnap = await transaction.get(guestRef)
+    if (!guestSnap.exists()) {
+      return { status: 'not_found' } as ConfirmPaymentAndCheckInResult
+    }
+    const guest = mapGuest(guestSnap.id, guestSnap.data())
+    const presence = guestPresence(guest)
+    if (presence === 'inside') {
+      return { status: 'already_checked_in', guest } as ConfirmPaymentAndCheckInResult
+    }
+    if (presence === 'final_out') {
+      return { status: 'blocked_final_exit', guest } as ConfirmPaymentAndCheckInResult
+    }
+    const isReentry = presence === 'temp_out'
+    const wasPaid = guest.paymentStatus === 'paid'
+
+    const guestUpdates: Record<string, unknown> = {
+      paymentStatus: 'paid',
+      status: 'checked_in',
+      checkedOutAt: null,
+      checkedOutByEmail: null,
+      exitType: null,
+      ...(isReentry ? {} : { checkedInAt: serverTimestamp(), checkedInBy: scannedBy, checkedInByEmail: scannedByEmail }),
+    }
+    if (method !== undefined) guestUpdates.paymentMethod = method
+    transaction.update(guestRef, guestUpdates)
+
+    transaction.update(eventRef, {
+      occupancyCount: increment(partySize(guest)),
+      ...(isReentry ? {} : { checkedInCount: increment(partySize(guest)) }),
+      ...(wasPaid ? {} : { paidCount: increment(partySize(guest)) }),
+    })
+
+    const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
+    transaction.set(checkinRef, {
+      guestId: guest.id,
+      guestName: guest.name,
+      type: 'check_in',
+      ...(isReentry ? { reentry: true } : {}),
+      paymentConfirmed: true,
+      timestamp: serverTimestamp(),
+      scannedBy,
+      scannedByEmail,
+    })
+
+    return {
+      status: 'success',
+      guest: { ...guest, paymentStatus: 'paid', status: 'checked_in', checkedOutAt: null, exitType: null },
+      reentry: isReentry,
+    } as ConfirmPaymentAndCheckInResult
+  }))
+}
+
 export type CheckOutResult =
   | { status: 'success'; guest: GuestData; kind: 'temporary' | 'final' }
   | { status: 'not_checked_in' }

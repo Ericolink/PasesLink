@@ -13,7 +13,7 @@ vi.mock('../config', () => ({
 }))
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, checkInGuest, checkOutGuest, deleteGuest, setGuestPaymentStatus, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, deleteGuest, setGuestPaymentStatus, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -436,6 +436,115 @@ describe('guests.ts', () => {
 
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.peopleCount).toBe(6)
+  })
+
+  describe('confirmPaymentAndCheckIn (botón "Sí, ya pagó" del escáner)', () => {
+    it('should mark the guest as paid and check them in, moving paidCount/checkedInCount/occupancyCount together', async () => {
+      await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['cash'], paidCount: 0, checkedInCount: 0, occupancyCount: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
+        qrToken: QR_TOKEN,
+        paymentStatus: 'unpaid',
+        companions: [{ name: 'Uno' }],
+      })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const result = await confirmPaymentAndCheckIn(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'cash')
+
+      expect(result.status).toBe('success')
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.paymentStatus).toBe('paid')
+      expect(guest?.paymentMethod).toBe('cash')
+      expect(guest?.status).toBe('checked_in')
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      // 1 invitado + 1 acompañante = 2, en los 3 contadores a la vez.
+      expect(event?.paidCount).toBe(2)
+      expect(event?.checkedInCount).toBe(2)
+      expect(event?.occupancyCount).toBe(2)
+    })
+
+    it('should not double-count paidCount if the payment was already approved from another screen (race)', async () => {
+      await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['transfer'], paidCount: 1, checkedInCount: 0, occupancyCount: 0 })
+      // Otro dispositivo ya aprobó el pago justo antes de que el guardia
+      // tocara "Sí, ya pagó" (comprobante ya revisado desde GuestList).
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid', paymentMethod: 'transfer' })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const result = await confirmPaymentAndCheckIn(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
+
+      expect(result.status).toBe('success')
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.paidCount).toBe(1)
+    })
+
+    it('should return already_checked_in without touching counters if the guest is already inside', async () => {
+      await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['cash'], paidCount: 1, checkedInCount: 1, occupancyCount: 1 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid', status: 'checked_in' })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const result = await confirmPaymentAndCheckIn(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'cash')
+
+      expect(result.status).toBe('already_checked_in')
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.paidCount).toBe(1)
+      expect(event?.checkedInCount).toBe(1)
+    })
+
+    it('should block re-entry with blocked_final_exit for a guest who left for good', async () => {
+      await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['cash'] })
+      // paymentStatus 'paid' desde el inicio para poder pasar por el check-in
+      // y check-out reales (checkInGuest/checkOutGuest) y así producir un
+      // checkedOutAt/exitType genuinos (un Firestore Timestamp real, no un
+      // número JS crudo que mapGuest no sabría convertir).
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid' })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+      await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
+      await checkOutGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'final')
+
+      const result = await confirmPaymentAndCheckIn(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'cash')
+
+      expect(result.status).toBe('blocked_final_exit')
+    })
+
+    it('should reject a direct write combining check-in and payment fields for a co-organizer with scanQr but not confirmPayments', async () => {
+      const COORG_UID = 'coorg-uid'
+      // Rol "staff de acceso": solo scanQr (y viewGuestList para poder ver la
+      // lista) — todo lo demás explícitamente en false, para no caer en el
+      // default amplio de LEGACY_COORG_DEFAULTS (editGuests: true de fábrica
+      // habilitaría cualquier escritura sobre el invitado, tapando el chequeo
+      // puntual que este test quiere aislar).
+      await seedEvent(testEnv, EVENT_ID, {
+        requiresPayment: true,
+        paymentMethods: ['cash'],
+        coOrganizersMap: { [COORG_UID]: true },
+        coOrganizerPermissions: {
+          [COORG_UID]: {
+            addGuests: false,
+            editGuests: false,
+            deleteGuests: false,
+            shareInviteLink: false,
+            confirmPayments: false,
+            scanQr: true,
+            viewGuestList: true,
+            postWall: false,
+            moderateWall: false,
+            editEvent: false,
+            manageCoOrganizers: false,
+            viewReports: false,
+            exportLists: false,
+            downloadEventInfo: false,
+          },
+        },
+      })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'unpaid' })
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(coOrgDb, 'events', EVENT_ID, 'guests', GUEST_ID), {
+          status: 'checked_in',
+          paymentStatus: 'paid',
+        }),
+      )
+    })
   })
 
   describe('updateGuestSelf (auto-edición del invitado)', () => {

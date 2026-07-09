@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ScanFeedback } from '../pages/Scanner'
-import { IconAlertTriangle, IconBan, IconCheckCircle, IconCopy, IconHelpCircle, IconLogOut, IconUsers, IconXCircle } from './Icons'
+import { IconAlertTriangle, IconBan, IconCheck, IconCheckCircle, IconCopy, IconHelpCircle, IconLogOut, IconUsers, IconX, IconXCircle } from './Icons'
 import { useModalA11y } from '../hooks/useModalA11y'
 
 function formatTimestamp(ms: number): string {
@@ -11,10 +11,16 @@ export function ScanResultModal({
   feedback,
   onClose,
   onRequestCheckout,
+  onConfirmPayment,
+  confirmingPayment,
+  confirmError,
 }: {
   feedback: ScanFeedback
   onClose: () => void
   onRequestCheckout?: () => void
+  onConfirmPayment?: () => void
+  confirmingPayment?: boolean
+  confirmError?: string | null
 }) {
   const [showFirstCheckIn, setShowFirstCheckIn] = useState(false)
 
@@ -83,12 +89,37 @@ export function ScanResultModal({
           </button>
         )}
 
-        <button
-          onClick={onClose}
-          className="mt-6 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-3 text-sm font-medium w-full"
-        >
-          Cerrar
-        </button>
+        {feedback.type === 'payment_required' && confirmError && (
+          <p className="mt-3 text-sm font-medium text-white bg-black/20 rounded-md px-3 py-2">{confirmError}</p>
+        )}
+
+        {feedback.type === 'payment_required' && onConfirmPayment ? (
+          <div className="flex flex-col gap-2.5 mt-6">
+            <button
+              onClick={onConfirmPayment}
+              disabled={confirmingPayment}
+              className="min-h-14 inline-flex items-center justify-center gap-2 bg-white text-red-700 hover:opacity-90 transition-opacity rounded-md px-4 py-3 text-sm font-semibold disabled:opacity-50"
+            >
+              <IconCheck className="w-4 h-4" />
+              {confirmingPayment ? 'Confirmando…' : 'Sí, ya pagó'}
+            </button>
+            <button
+              onClick={onClose}
+              disabled={confirmingPayment}
+              className="min-h-14 inline-flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-3 text-sm font-semibold disabled:opacity-50"
+            >
+              <IconX className="w-4 h-4" />
+              No, aún no pagó
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onClose}
+            className="mt-6 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-3 text-sm font-medium w-full"
+          >
+            Cerrar
+          </button>
+        )}
       </div>
     </div>
   )

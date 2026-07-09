@@ -445,6 +445,16 @@ service cloud.firestore {
             && counterDeltaOk(request.resource.data.guestCount, resource.data.guestCount)
             && counterDeltaOk(request.resource.data.peopleCount, resource.data.peopleCount)
             && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
+        // Botón "Sí, ya pagó" del escáner (confirmPaymentAndCheckIn): check-in
+        // + aprobación de pago en una sola escritura, así que toca los 3
+        // contadores (checkedInCount/occupancyCount de la rama de arriba +
+        // paidCount de la rama de justo arriba) a la vez — ninguna de esas
+        // dos ramas sola lo permite.
+        || (isOwnerOrCoOrg(eventId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount', 'paidCount'])
+            && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
+            && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount)
+            && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
         // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
         // invitación en 1 (guestCount), sumando entre 1 y GUEST_MAX_PARTY_SIZE
         // personas (peopleCount) — ese invitado puede traer acompañantes (ver
@@ -498,6 +508,16 @@ service cloud.firestore {
           (
             canDo(eventId, 'confirmPayments', true) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentMethod'])
+          ) ||
+          // Botón "Sí, ya pagó" del escáner (confirmPaymentAndCheckIn): marca
+          // el pago Y registra el check-in en una sola escritura, así que
+          // necesita AMBOS permisos a la vez (no alcanza con tener solo uno,
+          // a diferencia de las dos ramas de arriba) y toca la unión exacta
+          // de los dos grupos de campos.
+          (
+            canDo(eventId, 'scanQr', true) && canDo(eventId, 'confirmPayments', true) &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail', 'checkedOutAt', 'checkedOutByEmail', 'exitType', 'paymentStatus', 'paymentMethod'])
           ) ||
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&
