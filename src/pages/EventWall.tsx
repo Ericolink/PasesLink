@@ -9,7 +9,7 @@ import {
   replyToWallMessage,
   subscribeToWall,
 } from '../firebase/wall'
-import { deletePhoto, pinPhoto, subscribeToPhotos } from '../firebase/photos'
+import { deletePhoto, pinPhoto, reactToPhoto, replyToPhoto, subscribeToPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
@@ -22,7 +22,6 @@ import { mergeWallFeed } from '../utils/wallFeed'
 import { captureException } from '../lib/sentry'
 import {
   IconCamera,
-  IconCrown,
   IconHelpCircle,
   IconLightbulb,
   IconMessageSquare,
@@ -34,9 +33,11 @@ import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Avatar } from '../components/Avatar'
+import { AuthorName } from '../components/AuthorName'
 import { PhotoFeedCard } from '../components/PhotoFeedCard'
 import { PhotoViewer } from '../components/PhotoViewer'
 import { ReactionPicker } from '../components/ReactionPicker'
+import { RepliesList } from '../components/RepliesList'
 import { ReportButton } from '../components/ReportButton'
 import { StoriesBar } from '../components/StoriesBar'
 import type { EventData, ReactionType, WallMessage, WallMessageType } from '../types'
@@ -268,6 +269,35 @@ export function EventWall() {
     await pinPhoto(id, photo.id, photo.pinned)
   }
 
+  // Mismo patrón optimista que handleReact/handleReply (arriba), pero sobre
+  // `photos` — reutiliza reactToPhoto/replyToPhoto (src/firebase/photos.ts),
+  // que a su vez comparten motor con los mensajes (ver
+  // src/firebase/interactions.ts). Una reacción/respuesta hecha desde una
+  // historia (PhotoViewer modo story, vía StoriesBar) actualiza el mismo
+  // estado `photos` que la card del feed, así que ambas vistas quedan en
+  // sync sin lógica extra.
+  async function handleReactPhoto(photo: PhotoData, type: ReactionType | null) {
+    if (!id) return
+    const token = getDeviceToken()
+    const prevReactions = photo.reactions
+    const nextReactions = { ...prevReactions }
+    if (type) nextReactions[token] = { type, name: postLabel || 'Invitado' }
+    else delete nextReactions[token]
+    setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: nextReactions } : p)))
+
+    try {
+      await reactToPhoto(id, photo.id, token, postLabel || 'Invitado', type)
+    } catch (err) {
+      console.error('Error reacting to photo:', err)
+      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: prevReactions } : p)))
+    }
+  }
+
+  async function handleReplyPhoto(photo: PhotoData, text: string) {
+    if (!id) return
+    await replyToPhoto(id, photo.id, text, photo.replies, postLabel, authorToken, isOwner ? 'owner' : 'guest', postPhotoURL)
+  }
+
   if (!nameConfirmed && !isOwner && !user) {
     const nameGateContent = (
       <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 animate-fade-in">
@@ -326,7 +356,16 @@ export function EventWall() {
         )}
       </div>
 
-      {id && <StoriesBar eventId={id} photos={photos} />}
+      {id && (
+        <StoriesBar
+          eventId={id}
+          photos={photos}
+          myToken={getDeviceToken()}
+          canReply={!isMinor && !commentBlockedMessage}
+          onReact={handleReactPhoto}
+          onReply={handleReplyPhoto}
+        />
+      )}
 
       {/* FAB de acceso rápido al composer, solo mobile: en un muro largo,
           comentar exigía scrollear hasta el formulario arriba del feed —
@@ -466,6 +505,10 @@ export function EventWall() {
                 templateId={event?.templateId}
                 eventId={id || ''}
                 eventName={event?.name || ''}
+                myToken={getDeviceToken()}
+                canReply={!isMinor && !commentBlockedMessage}
+                onReact={handleReactPhoto}
+                onReply={handleReplyPhoto}
               />
             )
           }
@@ -525,20 +568,7 @@ export function EventWall() {
               <p className="text-sm text-gray-900 dark:text-white mb-3 ml-9">{msg.text}</p>
 
               {/* Replies */}
-              {msg.replies.length > 0 && (
-                <div className="border-l-2 border-gray-100 dark:border-gray-700 pl-3 mb-3 space-y-2 ml-9">
-                  {msg.replies.map((r) => (
-                    <div key={r.id}>
-                      <AuthorName
-                        name={r.authorName || OWNER_DISPLAY}
-                        role={r.authorRole}
-                        inline
-                      />
-                      <span className="text-xs text-gray-700 dark:text-gray-300 ml-1">{r.text}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <RepliesList replies={msg.replies} />
 
               {/* Reactions row — padding del botón deja el target táctil real
                   en ~40px+ (antes el botón era solo el ícono de 14px,
@@ -638,33 +668,5 @@ export function EventWall() {
     </InvitationThemeRoot>
   ) : (
     <div className="max-w-xl mx-auto px-4 py-6 min-h-screen">{content}</div>
-  )
-}
-
-/* Componente para renderizar el nombre del autor, destacando al organizador */
-function AuthorName({
-  name,
-  role,
-  inline = false,
-}: {
-  name: string
-  role: 'owner' | 'guest'
-  inline?: boolean
-}) {
-  if (role !== 'owner') {
-    return <span className={`text-xs font-semibold text-gray-700 dark:text-gray-300 ${inline ? 'inline' : ''}`}>{name}</span>
-  }
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1 text-xs font-bold ${inline ? '' : ''}`}
-      style={{
-        color: '#E8B84B',
-        textShadow: '0 0 8px rgba(232,184,75,.8), 0 0 16px rgba(232,184,75,.4)',
-      }}
-    >
-      <IconCrown className="w-3 h-3" />
-      {name}
-    </span>
   )
 }

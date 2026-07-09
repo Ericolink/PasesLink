@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PhotoData } from '../firebase/photos'
+import type { ReactionType } from '../types'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { ProgressiveImage } from './ProgressiveImage'
 import { PhotoViewer } from './PhotoViewer'
@@ -9,6 +10,12 @@ const MAX_STORY_AUTHORS = 30
 interface Props {
   eventId: string
   photos: PhotoData[]
+  // Pass-through hacia PhotoViewer (modo story) — ver ese componente para el
+  // detalle, acá solo se reenvían sin tocarlas.
+  myToken?: string
+  canReply?: boolean
+  onReact?: (photo: PhotoData, type: ReactionType | null) => void
+  onReply?: (photo: PhotoData, text: string) => void | Promise<void>
 }
 
 interface StoryGroup {
@@ -37,7 +44,7 @@ function loadSeenMap(eventId: string): Record<string, number> {
 // llamador (EventWall/WallSection) en vez de pedirlas de nuevo acá: esas
 // vistas ya tienen un listener/fetch de fotos para el feed principal, así
 // que una segunda lectura de la misma colección sería puro desperdicio.
-export function StoriesBar({ eventId, photos }: Props) {
+export function StoriesBar({ eventId, photos, myToken, canReply, onReact, onReply }: Props) {
   const [seenMap, setSeenMap] = useState<Record<string, number>>(() => loadSeenMap(eventId))
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
 
@@ -159,6 +166,10 @@ export function StoriesBar({ eventId, photos }: Props) {
           onClose={() => setActiveIndex(null)}
           onView={markSeen}
           mode="story"
+          myToken={myToken}
+          canReply={canReply}
+          onReact={onReact}
+          onReply={onReply}
         />
       )}
     </>

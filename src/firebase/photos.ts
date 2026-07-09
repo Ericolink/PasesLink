@@ -14,6 +14,8 @@ import {
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
+import { mapReply, reactToContent, replyToContent } from './interactions'
+import type { ReactionType, WallReaction, WallReply } from '../types'
 
 export interface PhotoData {
   id: string
@@ -29,6 +31,13 @@ export interface PhotoData {
   width?: number
   height?: number
   pinned: boolean
+  // Mismo modelo que WallMessage (ver types/index.ts) — reutilizado tal
+  // cual para que una foto (y una "historia", que es la misma foto vista
+  // agrupada, ver StoriesBar.tsx) tenga el mismo nivel de interacción que un
+  // mensaje del muro. Fotos subidas antes de este campo no lo tienen en
+  // Firestore — mapPhoto() lo completa acá con `{}`/`[]`.
+  reactions: Record<string, WallReaction>
+  replies: WallReply[]
 }
 
 const MAX_PHOTOS_DISPLAYED = 60
@@ -51,12 +60,14 @@ function mapPhoto(id: string, data: Record<string, unknown>): PhotoData {
     width: typeof data.width === 'number' ? data.width : undefined,
     height: typeof data.height === 'number' ? data.height : undefined,
     pinned: data.pinned === true,
+    reactions: (data.reactions as Record<string, WallReaction>) || {},
+    replies: ((data.replies as Record<string, unknown>[]) || []).map(mapReply),
   }
 }
 
 export async function addPhoto(
   eventId: string,
-  photo: Omit<PhotoData, 'id' | 'createdAt' | 'pinned'>,
+  photo: Omit<PhotoData, 'id' | 'createdAt' | 'pinned' | 'reactions' | 'replies'>,
 ): Promise<string> {
   const ref = await addDoc(collection(db, 'events', eventId, 'photos'), {
     url: photo.url,
@@ -65,6 +76,8 @@ export async function addPhoto(
     caption: photo.caption || '',
     width: photo.width ?? null,
     height: photo.height ?? null,
+    reactions: {},
+    replies: [],
     createdAt: serverTimestamp(),
   })
   return ref.id
@@ -103,4 +116,31 @@ export async function deletePhoto(eventId: string, photoId: string): Promise<voi
 // tenían este campo ni permiso de update en firestore.rules.
 export async function pinPhoto(eventId: string, photoId: string, currentlyPinned: boolean): Promise<void> {
   await updateDoc(doc(db, 'events', eventId, 'photos', photoId), { pinned: !currentlyPinned })
+}
+
+// Reaccionar/responder a una foto (o a una "historia", que es la misma foto
+// vista agrupada — ver StoriesBar.tsx) usa el mismo motor que los mensajes
+// del muro, ver src/firebase/interactions.ts y reactToWallMessage/
+// replyToWallMessage en wall.ts.
+export async function reactToPhoto(
+  eventId: string,
+  photoId: string,
+  token: string,
+  name: string,
+  reactionType: ReactionType | null,
+) {
+  await reactToContent(eventId, 'photos', photoId, token, name, reactionType)
+}
+
+export async function replyToPhoto(
+  eventId: string,
+  photoId: string,
+  text: string,
+  currentReplies: WallReply[],
+  authorName: string,
+  authorToken: string,
+  authorRole: 'owner' | 'guest' = 'guest',
+  authorPhotoURL?: string,
+): Promise<WallReply> {
+  return replyToContent(eventId, 'photos', photoId, text, currentReplies, authorName, authorToken, authorRole, authorPhotoURL)
 }

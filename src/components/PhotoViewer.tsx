@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { PhotoData } from '../firebase/photos'
+import type { ReactionType } from '../types'
 import { optimizedImageUrl } from '../utils/cloudinary'
+import { WALL_TEXT_MAX } from '../utils/validation'
 import { useScrollLock } from '../hooks/useScrollLock'
 import { IconX, IconArrowLeft } from './Icons'
 import { ProgressiveImage } from './ProgressiveImage'
+import { ReactionPicker } from './ReactionPicker'
 
 // Ancho de la versión servida en el visor: de sobra para llenar la pantalla
 // incluso en retina, sin cargar el original completo (varios MB) por cada
@@ -25,6 +28,15 @@ interface Props {
   // Invocado cada vez que cambia la foto visible (mount + avance/retroceso).
   // Usado en modo story para marcar como "vista" al autor correspondiente.
   onView?: (photo: PhotoData) => void
+  // Reaccionar/responder — solo se usan en modo `story` (en modo `gallery`
+  // la interacción ya vive en PhotoFeedCard, no se duplica acá). Mismo
+  // patrón que PhotoFeedCard: la identidad del autor vive en el closure de
+  // onReact/onReply del padre, esta vista solo necesita `myToken` para que
+  // ReactionPicker sepa cuál es "mi" reacción.
+  myToken?: string
+  canReply?: boolean
+  onReact?: (photo: PhotoData, type: ReactionType | null) => void
+  onReply?: (photo: PhotoData, text: string) => void | Promise<void>
 }
 
 // Visor fullscreen compartido: reemplaza el antiguo PhotoLightbox (grid de
@@ -33,8 +45,10 @@ interface Props {
 // imagen) — el contenedor siempre ocupa toda la pantalla, así que una foto
 // vertical y una horizontal se ven igual de "resueltas" en vez de que una
 // quede chica con bordes negros y la otra casi llene la pantalla.
-export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg, onDelete, onView }: Props) {
+export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg, onDelete, onView, myToken, canReply, onReact, onReply }: Props) {
   const [progress, setProgress] = useState(0)
+  const [replyText, setReplyText] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
   // Estado del avance automático de historias, separado de React state para
@@ -63,6 +77,24 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
     if (photo) onView?.(photo)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photo?.id])
+
+  // Limpia el input de respuesta al avanzar/retroceder de historia — sin
+  // esto, un texto sin enviar de la historia anterior quedaría pegado en la
+  // siguiente.
+  useEffect(() => {
+    setReplyText('')
+  }, [photo?.id])
+
+  async function handleSendStoryReply() {
+    if (!onReply || !photo || !replyText.trim() || sendingReply) return
+    setSendingReply(true)
+    try {
+      await onReply(photo, replyText)
+      setReplyText('')
+    } finally {
+      setSendingReply(false)
+    }
+  }
 
   function goPrev() {
     onIndexChange(Math.max(0, index - 1))
@@ -241,7 +273,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
       </div>
 
       {/* Caption / footer */}
-      <div className="text-center pb-6 px-6" onClick={(e) => e.stopPropagation()}>
+      <div className="text-center pb-2 px-6" onClick={(e) => e.stopPropagation()}>
         {photo.caption && <p className="text-white/80 text-sm mb-1">{photo.caption}</p>}
         {!isStory && <p className="text-white/50 text-xs">{photo.authorName}</p>}
         {!isStory && isOrg && onDelete && (
@@ -253,6 +285,54 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
           </button>
         )}
       </div>
+
+      {/* Interacción de historia — mismo sistema que mensajes/fotos del
+          feed (ReactionPicker genérico), sin duplicar reporte/borrado (esos
+          ya viven en la card del feed para esta misma foto). El input pausa
+          el auto-avance al enfocarse, igual que el long-press táctil (ver
+          pauseStory/resumeStory), para no perder la historia de vista
+          mientras se escribe. */}
+      {isStory && (myToken || canReply) && (
+        <div
+          className="px-4 pb-6 flex items-center gap-2"
+          style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {canReply && onReply && (
+            <>
+              <input
+                type="text"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onFocus={pauseStory}
+                onBlur={resumeStory}
+                placeholder="Responder a la historia…"
+                maxLength={WALL_TEXT_MAX}
+                className="flex-1 min-w-0 rounded-full px-4 py-2 text-sm text-white placeholder-white/50 bg-white/10 border border-white/25 focus:outline-none focus:border-white/50"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSendStoryReply() }}
+              />
+              {replyText.trim() && (
+                <button
+                  onClick={handleSendStoryReply}
+                  disabled={sendingReply}
+                  className="shrink-0 text-white text-sm font-semibold px-2 disabled:opacity-50"
+                >
+                  Enviar
+                </button>
+              )}
+            </>
+          )}
+          {myToken && onReact && (
+            <div className="shrink-0">
+              <ReactionPicker
+                reactions={photo.reactions}
+                myToken={myToken}
+                onReact={(type) => onReact(photo, type)}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>,
     document.body,
   )

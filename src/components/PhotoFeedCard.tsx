@@ -1,9 +1,13 @@
+import { useState } from 'react'
 import type { PhotoData } from '../firebase/photos'
-import type { TemplateId } from '../types'
+import type { ReactionType, TemplateId } from '../types'
 import { optimizedImageUrl } from '../utils/cloudinary'
+import { WALL_TEXT_MAX } from '../utils/validation'
 import { Avatar } from './Avatar'
-import { IconPin } from './Icons'
+import { IconPin, IconX } from './Icons'
 import { ProgressiveImage } from './ProgressiveImage'
+import { ReactionPicker } from './ReactionPicker'
+import { RepliesList } from './RepliesList'
 import { ReportButton } from './ReportButton'
 import { ThemeSeal } from './ThemeSeal'
 
@@ -16,6 +20,20 @@ interface Props {
   templateId?: TemplateId
   eventId: string
   eventName: string
+  // Reacciones/respuestas — mismo sistema que los mensajes del muro (ver
+  // ReactionPicker/RepliesList, ambos genéricos y ya usados ahí). La
+  // identidad del autor (nombre/token/rol) vive en el closure de
+  // onReact/onReply del padre — mismo patrón que ya usa el mensaje del muro
+  // en EventWall.tsx (handleReact/handleReply no reciben identidad como
+  // parámetro, la toman de su propio scope) — esta card solo necesita
+  // `myToken` para que ReactionPicker sepa cuál es "mi" reacción. Todas
+  // opcionales porque WallSection.tsx no siempre tiene una identidad
+  // resuelta antes de que el visitante confirme su nombre; sin ellas la
+  // card muestra el conteo pero no permite interactuar.
+  myToken?: string
+  canReply?: boolean
+  onReact?: (photo: PhotoData, type: ReactionType | null) => void
+  onReply?: (photo: PhotoData, text: string) => void | Promise<void>
 }
 
 // Misma "forma" que una card de mensaje del muro (mismo padding/borde/avatar)
@@ -26,7 +44,43 @@ interface Props {
 // (borde/resplandor dorado + ThemeSeal) — antes las fotos no tenían `pinned`
 // en absoluto (ni el campo en Firestore ni este botón), así que no se podían
 // fijar aunque el organizador sí podía fijar comentarios de texto.
-export function PhotoFeedCard({ photo, isOrg, onOpen, onDelete, onPin, templateId, eventId, eventName }: Props) {
+export function PhotoFeedCard({
+  photo,
+  isOrg,
+  onOpen,
+  onDelete,
+  onPin,
+  templateId,
+  eventId,
+  eventName,
+  myToken,
+  canReply,
+  onReact,
+  onReply,
+}: Props) {
+  // Estado de respuesta local a esta card (no se levanta al padre, a
+  // diferencia del mensaje del muro en EventWall.tsx) — cada foto ya es
+  // independiente en el feed, así que no hace falta un "replyingTo" global.
+  const [replying, setReplying] = useState(false)
+  const [replyText, setReplyText] = useState('')
+  const [replyError, setReplyError] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
+
+  async function handleSendReply() {
+    if (!onReply || !replyText.trim() || sendingReply) return
+    setSendingReply(true)
+    setReplyError('')
+    try {
+      await onReply(photo, replyText)
+      setReplyText('')
+      setReplying(false)
+    } catch (err) {
+      setReplyError(err instanceof Error ? err.message : 'No se pudo enviar la respuesta. Intenta de nuevo.')
+    } finally {
+      setSendingReply(false)
+    }
+  }
+
   return (
     <div
       className={`invite-wall-message border p-4 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)] transition-all ${
@@ -75,27 +129,68 @@ export function PhotoFeedCard({ photo, isOrg, onOpen, onDelete, onPin, templateI
         <p className="text-sm mt-2 ml-9 text-[var(--invite-text)]">{photo.caption}</p>
       )}
 
-      <div className="flex items-center gap-3 mt-2 ml-9">
-        {isOrg && onDelete && (
-          <button
-            onClick={() => onDelete(photo.id)}
-            className="text-xs text-red-400 hover:text-red-300"
-          >
-            Eliminar foto
-          </button>
+      <div className="mt-2">
+        <RepliesList replies={photo.replies} />
+
+        {/* Misma fila/alineación que la card de mensaje del muro (ver
+            EventWall.tsx): ReactionPicker + "Responder" + acciones de
+            organizador/reporte. */}
+        <div className="flex items-center gap-3 flex-wrap ml-[1.625rem]">
+          {myToken && onReact && (
+            <ReactionPicker
+              reactions={photo.reactions}
+              myToken={myToken}
+              onReact={(type) => onReact(photo, type)}
+            />
+          )}
+          {canReply && onReply && !replying && (
+            <button onClick={() => setReplying(true)} className="text-xs text-gray-400 hover:text-primary">
+              Responder
+            </button>
+          )}
+          {isOrg && onDelete && (
+            <button
+              onClick={() => onDelete(photo.id)}
+              className="text-xs text-red-400 hover:text-red-300"
+            >
+              Eliminar foto
+            </button>
+          )}
+          <ReportButton
+            eventId={eventId}
+            eventName={eventName}
+            contentType="photo"
+            contentId={photo.id}
+            contentSnapshot={photo.url}
+            contentCaption={photo.caption}
+            contentAuthorName={photo.authorName}
+            contentAuthorToken={photo.authorToken}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+            showLabel
+          />
+        </div>
+
+        {canReply && onReply && replying && (
+          <div className="mt-3 flex gap-2 ml-9">
+            <input
+              type="text"
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Escribe tu respuesta…"
+              maxLength={WALL_TEXT_MAX}
+              autoFocus
+              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-transparent text-[var(--invite-text)]"
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSendReply() }}
+            />
+            <button onClick={handleSendReply} disabled={sendingReply} className="bg-primary text-white rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50">
+              Enviar
+            </button>
+            <button onClick={() => { setReplying(false); setReplyError('') }} aria-label="Cancelar respuesta" className="flex items-center text-gray-400 hover:text-gray-600">
+              <IconX className="w-4 h-4" />
+            </button>
+          </div>
         )}
-        <ReportButton
-          eventId={eventId}
-          eventName={eventName}
-          contentType="photo"
-          contentId={photo.id}
-          contentSnapshot={photo.url}
-          contentCaption={photo.caption}
-          contentAuthorName={photo.authorName}
-          contentAuthorToken={photo.authorToken}
-          className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
-          showLabel
-        />
+        {replyError && <p className="text-xs text-red-500 mt-1 ml-9">{replyError}</p>}
       </div>
     </div>
   )

@@ -2,9 +2,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
-  deleteField,
   doc,
-  FieldPath,
   getDocs,
   limit,
   onSnapshot,
@@ -18,6 +16,7 @@ import {
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
+import { mapReply, reactToContent, replyToContent } from './interactions'
 import {
   requireMaxLength,
   requireNonEmpty,
@@ -219,14 +218,10 @@ export async function pinWallMessage(
   })
 }
 
-// Un solo campo (`reactions.<token>`) reemplaza el par likedBy/dislikedBy:
-// como es un map keyed por token, cada reactor tiene a lo sumo una entrada
-// (elegir otra reacción pisa la anterior, nunca hay que limpiar un array
-// aparte) y agregar un tipo de reacción nuevo no toca este archivo.
-// Se usa FieldPath en vez de la forma `{ [`reactions.${token}`]: ... }`
-// porque un token puede traer '.' (ej. viene de un nombre de invitado
-// escrito a mano) — con FieldPath ese token viaja como un único segmento
-// de ruta, nunca se interpreta como un map anidado.
+// Reacción/respuesta: wrappers finos sobre el motor genérico de
+// interactions.ts (compartido con fotos/historias, ver photos.ts) — mismas
+// firmas que antes, así que no cambia ningún call site en EventWall.tsx ni
+// WallSection.tsx.
 export async function reactToWallMessage(
   eventId: string,
   messageId: string,
@@ -234,9 +229,7 @@ export async function reactToWallMessage(
   name: string,
   reactionType: ReactionType | null,
 ) {
-  const ref = doc(db, 'events', eventId, 'wall', messageId)
-  const path = new FieldPath('reactions', token)
-  await updateDoc(ref, path, reactionType ? ({ type: reactionType, name } satisfies WallReaction) : deleteField())
+  await reactToContent(eventId, 'wall', messageId, token, name, reactionType)
 }
 
 export async function replyToWallMessage(
@@ -249,23 +242,7 @@ export async function replyToWallMessage(
   authorRole: 'owner' | 'guest' = 'guest',
   authorPhotoURL?: string,
 ) {
-  const trimmedText = requireMaxLength(requireNonEmpty(text, 'La respuesta'), WALL_TEXT_MAX, 'La respuesta')
-  const trimmedName = requireMaxLength(requireNonEmpty(authorName, 'El nombre'), WALL_NAME_MAX, 'El nombre')
-  requireMaxLength(authorToken, WALL_TOKEN_MAX, 'El identificador de autor')
-  if (authorPhotoURL) requireMaxLength(authorPhotoURL, WALL_PHOTO_URL_MAX, 'La URL de la foto')
-
-  const newReply: WallReply = {
-    id: crypto.randomUUID(),
-    text: trimmedText,
-    authorName: trimmedName,
-    authorToken,
-    authorRole,
-    createdAt: Date.now(),
-    ...(authorPhotoURL ? { authorPhotoURL } : {}),
-  }
-  await updateDoc(doc(db, 'events', eventId, 'wall', messageId), {
-    replies: [...currentReplies, newReply],
-  })
+  await replyToContent(eventId, 'wall', messageId, text, currentReplies, authorName, authorToken, authorRole, authorPhotoURL)
 }
 
 export async function deleteWallMessage(eventId: string, messageId: string) {
@@ -276,22 +253,6 @@ export async function deleteWallMessage(eventId: string, messageId: string) {
 
 export async function hardDeleteWallMessage(eventId: string, messageId: string) {
   await deleteDoc(doc(db, 'events', eventId, 'wall', messageId))
-}
-
-// Respuestas creadas antes de que `WallReply` tuviera campos de autor eran,
-// por diseño previo, siempre del anfitrión (única identidad que podía
-// responder) — se rellenan acá para que documentos viejos sigan mostrando
-// "Anfitrión" sin que la UI necesite un caso especial para datos legados.
-function mapReply(data: Record<string, unknown>): WallReply {
-  return {
-    id: data.id as string,
-    text: data.text as string,
-    authorName: (data.authorName as string) || '',
-    authorToken: (data.authorToken as string) || '',
-    authorRole: (data.authorRole as 'owner' | 'guest') || 'owner',
-    authorPhotoURL: (data.authorPhotoURL as string) || undefined,
-    createdAt: data.createdAt as number,
-  }
 }
 
 function mapMessage(id: string, data: Record<string, unknown>): WallMessage {

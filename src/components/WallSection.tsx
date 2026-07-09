@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reactToWallMessage, fetchWallMessages } from '../firebase/wall'
-import { fetchPhotos } from '../firebase/photos'
+import { fetchPhotos, reactToPhoto, replyToPhoto } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
@@ -160,11 +160,47 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
     }
   }
 
+  // Mismo patrón optimista que handleReact, sobre `photos` — reutiliza
+  // reactToPhoto/replyToPhoto (src/firebase/photos.ts), que comparten motor
+  // con los mensajes (ver src/firebase/interactions.ts).
+  async function handleReactPhoto(photo: PhotoData, type: ReactionType | null) {
+    const token = getDeviceToken()
+    const prevReactions = photo.reactions
+    const nextReactions = { ...prevReactions }
+    if (type) nextReactions[token] = { type, name: authorName || 'Invitado' }
+    else delete nextReactions[token]
+    setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: nextReactions } : p)))
+
+    try {
+      await reactToPhoto(eventId, photo.id, token, authorName || 'Invitado', type)
+    } catch (err) {
+      console.error('Error reacting to photo:', err)
+      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: prevReactions } : p)))
+    }
+  }
+
+  // A diferencia de EventWall.tsx (con listener en vivo, ver comentario en
+  // loadMessages más arriba), este widget no tiene onSnapshot — la propia
+  // respuesta se agrega a mano al estado local en vez de esperar un refresh
+  // manual del usuario (mismo criterio que onPosted/onPhotoUploaded del
+  // composer: la propia acción se refleja al toque).
+  async function handleReplyPhoto(photo: PhotoData, text: string) {
+    const newReply = await replyToPhoto(eventId, photo.id, text, photo.replies, authorName, messageAuthorToken, 'guest', authorPhoto)
+    setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, replies: [...p.replies, newReply] } : p)))
+  }
+
   const canPost = user ? !isMinor : !!resolvedGuestName
 
   return (
     <div className="invite-wall-section relative mt-8 pt-6 border-t" style={{ borderColor: 'var(--invite-border)' }}>
-      <StoriesBar eventId={eventId} photos={photos} />
+      <StoriesBar
+        eventId={eventId}
+        photos={photos}
+        myToken={getDeviceToken()}
+        canReply={canPost && !commentBlockedMessage}
+        onReact={handleReactPhoto}
+        onReply={handleReplyPhoto}
+      />
       <div className="flex items-center gap-2 mb-4">
         <h2 className="text-lg font-bold text-[var(--invite-text)]">Muro del evento</h2>
         <button
@@ -293,6 +329,10 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
                 templateId={templateId}
                 eventId={eventId}
                 eventName={eventName}
+                myToken={getDeviceToken()}
+                canReply={canPost && !commentBlockedMessage}
+                onReact={handleReactPhoto}
+                onReply={handleReplyPhoto}
               />
             )
           }

@@ -77,13 +77,28 @@ service cloud.firestore {
     // request.resource.data.replies[0:N] == resource.data.replies exige que
     // las respuestas ya existentes lleguen sin tocar, para que un cliente no
     // pueda reescribir o borrar respuestas ajenas aprovechando este permiso.
+    //
+    // Reutilizada también por `photos` (ver match /photos/{photoId} más
+    // abajo) — responder a una foto o a una "historia" (que es la misma foto
+    // vista agrupada, ver StoriesBar.tsx) pasa por esta misma función, sin
+    // duplicar su lógica. oldReplies tolera un documento sin el campo
+    // `replies` (fotos subidas antes de esta función, que nunca lo
+    // escribieron) tratándolo como lista vacía — así no hace falta
+    // backfillear ninguna foto ya existente para que pueda recibir su
+    // primera respuesta.
     function isValidWallReplyAppend(eventId) {
-      let oldReplies = resource.data.replies;
+      let oldReplies = resource.data.get('replies', []);
       let newReplies = request.resource.data.replies;
       return (request.auth == null || !commentsBlocked(eventId))
         && newReplies.size() == oldReplies.size() + 1
         && newReplies.size() <= 500
-        && newReplies[0:oldReplies.size()] == oldReplies
+        // oldReplies.size() == 0 evita el slice newReplies[0:0]: sin
+        // respuestas previas no hay nada que preservar, y ese slice vacío
+        // dispara un error de evaluación del motor de reglas (visto en el
+        // emulador al probar la primera respuesta de una foto legacy sin
+        // `replies`, ver isValidWallReplyAppend arriba) en vez de devolver
+        // limpiamente una lista vacía.
+        && (oldReplies.size() == 0 || newReplies[0:oldReplies.size()] == oldReplies)
         && isValidWallReply(newReplies[oldReplies.size()]);
     }
 
@@ -536,6 +551,8 @@ service cloud.firestore {
         // src/firebase/wall.ts) puede reaccionar repetidamente simulando
         // tokens distintos. Solución robusta: mover la reacción a una
         // subcolección wall/{id}/reactions/{token} con un doc por reactor.
+        // Mismo gap, sin resolver todavía, en la rama de reacciones de
+        // `photos` de más abajo (reutiliza este mismo patrón).
         allow update: if isOwnerOrCoOrg(eventId) || isAdmin()
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
               && request.resource.data.reactions.size() <= 5000)
@@ -567,11 +584,25 @@ service cloud.firestore {
                   && request.resource.data.caption.size() <= 120))
           && (request.auth == null || !photosBlocked(eventId));
         // Destacar/quitar destacado (mismo concepto que pinWallMessage del
-        // muro) — único update permitido, y solo ese campo, para que esta
-        // apertura no habilite editar url/authorName/etc. de una foto ya subida.
-        allow update: if (isOwnerOrCoOrg(eventId) || isAdmin())
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
-          && request.resource.data.pinned is bool;
+        // muro) — el bypass de organizador/admin sigue acotado solo a este
+        // campo, para que esta apertura no habilite editar url/authorName/
+        // etc. de una foto ya subida (a diferencia de `wall`, donde
+        // isOwnerOrCoOrg/isAdmin puede tocar cualquier campo — acá se
+        // mantiene la postura más restrictiva que ya tenía `photos`).
+        //
+        // Reacciones y respuestas (fotos Y las "historias", que son las
+        // mismas fotos vistas agrupadas por autor — ver StoriesBar.tsx)
+        // reutilizan exactamente las mismas dos ramas que ya validaban esto
+        // para `wall`: mismo campo `reactions` con el mismo tope, mismo
+        // isValidWallReplyAppend para `replies`. Ver ese TODO Fase 3+ más
+        // arriba — el mismo gap de spoofing de token aplica acá.
+        allow update: if ((isOwnerOrCoOrg(eventId) || isAdmin())
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
+              && request.resource.data.pinned is bool)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+              && request.resource.data.reactions.size() <= 5000)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replies'])
+              && isValidWallReplyAppend(eventId));
         allow delete: if isOwnerOrCoOrg(eventId) || isAdmin();
       }
     }

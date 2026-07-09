@@ -12,7 +12,7 @@ vi.mock('../config', () => ({
   },
 }))
 
-import { pinPhoto } from '../photos'
+import { pinPhoto, reactToPhoto, replyToPhoto } from '../photos'
 
 const OWNER_UID = 'owner-uid'
 const OTHER_UID = 'someone-else-uid'
@@ -88,5 +88,114 @@ describe('photos.ts — pinPhoto', () => {
 
     const photo = await getPhotoDoc(testEnv)
     expect(photo?.pinned).toBe(false)
+  })
+})
+
+// `seedPhoto` (arriba) nunca escribe `reactions`/`replies` — a propósito,
+// simula exactamente la forma de una foto subida ANTES de esta feature
+// (ver comentario en isValidWallReplyAppend, firestore.rules). Estos tests
+// verifican que reaccionar/responder funciona igual sobre esas fotos
+// "legacy" sin backfill, no solo sobre fotos nuevas.
+describe('photos.ts — reactToPhoto', () => {
+  let testEnv: RulesTestEnvironment
+
+  beforeAll(async () => {
+    testEnv = await createTestEnv()
+  })
+
+  afterEach(async () => {
+    await testEnv.clearFirestore()
+  })
+
+  afterAll(async () => {
+    await testEnv.cleanup()
+  })
+
+  it('lets an unauthenticated guest react to a legacy photo with no reactions field', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedPhoto(testEnv)
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await expect(reactToPhoto(EVENT_ID, PHOTO_ID, 'device-token-1', 'Invitado', 'love')).resolves.toBeUndefined()
+
+    const photo = await getPhotoDoc(testEnv)
+    expect(photo?.reactions).toEqual({ 'device-token-1': { type: 'love', name: 'Invitado' } })
+  })
+
+  it('lets the same reactor change their reaction', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedPhoto(testEnv, { reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } } })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await reactToPhoto(EVENT_ID, PHOTO_ID, 'device-token-1', 'Invitado', 'haha')
+
+    const photo = await getPhotoDoc(testEnv)
+    expect(photo?.reactions).toEqual({ 'device-token-1': { type: 'haha', name: 'Invitado' } })
+  })
+
+  it('removes a reaction when reactionType is null', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedPhoto(testEnv, { reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } } })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await reactToPhoto(EVENT_ID, PHOTO_ID, 'device-token-1', 'Invitado', null)
+
+    const photo = await getPhotoDoc(testEnv)
+    expect(photo?.reactions).toEqual({})
+  })
+})
+
+describe('photos.ts — replyToPhoto', () => {
+  let testEnv: RulesTestEnvironment
+
+  beforeAll(async () => {
+    testEnv = await createTestEnv()
+  })
+
+  afterEach(async () => {
+    await testEnv.clearFirestore()
+  })
+
+  afterAll(async () => {
+    await testEnv.cleanup()
+  })
+
+  it('lets an unauthenticated guest reply to a legacy photo with no replies field', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedPhoto(testEnv)
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const reply = await replyToPhoto(EVENT_ID, PHOTO_ID, '¡Qué linda foto!', [], 'Invitado', 'guest-token-2')
+    expect(reply.text).toBe('¡Qué linda foto!')
+
+    const photo = await getPhotoDoc(testEnv)
+    expect(photo?.replies).toHaveLength(1)
+    expect((photo?.replies as { text: string }[])[0].text).toBe('¡Qué linda foto!')
+  })
+
+  it('appends to existing replies without touching them', async () => {
+    const existingReply = { id: 'r1', text: 'primera', authorName: 'A', authorToken: 't1', authorRole: 'guest', createdAt: 1 }
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedPhoto(testEnv, { replies: [existingReply] })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await replyToPhoto(EVENT_ID, PHOTO_ID, 'segunda', [existingReply as never], 'B', 'guest-token-3')
+
+    const photo = await getPhotoDoc(testEnv)
+    const replies = photo?.replies as { text: string }[]
+    expect(replies).toHaveLength(2)
+    expect(replies[0].text).toBe('primera')
+    expect(replies[1].text).toBe('segunda')
+  })
+
+  it('rejects a direct write that rewrites an existing reply instead of appending', async () => {
+    const existingReply = { id: 'r1', text: 'primera', authorName: 'A', authorToken: 't1', authorRole: 'guest', createdAt: 1 }
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedPhoto(testEnv, { replies: [existingReply] })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await expect(
+      setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'photos', PHOTO_ID), { replies: [{ ...existingReply, text: 'tampered' }] }, { merge: true }),
+    ).rejects.toThrow()
   })
 })
