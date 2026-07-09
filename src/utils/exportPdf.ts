@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import QRCode from 'qrcode'
 import type { EventData, GuestData } from '../types'
+import { partySize } from '../firebase/guests'
 import { buildPassUrl } from './qrUrl'
 import { formatDate, formatTime12h } from './time'
 import { getTemplate } from '../templates/registry'
@@ -173,13 +174,15 @@ export async function exportGuestPassesPdf(
     const locationLines = doc.splitTextToSize(event.location, colWidth)
     const MAX_COMPANIONS_SHOWN = 6
     const companions = guest.companions || []
-    const companionLines = companions.length
-      ? companions.slice(0, MAX_COMPANIONS_SHOWN).map((c, idx) => {
-          const cName = `${c.name || ''} ${c.lastName || ''}`.trim()
-          return `• ${cName || `Acompañante ${idx + 1}`}`
-        })
-      : ['Pase individual']
-    if (companions.length > MAX_COMPANIONS_SHOWN) {
+    const companionLines = guest.isGroup
+      ? [`Grupo de ${partySize(guest)} integrantes`]
+      : companions.length
+        ? companions.slice(0, MAX_COMPANIONS_SHOWN).map((c, idx) => {
+            const cName = `${c.name || ''} ${c.lastName || ''}`.trim()
+            return `• ${cName || `Acompañante ${idx + 1}`}`
+          })
+        : ['Pase individual']
+    if (!guest.isGroup && companions.length > MAX_COMPANIONS_SHOWN) {
       companionLines.push(`+ ${companions.length - MAX_COMPANIONS_SHOWN} más`)
     }
 

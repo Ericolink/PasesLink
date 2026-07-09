@@ -97,6 +97,7 @@ export function getGuestSubtitle(
 
   if (guest.rsvpStatus === 'pending') {
     const size = partySize(guest)
+    if (guest.isGroup) return `${size} integrante${size > 1 ? 's' : ''} · sin responder`
     return size > 1 ? `${size - 1} acompañante${size - 1 > 1 ? 's' : ''} · sin responder` : 'Sin responder'
   }
 

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { partySize } from '../firebase/guests'
 import type { EventData, GuestData } from '../types'
 
 // Extraído de EventDetail.tsx (Subfase 3.3): exportación PDF/CSV de la
@@ -50,7 +51,7 @@ export function useEventExport(event: EventData | null, guests: GuestData[]) {
         g.name,
         g.lastName || '',
         g.phone || '',
-        String(g.companions.length),
+        g.isGroup ? String(partySize(g)) : String(g.companions.length),
         g.status === 'checked_in' ? 'Asistió' : 'Invitado',
         g.rsvpStatus === 'yes' ? 'Sí' : g.rsvpStatus === 'no' ? 'No' : 'Pendiente',
         g.checkedInAt ? new Date(g.checkedInAt).toLocaleString('es') : '',

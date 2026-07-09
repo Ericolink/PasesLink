@@ -265,6 +265,8 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
               placeholder="Cantidad de integrantes"
               value={memberCount}
               onChange={(e) => setMemberCount(Math.max(1, Math.min(GUEST_GROUP_MAX_MEMBERS, Number(e.target.value) || 1)))}
+              onFocus={(e) => e.currentTarget.select()}
+              onClick={(e) => e.currentTarget.select()}
               className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
