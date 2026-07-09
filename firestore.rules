@@ -19,6 +19,25 @@ service cloud.firestore {
       return isOwner(eventId) || isCoOrganizer(eventId);
     }
 
+    // Permiso granular de un co-organizador (ver src/types/coOrganizerPermissions.ts).
+    // `def` es el default LEGACY para ese permiso — debe coincidir con
+    // LEGACY_COORG_DEFAULTS en ese archivo, así un co-organizador agregado
+    // antes de que existiera coOrganizerPermissions (o antes de que existiera
+    // este permiso puntual) conserva el mismo acceso amplio que ya tenía.
+    function coOrgPerm(eventId, key, def) {
+      let ev = get(/databases/$(database)/documents/events/$(eventId));
+      return ev.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}).get(key, def);
+    }
+
+    // El dueño siempre puede; un co-organizador puede si tiene ese permiso
+    // (o no tiene entrada en coOrganizerPermissions y `def` es true). Único
+    // punto de la app que decide "¿puede este usuario hacer X en este
+    // evento?" — cada `allow` de acá abajo llama a esto en vez de reimplementar
+    // la misma comparación.
+    function canDo(eventId, key, def) {
+      return isOwner(eventId) || (isCoOrganizer(eventId) && coOrgPerm(eventId, key, def));
+    }
+
     // Admin = tener un documento propio en /admins/{uid}. Se eligió esta
     // colección en vez de customClaims (Fase 4D) porque asignar customClaims
     // requiere el Admin SDK, que en este proyecto solo está disponible vía
@@ -435,16 +454,51 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount'])
             && request.resource.data.guestCount == resource.data.guestCount + 1
             && request.resource.data.peopleCount >= resource.data.peopleCount + 1
-            && request.resource.data.peopleCount <= resource.data.peopleCount + 10);
+            && request.resource.data.peopleCount <= resource.data.peopleCount + 10)
+        // "Salir del evento": un co-organizador puede quitarse a sí mismo sin
+        // pasar por el dueño. Solo puede tocar sus propias 2 entradas
+        // (coOrganizersMap/coOrganizerPermissions) y hacerlas desaparecer —
+        // no puede afectar invitados, pagos, ni ningún otro campo del evento.
+        || (isCoOrganizer(eventId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coOrganizersMap', 'coOrganizerPermissions', 'updatedAt'])
+            && !(request.auth.uid in request.resource.data.get('coOrganizersMap', {}))
+            && request.auth.uid in resource.data.coOrganizersMap)
+        // Administrar co-organizadores (permiso manageCoOrganizers, default
+        // false): puede agregar/editar/quitar a OTROS co-organizadores, pero
+        // no puede tocar su propia entrada en ninguno de los dos mapas — ni
+        // para autoescalarse más permisos ni para autoeliminarse por esta vía
+        // (para eso ya está la rama de "salir del evento" de arriba).
+        || (isCoOrganizer(eventId)
+            && coOrgPerm(eventId, 'manageCoOrganizers', false)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coOrganizersMap', 'coOrganizerPermissions', 'updatedAt'])
+            && request.resource.data.get('coOrganizersMap', {}).get(request.auth.uid, null) == resource.data.coOrganizersMap.get(request.auth.uid, null)
+            && request.resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}) == resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}));
       allow delete: if isOwner(eventId) || isAdmin();
 
       match /guests/{guestId} {
-        allow read, delete: if isOwnerOrCoOrg(eventId) || isAdmin();
-        allow create: if isOwnerOrCoOrg(eventId) || isAdmin()
+        allow read: if canDo(eventId, 'viewGuestList', true) || isAdmin();
+        allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin();
+        allow create: if canDo(eventId, 'addGuests', true) || isAdmin()
           || (isOpenEvent(eventId) && isValidPublicGuestRegistration());
         allow list: if request.query.limit <= 1;
         allow get: if true;
-        allow update: if isOwnerOrCoOrg(eventId) || isAdmin() ||
+        // Rama del organizador: updateGuest (nombre/apellido/companions/
+        // customData/rsvpStatus/lockToken) no restringe campos, igual que
+        // antes — solo cambia de qué permiso depende. Check-in/checkout y
+        // confirmar pago sí quedan acotados a sus campos exactos, para que
+        // un co-organizador con SOLO scanQr (sin editGuests) pueda escanear,
+        // y uno con SOLO confirmPayments pueda aprobar pagos, sin heredar
+        // acceso al resto del invitado.
+        allow update: if canDo(eventId, 'editGuests', true) || isAdmin() ||
+          (
+            canDo(eventId, 'scanQr', true) &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail', 'checkedOutAt', 'checkedOutByEmail', 'exitType'])
+          ) ||
+          (
+            canDo(eventId, 'confirmPayments', true) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentMethod'])
+          ) ||
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&
             (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken)
@@ -497,8 +551,9 @@ service cloud.firestore {
       // guests/{guestId}.
       match /guestContacts/{guestId} {
         allow get: if true;
-        allow list, delete: if isOwnerOrCoOrg(eventId) || isAdmin();
-        allow create: if isOwnerOrCoOrg(eventId) || isAdmin()
+        allow list: if canDo(eventId, 'viewGuestList', true) || isAdmin();
+        allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin();
+        allow create: if canDo(eventId, 'editGuests', true) || isAdmin()
           || (isOpenEvent(eventId) && isValidPublicGuestContact())
           // Primer guardado de contacto del propio invitado (p.ej. un
           // invitado de lista, agregado sin teléfono, que ahora carga el
@@ -510,7 +565,7 @@ service cloud.firestore {
             isValidPublicGuestContact() &&
             guestSelfEditContactLockOk(eventId, guestId)
           );
-        allow update: if isOwnerOrCoOrg(eventId) || isAdmin()
+        allow update: if canDo(eventId, 'editGuests', true) || isAdmin()
           || (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email', 'phone', 'lockToken']) &&
             isValidPublicGuestContact() &&
@@ -519,8 +574,9 @@ service cloud.firestore {
       }
 
       match /checkins/{checkinId} {
-        allow read: if isOwnerOrCoOrg(eventId) || isAdmin();
-        allow create: if isOwnerOrCoOrg(eventId) || isAdmin();
+        // También lo lee Reports (viewReports) — no solo el escáner.
+        allow read: if canDo(eventId, 'scanQr', true) || canDo(eventId, 'viewReports', true) || isAdmin();
+        allow create: if canDo(eventId, 'scanQr', true) || isAdmin();
         allow delete: if isOwner(eventId) || isAdmin();
         allow update: if false;
       }
@@ -553,7 +609,7 @@ service cloud.firestore {
         // subcolección wall/{id}/reactions/{token} con un doc por reactor.
         // Mismo gap, sin resolver todavía, en la rama de reacciones de
         // `photos` de más abajo (reutiliza este mismo patrón).
-        allow update: if isOwnerOrCoOrg(eventId) || isAdmin()
+        allow update: if canDo(eventId, 'moderateWall', true) || isAdmin()
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
               && request.resource.data.reactions.size() <= 5000)
           // Responder: mismo criterio de autorización que crear un mensaje
@@ -561,7 +617,7 @@ service cloud.firestore {
           // no sancionado usan esta misma rama, no hay una ruta aparte.
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replies'])
               && isValidWallReplyAppend(eventId));
-        allow delete: if isOwnerOrCoOrg(eventId) || isAdmin();
+        allow delete: if canDo(eventId, 'moderateWall', true) || isAdmin();
       }
 
       // Álbum de fotos del evento. Visible para cualquiera que conozca el
@@ -596,14 +652,14 @@ service cloud.firestore {
         // para `wall`: mismo campo `reactions` con el mismo tope, mismo
         // isValidWallReplyAppend para `replies`. Ver ese TODO Fase 3+ más
         // arriba — el mismo gap de spoofing de token aplica acá.
-        allow update: if ((isOwnerOrCoOrg(eventId) || isAdmin())
+        allow update: if ((canDo(eventId, 'moderateWall', true) || isAdmin())
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
               && request.resource.data.pinned is bool)
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
               && request.resource.data.reactions.size() <= 5000)
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replies'])
               && isValidWallReplyAppend(eventId));
-        allow delete: if isOwnerOrCoOrg(eventId) || isAdmin();
+        allow delete: if canDo(eventId, 'moderateWall', true) || isAdmin();
       }
     }
   }

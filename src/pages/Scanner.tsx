@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEventOnly } from '../hooks/useEventOnly'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useEventPermissions } from '../hooks/useEventPermissions'
 import { checkInGuest, checkOutGuest, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
@@ -45,6 +46,7 @@ export function Scanner() {
   const { user } = useAuth()
   const { event, loading: eventLoading, error: eventError } = useEventOnly(eventId)
   useDocumentTitle(event ? `Escanear · ${event.name}` : 'Escanear')
+  const perms = useEventPermissions(event, user)
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
   const [scanning, setScanning] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -80,12 +82,11 @@ export function Scanner() {
   // hasAutoStartedRef prevents re-firing when event state updates.
   useEffect(() => {
     if (!event || !user || hasAutoStartedRef.current) return
-    const coOrgsMap = event.coOrganizersMap || {}
-    if (!(user.uid === event.ownerId || user.uid in coOrgsMap)) return
+    if (!perms.scanQr) return
     hasAutoStartedRef.current = true
     void startScanning()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event, user])
+  }, [event, user, perms.scanQr])
 
   function showFeedback(value: ScanFeedback) {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
@@ -389,9 +390,7 @@ export function Scanner() {
       </div>
     )
   }
-  const coOrgsMap = event.coOrganizersMap || {}
-  const hasAccess = !!user && (user.uid === event.ownerId || user.uid in coOrgsMap)
-  if (!hasAccess) {
+  if (!perms.scanQr) {
     return (
       <div className="text-center mt-16 px-4">
         <p className="text-gray-500">No tienes acceso a este evento.</p>

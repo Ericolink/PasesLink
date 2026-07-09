@@ -18,6 +18,7 @@ import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
 import type { CustomField, EntryMode, EventData, EventStatus, PaymentMethod, TemplateId, TimelineEntry } from '../types'
 import { EventSchema, warnIfInvalidShape } from '../types/schemas'
+import { LEGACY_COORG_DEFAULTS, type CoOrganizerPermissions } from '../types/coOrganizerPermissions'
 
 export interface NewEventInput {
   name: string
@@ -235,16 +236,52 @@ export async function updateEventTemplate(eventId: string, templateId: TemplateI
   })
 }
 
-export async function addCoOrganizer(eventId: string, uid: string, email: string) {
+// `permissions` por defecto LEGACY_COORG_DEFAULTS: agregar un co-organizador
+// sigue siendo un flujo de un solo paso (email + botón) — quien quiera
+// otorgar un set distinto lo ajusta después con updateCoOrganizerPermissions.
+export async function addCoOrganizer(
+  eventId: string,
+  uid: string,
+  email: string,
+  permissions: CoOrganizerPermissions = LEGACY_COORG_DEFAULTS,
+) {
   await updateDoc(doc(db, 'events', eventId), {
     [`coOrganizersMap.${uid}`]: email,
+    [`coOrganizerPermissions.${uid}`]: permissions,
     updatedAt: serverTimestamp(),
   })
 }
 
+// Usado por el dueño (o un co-organizador con manageCoOrganizers) para quitar
+// a OTRO co-organizador. Para que un co-organizador se quite a sí mismo, ver
+// leaveCoOrganizer — misma escritura, pero autorizada por una rama distinta
+// de firestore.rules (el propio uid, no el de un tercero).
 export async function removeCoOrganizer(eventId: string, uid: string) {
   await updateDoc(doc(db, 'events', eventId), {
     [`coOrganizersMap.${uid}`]: deleteField(),
+    [`coOrganizerPermissions.${uid}`]: deleteField(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+// El propio co-organizador abandona el evento ("Salir del evento"). No
+// afecta invitados, pagos, ni al organizador principal — borra únicamente su
+// propia entrada en los dos mapas del evento.
+export async function leaveCoOrganizer(eventId: string, uid: string) {
+  await updateDoc(doc(db, 'events', eventId), {
+    [`coOrganizersMap.${uid}`]: deleteField(),
+    [`coOrganizerPermissions.${uid}`]: deleteField(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateCoOrganizerPermissions(
+  eventId: string,
+  uid: string,
+  permissions: CoOrganizerPermissions,
+) {
+  await updateDoc(doc(db, 'events', eventId), {
+    [`coOrganizerPermissions.${uid}`]: permissions,
     updatedAt: serverTimestamp(),
   })
 }
@@ -338,6 +375,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     // ya pagados si hace falta reflejarlo de inmediato.
     paidCount: (data.paidCount as number) || 0,
     coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},
+    coOrganizerPermissions: data.coOrganizerPermissions as EventData['coOrganizerPermissions'],
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
   }

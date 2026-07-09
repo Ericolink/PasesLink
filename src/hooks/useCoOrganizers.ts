@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { addCoOrganizer, removeCoOrganizer } from '../firebase/events'
+import { addCoOrganizer, leaveCoOrganizer, removeCoOrganizer, updateCoOrganizerPermissions } from '../firebase/events'
 import { getUserByEmail } from '../firebase/userProfile'
+import type { CoOrganizerPermissions } from '../types/coOrganizerPermissions'
 
 // Extraído de EventDetail.tsx (Subfase 3.3): agregar/quitar co-organizadores
 // por email. `ownerId` se pasa aparte (no como objeto `event` completo) para
@@ -34,10 +35,32 @@ export function useCoOrganizers(eventId: string | undefined, ownerId: string | u
     }
   }
 
+  // Quita a OTRO co-organizador (dueño, o co-org con manageCoOrganizers).
   async function handleRemoveCoOrg(uid: string) {
     if (!eventId) return
     await removeCoOrganizer(eventId, uid)
   }
 
-  return { coOrgEmail, setCoOrgEmail, coOrgLoading, coOrgError, setCoOrgError, handleAddCoOrg, handleRemoveCoOrg }
+  // El propio co-organizador abandona el evento ("Salir del evento").
+  async function handleLeaveEvent(uid: string) {
+    if (!eventId) return
+    await leaveCoOrganizer(eventId, uid)
+  }
+
+  async function handleUpdatePermissions(uid: string, permissions: CoOrganizerPermissions) {
+    if (!eventId) return
+    await updateCoOrganizerPermissions(eventId, uid, permissions)
+  }
+
+  return {
+    coOrgEmail,
+    setCoOrgEmail,
+    coOrgLoading,
+    coOrgError,
+    setCoOrgError,
+    handleAddCoOrg,
+    handleRemoveCoOrg,
+    handleLeaveEvent,
+    handleUpdatePermissions,
+  }
 }

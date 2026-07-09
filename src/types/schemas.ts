@@ -36,6 +36,26 @@ const TimelineEntrySchema = z.object({
   label: z.string().min(1),
 })
 
+// Espeja CoOrganizerPermissions (src/types/coOrganizerPermissions.ts).
+// Optional a nivel de mapa: un evento/co-org de antes de este campo
+// simplemente no lo tiene, resuelto con LEGACY_COORG_DEFAULTS en el cliente.
+const CoOrganizerPermissionsSchema = z.object({
+  addGuests: z.boolean(),
+  editGuests: z.boolean(),
+  deleteGuests: z.boolean(),
+  shareInviteLink: z.boolean(),
+  confirmPayments: z.boolean(),
+  scanQr: z.boolean(),
+  viewGuestList: z.boolean(),
+  postWall: z.boolean(),
+  moderateWall: z.boolean(),
+  editEvent: z.boolean(),
+  manageCoOrganizers: z.boolean(),
+  viewReports: z.boolean(),
+  exportLists: z.boolean(),
+  downloadEventInfo: z.boolean(),
+})
+
 export const EventSchema = z.object({
   id: z.string().min(1),
   ownerId: z.string().min(1),
@@ -70,6 +90,7 @@ export const EventSchema = z.object({
   occupancyCount: z.number(),
   paidCount: z.number(),
   coOrganizersMap: z.record(z.string(), z.string()),
+  coOrganizerPermissions: z.record(z.string(), CoOrganizerPermissionsSchema).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 })

@@ -5,6 +5,7 @@ import { partySize } from '../firebase/guests'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useGuestStats } from '../hooks/useGuestStats'
 import { attendancePercent } from '../utils/attendance'
 import type { CheckinLog } from '../types'
@@ -28,6 +29,7 @@ export function Reports() {
   // reportes — se llama sin condicionales (regla de hooks) aunque `event`
   // todavía pueda ser null en el primer render.
   const { totalPeople, totalCollected, rsvpYes, rsvpNo, rsvpPending } = useGuestStats(guests, event?.ticketPrice ?? 0)
+  const perms = useEventPermissions(event, user)
 
   // Resetea el loading al cambiar de evento, antes de (re)suscribirse —
   // necesario para no mostrar datos del evento anterior como si fueran del nuevo.
@@ -53,7 +55,7 @@ export function Reports() {
       </div>
     )
   }
-  if (user && event.ownerId !== user.uid) {
+  if (user && !perms.viewReports) {
     return (
       <div className="text-center mt-16 px-4">
         <p className="text-gray-500">No tienes acceso a este evento.</p>
@@ -195,9 +197,11 @@ export function Reports() {
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-medium text-gray-900 dark:text-white">Detalle por invitado</h2>
-          <button onClick={exportCsv} className="text-sm text-primary font-medium">
-            Exportar CSV
-          </button>
+          {perms.exportLists && (
+            <button onClick={exportCsv} className="text-sm text-primary font-medium">
+              Exportar CSV
+            </button>
+          )}
         </div>
         {guestsLoading && <LoadingInline label="Cargando asistentes…" />}
         <div className="divide-y divide-gray-100 dark:divide-gray-700">

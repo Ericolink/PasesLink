@@ -12,6 +12,7 @@ import {
 import { deletePhoto, pinPhoto, reactToPhoto, replyToPhoto, subscribeToPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
+import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { useWallComposer } from '../hooks/useWallComposer'
@@ -102,13 +103,13 @@ export function EventWall() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isOwner    = !!(user && event && user.uid === event.ownerId)
-  // Moderación (fijar/eliminar mensaje, borrar/fijar foto): igual criterio
-  // que el resto de la app (GuestPass, EventDetail, Scanner, firestore.rules
-  // isOwnerOrCoOrg) — un co-organizador ya gestiona el evento en todas esas
-  // pantallas, así que también debe poder moderar el muro. Separado de
+  const perms = useEventPermissions(event, user)
+  // Moderación (fijar/eliminar mensaje, borrar/fijar foto): permiso
+  // moderateWall (ver src/types/coOrganizerPermissions.ts) — separado de
   // `isOwner`, que sigue siendo la identidad estricta usada para publicar
-  // como "Anfitrión".
-  const isOrg      = isOwner || !!(user && event?.coOrganizersMap && user.uid in event.coOrganizersMap)
+  // como "Anfitrión" (no un permiso otorgable, ver comentario donde se arma
+  // postLabel/authorRole más abajo).
+  const isOrg      = perms.moderateWall
   const isMinor    = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
 
   const postLabel = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)

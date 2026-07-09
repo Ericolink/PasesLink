@@ -81,6 +81,9 @@ export function GuestDetailSheet({
   currency,
   customFields = [],
   copiedId,
+  canEditGuests = true,
+  canConfirmPayments = true,
+  canDeleteGuests = true,
   onClose,
   onShare,
   onMarkPaid,
@@ -98,6 +101,12 @@ export function GuestDetailSheet({
   currency: string
   customFields?: CustomField[]
   copiedId: string | null
+  // Defaults en `true` para no romper a ningún caller que todavía no pasa
+  // estos props (mismo criterio de compatibilidad que el resto de esta
+  // feature: sin entrada de permisos = acceso amplio, como antes).
+  canEditGuests?: boolean
+  canConfirmPayments?: boolean
+  canDeleteGuests?: boolean
   onClose: () => void
   onShare: (guest: GuestData) => void
   onMarkPaid: (guest: GuestData, method?: PaymentMethod) => void
@@ -224,16 +233,18 @@ export function GuestDetailSheet({
                 <ActionButton icon={copiedId === guest.id ? <IconCheck className="w-4 h-4" /> : <IconShare className="w-4 h-4" />} onClick={() => onShare(guest)}>
                   {copiedId === guest.id ? 'Copiado!' : 'Compartir invitación'}
                 </ActionButton>
-                <ActionButton icon={<IconEdit className="w-4 h-4" />} onClick={() => setEditing(true)}>
-                  Editar datos
-                </ActionButton>
+                {canEditGuests && (
+                  <ActionButton icon={<IconEdit className="w-4 h-4" />} onClick={() => setEditing(true)}>
+                    Editar datos
+                  </ActionButton>
+                )}
 
-                {requiresPayment && guest.paymentStatus === 'paid' && (
+                {canConfirmPayments && requiresPayment && guest.paymentStatus === 'paid' && (
                   <ActionButton tone="subtle" icon={<IconRotateCcw className="w-4 h-4" />} onClick={() => onMarkUnpaid(guest)}>
                     Marcar como no pagado
                   </ActionButton>
                 )}
-                {requiresPayment && guest.paymentStatus === 'pending_confirmation' && (
+                {canConfirmPayments && requiresPayment && guest.paymentStatus === 'pending_confirmation' && (
                   <>
                     <ActionButton icon={<IconCheck className="w-4 h-4" />} onClick={() => onMarkPaid(guest, guest.paymentMethod || undefined)}>
                       Aprobar pago
@@ -243,32 +254,36 @@ export function GuestDetailSheet({
                     </ActionButton>
                   </>
                 )}
-                {requiresPayment && guest.paymentStatus !== 'paid' && guest.paymentStatus !== 'pending_confirmation' && (
+                {canConfirmPayments && requiresPayment && guest.paymentStatus !== 'paid' && guest.paymentStatus !== 'pending_confirmation' && (
                   <ActionButton icon={<IconTicket className="w-4 h-4" />} onClick={() => onMarkPaid(guest, guest.paymentMethod || paymentMethods[0])}>
                     Confirmar pago
                   </ActionButton>
                 )}
 
-                {guest.lockToken && (
+                {canEditGuests && guest.lockToken && (
                   <ActionButton icon={<IconLock className="w-4 h-4" />} onClick={() => onRequestUnlock(guest)}>
                     Desbloquear pase
                   </ActionButton>
                 )}
-                {guest.rsvpStatus === 'no' && (
+                {canEditGuests && guest.rsvpStatus === 'no' && (
                   <ActionButton icon={<IconRotateCcw className="w-4 h-4" />} onClick={() => onReactivate(guest)}>
                     Reactivar invitación
                   </ActionButton>
                 )}
-                {presence === 'final_out' && (
+                {canEditGuests && presence === 'final_out' && (
                   <ActionButton icon={<IconRotateCcw className="w-4 h-4" />} onClick={() => onRequestReentry(guest)}>
                     Permitir reingreso
                   </ActionButton>
                 )}
 
-                <div className="h-px bg-gray-100 dark:bg-gray-700 my-2" />
-                <ActionButton tone="danger" icon={<IconTrash className="w-4 h-4" />} onClick={() => onRequestDelete(guest)}>
-                  Eliminar invitado
-                </ActionButton>
+                {canDeleteGuests && (
+                  <>
+                    <div className="h-px bg-gray-100 dark:bg-gray-700 my-2" />
+                    <ActionButton tone="danger" icon={<IconTrash className="w-4 h-4" />} onClick={() => onRequestDelete(guest)}>
+                      Eliminar invitado
+                    </ActionButton>
+                  </>
+                )}
               </section>
             </>
           )}

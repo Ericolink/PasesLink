@@ -1,3 +1,5 @@
+import type { CoOrganizerPermissions } from './coOrganizerPermissions'
+
 // Por ahora solo existe 'premium' (gratis durante el lanzamiento). Se deja como
 // union (no un literal suelto) para poder reintroducir un tier de pago después
 // sin tocar el resto del código, que ya está escrito en términos de `Plan`.
@@ -141,6 +143,11 @@ export interface EventData {
   // aprobados antes de este cambio.
   paidCount: number
   coOrganizersMap?: Record<string, string>  // { [uid]: email }
+  // Permisos granulares por co-organizador (ver src/types/coOrganizerPermissions.ts).
+  // Opcional y aditivo: un co-organizador sin entrada acá (evento/co-org de
+  // antes de este campo) cae a LEGACY_COORG_DEFAULTS vía resolveEventPermissions,
+  // nunca requiere backfill.
+  coOrganizerPermissions?: Record<string, CoOrganizerPermissions>
   createdAt: number
   updatedAt: number
 }

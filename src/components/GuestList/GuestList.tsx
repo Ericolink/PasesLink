@@ -97,6 +97,12 @@ export const GuestList = memo(function GuestList({
   customFields = [],
   hasActiveFilters = false,
   hasSearchText = false,
+  // Defaults en `true`: sin permisos granulares (dueño, o co-organizador
+  // legacy sin coOrganizerPermissions) el comportamiento es el mismo que
+  // antes de esta feature — acceso total a estas 3 acciones.
+  canEditGuests = true,
+  canConfirmPayments = true,
+  canDeleteGuests = true,
 }: {
   eventId: string
   guests: GuestData[]
@@ -115,6 +121,9 @@ export const GuestList = memo(function GuestList({
   // agregaría ruido); sin texto se agrupa por urgencia aunque haya un filtro
   // de estado aplicado.
   hasSearchText?: boolean
+  canEditGuests?: boolean
+  canConfirmPayments?: boolean
+  canDeleteGuests?: boolean
 }) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deletingGuest, setDeletingGuest] = useState<GuestData | null>(null)
@@ -269,6 +278,8 @@ export const GuestList = memo(function GuestList({
     ticketPrice,
     currency,
     selectMode,
+    canConfirmPayments,
+    canDeleteGuests,
     onToggleSelect: toggleSelect,
     onOpenDetail: setDetailGuest,
     onQuickPay: (guest: GuestData) => handleMarkPaid(guest, resolveMethod(guest)),
@@ -325,6 +336,8 @@ export const GuestList = memo(function GuestList({
         <GuestSelectionBar
           count={selected.size}
           requiresPayment={requiresPayment}
+          canConfirmPayments={canConfirmPayments}
+          canDeleteGuests={canDeleteGuests}
           onMarkPaid={bulkMarkPaid}
           onDelete={() => setBulkDeleteConfirmOpen(true)}
           onCancel={exitSelectMode}
@@ -340,6 +353,9 @@ export const GuestList = memo(function GuestList({
         currency={currency}
         customFields={customFields}
         copiedId={copiedId}
+        canEditGuests={canEditGuests}
+        canConfirmPayments={canConfirmPayments}
+        canDeleteGuests={canDeleteGuests}
         onClose={() => setDetailGuest(null)}
         onShare={handleShare}
         onMarkPaid={handleMarkPaid}

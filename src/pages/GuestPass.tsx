@@ -7,6 +7,8 @@ import { canSubmitPaymentProof, checkInGuest, claimGuestPass, findGuestByToken, 
 import { GuestEditModal } from '../components/GuestEditModal'
 import { saveUserInvitation } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
+import { useEventPermissions } from '../hooks/useEventPermissions'
+import { resolveEventPermissions } from '../types/coOrganizerPermissions'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
@@ -76,6 +78,7 @@ function GuestPassInner() {
   const [proofFormOpen, setProofFormOpen] = useState(false)
   const [proofSubmitting, setProofSubmitting] = useState(false)
   const [proofError, setProofError] = useState<string | null>(null)
+  const perms = useEventPermissions(event, user)
   const qrWrapperRef = useRef<HTMLDivElement>(null)
   const ticketRef = useRef<HTMLDivElement>(null)
 
@@ -95,11 +98,8 @@ function GuestPassInner() {
         setEvent(eventData)
 
         // Si el visor es organizador o co-org, no aplicar lock — solo cargar el guest
-        const viewerIsOrg = !!user && (
-          user.uid === eventData.ownerId ||
-          !!(eventData.coOrganizersMap && user.uid in eventData.coOrganizersMap)
-        )
-        if (viewerIsOrg) {
+        const viewerPerms = resolveEventPermissions(eventData, user?.uid)
+        if (viewerPerms.isOwner || viewerPerms.isCoOrg) {
           setGuest(guestData)
           if (guestData.status === 'checked_in') setCheckInState('already')
           return
@@ -180,10 +180,7 @@ function GuestPassInner() {
     )
   }
 
-  const isOrg = !!user && (
-    user.uid === event.ownerId ||
-    !!(event.coOrganizersMap && user.uid in event.coOrganizersMap)
-  )
+  const isOrg = perms.isOwner || perms.isCoOrg
   const passUrl = buildPassUrl(eventId, qrToken)
 
   async function handleCheckIn() {
@@ -315,39 +312,41 @@ function GuestPassInner() {
 
               {paymentError && <p className="text-xs text-red-600">{paymentError}</p>}
 
-              {guest.paymentStatus === 'paid' ? (
-                <button
-                  onClick={() => handleMarkUnpaid()}
-                  disabled={paymentSaving}
-                  className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
-                >
-                  Marcar como no pagado
-                </button>
-              ) : guest.paymentStatus === 'pending_confirmation' ? (
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => handleMarkPaid(guest.paymentMethod || undefined)}
-                    disabled={paymentSaving}
-                    className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
-                  >
-                    Aprobar pago
-                  </button>
+              {perms.confirmPayments && (
+                guest.paymentStatus === 'paid' ? (
                   <button
                     onClick={() => handleMarkUnpaid()}
                     disabled={paymentSaving}
-                    className="text-sm font-medium disabled:opacity-50 text-red-600"
+                    className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
                   >
-                    Rechazar comprobante
+                    Marcar como no pagado
                   </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => handleMarkPaid(guest.paymentMethod || event.paymentMethods[0])}
-                  disabled={paymentSaving}
-                  className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
-                >
-                  Confirmar pago
-                </button>
+                ) : guest.paymentStatus === 'pending_confirmation' ? (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleMarkPaid(guest.paymentMethod || undefined)}
+                      disabled={paymentSaving}
+                      className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
+                    >
+                      Aprobar pago
+                    </button>
+                    <button
+                      onClick={() => handleMarkUnpaid()}
+                      disabled={paymentSaving}
+                      className="text-sm font-medium disabled:opacity-50 text-red-600"
+                    >
+                      Rechazar comprobante
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleMarkPaid(guest.paymentMethod || event.paymentMethods[0])}
+                    disabled={paymentSaving}
+                    className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
+                  >
+                    Confirmar pago
+                  </button>
+                )
               )}
             </div>
           )}
@@ -406,7 +405,7 @@ function GuestPassInner() {
                 <p className="text-sm text-[var(--invite-text-muted)]">Este pase ya no corresponde a ningún invitado del evento.</p>
               </div>
             )}
-            {(checkInState === 'idle' || checkInState === 'loading' || checkInState === 'payment_required') && (
+            {perms.scanQr && (checkInState === 'idle' || checkInState === 'loading' || checkInState === 'payment_required') && (
               <button
                 onClick={handleCheckIn}
                 disabled={checkInState === 'loading' || (event.requiresPayment && guest.paymentStatus !== 'paid')}

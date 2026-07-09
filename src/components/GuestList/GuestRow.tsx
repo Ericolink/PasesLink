@@ -39,6 +39,10 @@ export const GuestRow = memo(function GuestRow({
   currency,
   selectMode,
   selected,
+  // Defaults en `true`: sin permisos granulares (co-organizador legacy, o
+  // dueño) el swipe se comporta exactamente igual que antes de esta feature.
+  canConfirmPayments = true,
+  canDeleteGuests = true,
   onToggleSelect,
   onOpenDetail,
   onQuickPay,
@@ -50,6 +54,8 @@ export const GuestRow = memo(function GuestRow({
   currency: string
   selectMode: boolean
   selected: boolean
+  canConfirmPayments?: boolean
+  canDeleteGuests?: boolean
   onToggleSelect: (guest: GuestData) => void
   onOpenDetail: (guest: GuestData) => void
   onQuickPay: (guest: GuestData) => void
@@ -68,7 +74,7 @@ export const GuestRow = memo(function GuestRow({
   const lastT = useRef(0)
   const moved = useRef(false)
   const horizontal = useRef(false)
-  const canQuickPay = requiresPayment && guest.paymentStatus !== 'paid'
+  const canQuickPay = requiresPayment && guest.paymentStatus !== 'paid' && canConfirmPayments
 
   function revealedOffset(state: 'none' | 'pay' | 'delete'): number {
     return state === 'pay' ? SWIPE_MAX_REVEAL_PX : state === 'delete' ? -SWIPE_MAX_REVEAL_PX : 0
@@ -102,6 +108,7 @@ export const GuestRow = memo(function GuestRow({
     lastT.current = Date.now()
     let next = baseOffset.current + dx
     if (next > 0 && !canQuickPay) next = 0
+    if (next < 0 && !canDeleteGuests) next = 0
     setDragOffset(rubberBand(next, SWIPE_MAX_REVEAL_PX))
   }
 
@@ -119,7 +126,7 @@ export const GuestRow = memo(function GuestRow({
     setDragOffset(null)
     if (!moved.current || !horizontal.current) return
     const projected = baseOffset.current + dx
-    if (projected <= -SWIPE_COMMIT_DISTANCE_PX || velocity <= -SWIPE_FLICK_VELOCITY_PX_MS) {
+    if (canDeleteGuests && (projected <= -SWIPE_COMMIT_DISTANCE_PX || velocity <= -SWIPE_FLICK_VELOCITY_PX_MS)) {
       setRevealed('delete')
       return
     }
@@ -165,14 +172,16 @@ export const GuestRow = memo(function GuestRow({
           </button>
         )}
         <div className="flex-1" />
-        <button
-          type="button"
-          onClick={() => { onQuickDeleteRequest(guest); setRevealed('none') }}
-          className="w-[88px] h-full bg-red-500 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium"
-        >
-          <IconTrash className="w-4 h-4" />
-          Eliminar
-        </button>
+        {canDeleteGuests && (
+          <button
+            type="button"
+            onClick={() => { onQuickDeleteRequest(guest); setRevealed('none') }}
+            className="w-[88px] h-full bg-red-500 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium"
+          >
+            <IconTrash className="w-4 h-4" />
+            Eliminar
+          </button>
+        )}
       </div>
 
       <div

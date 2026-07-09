@@ -6,16 +6,19 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useCheckinToast } from '../hooks/useCheckinToast'
 import { useEventExport } from '../hooks/useEventExport'
 import { useCoOrganizers } from '../hooks/useCoOrganizers'
+import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useGuestStats } from '../hooks/useGuestStats'
 import { useCheckinSessionAccumulator } from '../hooks/useCheckinSessionAccumulator'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { deleteEvent, setEventStatus } from '../firebase/events'
+import { LEGACY_COORG_DEFAULTS } from '../types/coOrganizerPermissions'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
 import { GuestSearchSheet } from '../components/GuestSearchSheet'
 import { EditEventForm } from '../components/EditEventForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { CoOrganizerPermissionsEditor } from '../components/CoOrganizerPermissionsEditor'
 import { SkeletonBlock } from '../components/Skeleton'
 import { ReminderSection } from '../components/ReminderSection'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
@@ -31,6 +34,7 @@ import {
   IconCopy,
   IconEdit,
   IconLink,
+  IconLogOut,
   IconMapPin,
   IconSearch,
   IconShare,
@@ -56,14 +60,27 @@ export function EventDetail() {
   const [editingEvent, setEditingEvent] = useState(false)
   const [manageCoOrgOpen, setManageCoOrgOpen] = useState(false)
   const [removingCoOrg, setRemovingCoOrg] = useState<{ uid: string; email: string } | null>(null)
+  const [expandedCoOrgUid, setExpandedCoOrgUid] = useState<string | null>(null)
+  const [confirmLeave, setConfirmLeave] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const checkinToast = useCheckinToast(eventId)
   const hasUnseenWallMessage = useHasUnseenWallMessage(eventId)
   const { exporting, exportProgress, exportPdfError, handleExportPdf, handleCancelExportPdf, handleExportCsv } =
     useEventExport(event, guests)
-  const { coOrgEmail, setCoOrgEmail, coOrgLoading, coOrgError, setCoOrgError, handleAddCoOrg, handleRemoveCoOrg } =
-    useCoOrganizers(eventId, event?.ownerId)
+  const {
+    coOrgEmail,
+    setCoOrgEmail,
+    coOrgLoading,
+    coOrgError,
+    setCoOrgError,
+    handleAddCoOrg,
+    handleRemoveCoOrg,
+    handleLeaveEvent,
+    handleUpdatePermissions,
+  } = useCoOrganizers(eventId, event?.ownerId)
   const { checkinsThisSession, organizerNotifyEnabled, summarySending, summaryToast, handleSendCheckinSummary } =
     useCheckinSessionAccumulator(eventId, guests, user)
+  const perms = useEventPermissions(event, user)
 
   // Permite que el CTA del modal de éxito de EventCreate (u otros enlaces)
   // lleve directo a una sección con #hash.
@@ -139,11 +156,8 @@ export function EventDetail() {
   }
 
   const coOrgsMap = event.coOrganizersMap || {}
-  const isOwner = user?.uid === event.ownerId
-  const isCoOrg = !!user && user.uid in coOrgsMap
-  const hasAccess = isOwner || isCoOrg
 
-  if (user && !hasAccess) {
+  if (user && !perms.hasAccess) {
     return (
       <div className="text-center mt-16 px-4">
         <p className="text-gray-500">No tienes acceso a este evento.</p>
@@ -179,6 +193,21 @@ export function EventDetail() {
       setActionError('No se pudo eliminar el evento por completo. Es posible que parte de los datos ya se haya borrado — revisa el evento e intenta de nuevo.')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function handleLeave() {
+    if (!user) return
+    setLeaving(true)
+    setActionError('')
+    try {
+      await handleLeaveEvent(user.uid)
+      navigate('/dashboard')
+    } catch {
+      setConfirmLeave(false)
+      setActionError('No se pudo salir del evento. Intenta de nuevo.')
+    } finally {
+      setLeaving(false)
     }
   }
 
@@ -223,36 +252,40 @@ export function EventDetail() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight break-words min-w-0">
               {event.name}
             </h1>
-            {isOwner && (
+            {(perms.editEvent || perms.manageCoOrganizers) && (
               <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => setEditingEvent((v) => !v)}
-                  aria-label="Editar evento"
-                  className={`p-2 rounded-lg transition-colors ${
-                    editingEvent
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <IconEdit className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setManageCoOrgOpen((v) => !v)}
-                  aria-label="Coorganizadores"
-                  title="Coorganizadores"
-                  className={`relative p-2 rounded-lg transition-colors ${
-                    manageCoOrgOpen
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <IconUserPlus className="w-4 h-4" />
-                  {Object.entries(coOrgsMap).length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
-                      {Object.entries(coOrgsMap).length}
-                    </span>
-                  )}
-                </button>
+                {perms.editEvent && (
+                  <button
+                    onClick={() => setEditingEvent((v) => !v)}
+                    aria-label="Editar evento"
+                    className={`p-2 rounded-lg transition-colors ${
+                      editingEvent
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <IconEdit className="w-4 h-4" />
+                  </button>
+                )}
+                {perms.manageCoOrganizers && (
+                  <button
+                    onClick={() => setManageCoOrgOpen((v) => !v)}
+                    aria-label="Coorganizadores"
+                    title="Coorganizadores"
+                    className={`relative p-2 rounded-lg transition-colors ${
+                      manageCoOrgOpen
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <IconUserPlus className="w-4 h-4" />
+                    {Object.entries(coOrgsMap).length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                        {Object.entries(coOrgsMap).length}
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -284,33 +317,53 @@ export function EventDetail() {
       </div>
 
       {/* Formulario de edición (inline, visible al hacer clic en el lápiz) */}
-      {isOwner && editingEvent && (
+      {perms.editEvent && editingEvent && (
         <div className="mb-5">
           <EditEventForm event={event} onDone={() => setEditingEvent(false)} />
         </div>
       )}
 
       {/* Gestión de co-organizadores (inline, visible al hacer clic en el ícono junto al lápiz) */}
-      {isOwner && manageCoOrgOpen && (
+      {perms.manageCoOrganizers && manageCoOrgOpen && (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-5 animate-fade-in-up">
           <h2 className="font-medium text-gray-900 dark:text-white mb-1">Coorganizadores</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            Permite a otras personas escanear pases y ver el evento.
+            Cada persona puede tener sus propios permisos — toca su email para ajustarlos.
           </p>
           {Object.entries(coOrgsMap).length > 0 && (
             <div className="space-y-2 mb-3">
-              {Object.entries(coOrgsMap).map(([uid, email]) => (
-                <div key={uid} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{email}</span>
-                  <button
-                    onClick={() => setRemovingCoOrg({ uid, email })}
-                    aria-label={`Quitar a ${email} como co-organizador`}
-                    className="text-gray-400 hover:text-red-500 transition-colors"
-                  >
-                    <IconX className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+              {Object.entries(coOrgsMap).map(([uid, email]) => {
+                const uidPermissions = { ...LEGACY_COORG_DEFAULTS, ...event.coOrganizerPermissions?.[uid] }
+                const expanded = expandedCoOrgUid === uid
+                return (
+                  <div key={uid} className="bg-gray-50 dark:bg-gray-700/40 rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedCoOrgUid(expanded ? null : uid)}
+                        className="flex-1 text-left text-sm text-gray-700 dark:text-gray-300 hover:text-primary transition-colors"
+                      >
+                        {email}
+                      </button>
+                      <button
+                        onClick={() => setRemovingCoOrg({ uid, email })}
+                        aria-label={`Quitar a ${email} como co-organizador`}
+                        className="text-gray-400 hover:text-red-500 transition-colors shrink-0 ml-2"
+                      >
+                        <IconX className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {expanded && (
+                      <div className="px-3 pb-3 pt-1 border-t border-gray-200 dark:border-gray-600">
+                        <CoOrganizerPermissionsEditor
+                          value={uidPermissions}
+                          onChange={(next) => handleUpdatePermissions(uid, next)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
           <form onSubmit={handleAddCoOrg} className="flex gap-2">
@@ -330,6 +383,31 @@ export function EventDetail() {
             </button>
           </form>
           {coOrgError && <p className="text-xs text-red-500 mt-1.5">{coOrgError}</p>}
+        </div>
+      )}
+
+      {/* Un co-organizador (no el dueño) puede dejar de serlo sin depender de él */}
+      {perms.isCoOrg && !perms.isOwner && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Eres co-organizador de este evento</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Puedes dejar de serlo cuando quieras.</p>
+            </div>
+            <button
+              onClick={() => setConfirmLeave(true)}
+              disabled={leaving}
+              className="shrink-0 flex items-center gap-1.5 text-sm border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg px-3 py-2 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+            >
+              <IconLogOut className="w-4 h-4" />
+              {leaving ? 'Saliendo…' : 'Salir del evento'}
+            </button>
+          </div>
+          {actionError && (
+            <p className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-lg px-3 py-2 mt-3">
+              {actionError}
+            </p>
+          )}
         </div>
       )}
 
@@ -406,8 +484,8 @@ export function EventDetail() {
 
       {/* ── GESTIÓN DE INVITADOS ── */}
       <div id="add-guests" className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden mb-5">
-        {/* Formulario de agregar (solo propietario en modo lista o mixto) */}
-        {isOwner && event.entryMode !== 'open' && (
+        {/* Formulario de agregar (según permiso addGuests, en modo lista o mixto) */}
+        {perms.addGuests && event.entryMode !== 'open' && (
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
             <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} />
           </div>
@@ -419,29 +497,31 @@ export function EventDetail() {
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
               Invitados
             </h2>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleExportCsv}
-                disabled={guests.length === 0}
-                className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
-              >
-                CSV
-              </button>
-              <span className="text-gray-200 dark:text-gray-600 select-none">|</span>
-              {exporting ? (
-                <button onClick={handleCancelExportPdf} className="text-xs text-red-500 font-medium hover:underline">
-                  Cancelar {exportProgress ? `(${exportProgress.done}/${exportProgress.total})` : ''}
-                </button>
-              ) : (
+            {perms.exportLists && (
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={handleExportPdf}
+                  onClick={handleExportCsv}
                   disabled={guests.length === 0}
                   className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
                 >
-                  PDF
+                  CSV
                 </button>
-              )}
-            </div>
+                <span className="text-gray-200 dark:text-gray-600 select-none">|</span>
+                {exporting ? (
+                  <button onClick={handleCancelExportPdf} className="text-xs text-red-500 font-medium hover:underline">
+                    Cancelar {exportProgress ? `(${exportProgress.done}/${exportProgress.total})` : ''}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleExportPdf}
+                    disabled={guests.length === 0}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
+                  >
+                    PDF
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Barra de progreso de exportación PDF */}
@@ -485,6 +565,9 @@ export function EventDetail() {
             customFields={event.customFields}
             hasActiveFilters={Boolean(search.trim()) || statusFilter !== 'all'}
             hasSearchText={Boolean(search.trim())}
+            canEditGuests={perms.editGuests}
+            canConfirmPayments={perms.confirmPayments}
+            canDeleteGuests={perms.deleteGuests}
           />
         </div>
       </div>
@@ -495,7 +578,7 @@ export function EventDetail() {
       )}
 
       {/* ── RESUMEN DE CHECK-INS ── */}
-      {isOwner && organizerNotifyEnabled && checkinsThisSession.length > 0 && (
+      {perms.isOwner && organizerNotifyEnabled && checkinsThisSession.length > 0 && (
         <div className="border border-primary/20 bg-primary/5 dark:bg-primary/10 rounded-xl p-5 mb-5">
           <div className="flex items-center gap-2 mb-1">
             <IconCheckCircle className="w-4 h-4 text-primary" />
@@ -515,7 +598,7 @@ export function EventDetail() {
       )}
 
       {/* ── GESTIÓN DEL EVENTO (solo propietario, colapsable) ── */}
-      {isOwner && (
+      {perms.isOwner && (
         <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mb-5">
           <summary className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
             <span className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
@@ -616,6 +699,15 @@ export function EventDetail() {
         danger
         onConfirm={() => { if (removingCoOrg) handleRemoveCoOrg(removingCoOrg.uid); setRemovingCoOrg(null) }}
         onCancel={() => setRemovingCoOrg(null)}
+      />
+      <ConfirmDialog
+        open={confirmLeave}
+        title="Salir del evento"
+        message="Dejarás de ser co-organizador de este evento. El evento, sus invitados y el organizador principal no se ven afectados."
+        confirmLabel={leaving ? 'Saliendo…' : 'Sí, salir'}
+        cancelLabel="Cancelar"
+        onConfirm={handleLeave}
+        onCancel={() => setConfirmLeave(false)}
       />
 
     </>
