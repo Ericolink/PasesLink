@@ -359,6 +359,72 @@ body {
   box-shadow: 0 0 0 3px var(--invite-accent-soft) !important;
 }
 
+/* ── Identidad de plantilla en el dashboard del organizador ─────
+   Extensión explícita y separada de templates.css — ver
+   DESIGN_GOVERNANCE.md. Activada por useDashboardTheme.ts, que setea
+   data-dash-template + --invite-accent-x / --color-primary-x en
+   document.documentElement (nunca en un wrapper JSX: GuestDetailSheet y
+   ConfirmDialog se montan vía createPortal en document.body, y
+   documentElement es el único ancestro común). Mismo namespace de
+   --invite-* que ya usan ThemeOrnament y StatCard (.invite-stat-card) para
+   poder reutilizarlos sin tocarlos; data-dash-template queda separado de
+   data-template para no heredar sin querer las reglas de templates.css,
+   pensadas y auditadas solo para la capa de invitación. */
+
+/* Foco de formularios (EditEventForm, búsqueda de invitados, muro, etc.)
+   con el acento del tema — mismo mecanismo que el bloque de arriba. */
+.dark [data-dash-template] input:focus,
+.dark [data-dash-template] textarea:focus,
+.dark [data-dash-template] select:focus {
+  border-color: var(--invite-accent) !important;
+  box-shadow: 0 0 0 3px var(--invite-accent-soft) !important;
+}
+
+/* Halo de los botones primarios (bg-primary ya cambia de color solo, vía
+   --color-primary — esto retoca el glow para que acompañe el acento en vez
+   de quedar fijo en magenta). */
+[data-dash-template] .bg-primary {
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--invite-accent) 50%, transparent),
+    0 0 24px color-mix(in srgb, var(--invite-accent) 20%, transparent);
+}
+[data-dash-template] .bg-primary:hover {
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--invite-accent) 65%, transparent),
+    0 0 36px color-mix(in srgb, var(--invite-accent) 28%, transparent);
+}
+
+/* Ambiente de fondo: los orbs de Background.tsx se montan una sola vez a
+   nivel de app, así que este scope los alcanza sin tocar el componente.
+   Solo se activa en páginas de evento — /dashboard, /profile, /admin
+   conservan el magenta/violeta de marca. */
+[data-dash-template] .orb-1 {
+  background: radial-gradient(circle, color-mix(in srgb, var(--invite-accent) 16%, transparent) 0%, transparent 70%);
+}
+[data-dash-template] .orb-2 {
+  background: radial-gradient(circle, color-mix(in srgb, var(--invite-accent-soft) 18%, transparent) 0%, transparent 70%);
+}
+
+/* Tarjetas: borde superior con el acento del tema. Una sola regla genérica
+   (a diferencia de templates.css, que tematiza por tema individual) — el
+   dashboard usa un tratamiento sistemático, no una materialidad propia por
+   tema. .invite-stat-card ya la lleva StatCard.tsx; .invite-card-accent es
+   de uso general (cabecera de evento, contenedor de lista de invitados). */
+[data-dash-template] .invite-stat-card,
+[data-dash-template] .invite-card-accent {
+  border-top: 3px solid var(--invite-accent) !important;
+}
+
+/* Chrome global fijo: Navbar y BottomTabBar son visibles en todas las
+   rutas (no son "parte del evento") — se re-pinean a la marca aunque
+   document.documentElement tenga un tema de evento activo. Mismo patrón
+   que .theme-reset ya usa para Scanner. */
+.app-header,
+.app-tabbar {
+  --color-primary: #FF1464;
+  --color-primary-dark: #D40E52;
+}
+
 /* ── Animaciones ─────────────────────────────────────────────── */
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(14px); }

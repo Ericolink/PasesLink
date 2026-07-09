@@ -32,7 +32,7 @@ export function Navbar() {
 
   return (
     <header
-      className="sticky top-0 z-40 border-b"
+      className="app-header sticky top-0 z-40 border-b"
       style={{
         background: 'rgba(21,13,28,0.82)',
         backdropFilter: 'blur(16px)',
@@ -42,7 +42,11 @@ export function Navbar() {
     >
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link to={user ? '/dashboard' : '/'}>
-          <Logo />
+          {/* En mobile, Navbar solo muestra el logo (Inicio/Invitaciones/
+              Perfil quedan en BottomTabBar, ver desktopLinkClass) — el
+              espacio sobra, así que el logo crece; desde sm: conviven con
+              los links de acá y vuelve al tamaño de siempre. */}
+          <Logo className="h-12 sm:h-9" />
         </Link>
 
         {user ? (

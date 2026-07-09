@@ -21,7 +21,8 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CoOrganizerPermissionsEditor } from '../components/CoOrganizerPermissionsEditor'
 import { SkeletonBlock } from '../components/Skeleton'
 import { ReminderSection } from '../components/ReminderSection'
-import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
+import { ThemeOrnament } from '../components/ThemeOrnament'
+import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { EventCountdown } from '../components/EventCountdown'
 import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
@@ -49,6 +50,7 @@ export function EventDetail() {
   const location = useLocation()
   const { event, guests, loading, error } = useEvent(eventId)
   useDocumentTitle(event?.name || 'Evento')
+  useDashboardTheme(event?.templateId, event?.accentColor)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -229,7 +231,7 @@ export function EventDetail() {
       <ScreenHeader title={event.name} backTo="/dashboard" />
 
       {/* ── HERO DEL EVENTO ── */}
-      <div className="rounded-2xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mb-5">
+      <div className="invite-card-accent rounded-2xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mb-5">
         {event.coverImage && (
           <div className="h-44 sm:h-56 overflow-hidden">
             <img
@@ -249,9 +251,12 @@ export function EventDetail() {
 
           {/* Nombre + botón editar */}
           <div className="flex items-start justify-between gap-3">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight break-words min-w-0">
-              {event.name}
-            </h1>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight break-words">
+                {event.name}
+              </h1>
+              <ThemeOrnament templateId={event.templateId} className="w-10 h-4 mt-1 text-[var(--invite-accent)]" />
+            </div>
             {(perms.editEvent || perms.manageCoOrganizers) && (
               <div className="flex items-center gap-1 shrink-0">
                 {perms.editEvent && (
@@ -483,7 +488,7 @@ export function EventDetail() {
       )}
 
       {/* ── GESTIÓN DE INVITADOS ── */}
-      <div id="add-guests" className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden mb-5">
+      <div id="add-guests" className="invite-card-accent border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden mb-5">
         {/* Formulario de agregar (según permiso addGuests, en modo lista o mixto) */}
         {perms.addGuests && event.entryMode !== 'open' && (
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
@@ -712,17 +717,6 @@ export function EventDetail() {
 
     </>
   )
-
-  // Vaquera y Graduación adoptan su propia identidad en el dashboard
-  // del organizador — condicional explícito para que los otros temas
-  // no cambien la animación de entrada.
-  if (event.templateId === 'cowboy' || event.templateId === 'graduation') {
-    return (
-      <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="max-w-3xl mx-auto px-4 py-8">
-        {content}
-      </InvitationThemeRoot>
-    )
-  }
 
   return <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">{content}</div>
 }

@@ -11,7 +11,7 @@ import { attendancePercent } from '../utils/attendance'
 import type { CheckinLog } from '../types'
 import { RSVP_LABELS } from '../types'
 import { IconCheck, IconCornerUpLeft } from '../components/Icons'
-import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
+import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { LoadingInline } from '../components/LoadingInline'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { StatCard } from '../components/StatCard'
@@ -22,6 +22,7 @@ export function Reports() {
   const { user } = useAuth()
   const { event, guests, loading, guestsLoading } = useEvent(eventId)
   useDocumentTitle(event ? `Reportes · ${event.name}` : 'Reportes')
+  useDashboardTheme(event?.templateId, event?.accentColor)
   const [checkins, setCheckins] = useState<CheckinLog[]>([])
   const [checkinsLoading, setCheckinsLoading] = useState(true)
 
@@ -270,11 +271,5 @@ export function Reports() {
     </>
   )
 
-  return event.templateId === 'cowboy' || event.templateId === 'graduation' ? (
-    <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="max-w-3xl mx-auto px-4 py-8">
-      {content}
-    </InvitationThemeRoot>
-  ) : (
-    <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">{content}</div>
-  )
+  return <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">{content}</div>
 }

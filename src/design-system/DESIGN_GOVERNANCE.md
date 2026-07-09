@@ -97,6 +97,53 @@ resto del dashboard/organizador. La regla de "solo el título hereda
 `--invite-font`, nunca las etiquetas chicas" (legibilidad a tamaño
 reducido) vive en `EventTicketCard.tsx`, no acá.
 
+**Extensión explícita (2026-07-09):** el dashboard del organizador/
+coanfitrión (`EventDetail.tsx`, `Reports.tsx`, `Scanner.tsx`, y por
+herencia `GuestList/*`, los sheets/diálogos portados como
+`GuestDetailSheet`/`ConfirmDialog`, `EditEventForm`, etc.) ahora toma
+identidad de plantilla — paleta de acento, ambiente de fondo, borde de
+tarjetas e iconografía decorativa — vía un mecanismo **separado** de este
+documento:
+
+- `src/templates/dashboardTheme.ts` (`buildDashboardThemeVars`, mismo
+  guard `default` = no-op que `ticketTheme.ts`) + `src/hooks/
+  useDashboardTheme.ts`, que setea `data-dash-template` y las custom
+  properties `--color-primary*`/`--invite-accent*` en
+  `document.documentElement` (no en un wrapper JSX: `GuestDetailSheet` y
+  `ConfirmDialog` se montan vía `createPortal` en `document.body`, fuera
+  de cualquier árbol de página).
+- El atributo `data-dash-template` es distinto de `data-template` a
+  propósito: el dashboard **no** está sujeto al contrato de "6 superficies
+  obligatorias" ni de "materialidad exclusiva" de este documento — esas
+  reglas siguen rigiendo únicamente la capa de invitación. El tratamiento
+  del dashboard es deliberadamente más sobrio y sistemático (una sola
+  regla de acento por tipo de superficie, no una materialidad por tema) y
+  nunca reemplaza color de texto ni fondos de lectura (`text-gray-900`,
+  `bg-white dark:bg-gray-800` quedan intactos) — solo bordes, halos
+  ambientales de baja opacidad e iconografía decorativa.
+- `Navbar.tsx`/`BottomTabBar.tsx` (clases `.app-header`/`.app-tabbar` en
+  `index.css`) quedan explícitamente pineados al rosa de marca: son chrome
+  visible en todas las rutas, no "parte del evento".
+- `Scanner.tsx` tiene alcance reducido a propósito: solo el acento de
+  botones/links (vía `--color-primary`), sin el ambiente de fondo ni el
+  borde de tarjetas — es la pantalla de check-in, operada bajo presión en
+  la puerta, y ya vive dentro de `.theme-reset` (sub-tema oscuro fijo
+  pensado para legibilidad en exteriores).
+- `Dashboard.tsx` (lista de *varios* eventos) y `AdminDashboard.tsx`
+  (panel de super-admin de PaseLink) quedan explícitamente fuera: no hay
+  un `templateId` único al que atar el shell de esas páginas.
+- Antes de esta extensión, `EventDetail.tsx`/`Reports.tsx` tenían un
+  condicional puntual que envolvía el contenido en `InvitationThemeRoot`
+  **solo** para `cowboy`/`graduation`, lo que les daba además la animación
+  de entrada propia del tema (`animate-bounce-in`/`animate-slide-in-up`
+  vía `getEnterAnimationClass`). Ese condicional se eliminó a favor del
+  mecanismo uniforme de arriba, y la animación de entrada del dashboard
+  queda fija en `animate-fade-in` para los 7 temas — es una pérdida
+  deliberada, no un olvido: el dashboard no tiene materialidad ni
+  micro-interacción exclusiva por tema (eso sigue siendo específico de la
+  invitación), así que cowboy/graduation dejan de ser una excepción
+  también en esto.
+
 ## Regla de evolución
 
 > El proceso obligatorio que opera esta regla — clasificación del cambio,

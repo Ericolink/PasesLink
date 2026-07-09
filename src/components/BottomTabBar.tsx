@@ -30,7 +30,7 @@ export function BottomTabBar() {
 
   return (
     <nav
-      className="sm:hidden fixed bottom-0 left-0 right-0 z-40 border-t flex"
+      className="app-tabbar sm:hidden fixed bottom-0 left-0 right-0 z-40 border-t flex"
       style={{
         background: 'rgba(21,13,28,0.92)',
         backdropFilter: 'blur(16px)',

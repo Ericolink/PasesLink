@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEventOnly } from '../hooks/useEventOnly'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
 import type { PaymentMethod } from '../types'
@@ -51,6 +52,14 @@ export function Scanner() {
   const { user } = useAuth()
   const { event, loading: eventLoading, error: eventError } = useEventOnly(eventId)
   useDocumentTitle(event ? `Escanear · ${event.name}` : 'Escanear')
+  // Mismo hook que el resto del dashboard (botones/links/badges toman el
+  // acento del tema) — Scanner no usa StatCard/invite-card-accent, así que
+  // no hereda ningún borde de tarjeta temático. El recoloreo ambiental de
+  // los orbs (index.css) también se activa via data-dash-template, pero
+  // queda oculto: esta pantalla vive dentro de .theme-reset con un fondo
+  // sólido (bg-gray-900), un sub-tema oscuro fijo pensado para legibilidad
+  // bajo presión en la puerta (ver AppShell.tsx).
+  useDashboardTheme(event?.templateId, event?.accentColor)
   const perms = useEventPermissions(event, user)
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
   const [scanning, setScanning] = useState(false)
