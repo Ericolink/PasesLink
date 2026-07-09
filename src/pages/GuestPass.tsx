@@ -303,7 +303,7 @@ function GuestPassInner() {
                   ? `Pago confirmado${guest.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[guest.paymentMethod]})` : ''}`
                   : guest.paymentStatus === 'pending_confirmation'
                     ? 'Comprobante enviado — a revisar'
-                    : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}`}
+                    : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}${guest.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[guest.paymentMethod]})` : ''}`}
               </span>
 
               {guest.paymentNote && (
@@ -340,26 +340,13 @@ function GuestPassInner() {
                     Rechazar comprobante
                   </button>
                 </div>
-              ) : event.paymentMethods.length > 1 ? (
-                <div className="flex items-center gap-3">
-                  {event.paymentMethods.map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => handleMarkPaid(m)}
-                      disabled={paymentSaving}
-                      className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
-                    >
-                      Marcar pagado ({PAYMENT_METHOD_LABELS[m]})
-                    </button>
-                  ))}
-                </div>
               ) : (
                 <button
-                  onClick={() => handleMarkPaid(event.paymentMethods[0])}
+                  onClick={() => handleMarkPaid(guest.paymentMethod || event.paymentMethods[0])}
                   disabled={paymentSaving}
                   className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
                 >
-                  Marcar como pagado
+                  Confirmar pago
                 </button>
               )}
             </div>

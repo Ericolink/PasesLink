@@ -210,7 +210,10 @@ export function GuestDetailSheet({
                     ) : guest.paymentStatus === 'pending_confirmation' ? (
                       <Pill tone="amber" icon={<IconTicket className="w-3.5 h-3.5" />}>Comprobante enviado — a revisar</Pill>
                     ) : (
-                      <Pill tone="amber" icon={<IconTicket className="w-3.5 h-3.5" />}>Pendiente · {currency}{amount.toLocaleString('es')}</Pill>
+                      <Pill tone="amber" icon={<IconTicket className="w-3.5 h-3.5" />}>
+                        Pendiente · {currency}{amount.toLocaleString('es')}
+                        {guest.paymentMethod ? ` · ${PAYMENT_METHOD_LABELS[guest.paymentMethod]}` : ''}
+                      </Pill>
                     )}
                     {guest.paymentNote && <Pill tone="gray">Ref: {guest.paymentNote}</Pill>}
                   </div>
@@ -241,17 +244,9 @@ export function GuestDetailSheet({
                   </>
                 )}
                 {requiresPayment && guest.paymentStatus !== 'paid' && guest.paymentStatus !== 'pending_confirmation' && (
-                  paymentMethods.length > 1 ? (
-                    paymentMethods.map((m) => (
-                      <ActionButton key={m} icon={<IconTicket className="w-4 h-4" />} onClick={() => onMarkPaid(guest, m)}>
-                        Marcar pagado ({PAYMENT_METHOD_LABELS[m]})
-                      </ActionButton>
-                    ))
-                  ) : (
-                    <ActionButton icon={<IconTicket className="w-4 h-4" />} onClick={() => onMarkPaid(guest, paymentMethods[0])}>
-                      Marcar como pagado
-                    </ActionButton>
-                  )
+                  <ActionButton icon={<IconTicket className="w-4 h-4" />} onClick={() => onMarkPaid(guest, guest.paymentMethod || paymentMethods[0])}>
+                    Confirmar pago
+                  </ActionButton>
                 )}
 
                 {guest.lockToken && (

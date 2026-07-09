@@ -84,7 +84,8 @@ export function getGuestSubtitle(
   }
 
   if (ctx.requiresPayment && guest.paymentStatus !== 'paid') {
-    return `${money(ctx.currency, amount)} pendiente`
+    const methodSuffix = guest.paymentMethod ? ` · ${PAYMENT_METHOD_LABELS[guest.paymentMethod]}` : ''
+    return `${money(ctx.currency, amount)} pendiente${methodSuffix}`
   }
 
   const presence = guestPresence(guest)
