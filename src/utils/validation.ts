@@ -7,6 +7,10 @@ export const WALL_NAME_MAX = 60
 export const WALL_TOKEN_MAX = 100
 export const WALL_PHOTO_URL_MAX = 500
 export const WALL_TYPES = ['comment', 'question', 'music', 'idea'] as const
+// Límite del texto que acompaña a una foto (colección `photos`, campo
+// `caption`) — más corto que WALL_TEXT_MAX porque hoy vive server-side en
+// firestore.rules como un límite propio, independiente del de un comentario.
+export const PHOTO_CAPTION_MAX = 120
 
 // Auto-registro público de invitados (registerWalkInGuest). `name`/`lastName`
 // se capturan por separado en la UI pero se combinan en un solo `name` antes

@@ -5,7 +5,6 @@ import {
   deleteWallMessage,
   getOlderWallMessages,
   pinWallMessage,
-  postWallMessage,
   reactToWallMessage,
   replyToWallMessage,
   subscribeToWall,
@@ -15,12 +14,14 @@ import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
+import { useWallComposer } from '../hooks/useWallComposer'
 import { markWallSeen } from '../hooks/useWallActivity'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { WALL_NAME_MAX, WALL_TEXT_MAX } from '../utils/validation'
 import { mergeWallFeed } from '../utils/wallFeed'
 import { captureException } from '../lib/sentry'
 import {
+  IconCamera,
   IconCrown,
   IconHelpCircle,
   IconLightbulb,
@@ -34,7 +35,6 @@ import { ThemeSeal } from '../components/ThemeSeal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Avatar } from '../components/Avatar'
 import { PhotoFeedCard } from '../components/PhotoFeedCard'
-import { PhotoUploadButton } from '../components/PhotoUploadButton'
 import { PhotoViewer } from '../components/PhotoViewer'
 import { ReactionPicker } from '../components/ReactionPicker'
 import { ReportButton } from '../components/ReportButton'
@@ -94,12 +94,9 @@ export function EventWall() {
   const [olderError, setOlderError]       = useState('')
   const [guestName, setGuestName]   = useState(() => localStorage.getItem(GUEST_NAME_KEY) || '')
   const [nameConfirmed, setNameConfirmed] = useState(() => !!localStorage.getItem(GUEST_NAME_KEY) || !!localStorage.getItem('firebase:authUser'))
-  const [text, setText]             = useState('')
-  const [type, setType]             = useState<WallMessageType>('comment')
-  const [posting, setPosting]       = useState(false)
-  const [postError, setPostError]   = useState('')
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [replyText, setReplyText]   = useState('')
+  const [replyError, setReplyError] = useState('')
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -112,6 +109,24 @@ export function EventWall() {
   // como "Anfitrión".
   const isOrg      = isOwner || !!(user && event?.coOrganizersMap && user.uid in event.coOrganizersMap)
   const isMinor    = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
+
+  const postLabel = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
+  const postPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
+  // Mismo criterio de identidad que antes: el autor de una foto y el de un
+  // mensaje del mismo visitante quedan con el mismo token.
+  const authorToken = isOwner ? (user?.uid ?? 'owner') : (user ? user.uid : (localStorage.getItem(GUEST_NAME_KEY) || guestName))
+
+  const composer = useWallComposer({
+    eventId: id || '',
+    authorName: postLabel,
+    authorToken,
+    authorRole: isOwner ? 'owner' : 'guest',
+    authorPhotoURL: postPhotoURL,
+    isMinor,
+    photoBlocked,
+    sentryComponent: 'event_wall',
+  })
+  const { text, setText, type, setType, attachedFile, previewUrl, maxLength, posting, error: postError, fileInputRef, openPicker, onFileSelected, removeImage, handleSubmit } = composer
 
   // If user is authenticated, skip name screen. Igual que en EventJoin: profile
   // llega async después de user, y el guard `!guestName` evita pisar lo que el
@@ -169,27 +184,6 @@ export function EventWall() {
     setNameConfirmed(true)
   }
 
-  async function handlePost(e: React.FormEvent) {
-    e.preventDefault()
-    if (!id || !text.trim() || isMinor) return
-    setPosting(true)
-    setPostError('')
-    try {
-      const authorName  = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
-      const authorRole  = isOwner ? 'owner' : 'guest'
-      const authorPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
-      await postWallMessage(id, text, type, authorName, authorToken, authorRole, authorPhotoURL)
-      setText('')
-      textareaRef.current?.focus()
-    } catch (err) {
-      console.error('Error posting wall message:', err)
-      captureException(err, { tags: { component: 'event_wall', action: 'post' } })
-      setPostError(err instanceof Error ? err.message : 'No se pudo publicar el mensaje. Intenta de nuevo.')
-    } finally {
-      setPosting(false)
-    }
-  }
-
   async function handleReply(message: WallMessage) {
     if (!id || !replyText.trim()) return
     try {
@@ -208,7 +202,7 @@ export function EventWall() {
     } catch (err) {
       console.error('Error replying to wall message:', err)
       captureException(err, { tags: { component: 'event_wall', action: 'reply' } })
-      setPostError(err instanceof Error ? err.message : 'No se pudo enviar la respuesta. Intenta de nuevo.')
+      setReplyError(err instanceof Error ? err.message : 'No se pudo enviar la respuesta. Intenta de nuevo.')
     }
   }
 
@@ -307,13 +301,6 @@ export function EventWall() {
     )
   }
 
-  const postLabel = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
-  const postPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
-  // Mismo criterio de identidad que handlePost, reutilizado acá para
-  // PhotoUploadButton — así el autor de una foto y el de un mensaje del
-  // mismo visitante quedan con el mismo token.
-  const authorToken = isOwner ? (user?.uid ?? 'owner') : (user ? user.uid : (localStorage.getItem(GUEST_NAME_KEY) || guestName))
-
   const content = (
     <>
       {event?.coverImage && (
@@ -377,60 +364,79 @@ export function EventWall() {
 
       {/* Post form */}
       {!isMinor && !commentBlockedMessage && (
-        <form onSubmit={handlePost} className="invite-wall-form bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-5 space-y-3">
-          <div className="flex gap-2 flex-wrap">
-            {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
-              const cfg = TYPE_CONFIG[t]
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setType(t)}
-                  className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 font-medium transition-all ${
-                    type === t ? cfg.color + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
-                >
-                  <cfg.Icon className="w-3 h-3" />
-                  {cfg.label}
-                </button>
-              )
-            })}
-            {id && (
-              <PhotoUploadButton
-                eventId={id}
-                authorName={postLabel}
-                authorToken={authorToken}
-                disabled={photoBlocked}
-              />
-            )}
-          </div>
-          {photoBlockedMessage && <p className="text-xs text-red-500 basis-full">{photoBlockedMessage}</p>}
+        <form onSubmit={handleSubmit} className="invite-wall-form bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-5 space-y-3">
+          {!attachedFile && (
+            <div className="flex gap-2 flex-wrap">
+              {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
+                const cfg = TYPE_CONFIG[t]
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setType(t)}
+                    className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 font-medium transition-all ${
+                      type === t ? cfg.color + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    <cfg.Icon className="w-3 h-3" />
+                    {cfg.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {photoBlockedMessage && <p className="text-xs text-red-500">{photoBlockedMessage}</p>}
           <div className="flex items-start gap-2">
             <Avatar name={postLabel} photoURL={postPhotoURL} size={28} />
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
-              rows={2}
-              maxLength={WALL_TEXT_MAX}
-              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
-            />
+            <div className="flex-1 min-w-0">
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={attachedFile ? 'Agregá un mensaje (opcional)…' : `Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
+                rows={2}
+                maxLength={maxLength}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
+              />
+              {previewUrl && (
+                <div className="relative inline-block mt-2">
+                  <img src={previewUrl} alt="" className="h-24 w-24 rounded-lg object-cover border border-gray-200 dark:border-gray-600" />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    aria-label="Quitar foto"
+                    className="absolute -top-2 -right-2 bg-gray-900/80 text-white rounded-full p-1 hover:bg-gray-900"
+                  >
+                    <IconX className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={openPicker}
+              disabled={photoBlocked}
+              aria-label="Adjuntar foto"
+              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors"
+            >
+              <IconCamera className="w-4 h-4" />
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">
               Como: <AuthorName name={postLabel} role={isOwner ? 'owner' : 'guest'} />
             </span>
-            <span className="text-xs text-gray-400">{text.length}/{WALL_TEXT_MAX}</span>
+            <span className="text-xs text-gray-400">{text.length}/{maxLength}</span>
             <button
               type="submit"
-              disabled={posting || !text.trim()}
+              disabled={posting || (!text.trim() && !attachedFile)}
               className="bg-primary text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-40"
             >
               {posting ? 'Publicando…' : 'Publicar'}
             </button>
           </div>
-          {postError && <p className="text-xs text-red-500">{postError}</p>}
+          {(postError || replyError) && <p className="text-xs text-red-500">{postError || replyError}</p>}
         </form>
       )}
 

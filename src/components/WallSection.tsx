@@ -1,21 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { reactToWallMessage, postWallMessage, fetchWallMessages } from '../firebase/wall'
+import { reactToWallMessage, fetchWallMessages } from '../firebase/wall'
 import { fetchPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
-import { IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown, IconRotateCcw } from './Icons'
+import { useWallComposer } from '../hooks/useWallComposer'
+import { IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown, IconRotateCcw, IconCamera, IconX } from './Icons'
 import { ThemeSeal } from './ThemeSeal'
 import { Avatar } from './Avatar'
 import { PhotoFeedCard } from './PhotoFeedCard'
-import { PhotoUploadButton } from './PhotoUploadButton'
 import { PhotoViewer } from './PhotoViewer'
 import { ReactionPicker } from './ReactionPicker'
 import { ReportButton } from './ReportButton'
 import { StoriesBar } from './StoriesBar'
 import { mergeWallFeed } from '../utils/wallFeed'
-import { WALL_TEXT_MAX } from '../utils/validation'
 import { captureException } from '../lib/sentry'
 import type { ReactionType, TemplateId, WallMessage, WallMessageType } from '../types'
 
@@ -59,10 +58,6 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
   const [loading, setLoading]   = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [wallError, setWallError] = useState('')
-  const [text, setText]         = useState('')
-  const [type, setType]         = useState<WallMessageType>('comment')
-  const [posting, setPosting]   = useState(false)
-  const [postError, setPostError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isMinor = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
@@ -75,6 +70,10 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
   // pasado por GuestPass/EventJoin) si está disponible, si no el mismo
   // fallback que se usa para publicar mensajes.
   const photoAuthorToken = guestToken || (user ? user.uid : resolvedGuestName)
+  // Distinto criterio de identidad para mensajes de texto (no prioriza
+  // guestToken) — el formulario solo se muestra cuando `canPost` es true, así
+  // que `resolvedGuestName` ya está garantizado si no hay `user`.
+  const messageAuthorToken = user ? user.uid : resolvedGuestName
 
   // Sin listener permanente a propósito: este widget se monta en páginas
   // 100% públicas de alto tráfico (GuestPass, EventJoin). Un onSnapshot por
@@ -120,28 +119,26 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
 
   const feed = useMemo(() => mergeWallFeed(messages, photos), [messages, photos])
 
-  async function handlePost(e: React.FormEvent) {
-    e.preventDefault()
-    if (!text.trim() || isMinor) return
-    setPosting(true)
-    setPostError('')
-    try {
-      const token = user ? user.uid : (resolvedGuestName || crypto.randomUUID())
-      await postWallMessage(eventId, text, type, authorName, token, 'guest', authorPhoto)
-      setText('')
-      textareaRef.current?.focus()
-      // Sin esto, el propio mensaje publicado no aparecería hasta que el
-      // usuario presione "Actualizar" — la pérdida de tiempo real es
-      // aceptada para mensajes de otros, no para la propia acción.
-      await loadMessages()
-    } catch (err) {
-      console.error('Error posting wall message:', err)
-      captureException(err, { tags: { component: 'wall_section', action: 'post' } })
-      setPostError(err instanceof Error ? err.message : 'No se pudo publicar el mensaje. Intenta de nuevo.')
-    } finally {
-      setPosting(false)
-    }
-  }
+  const composer = useWallComposer({
+    eventId,
+    authorName,
+    authorToken: messageAuthorToken,
+    authorRole: 'guest',
+    authorPhotoURL: authorPhoto,
+    photoAuthorToken,
+    isMinor,
+    photoBlocked,
+    sentryComponent: 'wall_section',
+    // Sin esto, la propia publicación no aparecería hasta que el usuario
+    // presione "Actualizar" — la pérdida de tiempo real es aceptada para
+    // mensajes/fotos de otros, no para la propia acción.
+    onPosted: () => { textareaRef.current?.focus(); loadMessages() },
+    onPhotoUploaded: loadPhotos,
+  })
+  const {
+    text, setText, type, setType, attachedFile, previewUrl, maxLength,
+    posting, error: postError, fileInputRef, openPicker, onFileSelected, removeImage, handleSubmit,
+  } = composer
 
   // Optimista: la reacción se refleja en `messages` antes de que Firestore
   // confirme, y solo se revierte si la escritura falla — evita el viaje
@@ -200,51 +197,72 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
       {/* Post form */}
       {canPost && !commentBlockedMessage && (
         <form
-          onSubmit={handlePost}
+          onSubmit={handleSubmit}
           className="invite-wall-form border p-4 mb-4 space-y-3 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
           style={{ borderColor: 'var(--invite-border)' }}
         >
-          <div className="flex gap-2 flex-wrap">
-            {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
-              const cfg = TYPE_CONFIG[t]
-              return (
-                <button key={t} type="button" onClick={() => setType(t)}
-                  className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 font-medium transition-all ${
-                    type === t ? cfg.color + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}>
-                  <cfg.Icon className="w-3 h-3" />
-                  {cfg.label}
-                </button>
-              )
-            })}
-            <PhotoUploadButton
-              eventId={eventId}
-              authorName={authorName}
-              authorToken={photoAuthorToken}
-              onUploaded={loadPhotos}
-              disabled={photoBlocked}
-            />
-          </div>
+          {!attachedFile && (
+            <div className="flex gap-2 flex-wrap">
+              {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
+                const cfg = TYPE_CONFIG[t]
+                return (
+                  <button key={t} type="button" onClick={() => setType(t)}
+                    className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 font-medium transition-all ${
+                      type === t ? cfg.color + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}>
+                    <cfg.Icon className="w-3 h-3" />
+                    {cfg.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {photoBlockedMessage && (
-            <p className="text-xs text-red-500 basis-full">{photoBlockedMessage}</p>
+            <p className="text-xs text-red-500">{photoBlockedMessage}</p>
           )}
           <div className="flex items-start gap-2">
             <Avatar name={authorName} photoURL={authorPhoto} size={28} />
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={`Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
-              rows={2}
-              maxLength={WALL_TEXT_MAX}
-              className="flex-1 border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 bg-transparent text-[var(--invite-text)] focus:ring-[var(--invite-accent)]"
-              style={{ borderColor: 'var(--invite-border)' }}
-            />
+            <div className="flex-1 min-w-0">
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={attachedFile ? 'Agregá un mensaje (opcional)…' : `Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
+                rows={2}
+                maxLength={maxLength}
+                className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 bg-transparent text-[var(--invite-text)] focus:ring-[var(--invite-accent)]"
+                style={{ borderColor: 'var(--invite-border)' }}
+              />
+              {previewUrl && (
+                <div className="relative inline-block mt-2">
+                  <img src={previewUrl} alt="" className="h-24 w-24 rounded-lg object-cover border" style={{ borderColor: 'var(--invite-border)' }} />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    aria-label="Quitar foto"
+                    className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full p-1 hover:bg-black/90"
+                  >
+                    <IconX className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={openPicker}
+              disabled={photoBlocked}
+              aria-label="Adjuntar foto"
+              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center disabled:opacity-40 transition-colors text-[var(--invite-text-muted)]"
+              style={{ background: 'var(--invite-page-bg, rgba(255,255,255,0.06))' }}
+            >
+              <IconCamera className="w-4 h-4" />
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-[var(--invite-text-muted)]">Como: <strong>{authorName}</strong></span>
-            <span className="text-xs text-[var(--invite-text-muted)]">{text.length}/{WALL_TEXT_MAX}</span>
-            <button type="submit" disabled={posting || !text.trim()}
+            <span className="text-xs text-[var(--invite-text-muted)]">{text.length}/{maxLength}</span>
+            <button type="submit" disabled={posting || (!text.trim() && !attachedFile)}
               className="text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 bg-[var(--invite-accent)]">
               {posting ? 'Publicando…' : 'Publicar'}
             </button>
