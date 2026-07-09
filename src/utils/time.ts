@@ -44,3 +44,36 @@ export function formatTime12h(time?: string): string {
   const displayHours = hours % 12 || 12
   return minutesStr === '00' ? `${displayHours} ${period}` : `${displayHours}:${minutesStr} ${period}`
 }
+
+// true si la fecha (YYYY-MM-DD) ya quedó atrás respecto de "hoy" (comparando
+// solo el día, sin hora) — un evento de hoy nunca cuenta como pasado acá,
+// aunque su horario ya haya ocurrido.
+export function isEventPast(date: string): boolean {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return new Date(date + 'T00:00:00') < today
+}
+
+// Timestamp (ms) de fecha+hora del evento, para ordenar. Sin startTime válido
+// se asume 00:00 — suficiente para ordenar por día cuando no hay hora cargada.
+function eventDateTimeMs(event: { date: string; startTime?: string }): number {
+  const time = event.startTime && /^\d{2}:\d{2}$/.test(event.startTime) ? event.startTime : '00:00'
+  const ms = new Date(`${event.date}T${time}:00`).getTime()
+  return Number.isNaN(ms) ? 0 : ms
+}
+
+// Orden por relevancia para el organizador: próximos primero (del más cercano
+// al más lejano, por fecha+hora), y al final los que ya ocurrieron (del más
+// reciente al más antiguo) — así lo que requiere atención inmediata queda
+// arriba sin importar cuándo se creó el evento en Firestore.
+export function compareEventsByRelevance(
+  a: { date: string; startTime?: string },
+  b: { date: string; startTime?: string },
+): number {
+  const aFuture = !isEventPast(a.date)
+  const bFuture = !isEventPast(b.date)
+  if (aFuture !== bFuture) return aFuture ? -1 : 1
+  const aMs = eventDateTimeMs(a)
+  const bMs = eventDateTimeMs(b)
+  return aFuture ? aMs - bMs : bMs - aMs
+}

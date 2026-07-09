@@ -11,16 +11,10 @@ import { PassInfoCell } from '../components/PassInfoCell'
 import { WelcomeModal } from '../components/WelcomeModal'
 import { IconBarChart, IconCalendar, IconCheckCircle, IconUsers } from '../components/Icons'
 import { LoadingInline } from '../components/LoadingInline'
-import { formatDate, formatTime12h } from '../utils/time'
+import { formatDate, formatTime12h, isEventPast } from '../utils/time'
 import { consumeWelcomePending, hasSeenNovedades, markNovedadesSeen } from '../utils/onboarding'
 
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-
-function isEventPast(date: string): boolean {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return new Date(date + 'T00:00:00') < today
-}
 
 // Devuelve los últimos N meses como etiquetas cortas ['Ene', 'Feb', ...]
 function lastNMonthLabels(n: number): string[] {
@@ -117,10 +111,11 @@ export function Dashboard() {
   const activeEvents = events.filter((e) => e.status === 'active')
   const pastEvents = events.filter((e) => e.status !== 'active')
 
+  // activeEvents ya viene ordenado por relevancia (compareEventsByRelevance,
+  // ver subscribeToUserEvents) con los futuros primero de más cercano a más
+  // lejano, así que el primero no vencido es directamente el próximo evento.
   const nextEvent = useMemo(() =>
-    activeEvents
-      .filter((e) => !isEventPast(e.date))
-      .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
+    activeEvents.find((e) => !isEventPast(e.date)) ?? null
   , [activeEvents])
 
   const CHART_MONTHS = 6

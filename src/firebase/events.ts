@@ -16,6 +16,7 @@ import {
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
+import { compareEventsByRelevance } from '../utils/time'
 import type { CustomField, EntryMode, EventData, EventStatus, PaymentMethod, TemplateId, TimelineEntry } from '../types'
 import { EventSchema, warnIfInvalidShape } from '../types/schemas'
 import { LEGACY_COORG_DEFAULTS, type CoOrganizerPermissions } from '../types/coOrganizerPermissions'
@@ -94,7 +95,8 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
 // firestore.rules. Dos listeners separados (Firestore no permite un OR entre
 // un campo simple y una key de mapa en la misma query) fusionados por id, sin
 // orderBy en ninguno de los dos para no requerir un índice compuesto — el
-// orden final se resuelve acá, sobre la lista ya combinada.
+// orden final (por fecha/hora del evento, no por creación, ver
+// compareEventsByRelevance) se resuelve acá, sobre la lista ya combinada.
 export function subscribeToUserEvents(
   uid: string,
   callback: (events: EventData[]) => void,
@@ -107,7 +109,7 @@ export function subscribeToUserEvents(
     const merged = new Map<string, EventData>()
     for (const ev of owned) merged.set(ev.id, ev)
     for (const ev of coOrganized) merged.set(ev.id, ev)
-    callback(Array.from(merged.values()).sort((a, b) => b.createdAt - a.createdAt))
+    callback(Array.from(merged.values()).sort(compareEventsByRelevance))
   }
 
   const ownedQuery = query(collection(db, 'events'), where('ownerId', '==', uid))
