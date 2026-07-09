@@ -8,10 +8,12 @@ import type { EventData } from '../types'
 import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { WelcomeModal } from '../components/WelcomeModal'
-import { IconBarChart, IconCalendar, IconCheckCircle, IconTicket, IconUsers } from '../components/Icons'
+import { IconBarChart, IconCalendar, IconCheckCircle, IconStar, IconTicket, IconUsers } from '../components/Icons'
 import { LoadingInline } from '../components/LoadingInline'
 import { formatDate } from '../utils/time'
 import { consumeWelcomePending, hasSeenNovedades, markNovedadesSeen } from '../utils/onboarding'
+
+const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 function isEventPast(date: string): boolean {
   const today = new Date()
@@ -25,14 +27,20 @@ const STATUS_LABELS: Record<EventData['status'], string> = {
   archived: 'Archivado',
 }
 
+// Día + mes abreviado para el talón del ticket, ej. { day: '25', month: 'Jun' }.
+function ticketDateParts(date: string): { day: string; month: string } {
+  const d = new Date(date + 'T00:00:00')
+  if (isNaN(d.getTime())) return { day: '--', month: '' }
+  return { day: String(d.getDate()), month: MONTH_LABELS[d.getMonth()] }
+}
+
 // Devuelve los últimos N meses como etiquetas cortas ['Ene', 'Feb', ...]
 function lastNMonthLabels(n: number): string[] {
-  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
   const result: string[] = []
   const now = new Date()
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    result.push(months[d.getMonth()])
+    result.push(MONTH_LABELS[d.getMonth()])
   }
   return result
 }
@@ -222,31 +230,6 @@ export function Dashboard() {
 
       {loading && <LoadingInline label="Cargando eventos…" />}
 
-      {/* Próximo evento destacado */}
-      {!loading && nextEvent && (
-        <div
-          className="rounded-xl p-4 mb-6 cursor-pointer hover:opacity-90 transition-opacity"
-          style={{
-            background: 'linear-gradient(135deg, rgba(255,20,100,.12), rgba(255,20,100,.04))',
-            border: '1px solid rgba(255,20,100,.3)',
-          }}
-          onClick={() => navigate(`/events/${nextEvent.id}`)}
-          role="button"
-          aria-label={`Ver evento: ${nextEvent.name}`}
-        >
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">Próximo evento</p>
-          <h2 className="text-lg font-bold text-white">{nextEvent.name}</h2>
-          <p className="text-sm text-gray-400 mt-0.5">{formatDate(nextEvent.date)} · {nextEvent.location}</p>
-          <AttendanceProgressBar
-            className="mt-3"
-            present={nextEvent.checkedInCount}
-            expected={nextEvent.peopleCount}
-            unitLabel="asistentes"
-            variant="glow"
-          />
-        </div>
-      )}
-
       {/* Gráfico de actividad mensual */}
       {!loading && events.length >= 2 && monthCounts.some((c) => c > 0) && (
         <div
@@ -308,6 +291,7 @@ export function Dashboard() {
             key={event.id}
             event={event}
             index={i}
+            isNext={nextEvent?.id === event.id}
             isLoading={actionLoading === event.id}
             onNavigate={() => navigate(`/events/${event.id}`)}
             onCancel={event.ownerId === user?.uid ? () => handleStatusChange(event.id, 'cancelled') : undefined}
@@ -370,6 +354,8 @@ interface EventCardProps {
   event: EventData
   index: number
   past?: boolean
+  /** El evento activo con fecha más próxima entre los que se muestran — resalta la tarjeta como "boleto destacado". */
+  isNext?: boolean
   isLoading: boolean
   onNavigate: () => void
   onCancel?: () => void
@@ -377,31 +363,58 @@ interface EventCardProps {
   onDelete?: () => void
 }
 
-function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReactivate, onDelete }: EventCardProps) {
+function EventCard({ event, index, past, isNext, isLoading, onNavigate, onCancel, onReactivate, onDelete }: EventCardProps) {
+  const { day, month } = ticketDateParts(event.date)
+  const highlight = !!isNext && !past
+
   return (
     <div
       style={{
         animationDelay: `${Math.min(index, 6) * 0.06}s`,
-        borderLeft: past ? undefined : '3px solid #FF1464',
-        boxShadow: past ? undefined : '0 0 20px rgba(255,20,100,.06)',
+        border: `1px solid ${highlight ? 'rgba(255,20,100,.4)' : 'rgba(74,50,92,.7)'}`,
       }}
-      className={`card-hover animate-fade-in-up rounded-xl overflow-hidden ${past ? 'opacity-70' : ''}`}
+      className={`ticket-card animate-fade-in-up rounded-2xl overflow-hidden flex ${past ? 'opacity-70' : ''} ${highlight ? 'ticket-card--next' : ''}`}
     >
+      {/* Talón: fecha */}
       <div
+        className="ticket-stub shrink-0 w-[60px] sm:w-[72px] flex flex-col items-center justify-center gap-0.5"
         style={{
-          background: 'rgba(30,20,40,.8)',
-          border: '1px solid rgba(74,50,92,.7)',
-          borderLeft: past ? '1px solid rgba(74,50,92,.7)' : 'none',
+          background: highlight
+            ? 'linear-gradient(180deg, rgba(255,20,100,.22), rgba(255,20,100,.06))'
+            : 'rgba(74,50,92,.35)',
+        }}
+      >
+        <span className={`text-2xl font-bold leading-none ${highlight ? 'text-primary' : 'text-white'}`}>
+          {day}
+        </span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{month}</span>
+      </div>
+
+      {/* Cuerpo del boleto */}
+      <div
+        className="flex-1 min-w-0"
+        style={{
+          background: highlight
+            ? 'linear-gradient(135deg, rgba(255,20,100,.1), rgba(30,20,40,.9))'
+            : 'rgba(30,20,40,.8)',
         }}
       >
         {/* Clickable body */}
         <button onClick={onNavigate} disabled={isLoading} className="w-full text-left p-4 pb-3">
           <div className="flex items-start justify-between gap-2 mb-1">
-            <h2 className="font-semibold text-white flex items-center gap-2">
+            <h2 className="font-semibold text-white flex items-center gap-2 min-w-0">
               <IconTicket className="w-4 h-4 text-primary shrink-0" />
-              {event.name}
+              <span className="truncate min-w-0">{event.name}</span>
             </h2>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {highlight && (
+                <span
+                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide"
+                  style={{ background: 'rgba(232,184,75,.15)', color: '#E8B84B', border: '1px solid rgba(232,184,75,.4)' }}
+                >
+                  <IconStar className="w-2.5 h-2.5" /> Próximo
+                </span>
+              )}
               {event.status !== 'active' && (
                 <span
                   className="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -431,11 +444,8 @@ function EventCard({ event, index, past, isLoading, onNavigate, onCancel, onReac
           />
         </button>
 
-        {/* Action row */}
-        <div
-          className="px-4 pb-3 pt-2 flex items-center justify-between gap-2"
-          style={{ borderTop: '1px solid rgba(74,50,92,.5)' }}
-        >
+        {/* Action row — separada por la perforación del boleto */}
+        <div className="ticket-perforation px-4 pb-3 pt-2.5 flex items-center justify-between gap-2">
           {!past ? (
             <Link
               to={`/events/${event.id}/scan`}

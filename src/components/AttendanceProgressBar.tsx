@@ -37,7 +37,7 @@ export function AttendanceProgressBar({
       <div
         className={
           rightLabel
-            ? `flex items-center justify-between text-xs mb-1.5 ${isGlow ? 'text-gray-500' : 'text-gray-400'}`
+            ? `flex items-center justify-between flex-wrap gap-x-2 text-xs mb-1.5 ${isGlow ? 'text-gray-500' : 'text-gray-400'}`
             : `text-center text-sm mb-1 ${isGlow ? 'text-gray-500' : 'text-gray-400'}`
         }
       >

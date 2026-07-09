@@ -646,6 +646,37 @@ body {
   box-shadow: 0 0 0 1px rgba(255,20,100,.2), 0 12px 32px -8px rgba(0,0,0,.5);
 }
 
+/* ── Ticket cards (Dashboard "Mis eventos") ─────────────────────
+   Talón de fecha + cuerpo, separados por una línea punteada (el
+   "corte de perforación" de un boleto real) en vez de recortes
+   circulares — evita depender de que el color de fondo detrás de
+   la tarjeta sea sólido (la app tiene orbs/gradientes de fondo). */
+.ticket-card {
+  transition: transform 0.18s ease-out, box-shadow 0.18s ease-out, border-color 0.18s ease-out;
+}
+.ticket-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 20, 100, 0.45) !important;
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,.5);
+}
+.ticket-card--next {
+  box-shadow: 0 0 0 1px rgba(255,20,100,.18), 0 0 26px rgba(255,20,100,.12);
+}
+.ticket-stub {
+  border-right: 2px dashed rgba(74, 50, 92, .8);
+}
+.ticket-perforation {
+  border-top: 2px dashed rgba(74, 50, 92, .6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticket-card,
+  .ticket-card:hover {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
 /* ── Scrollbar ───────────────────────────────────────────────── */
 ::-webkit-scrollbar          { width: 6px; }
 ::-webkit-scrollbar-track    { background: transparent; }
