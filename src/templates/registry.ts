@@ -10,6 +10,9 @@ export interface InvitationTemplate {
   id: TemplateId
   label: string
   category: string
+  // Oración corta y editorial para la galería de TemplatePicker — no afecta
+  // el theming, solo ayuda al anfitrión a decidir qué tema calza con su evento.
+  description: string
   // Oculto para anfitriones no-admin en TemplatePicker (ver useIsAdmin) —
   // pensado para lanzar un tema nuevo primero como evento propio de PaseLink
   // antes de abrirlo al público. No es una restricción de seguridad (nada
@@ -44,8 +47,9 @@ export interface InvitationTemplate {
 export const INVITATION_TEMPLATES: InvitationTemplate[] = [
   {
     id: 'default',
-    label: 'Predeterminado',
+    label: 'Básico',
     category: 'Genérico',
+    description: 'Un diseño limpio y versátil, sin estilo temático marcado — ideal para cualquier tipo de evento.',
     vars: {
       accent: '#2563eb',
       accentDark: '#1d4ed8',
@@ -65,6 +69,7 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
     id: 'wedding',
     label: 'Boda',
     category: 'Boda',
+    description: 'Elegancia cálida en tonos dorados sobre papel algodón, pensada para bodas y celebraciones románticas.',
     vars: {
       // Dorado foil cálido, no bronce/cuero (eso es vocabulario de vaquera) —
       // accentDark se mantiene dorado profundo, nunca marrón apagado, para
@@ -94,8 +99,9 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
   },
   {
     id: 'cowboy',
-    label: 'Fiesta vaquera',
+    label: 'Vaquero',
     category: 'Fiesta vaquera',
+    description: 'Materialidad rústica en cuero y madera, pensada para fiestas con temática vaquera o de rancho.',
     vars: {
       accent: '#a8451f',
       accentDark: '#7c3216',
@@ -116,6 +122,7 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
     id: 'graduation',
     label: 'Graduación',
     category: 'Graduación',
+    description: 'Estética institucional con acabados en foil y azul profundo, pensada para ceremonias de graduación.',
     vars: {
       accent: '#1e3a8a',
       accentDark: '#152a63',
@@ -142,8 +149,9 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
   },
   {
     id: 'formal',
-    label: 'Evento formal',
+    label: 'Formal',
     category: 'Evento formal',
+    description: 'Minimalismo metálico y sobrio con doble filete, pensado para galas y eventos corporativos.',
     vars: {
       // Metal sobrio y frío (gunmetal/platino) en vez de negro plano —
       // el dorado/foil ya es materialidad exclusiva de Graduación y Bodas,
@@ -178,8 +186,9 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
   },
   {
     id: 'kids',
-    label: 'Fiesta infantil',
+    label: 'Infantil',
     category: 'Fiesta infantil',
+    description: 'Colores pastel y confeti controlado, pensada para cumpleaños y fiestas infantiles.',
     vars: {
       // Coral cálido y pastel — antes un ámbar saturado, demasiado cerca del
       // óxido de vaquera y sin el aire "pastel" que pide una celebración
@@ -206,8 +215,9 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
   },
   {
     id: 'houseparty',
-    label: 'Fiesta improvisada',
+    label: 'Improvisada',
     category: 'Fiesta improvisada',
+    description: 'Estética nocturna con neón líquido sobre fondo oscuro, pensada para fiestas informales y after.',
     // Debut como evento propio de PaseLink primero — se abre al público
     // cuando el admin lo decida (quitar esta línea).
     adminOnly: true,

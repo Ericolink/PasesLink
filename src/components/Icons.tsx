@@ -632,3 +632,29 @@ export function IconUser({ className = 'w-5 h-5' }: IconProps) {
     </svg>
   )
 }
+
+// Usado como identificador visual de la plantilla "Fiesta vaquera" en
+// TemplatePicker (ver templates/pickerIcons.ts).
+export function IconCactus({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="10" y="4" width="4" height="17" rx="2" />
+      <rect x="5" y="10" width="6" height="4" rx="2" />
+      <rect x="13" y="7" width="6" height="4" rx="2" />
+      <path d="M4 21h16" />
+    </svg>
+  )
+}
+
+// Usado como identificador visual de la plantilla "Graduación" en
+// TemplatePicker (ver templates/pickerIcons.ts).
+export function IconGraduationCap({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M2 8 12 3l10 5-10 5-10-5z" />
+      <path d="M6 10v4a6 3 0 0 0 12 0v-4" />
+      <path d="M22 8v6" />
+      <circle cx="22" cy="16" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}

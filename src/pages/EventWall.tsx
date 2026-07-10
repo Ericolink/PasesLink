@@ -368,24 +368,6 @@ export function EventWall() {
         />
       )}
 
-      {/* FAB de acceso rápido al composer, solo mobile: en un muro largo,
-          comentar exigía scrollear hasta el formulario arriba del feed —
-          este botón lleva ahí y enfoca el textarea directo (el teclado se
-          abre solo, comportamiento nativo del focus, sin manejo especial). */}
-      {!isMinor && !commentBlockedMessage && (
-        <button
-          onClick={() => {
-            textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            setTimeout(() => textareaRef.current?.focus(), 350)
-          }}
-          aria-label="Escribir comentario"
-          className="sm:hidden fixed z-30 w-14 h-14 rounded-full bg-primary text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
-          style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))', right: '1rem' }}
-        >
-          <IconMessageSquare className="w-6 h-6" />
-        </button>
-      )}
-
       {/* Age restriction notice */}
       {user && isMinor && (
         <div className="text-xs text-amber-500 bg-amber-500/10 rounded-lg px-3 py-2 mb-4">
