@@ -9,7 +9,7 @@ import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { EventTicketCard } from '../components/EventTicketCard'
 import { PassInfoCell } from '../components/PassInfoCell'
 import { WelcomeModal } from '../components/WelcomeModal'
-import { IconBarChart, IconCalendar, IconCheckCircle, IconUsers } from '../components/Icons'
+import { IconCalendar } from '../components/Icons'
 import { LoadingInline } from '../components/LoadingInline'
 import { formatDate, formatTime12h, isEventPast } from '../utils/time'
 import { consumeWelcomePending, hasSeenNovedades, markNovedadesSeen } from '../utils/onboarding'
@@ -92,22 +92,6 @@ export function Dashboard() {
     return unsubscribe
   }, [user])
 
-  const stats = useMemo(() => {
-    // peopleCount (personas totales, incluye acompañantes/familias), no
-    // guestCount (cantidad de invitaciones/documentos) — dividir
-    // totalCheckins (personas) entre guestCount daba porcentajes >100% en
-    // cuanto un evento tenía invitados con acompañantes o familias. Ver
-    // comentario de `peopleCount` en types/index.ts.
-    const totalGuests = events.reduce((s, e) => s + e.peopleCount, 0)
-    const totalCheckins = events.reduce((s, e) => s + e.checkedInCount, 0)
-    const attendanceRate =
-      totalGuests > 0 ? Math.round((totalCheckins / totalGuests) * 100) : null
-    const bestEvent = events.length > 0
-      ? events.reduce((best, e) => (e.guestCount > best.guestCount ? e : best), events[0])
-      : null
-    return { totalGuests, totalCheckins, attendanceRate, bestEvent }
-  }, [events])
-
   const activeEvents = events.filter((e) => e.status === 'active')
   const pastEvents = events.filter((e) => e.status !== 'active')
 
@@ -145,32 +129,6 @@ export function Dashboard() {
           + Nuevo evento
         </Link>
       </div>
-
-      {/* Stats bar */}
-      {!loading && events.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          {[
-            { label: 'Eventos', value: events.length, icon: IconCalendar },
-            { label: 'Invitados', value: stats.totalGuests, icon: IconUsers },
-            { label: 'Check-ins', value: stats.totalCheckins, icon: IconCheckCircle },
-            {
-              label: 'Asistencia',
-              value: stats.attendanceRate !== null ? `${stats.attendanceRate}%` : '—',
-              icon: IconBarChart,
-            },
-          ].map(({ label, value, icon: Icon }) => (
-            <div
-              key={label}
-              className="rounded-xl p-3 text-center"
-              style={{ background: 'rgba(30,20,40,.7)', border: '1px solid rgba(74,50,92,.8)' }}
-            >
-              <Icon className="w-4 h-4 text-primary mx-auto mb-1" />
-              <p className="text-xl font-bold text-white">{value}</p>
-              <p className="text-xs text-gray-500">{label}</p>
-            </div>
-          ))}
-        </div>
-      )}
 
       {loading && <LoadingInline label="Cargando eventos…" />}
 
