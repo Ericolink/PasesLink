@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { checkEmailVerified, loginWithGoogle, registerWithEmail, resendVerificationEmail } from '../firebase/auth'
+import { recordLegalAcceptance } from '../firebase/legalAcceptance'
 import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
+import { LegalConsentCheckbox } from '../components/LegalConsentCheckbox'
 import { PasswordInput } from '../components/PasswordInput'
 import { useAuth } from '../hooks/useAuth'
 import { uploadImage } from '../utils/cloudinary'
@@ -23,6 +25,7 @@ export function Register() {
   const [password, setPassword]   = useState('')
   const [photoFile, setPhotoFile] = useState<Blob | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [legalAccepted, setLegalAccepted] = useState(false)
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [awaitingVerification, setAwaitingVerification] = useState(false)
@@ -61,7 +64,8 @@ export function Register() {
     try {
       let photoURL: string | undefined
       if (photoFile) photoURL = await uploadImage(photoFile)
-      await registerWithEmail(email, password, firstName, lastName, photoURL)
+      const newUser = await registerWithEmail(email, password, firstName, lastName, photoURL)
+      await recordLegalAcceptance(newUser.uid, 'register_email')
       setAwaitingVerification(true)
     } catch (err) {
       setErrorInfo(getAuthErrorInfo(err, 'No pudimos crear la cuenta. Intenta de nuevo.'))
@@ -205,8 +209,9 @@ export function Register() {
           <PasswordInput id="register-password" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={password} onChange={setPassword} />
           <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
         </div>
+        <LegalConsentCheckbox id="register-legal-consent" checked={legalAccepted} onChange={setLegalAccepted} />
         {errorInfo && <AuthErrorMessage info={errorInfo} />}
-        <button type="submit" disabled={loading}
+        <button type="submit" disabled={loading || !legalAccepted}
           className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
           {loading ? 'Creando cuenta…' : 'Crear cuenta'}
         </button>

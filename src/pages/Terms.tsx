@@ -1,10 +1,16 @@
 import { Link } from 'react-router-dom'
+import { LEGAL_DOCS, formatLegalDocDate } from '../legal/documents'
 
-export function Terms() {
+// Contenido separado del layout de página para poder reusarlo dentro de
+// LegalDocumentSheet (el modal que se abre desde el registro) sin duplicar texto.
+// Nota: pendiente de revisión legal — falta mencionar Cloudinary/EmailJS/Sentry
+// como encargados de tratamiento (hoy solo se nombra Firebase) y una cláusula
+// explícita de uso permitido/prohibido de la plataforma.
+export function TermsContent() {
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12 animate-fade-in">
+    <>
       <h1 className="text-2xl font-semibold text-gray-900 mb-1">Términos y condiciones</h1>
-      <p className="text-sm text-gray-400 mb-8">Última actualización: junio de 2026</p>
+      <p className="text-sm text-gray-400 mb-8">Última actualización: {formatLegalDocDate(LEGAL_DOCS.terms.version)}</p>
 
       <div className="space-y-6 text-sm text-gray-700">
         <section>
@@ -61,7 +67,14 @@ export function Terms() {
           </p>
         </section>
       </div>
+    </>
+  )
+}
 
+export function Terms() {
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-12 animate-fade-in">
+      <TermsContent />
       <Link to="/" className="inline-block mt-8 text-sm text-primary font-medium">
         Volver al inicio
       </Link>

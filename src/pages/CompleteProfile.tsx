@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { updateProfile } from 'firebase/auth'
 import { saveUserProfile } from '../firebase/userProfile'
+import { recordLegalAcceptance, type LegalAcceptanceMethod } from '../firebase/legalAcceptance'
 import { useAuth } from '../hooks/useAuth'
 import { uploadImage } from '../utils/cloudinary'
 import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
+import { LegalConsentCheckbox } from '../components/LegalConsentCheckbox'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
 export function CompleteProfile() {
@@ -20,6 +22,7 @@ export function CompleteProfile() {
   const [birthDate, setBirthDate] = useState('')
   const [photoFile, setPhotoFile] = useState<Blob | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(user?.photoURL || null)
+  const [legalAccepted, setLegalAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
 
@@ -47,6 +50,10 @@ export function CompleteProfile() {
         birthDate,
         photoURL,
       })
+      const method: LegalAcceptanceMethod = user.providerData.some((p) => p.providerId === 'facebook.com')
+        ? 'facebook'
+        : 'google'
+      await recordLegalAcceptance(user.uid, method)
       navigate('/dashboard')
     } catch (err) {
       setErrorInfo(getAuthErrorInfo(err, 'No pudimos guardar tu perfil. Intenta de nuevo.'))
@@ -108,8 +115,9 @@ export function CompleteProfile() {
               max={new Date().toISOString().split('T')[0]}
               className="w-full border border-gray-300 rounded-md px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
+          <LegalConsentCheckbox id="complete-profile-legal-consent" checked={legalAccepted} onChange={setLegalAccepted} />
           {errorInfo && <AuthErrorMessage info={errorInfo} />}
-          <button type="submit" disabled={loading}
+          <button type="submit" disabled={loading || !legalAccepted}
             className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
             {loading ? 'Guardando…' : 'Guardar y entrar'}
           </button>

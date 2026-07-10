@@ -424,6 +424,17 @@ service cloud.firestore {
       match /invitations/{invId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // Historial de aceptación de Términos/Privacidad (ver src/firebase/legalAcceptance.ts).
+      // Mismo criterio que adminAuditLog: solo se puede crear, nunca editar ni borrar,
+      // para que quede como un registro confiable de qué versión aceptó cada usuario.
+      match /legalAcceptances/{acceptanceId} {
+        allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        allow create: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.acceptedAt == request.time
+          && request.resource.data.documents is list;
+        allow update, delete: if false;
+      }
     }
 
     match /events/{eventId} {
