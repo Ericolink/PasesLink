@@ -218,20 +218,33 @@ service cloud.firestore {
         && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30));
     }
 
-    // Cruza con guests/{guestId} (que sí tiene lockToken) para autorizar la
+    // Tope de dispositivos reconocidos por pase (ver claimGuestPass en
+    // src/firebase/guests.ts) — debe coincidir con INDIVIDUAL_DEVICE_CAP/
+    // GROUP_DEVICE_CAP ahí. Solo actúa como techo de tamaño del arreglo
+    // (defensa en profundidad); la rotación LRU real la hace el cliente.
+    function guestDeviceCap(guestData) {
+      return guestData.get('isGroup', false) ? 8 : 3;
+    }
+
+    // Un pase se considera "sin reclamar todavía" si nunca se guardó
+    // `lockTokens` (invitado creado antes de este campo, o que nunca abrió
+    // su pase) — mismo criterio permisivo que antes tenía `lockToken ==
+    // null`. Una vez reclamado, cualquier dispositivo de la lista puede
+    // escribir (RSVP, comprobante de pago, auto-edición) — ya no hace falta
+    // ser exactamente EL dispositivo que ganó la primera carrera.
+    function guestLockTokensOk(guestData, incomingToken) {
+      return !('lockTokens' in guestData) ||
+        guestData.lockTokens.size() == 0 ||
+        incomingToken in guestData.lockTokens;
+    }
+
+    // Cruza con guests/{guestId} (que sí tiene lockTokens) para autorizar la
     // auto-edición de guestContacts (email/phone) del mismo invitado — ese
-    // documento no tiene su propio lockToken. Mismo criterio que en
-    // guests/{guestId}: si el pase todavía no está reclamado (lockToken ==
-    // null) cualquiera puede escribir su contacto por primera vez; si ya
-    // está reclamado, el valor recibido en ESTE mismo request debe coincidir
-    // con el guardado en guests/{guestId}.
+    // documento no tiene su propia lista de dispositivos.
     function guestSelfEditContactLockOk(eventId, guestId) {
       let guestPath = /databases/$(database)/documents/events/$(eventId)/guests/$(guestId);
       return exists(guestPath) &&
-        (
-          get(guestPath).data.lockToken == null ||
-          get(guestPath).data.lockToken == request.resource.data.get('lockToken', null)
-        );
+        guestLockTokensOk(get(guestPath).data, request.resource.data.get('lockToken', null));
     }
 
     // Sin alta pública ni desde la app: la única forma de agregar/quitar un
@@ -521,12 +534,12 @@ service cloud.firestore {
           ) ||
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&
-            (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken)
+            guestLockTokensOk(resource.data, request.resource.data.lockToken)
           ) ||
           // El propio invitado marca "ya pagué / comprobante enviado"
-          // (submitPaymentProof, src/firebase/guests.ts) — solo desde el
-          // dispositivo que ya reclamó el pase (mismo chequeo de lockToken
-          // que rsvpStatus arriba), solo para transferencia. Sin límite de
+          // (submitPaymentProof, src/firebase/guests.ts) — solo desde un
+          // dispositivo ya reconocido (mismo chequeo de lockTokens que
+          // rsvpStatus arriba), solo para transferencia. Sin límite de
           // tiempo (ya no existe el apartado temporal/cronómetro): puede
           // mandarlo cuando quiera mientras no esté ya pagado ni ya tenga un
           // comprobante en revisión. `!= 'paid' && != 'pending_confirmation'`
@@ -540,7 +553,7 @@ service cloud.firestore {
           // contra su resumen bancario para aprobar/rechazar.
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentNote']) &&
-            (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken) &&
+            guestLockTokensOk(resource.data, request.resource.data.get('lockToken', null)) &&
             resource.data.paymentMethod == 'transfer' &&
             resource.data.paymentStatus != 'paid' &&
             resource.data.paymentStatus != 'pending_confirmation' &&
@@ -550,15 +563,32 @@ service cloud.firestore {
             request.resource.data.paymentNote.size() <= 300
           ) ||
           // El propio invitado edita su información de registro (GuestPass,
-          // "Editar mis datos") — mismo gate de lockToken que las dos ramas
+          // "Editar mis datos") — mismo gate de lockTokens que las dos ramas
           // de arriba. qrToken/status/checkedIn*/paymentStatus/etc. quedan
           // FUERA de este hasOnly a propósito: si un intento de escritura
           // toca cualquiera de esos campos junto con estos, cae toda la
           // rama (no solo esos campos).
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'lastName', 'companions', 'customData', 'lockToken']) &&
-            (resource.data.lockToken == null || resource.data.lockToken == request.resource.data.lockToken) &&
+            guestLockTokensOk(resource.data, request.resource.data.lockToken) &&
             isValidGuestSelfEdit()
+          ) ||
+          // claimGuestPass (src/firebase/guests.ts): reconoce un dispositivo
+          // nuevo agregándolo a `lockTokens` (o inicializándola). Cualquiera
+          // puede sumarse a la lista — así es como se "reclama" el pase la
+          // primera vez, igual que antes con lockToken == null — siempre que
+          // el resultado sea una lista dentro del tope (guestDeviceCap) y el
+          // espejo `lockToken` coincida con el último elemento agregado. No
+          // valida acá que la rotación LRU de dispositivos viejos sea exacta
+          // (eso lo hace el cliente): esta escritura solo habilita al invitado
+          // a operar SU PROPIO pase, no afecta check-in, pagos aprobados por
+          // el organizador ni a otros invitados.
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lockToken', 'lockTokens']) &&
+            request.resource.data.lockTokens is list &&
+            request.resource.data.lockTokens.size() > 0 &&
+            request.resource.data.lockTokens.size() <= guestDeviceCap(resource.data) &&
+            request.resource.data.lockToken == request.resource.data.lockTokens[request.resource.data.lockTokens.size() - 1]
           );
       }
 

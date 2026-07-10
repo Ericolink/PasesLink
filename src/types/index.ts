@@ -234,7 +234,19 @@ export interface GuestData {
   checkedOutAt: number | null
   checkedOutByEmail: string | null
   exitType: GuestExitType
+  // `lockToken` es un espejo legacy (último dispositivo reconocido) que se
+  // mantiene por compatibilidad con el pill "Pase abierto" y el botón
+  // "Desbloquear pase" del organizador (GuestDetailSheet). La fuente real
+  // de verdad para autorizar escrituras del invitado (RSVP, comprobante de
+  // pago, auto-edición) es `lockTokens`: una lista acotada de dispositivos
+  // reconocidos para este pase (últimos N, con expulsión del más viejo al
+  // llegar al tope — ver claimGuestPass en src/firebase/guests.ts). Permite
+  // que el mismo invitado abra el link desde el navegador interno de
+  // Instagram/TikTok/WhatsApp/etc. y después desde Safari/Chrome sin quedar
+  // bloqueado. Ausente/vacío en invitados nunca abiertos o creados antes de
+  // este campo.
   lockToken: string | null
+  lockTokens?: string[]
   customData?: Record<string, string>
   paymentStatus: GuestPaymentStatus
   // Método elegido al autoregistrarse (o fijado por el organizador al

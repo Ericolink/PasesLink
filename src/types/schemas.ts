@@ -121,6 +121,7 @@ export const GuestSchema = z.object({
   checkedOutByEmail: z.string().nullable(),
   exitType: z.enum(['temporary', 'final']).nullable(),
   lockToken: z.string().nullable(),
+  lockTokens: z.array(z.string()).optional(),
   customData: z.record(z.string(), z.string()).optional(),
   paymentStatus: z.enum(['unpaid', 'pending_confirmation', 'paid', 'expired']),
   paymentMethod: z.enum(['transfer', 'cash']).nullable(),

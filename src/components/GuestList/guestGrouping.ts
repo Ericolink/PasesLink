@@ -16,13 +16,15 @@ export function guestDisplayName(guest: Pick<GuestData, 'name' | 'lastName' | 'i
 // haga nada TODAVÍA — se resuelve solo cuando el invitado paga o envía su
 // comprobante. Lo urgente de verdad es un comprobante esperando aprobación.
 //
-// `lockToken` NO cuenta acá a propósito: se setea la primera vez que el
-// invitado abre su pase (caso normal, esperado, de casi todo invitado que
-// asiste) — no indica ningún conflicto. Hoy no existe una señal separada
-// para "alguien intentó abrir el pase en un segundo dispositivo y fue
-// bloqueado" (ver claimGuestPass en firebase/guests.ts), así que no hay
-// nada real que mostrarle al organizador todavía; "Desbloquear pase" sigue
-// disponible en el detalle del invitado para cuando lo necesite a mano.
+// `lockToken`/`lockTokens` NO cuentan acá a propósito: se setean la primera
+// vez que el invitado abre su pase (caso normal, esperado, de casi todo
+// invitado que asiste) — no indica ningún conflicto por sí solo. Un pase con
+// varios dispositivos reconocidos SÍ tiene su propia señal, pero es solo
+// informativa (pill ámbar "Abierto en N dispositivos" en GuestDetailSheet,
+// ver claimGuestPass en firebase/guests.ts) — no amerita subirla a la
+// categoría "atención" de acá, que es específicamente para pagos pendientes
+// de aprobar. "Desbloquear pase" sigue disponible en el detalle del
+// invitado para cuando el organizador lo necesite a mano.
 export type GuestUrgency = 'attention' | 'confirmed' | 'unanswered' | 'declined'
 
 export function needsAttention(guest: GuestData, requiresPayment: boolean): boolean {

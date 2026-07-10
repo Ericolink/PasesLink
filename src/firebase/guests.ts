@@ -400,14 +400,14 @@ export async function setGuestRsvp(eventId: string, qrToken: string, rsvpStatus:
 }
 
 export async function resetGuestRsvp(eventId: string, guestId: string) {
-  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { rsvpStatus: 'pending', lockToken: null })
+  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { rsvpStatus: 'pending', lockToken: null, lockTokens: [] })
 }
 
 // A diferencia de resetGuestRsvp, NO toca el RSVP — solo libera el pase para
 // que pueda abrirse desde otro dispositivo (invitado que cambió de teléfono,
 // borró el navegador, o lo abrió por error desde el dispositivo equivocado).
 export async function unlockGuestPass(eventId: string, guestId: string) {
-  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { lockToken: null })
+  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { lockToken: null, lockTokens: [] })
 }
 
 // Acción del ORGANIZADOR: aprobar (`'paid'`) o revertir/rechazar (`'unpaid'`)
@@ -497,20 +497,50 @@ export function canSubmitPaymentProof(guest: Pick<GuestData, 'paymentMethod' | '
     && guest.paymentStatus !== 'pending_confirmation'
 }
 
+// Cuántos dispositivos distintos puede reconocer un mismo pase antes de
+// empezar a "rotar" el más viejo (ver claimGuestPass). Un pase familiar
+// tiene un tope mayor porque es normal que varios integrantes reales lo
+// abran cada uno por su cuenta. Debe coincidir con el tope espejado en
+// firestore.rules (rama de update de guests/{guestId}).
+const INDIVIDUAL_DEVICE_CAP = 3
+const GROUP_DEVICE_CAP = 8
+
 /**
- * Claims the guest pass for a device. If no device has claimed it yet, locks it to
- * `deviceToken` and returns it. Otherwise returns the token of the device that
- * already claimed it (which may differ from `deviceToken`).
+ * Reconoce `deviceToken` como uno de los dispositivos habilitados para
+ * escribir sobre ESTE pase (RSVP, comprobante de pago, auto-edición).
+ *
+ * A diferencia del esquema anterior (un solo dispositivo "ganaba" la
+ * primera carrera y el resto quedaba bloqueado para siempre), acepta una
+ * lista acotada de dispositivos — pensado para el caso normal de un
+ * invitado que abre el link desde el navegador interno de Instagram/
+ * TikTok/WhatsApp/Telegram (storage aislado del Safari/Chrome del
+ * sistema, ver src/utils/inAppBrowser.ts) y después lo vuelve a abrir
+ * desde su navegador real. Si se llega al tope, se expulsa el
+ * dispositivo más viejo (LRU) en vez de rechazar al nuevo — nunca deja
+ * al invitado sin acceso de escritura a su propio pase; el organizador
+ * sigue viendo cuántos dispositivos distintos hay (GuestDetailSheet) por
+ * si eso indica que el link se compartió de más.
+ *
+ * Devuelve la lista resultante de dispositivos reconocidos; el llamador
+ * decide si mostrar un aviso (no bloqueante) cuando hay más de uno.
  */
-export async function claimGuestPass(eventId: string, guestId: string, deviceToken: string): Promise<string> {
+export async function claimGuestPass(eventId: string, guestId: string, deviceToken: string): Promise<string[]> {
   const guestRef = doc(db, 'events', eventId, 'guests', guestId)
   return runTransaction(db, async (transaction) => {
     const snap = await transaction.get(guestRef)
-    if (!snap.exists()) return deviceToken
-    const existing = (snap.data().lockToken as string) || null
-    if (existing) return existing
-    transaction.update(guestRef, { lockToken: deviceToken })
-    return deviceToken
+    if (!snap.exists()) return [deviceToken]
+
+    const data = snap.data()
+    const existing: string[] = Array.isArray(data.lockTokens)
+      ? (data.lockTokens as string[])
+      : (data.lockToken ? [data.lockToken as string] : [])
+
+    if (existing.includes(deviceToken)) return existing
+
+    const cap = data.isGroup ? GROUP_DEVICE_CAP : INDIVIDUAL_DEVICE_CAP
+    const next = [...existing, deviceToken].slice(-cap)
+    transaction.update(guestRef, { lockTokens: next, lockToken: next[next.length - 1] })
+    return next
   })
 }
 
@@ -885,6 +915,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     checkedOutByEmail: (data.checkedOutByEmail as string) || null,
     exitType: (data.exitType as GuestData['exitType']) || null,
     lockToken: (data.lockToken as string) || null,
+    lockTokens: Array.isArray(data.lockTokens) ? (data.lockTokens as string[]) : undefined,
     customData: (data.customData as Record<string, string>) || undefined,
     paymentStatus: (data.paymentStatus as GuestData['paymentStatus']) || 'unpaid',
     paymentMethod: (data.paymentMethod as GuestData['paymentMethod']) || null,

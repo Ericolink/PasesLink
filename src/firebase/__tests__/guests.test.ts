@@ -13,7 +13,7 @@ vi.mock('../config', () => ({
 }))
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, deleteGuest, setGuestPaymentStatus, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, setGuestPaymentStatus, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -619,9 +619,13 @@ describe('guests.ts', () => {
       )
     })
 
-    it('should reject self-edit when lockToken does not match (pass claimed by another device)', async () => {
+    it('should reject self-edit from a device not in lockTokens (pass claimed by other devices)', async () => {
       await seedEvent(testEnv, EVENT_ID)
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: 'device-a' })
+      // lockTokens es la fuente real de verdad (ver claimGuestPass) — un doc
+      // con lockToken pero SIN lockTokens se trata como "sin reclamar
+      // todavía" (transición permisiva para docs legacy), así que este test
+      // necesita sembrar lockTokens explícitamente para probar el rechazo.
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: 'device-a', lockTokens: ['device-a'] })
       dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
       await expect(
@@ -633,6 +637,23 @@ describe('guests.ts', () => {
           [],
         ),
       ).rejects.toThrow()
+    })
+
+    it('should allow self-edit from any device already recognized in lockTokens', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: 'device-b', lockTokens: ['device-a', 'device-b'] })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await updateGuestSelf(
+        EVENT_ID,
+        GUEST_ID,
+        'device-a',
+        { name: 'Editado desde el primer dispositivo', lastName: '', phone: '', email: '', companions: [], customData: {} },
+        [],
+      )
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.name).toBe('Editado desde el primer dispositivo')
     })
 
     it('should allow self-edit when the pass was never claimed (lockToken null)', async () => {
@@ -697,6 +718,91 @@ describe('guests.ts', () => {
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
       expect(guest?.name).toBe('Editado por organizador')
+    })
+  })
+
+  describe('claimGuestPass (reconocimiento de dispositivos, no bloqueo)', () => {
+    it('should claim an unclaimed pass for the first device', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, lockToken: null })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      const devices = await claimGuestPass(EVENT_ID, GUEST_ID, 'device-a')
+
+      expect(devices).toEqual(['device-a'])
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.lockToken).toBe('device-a')
+      expect(guest?.lockTokens).toEqual(['device-a'])
+    })
+
+    it('should be a no-op (not grow the list) when the same device claims again', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, lockToken: 'device-a', lockTokens: ['device-a'] })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      const devices = await claimGuestPass(EVENT_ID, GUEST_ID, 'device-a')
+
+      expect(devices).toEqual(['device-a'])
+    })
+
+    it('should recognize a second device instead of blocking it (falso positivo típico: mismo invitado, otro navegador)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, lockToken: 'device-a', lockTokens: ['device-a'] })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      const devices = await claimGuestPass(EVENT_ID, GUEST_ID, 'device-b')
+
+      expect(devices).toEqual(['device-a', 'device-b'])
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.lockToken).toBe('device-b')
+    })
+
+    it('should evict the oldest device (LRU) once an individual pass reaches its 3-device cap', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
+        qrToken: QR_TOKEN,
+        isGroup: false,
+        lockToken: 'device-c',
+        lockTokens: ['device-a', 'device-b', 'device-c'],
+      })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      const devices = await claimGuestPass(EVENT_ID, GUEST_ID, 'device-d')
+
+      expect(devices).toEqual(['device-b', 'device-c', 'device-d'])
+    })
+
+    it('should allow a group pass to grow past 3 devices up to its own (higher) cap', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
+        qrToken: QR_TOKEN,
+        isGroup: true,
+        lockToken: 'device-c',
+        lockTokens: ['device-a', 'device-b', 'device-c'],
+      })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      const devices = await claimGuestPass(EVENT_ID, GUEST_ID, 'device-d')
+
+      expect(devices).toEqual(['device-a', 'device-b', 'device-c', 'device-d'])
+    })
+
+    it('should reject a direct write that tries to sneak the lockTokens array past its cap (bypassing the app function)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
+        qrToken: QR_TOKEN,
+        isGroup: false,
+        lockToken: 'device-a',
+        lockTokens: ['device-a'],
+      })
+      const publicDb = testEnv.unauthenticatedContext().firestore()
+
+      await assertFails(
+        updateDoc(doc(publicDb, 'events', EVENT_ID, 'guests', GUEST_ID), {
+          lockToken: 'device-e',
+          lockTokens: ['device-a', 'device-b', 'device-c', 'device-d', 'device-e'],
+        }),
+      )
     })
   })
 })

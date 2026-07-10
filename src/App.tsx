@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { Navigate, Route } from 'react-router-dom'
+import { Navigate, Route, useParams } from 'react-router-dom'
 import { SentryRoutes } from './lib/sentry'
 import { Background } from './components/Background'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -42,6 +42,28 @@ function PageFallback() {
   )
 }
 
+// EventDetail/Reports/Scanner comparten ruta con :eventId variable — React
+// Router reusa la misma instancia del componente al navegar de un evento a
+// otro (mismo tipo de elemento, solo cambia el param), así que useEventOnly/
+// useEvent (suscripción a Firestore, no resetean `event` al cambiar
+// eventId) siguen mostrando datos del evento anterior — nombre, invitados y
+// también templateId/accentColor — hasta que llega el primer snapshot del
+// evento nuevo. `key={eventId}` fuerza un remount limpio en cada cambio de
+// evento en vez de dejar que el estado (incluido el tema del dashboard) se
+// filtre de un evento al siguiente.
+function EventDetailRoute() {
+  const { eventId } = useParams()
+  return <BrowseLayout><EventDetail key={eventId} /></BrowseLayout>
+}
+function ReportsRoute() {
+  const { eventId } = useParams()
+  return <BrowseLayout><Reports key={eventId} /></BrowseLayout>
+}
+function ScannerRoute() {
+  const { eventId } = useParams()
+  return <AppShell mode="kiosk"><Scanner key={eventId} /></AppShell>
+}
+
 function App() {
   return (
     <>
@@ -79,7 +101,7 @@ function App() {
           path="/events/:eventId"
           element={
             <ProtectedRoute>
-              <BrowseLayout><EventDetail /></BrowseLayout>
+              <EventDetailRoute />
             </ProtectedRoute>
           }
         />
@@ -87,7 +109,7 @@ function App() {
           path="/events/:eventId/reports"
           element={
             <ProtectedRoute>
-              <BrowseLayout><Reports /></BrowseLayout>
+              <ReportsRoute />
             </ProtectedRoute>
           }
         />
@@ -139,7 +161,7 @@ function App() {
           path="/events/:eventId/scan"
           element={
             <ProtectedRoute>
-              <AppShell mode="kiosk"><Scanner /></AppShell>
+              <ScannerRoute />
             </ProtectedRoute>
           }
         />

@@ -10,7 +10,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { resolveEventPermissions } from '../types/coOrganizerPermissions'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
-import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
+import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconWhatsApp, IconX } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 import { InvitationCard } from '../components/InvitationCard'
@@ -21,6 +21,7 @@ import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { TimelineDisplay } from '../components/TimelineDisplay'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
+import { InAppBrowserBanner } from '../components/InAppBrowserBanner'
 import { SkeletonBlock } from '../components/Skeleton'
 import { PerforatedDivider } from '../components/PerforatedDivider'
 import { PassInfoCell } from '../components/PassInfoCell'
@@ -64,7 +65,9 @@ function GuestPassInner() {
   const [guest, setGuest] = useState<GuestData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const [locked, setLocked] = useState(false)
+  const [deviceToken, setDeviceToken] = useState<string | null>(null)
+  const [multiDevice, setMultiDevice] = useState(false)
+  const [multiDeviceDismissed, setMultiDeviceDismissed] = useState(false)
   const [rsvpSaving, setRsvpSaving] = useState(false)
   const [rsvpError, setRsvpError] = useState<string | null>(null)
   const [downloaded, setDownloaded] = useState(false)
@@ -127,16 +130,17 @@ function GuestPassInner() {
           })
         }
 
+        // Reconoce este dispositivo/navegador para el pase (ver
+        // claimGuestPass) — ya no "compite" por un único lock: se suma a la
+        // lista de dispositivos reconocidos (con tope y rotación LRU), así
+        // que esta llamada nunca deja al invitado bloqueado.
         const storageKey = `paselink_lock_${eventId}_${qrToken}`
         const localToken = localStorage.getItem(storageKey) || crypto.randomUUID()
-        const claimedToken = await claimGuestPass(eventId, guestData.id, localToken)
-        if (claimedToken === localToken) {
-          localStorage.setItem(storageKey, localToken)
-          setGuest({ ...guestData, lockToken: claimedToken })
-        } else {
-          setGuest({ ...guestData, lockToken: claimedToken })
-          setLocked(true)
-        }
+        localStorage.setItem(storageKey, localToken)
+        const devices = await claimGuestPass(eventId, guestData.id, localToken)
+        setDeviceToken(localToken)
+        setMultiDevice(devices.length > 1)
+        setGuest({ ...guestData, lockToken: localToken, lockTokens: devices })
       })
       .catch((err) => {
         console.error('Error loading guest pass:', err)
@@ -527,26 +531,37 @@ function GuestPassInner() {
 
         {/* ── SECCIÓN INFERIOR: Invitado + QR ── */}
         <div className="px-6 pb-6 pt-4 text-center">
-          {locked && (
-            <div className="py-4 text-left">
-              <div className="flex items-start gap-3 mb-4">
-                <IconAlertTriangle className="w-8 h-8 text-amber-400 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-[var(--invite-text)]">Pase abierto en otro dispositivo</p>
-                  <p className="text-sm mt-1 text-[var(--invite-text-muted)]">
-                    Por seguridad, cada pase solo funciona desde el primer dispositivo donde se abre.
-                  </p>
-                </div>
+          <InAppBrowserBanner />
+
+          {/* Aviso informativo, no bloqueante: el invitado sigue viendo su
+              QR y puede seguir operando su pase con normalidad (ver
+              claimGuestPass) — solo le avisamos por si no reconoce el otro
+              acceso. */}
+          {multiDevice && !multiDeviceDismissed && (
+            <div
+              className="mb-4 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-left text-sm"
+              style={{ borderColor: 'var(--invite-border)', background: 'var(--invite-surface)' }}
+            >
+              <IconAlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-400" />
+              <div className="flex-1">
+                <p className="text-[var(--invite-text)]">Este pase también se abrió desde otro dispositivo o navegador.</p>
+                <p className="mt-0.5 text-[var(--invite-text-muted)]">
+                  Si fuiste tú (por ejemplo, al cambiar de Instagram/WhatsApp a Chrome o Safari), no hace falta hacer
+                  nada. Si no reconoces ese acceso, contacta al organizador.
+                </p>
               </div>
-              <div className="space-y-2 text-sm border-t pt-4" style={{ borderColor: 'var(--invite-border)' }}>
-                <p className="font-medium text-[var(--invite-text)]">¿Qué hacer?</p>
-                <p className="text-[var(--invite-text-muted)]">1. Abre este enlace desde el dispositivo original.</p>
-                <p className="text-[var(--invite-text-muted)]">2. Si ya no tienes ese dispositivo, contacta al organizador para que te genere un nuevo pase.</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setMultiDeviceDismissed(true)}
+                aria-label="Cerrar aviso"
+                className="text-[var(--invite-text-muted)] hover:text-[var(--invite-text)]"
+              >
+                <IconX className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
 
-          {!locked && guest.rsvpStatus === 'no' && (
+          {guest.rsvpStatus === 'no' && (
             <div className="py-8">
               <IconHeart className="w-10 h-10 mx-auto mb-3 text-gray-300" />
               <p className="font-medium">Qué lástima, ¡te vamos a extrañar!</p>
@@ -559,7 +574,7 @@ function GuestPassInner() {
 
           {/* QR siempre visible para el invitado — borroso si RSVP pendiente
               (incentivo visual para confirmar), claro una vez que confirma. */}
-          {!locked && guest.rsvpStatus !== 'no' && (
+          {guest.rsvpStatus !== 'no' && (
             <>
               <p className="text-lg font-semibold text-[var(--invite-text)] mb-0.5">{guest.name}</p>
               {guest.isGroup ? (
@@ -714,7 +729,7 @@ function GuestPassInner() {
           )}
 
           {/* ── Información adicional ── */}
-          {!locked && event.requiresPayment && guest.rsvpStatus !== 'no' && (
+          {event.requiresPayment && guest.rsvpStatus !== 'no' && (
             <div className="mt-4 pt-4 text-left border-t" style={{ borderColor: 'var(--invite-border)' }}>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2 text-[var(--invite-text-muted)]">Pago de entrada</p>
               <div className="flex items-center justify-between gap-2 mb-2">
@@ -841,7 +856,7 @@ function GuestPassInner() {
           que impiden el pintado necesario para toPng). Se mantiene montado
           en vez de crearse recién al hacer click para que el QR (SVG,
           síncrono) ya esté pintado y estable en el momento de la captura. */}
-      {!locked && guest.rsvpStatus === 'yes' && (
+      {guest.rsvpStatus === 'yes' && (
         <div aria-hidden="true" className="fixed top-0 pointer-events-none" style={{ left: '-9999px' }}>
           <GuestPassTicket ref={ticketRef} event={event} guest={guest} passUrl={passUrl} />
         </div>
@@ -857,7 +872,7 @@ function GuestPassInner() {
       {eventId && (
         guest.rsvpStatus === 'yes' ? (
           <WallSection eventId={eventId} eventName={event?.name} guestName={guest.name} guestToken={qrToken} templateId={event.templateId} />
-        ) : !locked && (
+        ) : (
           <div className="mt-8 pt-6 border-t text-center" style={{ borderColor: 'var(--invite-border)' }}>
             <p className="text-sm text-[var(--invite-text-muted)]">Confirma tu asistencia para ver el muro del evento.</p>
           </div>
@@ -868,7 +883,7 @@ function GuestPassInner() {
           eventId={eventId}
           event={event}
           guest={guest}
-          lockToken={guest.lockToken}
+          lockToken={deviceToken}
           onClose={() => setEditOpen(false)}
           onSaved={(patch) => setGuest((g) => (g ? { ...g, ...patch } : g))}
         />

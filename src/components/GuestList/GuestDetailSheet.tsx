@@ -168,8 +168,20 @@ export function GuestDetailSheet({
                   {presence === 'inside' && <Pill tone="blue" icon={<IconCheckCircle className="w-3.5 h-3.5" />}>Adentro</Pill>}
                   {presence === 'temp_out' && <Pill tone="amber" icon={<IconLogOut className="w-3.5 h-3.5" />}>Salida temporal</Pill>}
                   {presence === 'final_out' && <Pill tone="gray" icon={<IconLogOut className="w-3.5 h-3.5" />}>Fuera del evento</Pill>}
-                  {/* Informativo, no urgente — ver needsAttention en guestGrouping.ts */}
-                  {guest.lockToken && <Pill tone="gray" icon={<IconLock className="w-3.5 h-3.5" />}>Pase abierto</Pill>}
+                  {/* Informativo, no urgente — ver needsAttention en guestGrouping.ts.
+                      Más de un dispositivo reconocido en un pase individual es una señal
+                      (no una alarma) de que tal vez se compartió de más — ver
+                      claimGuestPass en src/firebase/guests.ts. En pases familiares es
+                      esperable que varios integrantes lo abran cada uno por su cuenta. */}
+                  {guest.lockToken && (
+                    (guest.lockTokens?.length ?? 1) > 1 && !guest.isGroup ? (
+                      <Pill tone="amber" icon={<IconLock className="w-3.5 h-3.5" />}>
+                        Abierto en {guest.lockTokens!.length} dispositivos
+                      </Pill>
+                    ) : (
+                      <Pill tone="gray" icon={<IconLock className="w-3.5 h-3.5" />}>Pase abierto</Pill>
+                    )
+                  )}
                 </div>
                 {!guest.isGroup && guest.companions.length > 0 && (
                   <p className="text-sm text-gray-600 dark:text-gray-300">
