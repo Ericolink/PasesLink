@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import type { TemplateId } from '../types'
+import { ThemeOrnament } from './ThemeOrnament'
 import { IconArrowLeft } from './Icons'
 
 type ScreenHeaderProps = {
@@ -13,14 +15,25 @@ type ScreenHeaderProps = {
    */
   backTo?: string
   action?: ReactNode
+  /**
+   * Plantilla del evento — solo la pasan las pantallas que ya viven dentro
+   * de un evento (EventDetail, Reports). Únicamente habilita el ornamento
+   * junto al título; el resto de la identidad de plantilla (fondo, borde,
+   * tipografía del h1) llega sola vía CSS ([data-dash-template] en
+   * index.css), reaccionando a los custom properties que ya setea
+   * useDashboardTheme en document.documentElement — cero prop-drilling
+   * extra para eso. Sin plantilla (o 'default'), data-dash-template no
+   * existe y el header conserva el look base de siempre.
+   */
+  templateId?: TemplateId
 }
 
 // Reemplaza los "← Volver a X" copiados a mano en cada pantalla. Un solo
 // componente para título + volver + acción contextual (fase 3 del
 // rediseño de navegación).
-export function ScreenHeader({ title, backTo, action }: ScreenHeaderProps) {
+export function ScreenHeader({ title, backTo, action, templateId }: ScreenHeaderProps) {
   return (
-    <header className="sticky top-14 z-30 flex items-center gap-3 border-b border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-[#150D1C]/90 backdrop-blur px-1 py-3 mb-4">
+    <header className="dash-header sticky top-14 z-30 flex items-center gap-3 border-b border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-[#150D1C]/90 backdrop-blur px-1 py-3 mb-4">
       {backTo && (
         <Link
           to={backTo}
@@ -30,7 +43,8 @@ export function ScreenHeader({ title, backTo, action }: ScreenHeaderProps) {
           <IconArrowLeft className="w-5 h-5" />
         </Link>
       )}
-      <h1 className="text-base font-semibold text-gray-900 dark:text-white truncate">{title}</h1>
+      <h1 className="dash-header-title text-base font-semibold text-gray-900 dark:text-white truncate">{title}</h1>
+      {templateId && <ThemeOrnament templateId={templateId} className="dash-header-ornament w-7 h-4 shrink-0" />}
       {action && <div className="ml-auto shrink-0">{action}</div>}
     </header>
   )

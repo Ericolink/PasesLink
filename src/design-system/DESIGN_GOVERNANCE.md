@@ -144,6 +144,37 @@ documento:
   invitación), así que cowboy/graduation dejan de ser una excepción
   también en esto.
 
+**Extensión explícita (2026-07-10):** `ScreenHeader.tsx` (el encabezado
+sticky de "volver + título" que usan `EventDetail.tsx` y `Reports.tsx`) es
+la única superficie del dashboard que **no** sigue la regla de sobriedad de
+la extensión anterior. A diferencia del resto (solo borde + halo genérico),
+el encabezado adopta degradado, textura de firma y tipografía de `h1`
+propias de cada plantilla — es la primera superficie que ve el anfitrión al
+entrar al evento, y el objetivo explícito de este cambio es que se sienta
+parte del tema desde el primer instante, no chrome genérico de
+administración. Detalles:
+
+- CSS en `index.css`, sección "Encabezado de pantalla (ScreenHeader) con
+  identidad de plantilla" — reutiliza `--invite-accent*` (sin tokens
+  nuevos, sin tocar `registry.ts` ni `dashboardTheme.ts`); los
+  `font-family` de `h1` por plantilla se restatean de forma literal
+  (mismo criterio que `templates.css` ya usa consigo mismo).
+- `ScreenHeader` recibe un prop opcional `templateId` (solo lo pasan
+  `EventDetail`/`Reports`) únicamente para resolver el `ThemeOrnament`
+  junto al título — el resto de la identidad llega vía CSS puro
+  reaccionando a `data-dash-template`, sin prop-drilling adicional.
+- El color del texto del título y del botón "volver" **no** cambia (fuera
+  del hover, que ya heredaba `--color-primary`) — solo fondo, borde y
+  ornamento adoptan el acento, para no repetir el problema de contraste
+  que este cambio vino a evitar.
+- `AdminDashboard.tsx` y `Feedback.tsx` también usan `ScreenHeader` pero
+  nunca llaman `useDashboardTheme`, así que `data-dash-template` no existe
+  en esas rutas y el header queda intacto — mismo aislamiento que ya
+  describe la extensión anterior.
+- `Scanner.tsx` no usa `ScreenHeader` (tiene su propio header dentro de
+  `.theme-reset`) y queda fuera de este cambio — sigue con el alcance
+  reducido ya documentado arriba.
+
 ## Regla de evolución
 
 > El proceso obligatorio que opera esta regla — clasificación del cambio,

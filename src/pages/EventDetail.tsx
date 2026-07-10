@@ -228,7 +228,7 @@ export function EventDetail() {
       )}
 
       {/* Navegación */}
-      <ScreenHeader title={event.name} backTo="/dashboard" />
+      <ScreenHeader title={event.name} backTo="/dashboard" templateId={event.templateId} />
 
       {/* ── HERO DEL EVENTO ── */}
       <div className="invite-card-accent rounded-2xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mb-5">

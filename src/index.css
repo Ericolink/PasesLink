@@ -415,6 +415,105 @@ body {
   border-top: 3px solid var(--invite-accent) !important;
 }
 
+/* ── Encabezado de pantalla (ScreenHeader) con identidad de plantilla ──
+   Extensión explícita (2026-07-10) del mecanismo de arriba — ver
+   DESIGN_GOVERNANCE.md. A diferencia del resto de este bloque (sobrio: solo
+   borde/halo genérico), acá el encabezado sí adopta un degradado, una
+   textura de firma y la tipografía de h1 propias de cada plantilla: es la
+   primera superficie que ve el anfitrión al entrar al evento, y tiene que
+   sentirse parte del tema desde el primer instante, no un chrome genérico
+   de administración. El botón "volver" conserva su color/contraste de
+   siempre (ver .dash-header-title y el ícono, sin overrides acá) — solo
+   fondo, borde y ornamento adoptan el acento, para no repetir el error que
+   este mismo rediseño vino a corregir (legibilidad primero). Sin plantilla
+   (o 'default'), [data-dash-template] no existe y el header conserva
+   exactamente su bg-white/90 · dark:bg-[#150D1C]/90 de siempre. Fuente de
+   verdad de accent/accentDark/accentSoft: registry.ts (vía
+   buildDashboardThemeVars) — ningún valor de paleta se repite acá; los
+   font-family de h1 sí se restatean de forma literal por plantilla, mismo
+   criterio que templates.css ya usa consigo mismo (p.ej. cowboy los repite
+   en dos selectores propios). */
+[data-dash-template] .dash-header {
+  border-bottom-color: color-mix(in srgb, var(--invite-accent) 45%, transparent);
+}
+[data-dash-template] .dash-header-ornament {
+  color: var(--invite-accent);
+}
+
+/* Bodas — foil dorado cálido + Playfair Display en el título. */
+[data-dash-template='wedding'] .dash-header {
+  background-image:
+    radial-gradient(circle 1.3px at 12% 35%, var(--invite-accent) 0 1.3px, transparent 1.6px),
+    radial-gradient(circle 1.1px at 46% 75%, var(--invite-accent) 0 1.1px, transparent 1.4px),
+    radial-gradient(circle 1.4px at 78% 30%, var(--invite-accent) 0 1.4px, transparent 1.7px),
+    linear-gradient(135deg, color-mix(in srgb, var(--invite-accent) 14%, transparent) 0%, color-mix(in srgb, var(--invite-accent-dark) 8%, transparent) 100%);
+  background-size: 120px 100%, 120px 100%, 120px 100%, 100% 100%;
+  background-repeat: repeat-x, repeat-x, repeat-x, no-repeat;
+  opacity: .9;
+}
+[data-dash-template='wedding'] .dash-header-title {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* Vaquera — rústico/cuero + veta diagonal muy tenue + Rye en el título. */
+[data-dash-template='cowboy'] .dash-header {
+  background-image:
+    repeating-linear-gradient(45deg, color-mix(in srgb, var(--invite-accent-dark) 10%, transparent) 0 2px, transparent 2px 10px),
+    linear-gradient(135deg, color-mix(in srgb, var(--invite-accent) 16%, transparent) 0%, color-mix(in srgb, var(--invite-accent-dark) 10%, transparent) 100%);
+}
+[data-dash-template='cowboy'] .dash-header-title {
+  font-family: 'Rye', Georgia, serif;
+}
+
+/* Graduación — institucional + doble filete inferior (efecto diploma/sello)
+   + Cinzel en el título. */
+[data-dash-template='graduation'] .dash-header {
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--invite-accent) 12%, transparent) 0%, color-mix(in srgb, var(--invite-accent-dark) 8%, transparent) 100%);
+  box-shadow: inset 0 -4px 0 -2px color-mix(in srgb, var(--invite-accent) 55%, transparent);
+}
+[data-dash-template='graduation'] .dash-header-title {
+  font-family: 'Cinzel', Georgia, serif;
+}
+
+/* Formal — metal sobrio + doble filete (mismo lenguaje que la tarjeta de
+   invitación, ver registry.ts `shadow` de formal) + Cormorant Garamond en
+   el título. */
+[data-dash-template='formal'] .dash-header {
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--invite-accent) 10%, transparent) 0%, color-mix(in srgb, var(--invite-accent-dark) 6%, transparent) 100%);
+  box-shadow: inset 0 -1px 0 0 var(--invite-accent), inset 0 -4px 0 -3px var(--invite-accent);
+}
+[data-dash-template='formal'] .dash-header-title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+/* Fiesta infantil — pastel cálido + confeti disperso (mismo criterio de 3
+   capas sin patrón regular que templates.css) + Baloo 2 en negrita. */
+[data-dash-template='kids'] .dash-header {
+  background-image:
+    radial-gradient(circle, color-mix(in srgb, var(--invite-accent) 30%, transparent) 1.6px, transparent 2px),
+    radial-gradient(circle, color-mix(in srgb, var(--invite-accent-dark) 20%, transparent) 1.2px, transparent 1.6px),
+    radial-gradient(circle, color-mix(in srgb, var(--invite-accent-soft) 60%, transparent) 1.4px, transparent 1.8px),
+    linear-gradient(135deg, color-mix(in srgb, var(--invite-accent) 14%, transparent) 0%, color-mix(in srgb, var(--invite-accent-dark) 8%, transparent) 100%);
+  background-size: 46px 46px, 46px 46px, 46px 46px, 100% 100%;
+  background-position: 6px 10px, 28px 4px, 16px 30px, 0 0;
+}
+[data-dash-template='kids'] .dash-header-title {
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+/* Fiesta improvisada — night-life editorial: lienzo oscuro + halo de neón
+   cian al pie (mismo glow que ya usa .bg-primary acá arriba) + Archivo
+   Black en el título. */
+[data-dash-template='houseparty'] .dash-header {
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--invite-accent) 12%, transparent) 0%, color-mix(in srgb, var(--invite-accent-dark) 18%, transparent) 100%);
+  box-shadow: inset 0 -1px 0 0 var(--invite-accent), 0 4px 16px -6px color-mix(in srgb, var(--invite-accent) 55%, transparent);
+}
+[data-dash-template='houseparty'] .dash-header-title {
+  font-family: 'Archivo Black', 'Space Grotesk', system-ui, sans-serif;
+}
+
 /* Chrome global fijo: Navbar y BottomTabBar son visibles en todas las
    rutas (no son "parte del evento") — se re-pinean a la marca aunque
    document.documentElement tenga un tema de evento activo. Mismo patrón

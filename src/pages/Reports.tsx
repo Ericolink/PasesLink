@@ -99,7 +99,7 @@ export function Reports() {
 
   const content = (
     <>
-      <ScreenHeader title="Reportes" backTo={`/events/${event.id}`} />
+      <ScreenHeader title="Reportes" backTo={`/events/${event.id}`} templateId={event.templateId} />
       <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-6">{event.name}</p>
 
       {/* ── ESTADÍSTICAS PRINCIPALES ── (extraído de EventDetail.tsx, misma
