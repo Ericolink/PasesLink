@@ -39,8 +39,8 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 
 // Mismo canal (WhatsApp) que ya se usa para "compartir pase con
 // acompañantes" más abajo en este archivo — reutiliza wa.me en vez de sumar
-// un proveedor nuevo (EmailJS ya está en su tope de plantillas gratis, ver
-// memoria del proyecto). `context` arma el mensaje prellenado según lo que el
+// un proveedor nuevo (EmailJS ya está en su tope de plantillas gratis).
+// `context` arma el mensaje prellenado según lo que el
 // invitado necesita resolver (enviar comprobante, consultar, pedir
 // devolución o reportar un problema de acceso — todo el mismo canal, pedido
 // explícito).

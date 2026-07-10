@@ -34,9 +34,7 @@ export async function deleteUserInvitation(uid: string, eventId: string): Promis
   await deleteDoc(doc(db, 'users', uid, 'invitations', eventId))
 }
 
-// Inverso de getUserByEmail: lee el perfil completo por uid. Lo necesita
-// sendCheckinSummary (guests.ts) para leer notifyOnCheckin + el email del
-// organizador a partir de organizerUid, no de su email.
+// Inverso de getUserByEmail: lee el perfil completo por uid.
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, 'users', uid))
   if (!snap.exists()) return null
@@ -49,7 +47,6 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     displayName: (data.displayName as string) || '',
     birthDate: (data.birthDate as string) || '',
     photoURL: data.photoURL as string | undefined,
-    notifyOnCheckin: (data.notifyOnCheckin as boolean) || false,
     createdAt: toMillis(data.createdAt),
   }
 }

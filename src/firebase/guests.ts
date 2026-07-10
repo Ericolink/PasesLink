@@ -16,10 +16,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
-import { getEvent } from './events'
-import { getUserProfile } from './userProfile'
-import { sendCheckinSummaryEmail } from '../utils/emailjs'
-import { captureException, measureSpan, withListenerReporting } from '../lib/sentry'
+import { measureSpan, withListenerReporting } from '../lib/sentry'
 import type { CompanionData, CustomField, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { GuestSchema, warnIfInvalidShape } from '../types/schemas'
 import {
@@ -797,72 +794,6 @@ export async function checkOutGuest(
 // resetear checkedOutAt en ese momento).
 export async function allowGuestReentry(eventId: string, guestId: string) {
   await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { exitType: null })
-}
-
-export interface CheckinSummaryEntry {
-  name: string
-  checkInTime: number
-  status: 'checked_in'
-}
-
-// 12h con AM/PM (ej. "1:14 PM") para la tabla del resumen — reemplaza al
-// formato 24h anterior (formatCheckinTime), que queda sin uso.
-function formatCheckinTime12h(ms: number): string {
-  const date = new Date(ms)
-  const hours = date.getHours()
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const period = hours >= 12 ? 'PM' : 'AM'
-  const displayHours = hours % 12 || 12 // Convierte 0→12, 13→1, etc.
-  return `${displayHours}:${minutes} ${period}`
-}
-
-/**
- * Resumen por email de los check-ins acumulados en la sesión actual del
- * dashboard del organizador (Prioridad 1 — "Email por check-in" reparado).
- * Totalmente desacoplada de checkInGuest()/checkOutGuest(): no las llama, no
- * depende de su resultado, y un fallo acá nunca revierte ni afecta un
- * check-in ya confirmado — son correos best-effort, por eso atrapan su
- * propio error y solo lo loguean.
- */
-export async function sendCheckinSummary(
-  eventId: string,
-  organizerUid: string,
-  checkinsData: CheckinSummaryEntry[],
-): Promise<void> {
-  if (checkinsData.length === 0) return
-  try {
-    const profile = await getUserProfile(organizerUid)
-    if (!profile || profile.notifyOnCheckin !== true) return
-
-    // Variable explícita (no `profile.email` inline) para que quede claro,
-    // en una lectura rápida, exactamente qué valor llega a `to_email` — y
-    // para poder loguear el caso "notifyOnCheckin activo pero sin email"
-    // por separado de "no quiere recibir resumen". Si este log aparece en
-    // producción, el problema es el perfil (sin email guardado); si NO
-    // aparece y EmailJS igual responde 422, el problema es la plantilla de
-    // EmailJS (su campo "To Email" no apunta a {{to_email}}), no este código.
-    const organizerEmail = profile.email?.trim()
-    if (!organizerEmail) {
-      console.error('sendCheckinSummary: organizador sin email en su perfil, no se envía resumen.', { organizerUid })
-      return
-    }
-
-    const event = await getEvent(eventId)
-    if (!event) return
-
-    const checkinsListHtml = checkinsData
-      .map((c) => `${escapeHtml(c.name)} — ${formatCheckinTime12h(c.checkInTime)}`)
-      .join('<br>')
-
-    await sendCheckinSummaryEmail(organizerEmail, event.name, checkinsListHtml, checkinsData.length)
-  } catch (err) {
-    console.error('Error sending checkin summary:', err)
-    captureException(err, { tags: { flow: 'emailjs.checkinSummary' } })
-  }
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 // Compatibilidad con invitados creados antes de este cambio, donde

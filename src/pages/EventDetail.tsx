@@ -8,7 +8,6 @@ import { useEventExport } from '../hooks/useEventExport'
 import { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useGuestStats } from '../hooks/useGuestStats'
-import { useCheckinSessionAccumulator } from '../hooks/useCheckinSessionAccumulator'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { deleteEvent, setEventStatus } from '../firebase/events'
 import { LEGACY_COORG_DEFAULTS } from '../types/coOrganizerPermissions'
@@ -80,8 +79,6 @@ export function EventDetail() {
     handleLeaveEvent,
     handleUpdatePermissions,
   } = useCoOrganizers(eventId, event?.ownerId)
-  const { checkinsThisSession, organizerNotifyEnabled, summarySending, summaryToast, handleSendCheckinSummary } =
-    useCheckinSessionAccumulator(eventId, guests, user)
   const perms = useEventPermissions(event, user)
 
   // Permite que el CTA del modal de éxito de EventCreate (u otros enlaces)
@@ -219,11 +216,6 @@ export function EventDetail() {
       {checkinToast && (
         <div className="fixed top-16 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse flex items-center gap-2">
           <IconCheckCircle className="w-4 h-4" /> {checkinToast}
-        </div>
-      )}
-      {summaryToast && (
-        <div className="fixed top-28 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse flex items-center gap-2">
-          <IconCheckCircle className="w-4 h-4" /> {summaryToast}
         </div>
       )}
 
@@ -580,26 +572,6 @@ export function EventDetail() {
       {/* ── RECORDATORIOS ── */}
       {guests.length > 0 && (
         <ReminderSection event={event} guests={guests} />
-      )}
-
-      {/* ── RESUMEN DE CHECK-INS ── */}
-      {perms.isOwner && organizerNotifyEnabled && checkinsThisSession.length > 0 && (
-        <div className="border border-primary/20 bg-primary/5 dark:bg-primary/10 rounded-xl p-5 mb-5">
-          <div className="flex items-center gap-2 mb-1">
-            <IconCheckCircle className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Resumen de check-ins</h2>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-            {checkinsThisSession.length} check-in{checkinsThisSession.length !== 1 ? 's' : ''} desde que abriste esta página.
-          </p>
-          <button
-            onClick={handleSendCheckinSummary}
-            disabled={summarySending}
-            className="text-sm bg-primary text-white rounded-xl px-4 py-2.5 font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {summarySending ? 'Enviando…' : 'Enviar resumen por email'}
-          </button>
-        </div>
       )}
 
       {/* ── GESTIÓN DEL EVENTO (solo propietario, colapsable) ── */}

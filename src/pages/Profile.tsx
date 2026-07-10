@@ -21,7 +21,6 @@ import { useModalA11y } from '../hooks/useModalA11y'
 import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
 import {
-  IconBell,
   IconCheckCircle,
   IconEdit,
   IconLink,
@@ -152,10 +151,6 @@ export function Profile() {
   const [unlinkLoading, setUnlinkLoading]     = useState(false)
   const [unlinkError, setUnlinkError]         = useState('')
 
-  /* Notifications */
-  const [notifyOnCheckin, setNotifyOnCheckin] = useState(false)
-  const [notifySaving, setNotifySaving]       = useState(false)
-
   /* Password change */
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword]         = useState('')
@@ -164,14 +159,13 @@ export function Profile() {
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError]     = useState('')
 
-  // Mantiene photoURL/notifyOnCheckin sincronizados con la fuente de verdad
-  // (Firestore vía useUserProfile). Re-correr en cada snapshot es intencional
-  // e idempotente: el toggle/la foto ya se guardan optimistamente en sus propios
-  // handlers, esto solo confirma el valor del servidor.
+  // Mantiene photoURL sincronizado con la fuente de verdad (Firestore vía
+  // useUserProfile). Re-correr en cada snapshot es intencional e idempotente:
+  // la foto ya se guarda optimistamente en su propio handler, esto solo
+  // confirma el valor del servidor.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setPhotoURL(profile?.photoURL || user?.photoURL || '')
-    setNotifyOnCheckin(profile?.notifyOnCheckin ?? false)
   }, [profile, user])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -212,16 +206,6 @@ export function Profile() {
     await saveUserProfile(user!.uid, { firstName: first, lastName: last, displayName })
     setNameMessage('Nombre actualizado.')
     setTimeout(() => setNameMessage(''), 3000)
-  }
-
-  async function handleToggleNotify(checked: boolean) {
-    setNotifyOnCheckin(checked)
-    setNotifySaving(true)
-    try {
-      await saveUserProfile(user!.uid, { notifyOnCheckin: checked })
-    } finally {
-      setNotifySaving(false)
-    }
   }
 
   async function handleLinkGoogle() {
@@ -521,40 +505,6 @@ export function Profile() {
           </div>
 
           {unlinkError && <p className="text-xs text-red-500">{unlinkError}</p>}
-        </div>
-      </section>
-
-      {/* ── Notificaciones ── */}
-      <section className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Notificaciones</h2>
-        </div>
-
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <IconBell className="w-5 h-5 text-gray-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                Email por check-in
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Recibe un correo cada vez que un invitado haga check-in en tus eventos.
-              </p>
-            </div>
-          </div>
-          <button
-            role="switch"
-            aria-checked={notifyOnCheckin}
-            onClick={() => handleToggleNotify(!notifyOnCheckin)}
-            disabled={notifySaving}
-            className={`relative shrink-0 w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-gray-800 ${
-              notifyOnCheckin ? 'bg-primary' : 'bg-gray-600'
-            } disabled:opacity-50`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-              notifyOnCheckin ? 'translate-x-5' : 'translate-x-0'
-            }`} />
-          </button>
         </div>
       </section>
 
