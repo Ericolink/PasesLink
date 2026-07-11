@@ -51,10 +51,19 @@ export async function reactToContent(
   token: string,
   name: string,
   reactionType: ReactionType | null,
+  photoURL?: string,
 ) {
+  if (photoURL) requireMaxLength(photoURL, WALL_PHOTO_URL_MAX, 'La URL de la foto')
   const ref = doc(db, 'events', eventId, collectionName, docId)
   const path = new FieldPath('reactions', token)
-  await updateDoc(ref, path, reactionType ? ({ type: reactionType, name } satisfies WallReaction) : deleteField())
+  // reactedAt (client-side, no serverTimestamp): solo se usa para ordenar
+  // "más recientes primero" en ReactionListSheet, no necesita precisión de
+  // servidor — y serverTimestamp() como valor de un map anidado vía FieldPath
+  // no vale la complejidad para ese uso.
+  const value: WallReaction | ReturnType<typeof deleteField> = reactionType
+    ? { type: reactionType, name, reactedAt: Date.now(), ...(photoURL ? { photoURL } : {}) }
+    : deleteField()
+  await updateDoc(ref, path, value)
 }
 
 // Devuelve la respuesta creada (no solo `void`) para que un llamador sin

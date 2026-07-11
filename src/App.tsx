@@ -6,7 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { GlobalToastHost } from './components/GlobalToastHost'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
-import { LoadingInline } from './components/LoadingInline'
+import { CrownLoader } from './components/CrownLoader'
 import { PublicLayout } from './components/PublicLayout'
 import { BrowseLayout } from './components/BrowseLayout'
 import { AppShell } from './components/AppShell'
@@ -35,11 +35,7 @@ const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => (
 const Feedback        = lazy(() => import('./pages/Feedback').then((m) => ({ default: m.Feedback })))
 
 function PageFallback() {
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <LoadingInline label="Cargando…" />
-    </div>
-  )
+  return <CrownLoader className="min-h-[60vh]" />
 }
 
 // EventDetail/Reports/Scanner comparten ruta con :eventId variable — React

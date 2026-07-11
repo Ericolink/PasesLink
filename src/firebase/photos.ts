@@ -128,8 +128,9 @@ export async function reactToPhoto(
   token: string,
   name: string,
   reactionType: ReactionType | null,
+  photoURL?: string,
 ) {
-  await reactToContent(eventId, 'photos', photoId, token, name, reactionType)
+  await reactToContent(eventId, 'photos', photoId, token, name, reactionType, photoURL)
 }
 
 export async function replyToPhoto(

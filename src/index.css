@@ -438,6 +438,35 @@ h2 {
   filter: brightness(0) invert(1) drop-shadow(0 0 10px rgba(255,20,100,.35));
 }
 
+/* Corona animada de carga (CrownLoader): entrada con escala+opacidad y,
+   si la carga se extiende, una respiración sutil en loop — nada de
+   parpadeo ni giro, para que se sienta parte de la marca. Solo
+   transform/opacity/filter (compositor), sin reflow, así que el costo
+   en dispositivos de gama baja es el mismo que el spinner que
+   reemplaza. A diferencia de .logo-glow (arriba, siempre invertido),
+   este sí distingue claro/oscuro: en claro la corona ya es visible tal
+   cual (negra), en oscuro se invierte a blanco con el mismo halo. */
+@keyframes crown-loader-in {
+  from { opacity: 0; transform: scale(.82); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes crown-loader-breathe {
+  0%, 100% { transform: scale(1); opacity: .92; }
+  50%      { transform: scale(1.045); opacity: 1; }
+}
+.crown-loader-icon {
+  filter: drop-shadow(0 2px 8px rgba(23,19,31,.18));
+  animation:
+    crown-loader-in .5s cubic-bezier(.22,1,.36,1) both,
+    crown-loader-breathe 1.8s ease-in-out .5s infinite;
+}
+.dark .crown-loader-icon {
+  filter: brightness(0) invert(1) drop-shadow(0 0 16px rgba(255,20,100,.45));
+}
+@media (prefers-reduced-motion: reduce) {
+  .crown-loader-icon { animation: crown-loader-in .3s ease-out both; }
+}
+
 /* Focus rings con el color de la paleta — el anillo magenta es una
    convención de accesibilidad de toda la app, no algo pensado solo para
    dark, así que ya no depende de .dark (antes sí, era el mismo
@@ -856,7 +885,16 @@ textarea:focus {
   gap: 0.25rem;
   font-size: 0.75rem;
   color: #9ca3af;
-  cursor: default;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+}
+
+.reaction-summary:hover {
+  color: #6b7280;
+  text-decoration: underline;
 }
 
 .reaction-popup {

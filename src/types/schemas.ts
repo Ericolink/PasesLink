@@ -156,6 +156,8 @@ const WallReplySchema = z.object({
 const WallReactionSchema = z.object({
   type: z.enum(['like', 'love', 'haha', 'wow', 'sad', 'angry']),
   name: z.string(),
+  photoURL: z.string().optional(),
+  reactedAt: z.number().optional(),
 })
 
 export const WallMessageSchema = z.object({

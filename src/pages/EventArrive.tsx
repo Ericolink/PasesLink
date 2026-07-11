@@ -8,6 +8,7 @@ import { ThemeOrnament } from '../components/ThemeOrnament'
 import { EventCountdown } from '../components/EventCountdown'
 import { formatTime12h } from '../utils/time'
 import { IconBan } from '../components/Icons'
+import { CrownLoader } from '../components/CrownLoader'
 import type { EventData } from '../types'
 
 type State = 'loading' | 'ready' | 'not_found' | 'error'
@@ -47,11 +48,7 @@ export function EventArrive() {
   }, [state, id])
 
   if (state === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    return <CrownLoader />
   }
 
   if (state === 'not_found' || state === 'error') {

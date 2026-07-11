@@ -165,6 +165,12 @@ export interface WallReaction {
   // Denormalizado (igual que authorName en el mensaje) para poder mostrar
   // "quién reaccionó" sin una consulta extra por reacción.
   name: string
+  // Ambos opcionales y agregados después de que reactions ya tenía datos en
+  // producción — reacciones viejas no los tienen, y la UI (ReactionListSheet)
+  // cae a un fallback (iniciales / orden alfabético) en vez de asumir que
+  // existen.
+  photoURL?: string
+  reactedAt?: number
 }
 
 export interface WallMessage {

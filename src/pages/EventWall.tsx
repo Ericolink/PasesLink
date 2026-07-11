@@ -228,12 +228,12 @@ export function EventWall() {
     const token = getDeviceToken()
     const prevReactions = msg.reactions
     const nextReactions = { ...prevReactions }
-    if (type) nextReactions[token] = { type, name: postLabel || 'Invitado' }
+    if (type) nextReactions[token] = { type, name: postLabel || 'Invitado', reactedAt: Date.now(), ...(postPhotoURL ? { photoURL: postPhotoURL } : {}) }
     else delete nextReactions[token]
     setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: nextReactions } : m)))
 
     try {
-      await reactToWallMessage(id, msg.id, token, postLabel || 'Invitado', type)
+      await reactToWallMessage(id, msg.id, token, postLabel || 'Invitado', type, postPhotoURL)
     } catch (err) {
       console.error('Error reacting to wall message:', err)
       setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: prevReactions } : m)))
@@ -282,12 +282,12 @@ export function EventWall() {
     const token = getDeviceToken()
     const prevReactions = photo.reactions
     const nextReactions = { ...prevReactions }
-    if (type) nextReactions[token] = { type, name: postLabel || 'Invitado' }
+    if (type) nextReactions[token] = { type, name: postLabel || 'Invitado', reactedAt: Date.now(), ...(postPhotoURL ? { photoURL: postPhotoURL } : {}) }
     else delete nextReactions[token]
     setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: nextReactions } : p)))
 
     try {
-      await reactToPhoto(id, photo.id, token, postLabel || 'Invitado', type)
+      await reactToPhoto(id, photo.id, token, postLabel || 'Invitado', type, postPhotoURL)
     } catch (err) {
       console.error('Error reacting to photo:', err)
       setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: prevReactions } : p)))

@@ -13,6 +13,7 @@ import {
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
 } from '../utils/validation'
+import { CrownLoader } from '../components/CrownLoader'
 
 // Look del formulario de cara al invitado: inputs en pill (forma fija, no
 // depende del --invite-radius de cada tema — el objetivo es que se vea
@@ -191,11 +192,7 @@ export function EventJoin() {
   }
 
   if (state === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    return <CrownLoader />
   }
 
   if (state === 'not_found' || state === 'error') {

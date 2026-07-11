@@ -228,8 +228,9 @@ export async function reactToWallMessage(
   token: string,
   name: string,
   reactionType: ReactionType | null,
+  photoURL?: string,
 ) {
-  await reactToContent(eventId, 'wall', messageId, token, name, reactionType)
+  await reactToContent(eventId, 'wall', messageId, token, name, reactionType, photoURL)
 }
 
 export async function replyToWallMessage(

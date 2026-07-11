@@ -148,12 +148,16 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
     const token = getDeviceToken()
     const prevReactions = msg.reactions
     const nextReactions = { ...prevReactions }
-    if (type) nextReactions[token] = { type, name: authorName || 'Invitado' }
+    // Date.now() acá corre solo al tocar una reacción (evento de usuario),
+    // nunca durante un render — react-hooks/purity no distingue eso de un
+    // impuro dentro del cuerpo de render y lo marca en falso positivo.
+    // eslint-disable-next-line react-hooks/purity
+    if (type) nextReactions[token] = { type, name: authorName || 'Invitado', reactedAt: Date.now(), ...(authorPhoto ? { photoURL: authorPhoto } : {}) }
     else delete nextReactions[token]
     setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: nextReactions } : m)))
 
     try {
-      await reactToWallMessage(eventId, msg.id, token, authorName || 'Invitado', type)
+      await reactToWallMessage(eventId, msg.id, token, authorName || 'Invitado', type, authorPhoto)
     } catch (err) {
       console.error('Error reacting to wall message:', err)
       setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: prevReactions } : m)))
@@ -167,12 +171,12 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
     const token = getDeviceToken()
     const prevReactions = photo.reactions
     const nextReactions = { ...prevReactions }
-    if (type) nextReactions[token] = { type, name: authorName || 'Invitado' }
+    if (type) nextReactions[token] = { type, name: authorName || 'Invitado', reactedAt: Date.now(), ...(authorPhoto ? { photoURL: authorPhoto } : {}) }
     else delete nextReactions[token]
     setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: nextReactions } : p)))
 
     try {
-      await reactToPhoto(eventId, photo.id, token, authorName || 'Invitado', type)
+      await reactToPhoto(eventId, photo.id, token, authorName || 'Invitado', type, authorPhoto)
     } catch (err) {
       console.error('Error reacting to photo:', err)
       setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: prevReactions } : p)))

@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { logout } from '../firebase/auth'
 import { IconBan } from './Icons'
+import { CrownLoader } from './CrownLoader'
 
 // Único punto de bloqueo "de app completa" para un baneo/suspensión global
 // (ver src/firebase/sanctions.ts) — no puede deshabilitar el login de
@@ -16,7 +17,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { banned, banMessage } = useSanctionStatus()
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando…</div>
+    return <CrownLoader />
   }
 
   if (!user) {

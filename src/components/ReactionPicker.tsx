@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconThumbsUp } from './Icons'
+import { ReactionListSheet } from './ReactionListSheet'
 import { REACTIONS, REACTION_BY_TYPE } from '../utils/reactions'
 import type { ReactionType, WallReaction } from '../types'
 
@@ -14,6 +15,7 @@ interface Props {
 
 export function ReactionPicker({ reactions, myToken, onReact }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [listOpen, setListOpen] = useState(false)
   // Única pista visual de que "mantener presionado" hace algo distinto a tocar
   // en touch (sin hover no hay ninguna otra señal): el botón se encoge y se
   // llena de color durante los LONG_PRESS_DELAY_MS del press, vía CSS
@@ -138,11 +140,19 @@ export function ReactionPicker({ reactions, myToken, onReact }: Props) {
       </button>
 
       {total > 0 && (
-        <span className="reaction-summary" title={summaryTitle}>
+        <button
+          type="button"
+          className="reaction-summary"
+          title={summaryTitle}
+          aria-label={`Ver quién reaccionó (${total})`}
+          onClick={() => setListOpen(true)}
+        >
           <span aria-hidden="true">{top.slice(0, 3).map((r) => r.emoji).join('')}</span>
           {total}
-        </span>
+        </button>
       )}
+
+      {listOpen && <ReactionListSheet reactions={reactions} onClose={() => setListOpen(false)} />}
     </div>
   )
 }

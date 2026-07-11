@@ -119,7 +119,9 @@ describe('photos.ts — reactToPhoto', () => {
     await expect(reactToPhoto(EVENT_ID, PHOTO_ID, 'device-token-1', 'Invitado', 'love')).resolves.toBeUndefined()
 
     const photo = await getPhotoDoc(testEnv)
-    expect(photo?.reactions).toEqual({ 'device-token-1': { type: 'love', name: 'Invitado' } })
+    expect(photo?.reactions).toEqual({
+      'device-token-1': { type: 'love', name: 'Invitado', reactedAt: expect.any(Number) },
+    })
   })
 
   it('lets the same reactor change their reaction', async () => {
@@ -130,7 +132,9 @@ describe('photos.ts — reactToPhoto', () => {
     await reactToPhoto(EVENT_ID, PHOTO_ID, 'device-token-1', 'Invitado', 'haha')
 
     const photo = await getPhotoDoc(testEnv)
-    expect(photo?.reactions).toEqual({ 'device-token-1': { type: 'haha', name: 'Invitado' } })
+    expect(photo?.reactions).toEqual({
+      'device-token-1': { type: 'haha', name: 'Invitado', reactedAt: expect.any(Number) },
+    })
   })
 
   it('removes a reaction when reactionType is null', async () => {
