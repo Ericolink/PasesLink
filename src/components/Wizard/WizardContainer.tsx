@@ -10,6 +10,7 @@ interface WizardContainerProps {
   onCancel: () => void
   canProceed: boolean
   isSubmitting: boolean
+  nextLabel?: string
   children: ReactNode
 }
 
@@ -22,6 +23,7 @@ export function WizardContainer({
   onCancel,
   canProceed,
   isSubmitting,
+  nextLabel,
   children,
 }: WizardContainerProps) {
   return (
@@ -78,6 +80,8 @@ export function WizardContainer({
         >
           {isSubmitting
             ? 'Creando…'
+            : nextLabel
+            ? nextLabel
             : currentStep === totalSteps
             ? 'Crear evento'
             : 'Siguiente →'}

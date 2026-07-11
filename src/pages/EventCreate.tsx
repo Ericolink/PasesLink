@@ -1,29 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createEvent } from '../firebase/events'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useFormDraft } from '../hooks/useFormDraft'
-import { optimizedImageUrl } from '../utils/cloudinary'
 import { isNetworkError } from '../utils/network'
 import { parseCapacity } from '../utils/validationRules'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { CustomFieldsBuilder } from '../components/CustomFieldsBuilder'
-import { TimelineEditor } from '../components/TimelineEditor'
-import { TemplatePicker } from '../components/TemplatePicker'
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal'
-import { EventScheduleField } from '../components/EventScheduleField'
 import { IconCheckCircle } from '../components/Icons'
 import { WizardContainer, WizardStep } from '../components/Wizard'
-import { EntryModeSelector } from '../components/EventCreation/EntryModeSelector'
-import { getTemplate } from '../templates/registry'
+import { StepBasicInfo } from '../components/EventCreation/steps/StepBasicInfo'
+import { StepInvitationMethod } from '../components/EventCreation/steps/StepInvitationMethod'
+import { StepImageAndColors } from '../components/EventCreation/steps/StepImageAndColors'
+import { StepDescriptionLocation } from '../components/EventCreation/steps/StepDescriptionLocation'
+import { StepSchedule } from '../components/EventCreation/steps/StepSchedule'
+import { StepRegistrationFields } from '../components/EventCreation/steps/StepRegistrationFields'
+import { StepReviewTemplate } from '../components/EventCreation/steps/StepReviewTemplate'
 import type { CustomField, EntryMode, PaymentMethod, TemplateId, TimelineEntry } from '../types'
-
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  transfer: 'Transferencia',
-  cash: 'Efectivo',
-}
 
 interface EventDraftFields {
   name: string
@@ -51,17 +46,18 @@ interface EventDraftFields {
 }
 
 const DRAFT_SAVE_INTERVAL_MS = 5000
-const STEP_LABELS = ['Lo esencial', '¿Cómo entran?', 'Personalización']
-const TOTAL_STEPS = 3
 
-function capacityHint(cap: string): string {
-  const n = parseInt(cap)
-  if (!n || n <= 0) return ''
-  if (n <= 20) return 'Grupo íntimo'
-  if (n <= 100) return 'Grupo mediano'
-  if (n <= 500) return 'Evento grande'
-  return 'Evento masivo'
-}
+type StepKey = 1 | 2 | 3 | 4 | 5 | 6 | 7
+
+const ALL_STEP_DEFS: { key: StepKey; label: string }[] = [
+  { key: 1, label: 'Información básica' },
+  { key: 2, label: 'Método de invitación' },
+  { key: 3, label: 'Imagen y colores' },
+  { key: 4, label: 'Descripción y ubicación' },
+  { key: 5, label: 'Programa del evento' },
+  { key: 6, label: 'Campos de registro' },
+  { key: 7, label: 'Revisión y plantilla' },
+]
 
 export function EventCreate() {
   const { user } = useAuth()
@@ -105,12 +101,22 @@ export function EventCreate() {
   const [timeline, setTimeline] = useState<TimelineEntry[]>([])
 
   // — Estado del wizard —
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState<StepKey>(1)
+  // Si no es null, el organizador saltó acá desde el resumen final (paso 7)
+  // para editar una sola sección — al confirmar, vuelve directo a ese paso.
+  const [returnStep, setReturnStep] = useState<StepKey | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [networkRetry, setNetworkRetry] = useState(false)
   const [createdEventId, setCreatedEventId] = useState<string | null>(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+
+  // El paso "Campos de registro" no aplica a eventos por lista (no hay
+  // formulario de auto-registro para invitados con QR asignado).
+  const visibleSteps = useMemo(
+    () => ALL_STEP_DEFS.filter((s) => s.key !== 6 || entryMode !== 'list'),
+    [entryMode],
+  )
 
   // — Draft —
   const draftKey = user ? `eventDraft_${user.uid}_new` : ''
@@ -160,13 +166,14 @@ export function EventCreate() {
   ])
 
   // — Validación por paso —
-  function canProceedStep(s: number): boolean {
+  function canProceedStep(s: StepKey): boolean {
     if (s === 1) return !!(name.trim() && date && location.trim())
     if (s === 2) {
       const { error: capErr } = parseCapacity(capacity)
-      return capErr === null
+      if (capErr) return false
+      if (requiresPayment) return paymentMethods.length > 0
+      return true
     }
-    if (s === 3 && requiresPayment) return paymentMethods.length > 0
     return true
   }
 
@@ -177,10 +184,24 @@ export function EventCreate() {
   }
 
   const canProceed = canProceedStep(step)
+  const stepPosition = visibleSteps.findIndex((s) => s.key === step) + 1
+
+  function goToStepForEdit(key: StepKey) {
+    setReturnStep(7)
+    setStep(key)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   function handleNext() {
-    if (step < TOTAL_STEPS) {
-      setStep((s) => s + 1)
+    if (returnStep) {
+      setStep(returnStep)
+      setReturnStep(null)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    const idx = visibleSteps.findIndex((s) => s.key === step)
+    if (idx < visibleSteps.length - 1) {
+      setStep(visibleSteps[idx + 1].key)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } else {
       void submitEvent()
@@ -188,7 +209,14 @@ export function EventCreate() {
   }
 
   function handlePrevious() {
-    setStep((s) => Math.max(1, s - 1))
+    if (returnStep) {
+      setStep(returnStep)
+      setReturnStep(null)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    const idx = visibleSteps.findIndex((s) => s.key === step)
+    setStep(visibleSteps[Math.max(0, idx - 1)].key)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -239,12 +267,6 @@ export function EventCreate() {
     } finally {
       setLoading(false)
     }
-  }
-
-  function adjustCapacity(delta: number) {
-    const current = parseInt(capacity) || 0
-    const next = Math.max(1, current + delta)
-    setCapacity(String(next))
   }
 
   return (
@@ -303,452 +325,131 @@ export function EventCreate() {
       />
 
       <WizardContainer
-        currentStep={step}
-        totalSteps={TOTAL_STEPS}
-        stepLabels={STEP_LABELS}
+        currentStep={stepPosition}
+        totalSteps={visibleSteps.length}
+        stepLabels={visibleSteps.map((s) => s.label)}
         onNext={handleNext}
         onPrevious={handlePrevious}
         onCancel={() => setShowCancelConfirm(true)}
         canProceed={canProceed}
         isSubmitting={loading}
+        nextLabel={returnStep ? 'Confirmar cambios →' : undefined}
       >
-        {/* ── PASO 1: Lo esencial ── */}
+        {returnStep && (
+          <p className="text-sm text-primary bg-primary/10 rounded-lg px-3 py-2.5 mb-5">
+            Estás editando desde la revisión final — al confirmar, volvés directo ahí.
+          </p>
+        )}
+
         <WizardStep number={1} currentStep={step}>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Solo toma 30 segundos. Puedes personalizar el diseño en el paso 3.
-          </p>
-
-          <div className="space-y-5">
-            <div>
-              <label htmlFor="event-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Nombre del evento *
-              </label>
-              <input
-                id="event-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Mi graduación, Boda de Ana y Luis…"
-                autoFocus
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Lugar *
-              </label>
-              <input
-                id="event-location"
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="Salón Los Olivos"
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-
-            <div>
-              <p className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Fecha y hora *
-              </p>
-              <EventScheduleField
-                date={date}
-                onDateChange={setDate}
-                startTime={startTime}
-                onStartTimeChange={setStartTime}
-                endTime={endTime}
-                onEndTimeChange={setEndTime}
-              />
-            </div>
-          </div>
+          <StepBasicInfo
+            name={name}
+            onNameChange={setName}
+            location={location}
+            onLocationChange={setLocation}
+            date={date}
+            onDateChange={setDate}
+            startTime={startTime}
+            onStartTimeChange={setStartTime}
+            endTime={endTime}
+            onEndTimeChange={setEndTime}
+          />
         </WizardStep>
 
-        {/* ── PASO 2: ¿Cómo entran? ── */}
         <WizardStep number={2} currentStep={step}>
-          <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2.5 mb-6">
-            ⚠️ Elige con cuidado — esto no se puede cambiar después de crear el evento.
-          </p>
-
-          <EntryModeSelector value={entryMode} onChange={setEntryMode} />
-
-          {/* Capacidad */}
-          <div className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              Límite de invitados *
-            </label>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => adjustCapacity(-10)}
-                className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors select-none"
-                aria-label="Reducir 10"
-              >
-                −
-              </button>
-              <input
-                type="number"
-                min="1"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-center font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button
-                type="button"
-                onClick={() => adjustCapacity(10)}
-                className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors select-none"
-                aria-label="Aumentar 10"
-              >
-                +
-              </button>
-            </div>
-            {capacityHint(capacity) && (
-              <p className="text-xs text-gray-400 mt-2 text-center">
-                {capacityHint(capacity)} · {capacity} personas
-              </p>
-            )}
-            <p className="text-xs text-gray-400 mt-1">
-              Es una capacidad recomendada, no un límite estricto: si se supera, los nuevos invitados igual pueden
-              registrarse.
-            </p>
-          </div>
+          <StepInvitationMethod
+            entryMode={entryMode}
+            onEntryModeChange={setEntryMode}
+            capacity={capacity}
+            onCapacityChange={setCapacity}
+            requiresPayment={requiresPayment}
+            onRequiresPaymentChange={setRequiresPayment}
+            paymentMethods={paymentMethods}
+            onTogglePaymentMethod={togglePaymentMethod}
+            ticketPrice={ticketPrice}
+            onTicketPriceChange={setTicketPrice}
+            currency={currency}
+            onCurrencyChange={setCurrency}
+            paymentInstructions={paymentInstructions}
+            onPaymentInstructionsChange={setPaymentInstructions}
+            organizerContactPhone={organizerContactPhone}
+            onOrganizerContactPhoneChange={setOrganizerContactPhone}
+          />
         </WizardStep>
 
-        {/* ── PASO 3: Personalización ── */}
         <WizardStep number={3} currentStep={step}>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Todo es opcional — puedes editarlo en cualquier momento desde el evento.
-          </p>
+          <StepImageAndColors
+            coverFileInputRef={coverFileInputRef}
+            coverImage={coverImage}
+            coverUploading={coverUploading}
+            coverError={coverError}
+            openCoverPicker={openCoverPicker}
+            onCoverFileSelected={onCoverFileSelected}
+            clearCover={clearCover}
+            accentColor={accentColor}
+            onAccentColorChange={setAccentColor}
+            templateId={templateId}
+          />
+        </WizardStep>
 
-          <div className="space-y-5">
-            {/* Plantilla visual */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                  Plantilla del pase
-                </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Identidad visual que verán tus invitados. Puedes cambiarla después.
-                </p>
-              </div>
-              <TemplatePicker
-                selected={templateId}
-                onSelect={setTemplateId}
-                previewData={{ eventName: name, date, location, mapsUrl, coverImage, accentColor, welcomeMessage }}
-              />
-            </div>
+        <WizardStep number={4} currentStep={step}>
+          <StepDescriptionLocation
+            description={description}
+            onDescriptionChange={setDescription}
+            dressCode={dressCode}
+            onDressCodeChange={setDressCode}
+            mapsUrl={mapsUrl}
+            onMapsUrlChange={setMapsUrl}
+            welcomeMessage={welcomeMessage}
+            onWelcomeMessageChange={setWelcomeMessage}
+          />
+        </WizardStep>
 
-            {/* Personalización */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-4">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                Imagen y colores
-              </h2>
+        <WizardStep number={5} currentStep={step}>
+          <StepSchedule timeline={timeline} onChange={setTimeline} />
+        </WizardStep>
 
-              {/* Portada */}
-              <div>
-                <label htmlFor="event-cover-image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Imagen de portada
-                </label>
-                <input
-                  id="event-cover-image"
-                  ref={coverFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={onCoverFileSelected}
-                  className="hidden"
-                />
-                {coverImage ? (
-                  <div className="relative rounded-lg overflow-hidden h-32 bg-gray-100">
-                    <img
-                      src={optimizedImageUrl(coverImage, 800)}
-                      alt="Portada"
-                      loading="lazy"
-                      crossOrigin="anonymous"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={clearCover}
-                      className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1"
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={openCoverPicker}
-                    disabled={coverUploading}
-                    className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-6 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
-                  >
-                    {coverUploading ? 'Subiendo…' : '+ Subir imagen de portada'}
-                  </button>
-                )}
-                {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
-              </div>
+        <WizardStep number={6} currentStep={step}>
+          <StepRegistrationFields customFields={customFields} onChange={setCustomFields} />
+        </WizardStep>
 
-              {/* Color + bienvenida */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="event-accent-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Color de acento
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="event-accent-color"
-                      type="color"
-                      value={accentColor || getTemplate(templateId).vars.accent}
-                      onChange={(e) => setAccentColor(e.target.value)}
-                      className="h-10 w-14 border border-gray-300 rounded-md cursor-pointer"
-                    />
-                    <span className="text-xs text-gray-500">
-                      {accentColor || `De la plantilla`}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="event-welcome-message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Mensaje de bienvenida
-                  </label>
-                  <input
-                    id="event-welcome-message"
-                    type="text"
-                    value={welcomeMessage}
-                    onChange={(e) => setWelcomeMessage(e.target.value)}
-                    placeholder="¡Te esperamos!"
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Detalles adicionales (collapsible) */}
-            <details className="group border border-gray-200 dark:border-gray-700 rounded-xl">
-              <summary className="cursor-pointer select-none px-4 py-3.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-2 transition-colors list-none">
-                <span className="group-open:hidden">＋</span>
-                <span className="hidden group-open:inline">−</span>
-                Descripción y mapa (opcional)
-              </summary>
-              <div className="px-4 pb-4 pt-1 space-y-4">
-                <div>
-                  <label htmlFor="event-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Descripción
-                  </label>
-                  <textarea
-                    id="event-description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                    placeholder="Cuéntales a tus invitados más detalles sobre el evento…"
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="event-dress-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Vestimenta (opcional)
-                  </label>
-                  <input
-                    id="event-dress-code"
-                    type="text"
-                    value={dressCode}
-                    onChange={(e) => setDressCode(e.target.value)}
-                    maxLength={100}
-                    placeholder="Ej: Formal, Casual, Todo de blanco…"
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Link de Google Maps
-                  </label>
-                  <input
-                    id="event-maps-url"
-                    type="url"
-                    value={mapsUrl}
-                    onChange={(e) => setMapsUrl(e.target.value)}
-                    placeholder="https://maps.google.com/maps?q=..."
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Pega el link completo de Google Maps (desde el navegador, no el link corto).
-                  </p>
-                </div>
-              </div>
-            </details>
-
-            {/* Programa del evento (timeline) */}
-            <details className="group border border-gray-200 dark:border-gray-700 rounded-xl">
-              <summary className="cursor-pointer select-none px-4 py-3.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-2 transition-colors list-none">
-                <span className="group-open:hidden">＋</span>
-                <span className="hidden group-open:inline">−</span>
-                Programa del evento (opcional)
-              </summary>
-              <div className="px-4 pb-4 pt-1 space-y-2">
-                <p className="text-xs text-gray-500 mb-3">
-                  Muestra a tus invitados el orden del día en su pase. Ej: 19:00 Recepción, 20:30 Cena, 22:00 DJ…
-                </p>
-                <TimelineEditor entries={timeline} onChange={setTimeline} />
-              </div>
-            </details>
-
-            {/* Campos personalizados */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                  Campos de registro
-                </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Los invitados siempre ingresan nombre y teléfono. Puedes agregar campos extra.
-                </p>
-              </div>
-              <div className="flex gap-2 text-xs text-gray-400 border border-gray-100 dark:border-gray-700 rounded-md px-3 py-2 bg-gray-50 dark:bg-gray-700/30">
-                <span className="font-medium text-gray-600 dark:text-gray-300">Fijos:</span> Nombre · Teléfono
-              </div>
-              <CustomFieldsBuilder fields={customFields} onChange={setCustomFields} />
-            </div>
-
-            {/* Cobro de entrada */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={requiresPayment}
-                  onChange={(e) => setRequiresPayment(e.target.checked)}
-                  className="w-4 h-4 text-primary focus:ring-primary rounded"
-                />
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                  Cobrar entrada a los invitados
-                </span>
-              </label>
-              {requiresPayment && (
-                <>
-                  <p className="text-xs text-gray-500">
-                    El pago se confirma manualmente: marcás a cada invitado como pagado desde la lista o al escanear su pase.
-                  </p>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                      Métodos de cobro *
-                    </label>
-                    <div className="flex gap-2">
-                      {(['transfer', 'cash'] as PaymentMethod[]).map((m) => (
-                        <label
-                          key={m}
-                          className={`flex-1 flex items-center justify-center gap-2 border rounded-lg px-3 py-2.5 text-sm font-medium cursor-pointer transition-colors ${
-                            paymentMethods.includes(m)
-                              ? 'border-primary bg-primary/10 text-primary'
-                              : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={paymentMethods.includes(m)}
-                            onChange={() => togglePaymentMethod(m)}
-                            className="sr-only"
-                          />
-                          {PAYMENT_METHOD_LABELS[m]}
-                        </label>
-                      ))}
-                    </div>
-                    {paymentMethods.length === 0 && (
-                      <p className="text-xs text-red-500 mt-1">Elegí al menos un método.</p>
-                    )}
-                    {paymentMethods.includes('transfer') && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        Transferencia: el lugar se reserva por tiempo limitado hasta confirmar el pago.
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                      <label htmlFor="event-ticket-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Precio por persona
-                      </label>
-                      <input
-                        id="event-ticket-price"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={ticketPrice}
-                        onChange={(e) => setTicketPrice(e.target.value)}
-                        placeholder="Ej: 5000"
-                        className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="event-currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Moneda
-                      </label>
-                      <input
-                        id="event-currency"
-                        type="text"
-                        value={currency}
-                        onChange={(e) => setCurrency(e.target.value)}
-                        placeholder="$"
-                        className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-
-                  {paymentMethods.includes('transfer') && (
-                    <div>
-                      <label htmlFor="event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Datos para transferencia
-                      </label>
-                      <textarea
-                        id="event-payment-instructions"
-                        value={paymentInstructions}
-                        onChange={(e) => setPaymentInstructions(e.target.value)}
-                        rows={3}
-                        placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://..."
-                        className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <p className="text-xs text-gray-400 mt-1">
-                        Los invitados verán esto en su pase junto al monto a pagar.
-                      </p>
-                    </div>
-                  )}
-
-                  <div>
-                    <label htmlFor="event-organizer-contact" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Tu WhatsApp para pagos
-                    </label>
-                    <input
-                      id="event-organizer-contact"
-                      type="tel"
-                      value={organizerContactPhone}
-                      onChange={(e) => setOrganizerContactPhone(e.target.value)}
-                      placeholder="Ej: +52 55 1234 5678"
-                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">
-                      Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución.
-                    </p>
-                  </div>
-                </>
+        <WizardStep number={7} currentStep={step}>
+          <StepReviewTemplate
+            name={name}
+            date={date}
+            location={location}
+            entryMode={entryMode}
+            requiresPayment={requiresPayment}
+            paymentMethods={paymentMethods}
+            ticketPrice={ticketPrice}
+            currency={currency}
+            coverImage={coverImage}
+            accentColor={accentColor}
+            description={description}
+            dressCode={dressCode}
+            mapsUrl={mapsUrl}
+            welcomeMessage={welcomeMessage}
+            timeline={timeline}
+            customFields={customFields}
+            showRegistrationFieldsRow={entryMode !== 'list'}
+            templateId={templateId}
+            onSelectTemplate={setTemplateId}
+            onEditStep={(key) => goToStepForEdit(key as StepKey)}
+          />
+          {error && (
+            <div className="text-sm text-red-600 dark:text-red-400 mt-4">
+              <p>{error}</p>
+              {networkRetry && (
+                <button
+                  type="button"
+                  onClick={() => void submitEvent()}
+                  className="mt-1 font-medium underline"
+                >
+                  Reintentar ahora
+                </button>
               )}
             </div>
-
-            <p className="text-sm text-center text-amber-600 bg-amber-50 dark:bg-amber-900/20 rounded-md px-3 py-2">
-              🎉 Todas las funciones (reportes, recordatorios, notificaciones) están incluidas gratis mientras damos a conocer el servicio.
-            </p>
-
-            {error && (
-              <div className="text-sm text-red-600 dark:text-red-400">
-                <p>{error}</p>
-                {networkRetry && (
-                  <button
-                    type="button"
-                    onClick={() => void submitEvent()}
-                    className="mt-1 font-medium underline"
-                  >
-                    Reintentar ahora
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </WizardStep>
       </WizardContainer>
     </>

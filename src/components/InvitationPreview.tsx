@@ -5,9 +5,10 @@ import { InvitationCard } from './InvitationCard'
 import { ThemeOrnament } from './ThemeOrnament'
 import { InviteDivider } from './InviteDivider'
 import { EventMap } from './EventMap'
+import { TimelineDisplay } from './TimelineDisplay'
 import { IconDownload, IconWhatsApp } from './Icons'
 import { PREVIEW_CONTENT, PREVIEW_WALL_MESSAGES } from '../templates/previewContent'
-import type { TemplateId } from '../types'
+import type { TemplateId, TimelineEntry } from '../types'
 
 interface InvitationPreviewProps {
   templateId: TemplateId
@@ -18,6 +19,9 @@ interface InvitationPreviewProps {
   coverImage?: string
   accentColor?: string
   welcomeMessage?: string
+  description?: string
+  dressCode?: string
+  timeline?: TimelineEntry[]
 }
 
 // Invitación de muestra real: reusa los mismos componentes que ve un
@@ -37,6 +41,9 @@ export function InvitationPreview({
   coverImage,
   accentColor,
   welcomeMessage,
+  description,
+  dressCode,
+  timeline,
 }: InvitationPreviewProps) {
   const sample = PREVIEW_CONTENT[templateId]
   const name = eventName?.trim() || sample.eventName
@@ -59,6 +66,15 @@ export function InvitationPreview({
         <p className="text-sm mt-1 text-[var(--invite-text-muted)]">
           {shownDate} · {shownLocation}
         </p>
+        {dressCode?.trim() && (
+          <p className="text-xs mt-1 text-[var(--invite-text-muted)]">Vestimenta: {dressCode}</p>
+        )}
+
+        {description?.trim() && (
+          <p className="mt-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-center max-w-xs mx-auto">
+            {description}
+          </p>
+        )}
 
         <p className="text-lg font-medium mt-6">{sample.guestName}</p>
         <div className="flex justify-center my-6">
@@ -84,6 +100,12 @@ export function InvitationPreview({
             <IconWhatsApp className="w-4 h-4" /> Compartir
           </button>
         </div>
+
+        {timeline && timeline.length > 0 && (
+          <div className="mt-4 pt-4 text-left border-t" style={{ borderColor: 'var(--invite-border)' }}>
+            <TimelineDisplay entries={timeline} />
+          </div>
+        )}
 
         {welcomeMessage?.trim() && (
           <p className="mt-5 pt-4 text-sm font-medium italic border-t text-[var(--invite-accent)]" style={{ borderColor: 'var(--invite-border)' }}>

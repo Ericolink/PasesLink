@@ -1,6 +1,6 @@
 import { INVITATION_TEMPLATES } from '../templates/registry'
 import { useIsAdmin } from '../hooks/useIsAdmin'
-import type { TemplateId } from '../types'
+import type { TemplateId, TimelineEntry } from '../types'
 import { InvitationPreview } from './InvitationPreview'
 import { TemplateIconButton } from './TemplateIconButton'
 
@@ -12,6 +12,9 @@ interface PreviewData {
   coverImage?: string
   accentColor?: string
   welcomeMessage?: string
+  description?: string
+  dressCode?: string
+  timeline?: TimelineEntry[]
 }
 
 interface TemplatePickerProps {

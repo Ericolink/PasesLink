@@ -532,7 +532,7 @@ function GuestPassInner() {
           />
 
           {event.description && (
-            <p className="mt-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-left">
+            <p className="mt-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-center max-w-xs mx-auto">
               {event.description}
             </p>
           )}
