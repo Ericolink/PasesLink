@@ -32,10 +32,10 @@ export function BottomTabBar() {
     <nav
       className="app-tabbar sm:hidden fixed bottom-0 left-0 right-0 z-40 border-t flex"
       style={{
-        background: 'rgba(21,13,28,0.92)',
+        background: 'var(--app-chrome-bg-tabbar)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        borderColor: 'rgba(74,50,92,0.7)',
+        borderColor: 'var(--app-chrome-border)',
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
@@ -46,7 +46,7 @@ export function BottomTabBar() {
             key={to}
             to={to}
             className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors"
-            style={{ color: active ? '#FF1464' : '#8D8298' }}
+            style={{ color: active ? 'var(--color-primary)' : 'var(--color-gray-500)' }}
             aria-current={active ? 'page' : undefined}
           >
             <Icon className="w-5 h-5" />

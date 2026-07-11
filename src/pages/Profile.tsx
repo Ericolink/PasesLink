@@ -20,16 +20,26 @@ import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/v
 import { useModalA11y } from '../hooks/useModalA11y'
 import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
+import { useTheme, type ThemePreference } from '../hooks/useTheme'
 import {
   IconCheckCircle,
   IconEdit,
   IconLink,
   IconLogOut,
   IconMessageSquare,
+  IconMonitor,
+  IconMoon,
   IconShield,
+  IconSun,
   IconUsers,
   IconX,
 } from '../components/Icons'
+
+const THEME_OPTIONS: { value: ThemePreference; label: string; Icon: typeof IconSun }[] = [
+  { value: 'light', label: 'Claro', Icon: IconSun },
+  { value: 'dark', label: 'Oscuro', Icon: IconMoon },
+  { value: 'system', label: 'Automático', Icon: IconMonitor },
+]
 
 /* ── Edit Name Modal ── */
 function EditNameModal({
@@ -129,6 +139,7 @@ export function Profile() {
   const { isAdmin } = useIsAdmin()
   const unreadFeedback = useUnreadFeedbackCount()
   const navigate = useNavigate()
+  const { preference, setPreference } = useTheme()
 
   /* Photo */
   const [photoURL, setPhotoURL]         = useState('')
@@ -285,6 +296,29 @@ export function Profile() {
       {/* ── Hub: solo aparece la fila Admin si corresponde — misma pantalla
           para todos, oculta sin romper la consistencia de navegación. ── */}
       <section className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-700 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-3.5">
+          <IconMonitor className="w-5 h-5 text-gray-400 shrink-0" />
+          <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">Apariencia</span>
+          <div className="inline-flex rounded-full border border-gray-200 dark:border-gray-700 p-0.5 gap-0.5">
+            {THEME_OPTIONS.map(({ value, label, Icon }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setPreference(value)}
+                aria-pressed={preference === value}
+                aria-label={label}
+                title={label}
+                className={`p-1.5 rounded-full transition-colors ${
+                  preference === value
+                    ? 'bg-primary text-white'
+                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+              </button>
+            ))}
+          </div>
+        </div>
         {isAdmin && (
           <Link
             to="/admin"

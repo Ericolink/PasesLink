@@ -18,10 +18,49 @@
   --font-sans: 'Space Grotesk', system-ui, 'Segoe UI', sans-serif;
 }
 
-/* ── Base: html lleva el color oscuro, body queda transparente
-   para que los orbs del fondo (z-index: -1) sean visibles ──── */
+/* ── Paleta de grises "light" ──────────────────────────────────
+   Simétrica al bloque .dark de más abajo (misma escala de 9 pasos),
+   pensada a propósito y no delegada al gris genérico de Tailwind: un
+   tinte violeta muy sutil (2-4%) mantiene la identidad "puerta de
+   terciopelo" también de día. Con este bloque, cualquier componente
+   que ya use el patrón `bg-white dark:bg-gray-800 text-gray-900
+   dark:text-white` (la mayoría de la app) queda resuelto en claro sin
+   tocarlo — hoy "sin .dark" caía al gris default de Tailwind. */
+:root {
+  --color-gray-50:  #F7F6FB;
+  --color-gray-100: #EFEDF6;
+  --color-gray-200: #E3E0EF;
+  --color-gray-300: #CBC6DE;
+  --color-gray-400: #9892AE;   /* iconos muted / placeholders */
+  --color-gray-500: #746D8B;   /* texto secundario   (~4.7:1) */
+  --color-gray-600: #58516F;   /* texto secundario+  (~7.3:1) */
+  --color-gray-700: #423B57;   /* texto principal 2°  (~10:1) */
+  --color-gray-800: #2A2438;   /* headings            (~14:1) */
+  --color-gray-900: #17131F;   /* texto máximo        (~17:1) */
+
+  /* Fondo/texto base de html/body, orbs, vignette, grano — hoy son
+     literales incondicionales pensados solo para dark; acá quedan como
+     tokens con su propia versión de día (el bloque .dark de abajo pisa
+     estos mismos nombres con los valores oscuros originales, sin
+     cambios). */
+  --app-html-bg: var(--color-gray-50);
+  --app-body-text: var(--color-gray-800);
+  --app-glow-1: rgba(139,92,246,.05);
+  --app-glow-2: rgba(232,184,75,.04);
+  --app-vignette: rgba(120,105,150,.08);
+  --app-grain-opacity: 0.02;
+  --app-orb-1: rgba(255,20,100,.06);
+  --app-orb-2: rgba(139,92,246,.07);
+  --app-orb-3: rgba(232,184,75,.04);
+  --app-orb-4: rgba(255,20,100,.035);
+}
+
+/* ── Base: html/body leen los tokens de arriba — de día, fondo casi
+   blanco con tinte violeta; de noche (.dark, abajo), el negro violeta
+   original. Los orbs (z-index:-1) siguen visibles a través del body
+   transparente en ambos modos. ──────────────────────────────────── */
 html {
-  background-color: #150D1C;
+  background-color: var(--app-html-bg);
 }
 
 body {
@@ -31,9 +70,9 @@ body {
   /* Resplandor ambiental: como si la luz cayera desde un letrero
      sobre la entrada, con un eco cálido abajo (piso iluminado). */
   background-image:
-    radial-gradient(ellipse 70% 45% at 50% -5%, rgba(139,92,246,.10) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 35% at 50% 105%, rgba(232,184,75,.05) 0%, transparent 65%);
-  color: #F6F4F9;
+    radial-gradient(ellipse 70% 45% at 50% -5%, var(--app-glow-1) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 35% at 50% 105%, var(--app-glow-2) 0%, transparent 65%);
+  color: var(--app-body-text);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -73,7 +112,7 @@ body {
   height: 680px;
   top: -18%;
   left: -12%;
-  background: radial-gradient(circle, rgba(255,20,100,.14) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--app-orb-1) 0%, transparent 70%);
   animation: orb-move-1 22s ease-in-out infinite;
 }
 
@@ -83,7 +122,7 @@ body {
   height: 580px;
   bottom: -15%;
   right: -12%;
-  background: radial-gradient(circle, rgba(139,92,246,.15) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--app-orb-2) 0%, transparent 70%);
   animation: orb-move-2 28s ease-in-out infinite;
 }
 
@@ -93,7 +132,7 @@ body {
   height: 420px;
   top: 32%;
   left: 42%;
-  background: radial-gradient(circle, rgba(232,184,75,.05) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--app-orb-3) 0%, transparent 70%);
   animation: orb-move-3 19s ease-in-out infinite;
   animation-delay: -6s;
 }
@@ -104,12 +143,13 @@ body {
   height: 500px;
   top: -8%;
   right: -5%;
-  background: radial-gradient(circle, rgba(255,20,100,.07) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--app-orb-4) 0%, transparent 70%);
   animation: orb-move-4 24s ease-in-out infinite;
   animation-delay: -12s;
 }
 
-/* Vignette: oscurece los bordes, da profundidad */
+/* Vignette: de noche oscurece los bordes (profundidad); de día es un
+   halo violeta apenas perceptible en vez de un oscurecimiento. */
 .app-vignette {
   position: fixed;
   inset: 0;
@@ -117,7 +157,7 @@ body {
   background: radial-gradient(
     ellipse 90% 80% at 50% 50%,
     transparent 40%,
-    rgba(6, 3, 10, 0.6) 100%
+    var(--app-vignette) 100%
   );
   z-index: -1;
 }
@@ -130,7 +170,7 @@ body {
   inset: 0;
   pointer-events: none;
   z-index: -1;
-  opacity: .025;
+  opacity: var(--app-grain-opacity);
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -178,6 +218,20 @@ body {
   --color-gray-800: #E9E5EF;   /* texto principal            (~12:1)  */
   --color-gray-900: #F6F4F9;   /* texto máximo brillo        (~14:1)  */
   --color-primary-light: #2B0A1C;
+
+  /* Contraparte oscura de los tokens de fondo/orbs/vignette/grano
+     definidos en :root — mismos valores que ya tenía la app antes de
+     que existiera light mode, sin cambios. */
+  --app-html-bg: #150D1C;
+  --app-body-text: #F6F4F9;
+  --app-glow-1: rgba(139,92,246,.10);
+  --app-glow-2: rgba(232,184,75,.05);
+  --app-vignette: rgba(6,3,10,.6);
+  --app-grain-opacity: 0.025;
+  --app-orb-1: rgba(255,20,100,.14);
+  --app-orb-2: rgba(139,92,246,.15);
+  --app-orb-3: rgba(232,184,75,.05);
+  --app-orb-4: rgba(255,20,100,.07);
 }
 
 /* Los bordes usan gray-200/300/400 como clase pero deben
@@ -238,6 +292,15 @@ body {
    gana contra CSS en capa. Por eso, dentro de una invitación temática, estas
    reglas con selector más específico son las que de verdad aplican el tema a
    los campos de texto (incluido el del muro de comentarios). */
+/* Selector sin .dark agregado a propósito: la identidad del tema de
+   invitación (--invite-*) debe aplicar a los campos de texto en ambos
+   modos de la app, no solo en oscuro. El prefijo .dark original solo
+   existía para ganarle la pelea de especificidad a ".dark input,select,
+   textarea" de arriba — en modo claro no hay ningún competidor
+   equivalente, así que el selector sin .dark alcanza solo. */
+[data-template] input,
+[data-template] select,
+[data-template] textarea,
 .dark [data-template] input,
 .dark [data-template] select,
 .dark [data-template] textarea {
@@ -246,11 +309,15 @@ body {
   border-color: var(--invite-border);
 }
 
+[data-template] input::placeholder,
+[data-template] textarea::placeholder,
 .dark [data-template] input::placeholder,
 .dark [data-template] textarea::placeholder {
   color: var(--invite-text-muted);
 }
 
+[data-template] input:hover,
+[data-template] textarea:hover,
 .dark [data-template] input:hover,
 .dark [data-template] textarea:hover {
   border-color: var(--invite-accent);
@@ -260,7 +327,16 @@ body {
   background-color: transparent;
 }
 
-/* Sutil text-shadow en títulos para el efecto neon */
+/* Sutil text-shadow en títulos para el efecto neon — de día es un eco casi
+   imperceptible (mantiene personalidad de marca sin sentirse "gótico"
+   sobre fondo claro), de noche es el glow original sin cambios. */
+h1 {
+  text-shadow: 0 0 14px rgba(255,20,100,.06);
+}
+
+h2 {
+  text-shadow: 0 0 10px rgba(255,20,100,.04);
+}
 .dark h1 {
   text-shadow: 0 0 40px rgba(255,20,100,.14);
 }
@@ -296,11 +372,13 @@ body {
 /* ── Utilities ───────────────────────────────────────────────── */
 
 /* Glass card */
+:root { --app-glass-bg: rgba(255,255,255,.75); --app-glass-border: rgba(203,198,222,.8); }
+.dark { --app-glass-bg: rgba(30,20,40,.75); --app-glass-border: rgba(74,50,92,.7); }
 .glass {
-  background: rgba(30, 20, 40, 0.75);
+  background: var(--app-glass-bg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(74, 50, 92, 0.7);
+  border: 1px solid var(--app-glass-border);
 }
 
 /* Hero: reflectores de entrada en vez de la cuadrícula anterior —
@@ -314,24 +392,43 @@ body {
     radial-gradient(ellipse at 50% 100%, rgba(232,184,75,.05) 0%, transparent 60%);
 }
 
-/* Neon glow text */
+/* Neon glow text — de día casi plano (el magenta ya funciona sobre blanco
+   sin necesitar el halo), de noche el glow original. */
+:root { --app-neon-shadow: 0 1px 2px rgba(255,20,100,.15); }
+.dark { --app-neon-shadow: 0 0 10px rgba(255,20,100,.7), 0 0 22px rgba(255,20,100,.35); }
 .neon-text {
   color: #FF1464;
-  text-shadow: 0 0 10px rgba(255,20,100,.7), 0 0 22px rgba(255,20,100,.35);
+  text-shadow: var(--app-neon-shadow);
 }
 
-/* Colores de acento — dorado, eco de la corona del logo */
-.text-accent { color: #E8B84B; }
+/* Colores de acento — dorado, eco de la corona del logo. #E8B84B da ~1.6:1
+   de contraste sobre blanco (falla WCAG como texto) — .text-accent usa un
+   dorado más oscuro de día y el dorado luminoso original de noche;
+   .bg-accent es fondo de chip (el contraste depende del texto que va
+   encima, se audita por componente), se mantiene con el valor fijo. */
+:root { --color-gold-ink: #8A6A22; }
+.dark { --color-gold-ink: #E8B84B; }
+.text-accent { color: var(--color-gold-ink); }
 .bg-accent    { background-color: #E8B84B; }
 
-/* Botones primarios siempre con neon glow */
+/* Botón primario: de noche mantiene el glow neón original; de día pasa a
+   una sombra de elevación plana con tinte magenta — "app moderna", no
+   "letrero de neón sobre fondo claro". */
+:root {
+  --app-primary-glow: 0 1px 2px rgba(23,19,31,.06), 0 3px 10px rgba(255,20,100,.18);
+  --app-primary-glow-hover: 0 1px 3px rgba(23,19,31,.08), 0 4px 14px rgba(255,20,100,.26);
+}
+.dark {
+  --app-primary-glow: 0 0 12px rgba(255,20,100,.5), 0 0 24px rgba(255,20,100,.2);
+  --app-primary-glow-hover: 0 0 18px rgba(255,20,100,.65), 0 0 36px rgba(255,20,100,.28);
+}
 .bg-primary {
-  box-shadow: 0 0 12px rgba(255,20,100,.5), 0 0 24px rgba(255,20,100,.2);
+  box-shadow: var(--app-primary-glow);
   transition: box-shadow 0.2s ease, filter 0.2s ease, transform 0.15s ease;
 }
 .bg-primary:hover {
   filter: brightness(1.1);
-  box-shadow: 0 0 18px rgba(255,20,100,.65), 0 0 36px rgba(255,20,100,.28);
+  box-shadow: var(--app-primary-glow-hover);
 }
 
 /* Logo/ícono: son negro puro sobre transparencia, así que sobre la
@@ -341,10 +438,14 @@ body {
   filter: brightness(0) invert(1) drop-shadow(0 0 10px rgba(255,20,100,.35));
 }
 
-/* Focus rings con el color de la paleta */
-.dark input:focus,
-.dark select:focus,
-.dark textarea:focus {
+/* Focus rings con el color de la paleta — el anillo magenta es una
+   convención de accesibilidad de toda la app, no algo pensado solo para
+   dark, así que ya no depende de .dark (antes sí, era el mismo
+   descuido que los bloques [data-template]/[data-dash-template] de
+   abajo). */
+input:focus,
+select:focus,
+textarea:focus {
   outline: none;
   border-color: #FF1464 !important;
   box-shadow: 0 0 0 3px rgba(255,20,100,.22) !important;
@@ -352,7 +453,11 @@ body {
 
 /* Dentro de una invitación temática (formulario del muro, etc.) el foco usa
    el acento del tema en vez del rosa global — más específico que la regla
-   de arriba para ganarle el empate de !important. */
+   de arriba para ganarle el empate de !important. Selector sin .dark
+   agregado a propósito, mismo criterio que el bloque de inputs de arriba:
+   la identidad del tema debe aplicar en ambos modos de la app. */
+[data-template] input:focus,
+[data-template] textarea:focus,
 .dark [data-template] input:focus,
 .dark [data-template] textarea:focus {
   border-color: var(--invite-accent) !important;
@@ -372,7 +477,11 @@ body {
    pensadas y auditadas solo para la capa de invitación. */
 
 /* Foco de formularios (EditEventForm, búsqueda de invitados, muro, etc.)
-   con el acento del tema — mismo mecanismo que el bloque de arriba. */
+   con el acento del tema — mismo mecanismo que el bloque de arriba, selector
+   sin .dark agregado por el mismo motivo. */
+[data-dash-template] input:focus,
+[data-dash-template] textarea:focus,
+[data-dash-template] select:focus,
 .dark [data-dash-template] input:focus,
 .dark [data-dash-template] textarea:focus,
 .dark [data-dash-template] select:focus {
@@ -517,7 +626,19 @@ body {
 /* Chrome global fijo: Navbar y BottomTabBar son visibles en todas las
    rutas (no son "parte del evento") — se re-pinean a la marca aunque
    document.documentElement tenga un tema de evento activo. Mismo patrón
-   que .theme-reset ya usa para Scanner. */
+   que .theme-reset ya usa para Scanner. Los tokens --app-chrome-* cubren
+   el fondo/borde que Navbar.tsx/BottomTabBar.tsx aplican vía style inline
+   (antes literales fijos de dark, ahora light/dark-aware). */
+:root {
+  --app-chrome-bg: rgba(255,255,255,.82);
+  --app-chrome-bg-tabbar: rgba(255,255,255,.92);
+  --app-chrome-border: rgba(203,198,222,.8);
+}
+.dark {
+  --app-chrome-bg: rgba(21,13,28,.82);
+  --app-chrome-bg-tabbar: rgba(21,13,28,.92);
+  --app-chrome-border: rgba(74,50,92,.7);
+}
 .app-header,
 .app-tabbar {
   --color-primary: #FF1464;
@@ -802,13 +923,15 @@ body {
 }
 
 /* ── Card hover ──────────────────────────────────────────────── */
+:root { --app-elevated-shadow: rgba(23,19,31,.16); }
+.dark { --app-elevated-shadow: rgba(0,0,0,.5); }
 .card-hover {
   transition: transform 0.18s ease-out, box-shadow 0.18s ease-out, border-color 0.18s ease-out;
 }
 .card-hover:hover {
   transform: translateY(-4px);
   border-color: rgba(255, 20, 100, 0.45) !important;
-  box-shadow: 0 0 0 1px rgba(255,20,100,.2), 0 12px 32px -8px rgba(0,0,0,.5);
+  box-shadow: 0 0 0 1px rgba(255,20,100,.2), 0 12px 32px -8px var(--app-elevated-shadow);
 }
 
 /* ── Ticket cards (Dashboard "Mis eventos") ─────────────────────
@@ -822,7 +945,7 @@ body {
 .ticket-card:hover {
   transform: translateY(-4px);
   border-color: var(--invite-accent, rgba(255, 20, 100, 0.45)) !important;
-  box-shadow: 0 12px 32px -8px rgba(0,0,0,.5);
+  box-shadow: 0 12px 32px -8px var(--app-elevated-shadow);
 }
 .ticket-card--next {
   box-shadow: 0 0 0 1px rgba(255,20,100,.18), 0 0 26px rgba(255,20,100,.12);
@@ -843,7 +966,9 @@ body {
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────── */
+:root { --app-scrollbar-thumb: var(--color-gray-300); }
+.dark { --app-scrollbar-thumb: #3A2A4A; }
 ::-webkit-scrollbar          { width: 6px; }
 ::-webkit-scrollbar-track    { background: transparent; }
-::-webkit-scrollbar-thumb    { background: #3A2A4A; border-radius: 3px; }
+::-webkit-scrollbar-thumb    { background: var(--app-scrollbar-thumb); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #FF1464; }

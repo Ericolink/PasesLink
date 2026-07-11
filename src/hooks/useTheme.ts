@@ -1,24 +1,7 @@
-import { useEffect, useState } from 'react'
-
-export type Theme = 'light' | 'dark'
-
-function getInitialTheme(): Theme {
-  const stored = localStorage.getItem('theme')
-  if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme)
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-    localStorage.setItem('theme', theme)
-  }, [theme])
-
-  function toggleTheme() {
-    setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
-  }
-
-  return { theme, toggleTheme }
-}
+// Wrapper fino sobre el ThemeContext (src/contexts/ThemeContext.tsx) —
+// mantiene este import path por si algo lo referencia, pero la
+// implementación real (Provider, resolución de 'system', persistencia)
+// vive en el Context. Ver ThemeContext.tsx para el porqué de usar Context
+// en vez de un useState standalone.
+export { useTheme } from '../contexts/ThemeContext'
+export type { ThemePreference, ResolvedTheme } from '../contexts/ThemeContext'

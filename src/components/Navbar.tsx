@@ -20,8 +20,8 @@ export function Navbar() {
     const displayClass = display === 'flex' ? 'sm:flex' : 'sm:block'
     return `hidden ${displayClass} px-3 py-1.5 rounded-md transition-colors border-b-2 ${
       isActive(path)
-        ? 'text-white bg-white/10 border-primary'
-        : 'text-gray-400 hover:text-white hover:bg-white/5 border-transparent'
+        ? 'text-gray-900 dark:text-white bg-gray-900/5 dark:bg-white/10 border-primary'
+        : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-900/5 dark:hover:bg-white/5 border-transparent'
     }`
   }
 
@@ -34,10 +34,10 @@ export function Navbar() {
     <header
       className="app-header sticky top-0 z-40 border-b"
       style={{
-        background: 'rgba(21,13,28,0.82)',
+        background: 'var(--app-chrome-bg)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        borderColor: 'rgba(74,50,92,0.7)',
+        borderColor: 'var(--app-chrome-border)',
       }}
     >
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -90,7 +90,7 @@ export function Navbar() {
           <div className="flex items-center gap-2 text-sm">
             <Link
               to="/login"
-              className="px-3 py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              className="px-3 py-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-900/5 dark:hover:bg-white/5 transition-colors"
             >
               Iniciar sesión
             </Link>

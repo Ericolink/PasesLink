@@ -114,6 +114,15 @@ export function IconMoon({ className = 'w-5 h-5' }: IconProps) {
   )
 }
 
+export function IconMonitor({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+      <path d="M8 21h8M12 17v4" />
+    </svg>
+  )
+}
+
 export function IconInbox({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg className={className} {...base}>

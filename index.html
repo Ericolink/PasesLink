@@ -1,6 +1,10 @@
 <!doctype html>
-<html lang="es" class="dark">
+<html lang="es">
   <head>
+    <!-- Debe ser el primer script: aplica .dark antes del primer paint
+         (ver public/theme-init.js). No inline por el CSP de firebase.json
+         (script-src sin 'unsafe-inline'). -->
+    <script src="/theme-init.js"></script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/Icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />

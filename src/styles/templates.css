@@ -381,16 +381,31 @@
    muro. Las clases de la familia "primary" no tienen ningún override
    compitiendo, así que no necesitan ese refuerzo. Los colores semánticos
    (rojo/verde/ámbar de error, éxito, advertencia) no se tocan — mismo
-   criterio de toda la invitación. */
+   criterio de toda la invitación.
+
+   Selector sin ".dark" agregado a propósito (soporte de light mode): la
+   identidad del tema en el dashboard debe aplicar en ambos modos de la
+   app, no solo en oscuro — el prefijo ".dark" solo hacía falta para
+   ganarle a la regla competidora de index.css, que en modo claro no
+   existe (nunca compitió ahí). El selector ".dark"-prefijado se conserva
+   intacto: cero cambio de comportamiento en dark. */
+[data-template='cowboy'] .bg-white,
 .dark [data-template='cowboy'] .bg-white {
   background-color: var(--invite-surface) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+[data-template='cowboy'] .bg-gray-50,
+[data-template='cowboy'] .bg-gray-100,
 .dark [data-template='cowboy'] .bg-gray-50,
 .dark [data-template='cowboy'] .bg-gray-100 {
   background-color: var(--invite-accent-soft) !important;
 }
+[data-template='cowboy'] .border-gray-100,
+[data-template='cowboy'] .border-gray-200,
+[data-template='cowboy'] .border-gray-300,
+[data-template='cowboy'] .border-gray-400,
+[data-template='cowboy'] .border-gray-700,
 .dark [data-template='cowboy'] .border-gray-100,
 .dark [data-template='cowboy'] .border-gray-200,
 .dark [data-template='cowboy'] .border-gray-300,
@@ -408,6 +423,8 @@
    tienen su propio tratamiento) sin agregar ninguna clase nueva a cada
    botón. Pasan a leerse como una placa/cartel propio: relleno + texto
    explícito + borde en el acento en vez del tono neutro de los paneles. */
+[data-template='cowboy'] .border-gray-300:not(input):not(textarea):not(select),
+[data-template='cowboy'] .border-gray-600:not(input):not(textarea):not(select),
 .dark [data-template='cowboy'] .border-gray-300:not(input):not(textarea):not(select),
 .dark [data-template='cowboy'] .border-gray-600:not(input):not(textarea):not(select) {
   background-color: var(--invite-surface) !important;
@@ -478,7 +495,10 @@
 }
 /* Misma especificidad que el override de .border-gray-200 de arriba (que
    también es !important) — sin el prefijo ".dark" perdería ese empate y el
-   borde superior quedaría en --invite-border en vez de --invite-accent. */
+   borde superior quedaría en --invite-border en vez de --invite-accent.
+   Selector sin ".dark" agregado por el mismo motivo que el resto del
+   bloque de vaquera (soporte de light mode). */
+[data-template='cowboy'] .invite-stat-card,
 .dark [data-template='cowboy'] .invite-stat-card {
   border-top-width: 3px !important;
   border-top-style: solid !important;
@@ -799,18 +819,33 @@
    vaquera: esta hoja no usa @layer, así que le gana a las utilidades de
    Tailwind sin importar especificidad. Los colores semánticos (rojo/
    verde/ámbar de error, éxito, advertencia) no se tocan — mismo criterio
-   de toda la invitación. */
+   de toda la invitación.
+
+   Selector sin ".dark" agregado a propósito (soporte de light mode) —
+   mismo criterio y mismo motivo que el bloque equivalente de vaquera más
+   arriba: el prefijo ".dark" solo hacía falta para ganarle a la regla
+   competidora de index.css, inexistente en modo claro. */
+[data-template='graduation'] .bg-white,
 .dark [data-template='graduation'] .bg-white {
   background-color: var(--invite-surface) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+[data-template='graduation'] .bg-gray-50,
+[data-template='graduation'] .bg-gray-100,
+[data-template='graduation'] .bg-gray-700\/40,
+[data-template='graduation'] .bg-gray-700\/50,
 .dark [data-template='graduation'] .bg-gray-50,
 .dark [data-template='graduation'] .bg-gray-100,
 .dark [data-template='graduation'] .bg-gray-700\/40,
 .dark [data-template='graduation'] .bg-gray-700\/50 {
   background-color: var(--invite-accent-soft) !important;
 }
+[data-template='graduation'] .border-gray-100,
+[data-template='graduation'] .border-gray-200,
+[data-template='graduation'] .border-gray-300,
+[data-template='graduation'] .border-gray-400,
+[data-template='graduation'] .border-gray-700,
 .dark [data-template='graduation'] .border-gray-100,
 .dark [data-template='graduation'] .border-gray-200,
 .dark [data-template='graduation'] .border-gray-300,
@@ -824,6 +859,8 @@
 /* Botones secundarios sin relleno ("Muro", "Reportes", "Reactivar
    evento", etc.): pasan de borde gris invisible a placa con borde dorado
    propio, mismo criterio que vaquera. */
+[data-template='graduation'] .border-gray-300:not(input):not(textarea):not(select),
+[data-template='graduation'] .border-gray-600:not(input):not(textarea):not(select),
 .dark [data-template='graduation'] .border-gray-300:not(input):not(textarea):not(select),
 .dark [data-template='graduation'] .border-gray-600:not(input):not(textarea):not(select) {
   background-color: var(--invite-surface) !important;
@@ -868,7 +905,9 @@
    "panel de transcripción" en vez de card de analytics — filete dorado
    superior + la cifra en Cinzel, mismo lenguaje que el resto del sistema.
    .dark + !important por el mismo empate de especificidad que ya resuelve
-   el border-gray-200 de arriba (también !important). */
+   el border-gray-200 de arriba (también !important). Selector sin ".dark"
+   agregado por el mismo motivo que el resto del bloque de graduación. */
+[data-template='graduation'] .invite-stat-card,
 .dark [data-template='graduation'] .invite-stat-card {
   border-top-width: 2px !important;
   border-top-style: solid !important;

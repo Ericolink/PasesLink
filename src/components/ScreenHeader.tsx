@@ -33,7 +33,7 @@ type ScreenHeaderProps = {
 // rediseño de navegación).
 export function ScreenHeader({ title, backTo, action, templateId }: ScreenHeaderProps) {
   return (
-    <header className="dash-header sticky top-14 z-30 flex items-center gap-3 border-b border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-[#150D1C]/90 backdrop-blur px-1 py-3 mb-4">
+    <header className="dash-header sticky top-14 z-30 flex items-center gap-3 border-b border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-100/90 backdrop-blur px-1 py-3 mb-4">
       {backTo && (
         <Link
           to={backTo}
