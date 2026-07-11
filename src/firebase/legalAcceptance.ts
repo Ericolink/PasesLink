@@ -2,7 +2,10 @@ import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/fires
 import { db } from './config'
 import { LEGAL_DOCS_LIST } from '../legal/documents'
 
-export type LegalAcceptanceMethod = 'register_email' | 'google' | 'facebook'
+// 'guest_pass_email'/'guest_pass_google' distinguen cuentas creadas desde el
+// CTA de RSVP (GuestSignupPrompt) del registro tradicional — permite medir
+// conversión de invitado a usuario registrado en el historial de aceptaciones.
+export type LegalAcceptanceMethod = 'register_email' | 'google' | 'facebook' | 'guest_pass_email' | 'guest_pass_google'
 
 /**
  * Registra la aceptación de los documentos legales vigentes (LEGAL_DOCS) para

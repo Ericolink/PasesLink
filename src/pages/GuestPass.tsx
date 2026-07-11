@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti'
 import { getEvent, subscribeToEvent } from '../firebase/events'
 import { canSubmitPaymentProof, checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp, submitPaymentProof } from '../firebase/guests'
 import { GuestEditModal } from '../components/GuestEditModal'
+import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { saveUserInvitation } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
@@ -73,6 +74,7 @@ function GuestPassInner() {
   const [downloaded, setDownloaded] = useState(false)
   const [showMaybeMessage, setShowMaybeMessage] = useState(false)
   const [showDeclineModal, setShowDeclineModal] = useState(false)
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required' | 'blocked' | 'not_found'>('idle')
   const [paymentSaving, setPaymentSaving] = useState(false)
@@ -436,6 +438,15 @@ function GuestPassInner() {
       // guardó el cambio — si la escritura falla, el invitado se queda en el
       // estado anterior y ve el error en vez de una confirmación falsa.
       setGuest({ ...guest, rsvpStatus })
+
+      // Ofrecer crear cuenta justo en el momento real de confirmar asistencia
+      // (no en cargas posteriores de un pase que ya estaba en 'yes') — solo a
+      // invitados sin sesión, y no de nuevo si ya dijo "Ahora no" en esta
+      // invitación durante esta sesión del navegador.
+      if (rsvpStatus === 'yes' && !user) {
+        const dismissKey = `paselink_signup_prompt_${eventId}_${qrToken}`
+        if (!sessionStorage.getItem(dismissKey)) setShowSignupPrompt(true)
+      }
     } catch (err) {
       console.error('Error guardando RSVP:', err)
       setRsvpError('No se guardó. Intenta de nuevo.')
@@ -886,6 +897,17 @@ function GuestPassInner() {
           lockToken={deviceToken}
           onClose={() => setEditOpen(false)}
           onSaved={(patch) => setGuest((g) => (g ? { ...g, ...patch } : g))}
+        />
+      )}
+      {showSignupPrompt && (
+        <GuestSignupPrompt
+          eventId={eventId}
+          guest={guest}
+          onDismiss={() => {
+            sessionStorage.setItem(`paselink_signup_prompt_${eventId}_${qrToken}`, '1')
+            setShowSignupPrompt(false)
+          }}
+          onSuccess={() => setShowSignupPrompt(false)}
         />
       )}
     </InvitationThemeRoot>
