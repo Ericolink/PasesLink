@@ -81,7 +81,7 @@ export function GuestSearchSheet({
         role="dialog"
         aria-modal="true"
         aria-label="Buscar y filtrar invitados"
-        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col animate-bounce-in"
+        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[85dvh] flex flex-col animate-bounce-in"
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">Buscar y filtrar</h2>
@@ -97,9 +97,14 @@ export function GuestSearchSheet({
         <div className="px-5 pb-4 overflow-y-auto">
           <div className="relative mb-5">
             <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            {/* Sin autoFocus a propósito: enfocar el input al abrir dispara
+                el teclado nativo de inmediato en móvil, tapando los chips de
+                filtro antes de que el usuario llegue a verlos. Sin esto, el
+                sheet abre con el teclado cerrado y el usuario lo abre solo
+                si realmente va a escribir; useModalA11y enfoca el botón
+                "Cerrar" como respaldo de accesibilidad, sin disparar teclado. */}
             <input
               type="text"
-              autoFocus
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Buscar por nombre o apellido…"

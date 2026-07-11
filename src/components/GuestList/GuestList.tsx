@@ -61,7 +61,15 @@ function GuestSection({
         onClick={() => !alwaysExpanded && setCollapsed((c) => !c)}
         className={`w-full flex items-center justify-between gap-2 px-1 py-2 ${alwaysExpanded ? 'cursor-default' : ''}`}
       >
-        <span className={`text-xs font-bold uppercase tracking-wide ${sectionKey === 'attention' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400 dark:text-gray-500'}`}>
+        <span
+          className={`text-xs font-bold uppercase tracking-wide ${
+            sectionKey === 'attention'
+              ? 'text-amber-600 dark:text-amber-400'
+              : sectionKey === 'confirmed_unpaid'
+                ? 'text-violet-600 dark:text-violet-400'
+                : 'text-gray-400 dark:text-gray-500'
+          }`}
+        >
           {title}
         </span>
         <span className="flex items-center gap-1.5">

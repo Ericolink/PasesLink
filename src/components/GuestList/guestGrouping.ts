@@ -25,7 +25,16 @@ export function guestDisplayName(guest: Pick<GuestData, 'name' | 'lastName' | 'i
 // categoría "atención" de acá, que es específicamente para pagos pendientes
 // de aprobar. "Desbloquear pase" sigue disponible en el detalle del
 // invitado para cuando el organizador lo necesite a mano.
-export type GuestUrgency = 'attention' | 'confirmed' | 'unanswered' | 'declined'
+//
+// `confirmed_unpaid` es un nivel intermedio entre "atención" y "confirmado":
+// un invitado que ya respondió que sí pero todavía debe (transferencia sin
+// confirmar, o efectivo a cobrar en la puerta) no requiere ninguna decisión
+// del organizador todavía, así que no es `attention` — pero mezclarlo dentro
+// de "Confirmados" obligaba a escanear fila por fila para ver quién falta
+// cobrar en eventos grandes. Separarlo en su propia sección resuelve eso sin
+// agregar ningún filtro nuevo: es puramente el mismo agrupado por defecto,
+// una fila puede pasar de acá a `confirmed` sola cuando se aprueba su pago.
+export type GuestUrgency = 'attention' | 'confirmed_unpaid' | 'confirmed' | 'unanswered' | 'declined'
 
 export function needsAttention(guest: GuestData, requiresPayment: boolean): boolean {
   if (!requiresPayment) return false
@@ -36,18 +45,24 @@ export function guestUrgency(guest: GuestData, requiresPayment: boolean): GuestU
   if (needsAttention(guest, requiresPayment)) return 'attention'
   if (guest.rsvpStatus === 'no' || guestPresence(guest) === 'final_out') return 'declined'
   if (guest.rsvpStatus === 'pending') return 'unanswered'
+  if (requiresPayment && guest.paymentStatus !== 'paid') return 'confirmed_unpaid'
   return 'confirmed'
 }
 
+// En eventos sin cobro `confirmed_unpaid` nunca se produce (ver
+// `guestUrgency`), así que esa sección queda vacía y no se renderiza
+// (`GuestSection` no pinta secciones con 0 invitados) — cero cambio visual
+// para eventos gratis.
 export const SECTION_ORDER: { key: GuestUrgency; title: string; collapsedByDefault: boolean }[] = [
   { key: 'attention', title: 'Necesita tu atención', collapsedByDefault: false },
+  { key: 'confirmed_unpaid', title: 'Pendientes de pago', collapsedByDefault: false },
   { key: 'confirmed', title: 'Confirmados', collapsedByDefault: false },
   { key: 'unanswered', title: 'Sin responder', collapsedByDefault: false },
   { key: 'declined', title: 'No asistirán', collapsedByDefault: true },
 ]
 
 export function groupGuestsByUrgency(guests: GuestData[], requiresPayment: boolean): Record<GuestUrgency, GuestData[]> {
-  const groups: Record<GuestUrgency, GuestData[]> = { attention: [], confirmed: [], unanswered: [], declined: [] }
+  const groups: Record<GuestUrgency, GuestData[]> = { attention: [], confirmed_unpaid: [], confirmed: [], unanswered: [], declined: [] }
   for (const guest of guests) groups[guestUrgency(guest, requiresPayment)].push(guest)
   return groups
 }
