@@ -204,7 +204,11 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
         <span className="text-white text-sm font-medium">
           {isStory ? photo.authorName : `${index + 1} / ${photos.length}`}
         </span>
-        <button onClick={onClose} className="text-white/70 hover:text-white p-1" aria-label="Cerrar">
+        <button
+          onClick={onClose}
+          className="-m-3 min-w-11 min-h-11 inline-flex items-center justify-center rounded-full text-white/70 hover:text-white active:bg-white/10 transition-colors"
+          aria-label="Cerrar"
+        >
           <IconX className="w-5 h-5" />
         </button>
       </div>

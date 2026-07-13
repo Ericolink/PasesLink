@@ -80,7 +80,7 @@ export function Feedback() {
 
   if (sent) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-10 animate-fade-in">
+      <div className="max-w-lg mx-auto px-4 pt-10 pb-[calc(2.5rem+env(safe-area-inset-bottom))] animate-fade-in">
         <ScreenHeader title="Buzón de sugerencias" backTo={backTo} />
         <div className="text-center py-6">
         <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
@@ -102,7 +102,7 @@ export function Feedback() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-10 animate-fade-in">
+    <div className="max-w-lg mx-auto px-4 pt-10 pb-[calc(2.5rem+env(safe-area-inset-bottom))] animate-fade-in">
       <ScreenHeader title="Buzón de sugerencias" backTo={backTo} />
       <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-6">
         ¿Encontraste un error, tienes una idea o quieres dejarnos un comentario? Cuéntanos — solo el equipo de

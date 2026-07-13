@@ -17,7 +17,7 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { auth, db, googleProvider, facebookProvider } from './config'
+import { auth, db, googleProvider } from './config'
 import { sendWelcomeEmail } from '../utils/emailjs'
 import { uploadImage } from '../utils/cloudinary'
 import { markWelcomePending } from '../utils/onboarding'
@@ -80,16 +80,6 @@ export async function loginWithEmail(email: string, password: string) {
 
 export async function loginWithGoogle() {
   const credential = await signInWithPopup(auth, googleProvider)
-  await ensureUserDoc(credential.user.uid, credential.user.email, credential.user.displayName)
-  if (getAdditionalUserInfo(credential)?.isNewUser) {
-    markWelcomePending(credential.user.uid)
-    if (credential.user.email) void sendWelcomeEmail(credential.user.email, credential.user.displayName || '')
-  }
-  return credential.user
-}
-
-export async function loginWithFacebook() {
-  const credential = await signInWithPopup(auth, facebookProvider)
   await ensureUserDoc(credential.user.uid, credential.user.email, credential.user.displayName)
   if (getAdditionalUserInfo(credential)?.isNewUser) {
     markWelcomePending(credential.user.uid)

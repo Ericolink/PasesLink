@@ -135,7 +135,7 @@ export function GuestDetailSheet({
         role="dialog"
         aria-modal="true"
         aria-label={`Detalle de ${guestDisplayName(guest)}`}
-        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[88vh] flex flex-col animate-bounce-in"
+        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[85dvh] flex flex-col animate-bounce-in"
       >
         <div className="flex items-center gap-3 px-5 pt-5 pb-4 shrink-0 border-b border-gray-100 dark:border-gray-700">
           <GuestAvatar guest={guest} size={46} />
@@ -148,7 +148,7 @@ export function GuestDetailSheet({
           <button
             onClick={() => { setEditing(false); setHistoryOpen(false); onClose() }}
             aria-label="Cerrar"
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors shrink-0"
+            className="-m-2 min-w-11 min-h-11 inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <IconX className="w-5 h-5" />
           </button>

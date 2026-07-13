@@ -38,6 +38,38 @@ service cloud.firestore {
       return isOwner(eventId) || (isCoOrganizer(eventId) && coOrgPerm(eventId, key, def));
     }
 
+    // Variantes de isOwner/isCoOrganizer/coOrgPerm/canDo para usar SOLO
+    // dentro de `match /events/{eventId}` (su `allow update`/`allow
+    // delete`) — ahí `resource.data` YA ES el documento del evento, así que
+    // llamar a isOwner(eventId)/canDo(eventId,...) reevalúa un get() al
+    // MISMO documento que la regla ya tiene servido sin costo. Con varias
+    // ramas en esa única regla `allow update` (cada una llamando canDo, que
+    // a su vez llama isOwner+isCoOrganizer+coOrgPerm, cada una con su propio
+    // get()), el evaluador de reglas llegó a rechazar escrituras totalmente
+    // ajenas a coanfitriones (ej. el autoregistro público) con "maximum of
+    // 1000 expressions to evaluate" — no por exceso de LECTURAS (Firestore
+    // cachea los get() al mismo path dentro de una misma evaluación) sino
+    // por exceso de EVALUACIONES DE EXPRESIÓN de la regla entera. Estas
+    // variantes leen directo de `evData` (ya en mano) en vez de volver a
+    // pedir el documento — mismo resultado, sin la llamada a get() extra.
+    function isOwnerData(evData) {
+      return request.auth != null && request.auth.uid == evData.ownerId;
+    }
+
+    function isCoOrganizerData(evData) {
+      return request.auth != null &&
+        evData.coOrganizersMap != null &&
+        request.auth.uid in evData.coOrganizersMap;
+    }
+
+    function coOrgPermData(evData, key, def) {
+      return evData.get('coOrganizerPermissions', {}).get(request.auth.uid, {}).get(key, def);
+    }
+
+    function canDoData(evData, key, def) {
+      return isOwnerData(evData) || (isCoOrganizerData(evData) && coOrgPermData(evData, key, def));
+    }
+
     // Admin = tener un documento propio en /admins/{uid}. Se eligió esta
     // colección en vez de customClaims (Fase 4D) porque asignar customClaims
     // requiere el Admin SDK, que en este proyecto solo está disponible vía
@@ -52,6 +84,18 @@ service cloud.firestore {
 
     function isOpenEvent(eventId) {
       return get(/databases/$(database)/documents/events/$(eventId)).data.entryMode in ['open', 'hybrid'];
+    }
+
+    // Evita crear un evento con `requiresPayment: true` y precio 0/ausente —
+    // el cliente ya bloquea esto antes de enviar (ver EventCreate.tsx/
+    // canProceedStep y EditEventForm.tsx/handleReviewSubmit), esta es la
+    // barrera real si alguien habla directo contra Firestore. Solo se aplica
+    // en `create`: en `update` el dueño ya tiene control total sobre su
+    // propio evento (ver `allow update` más abajo) y la misma pantalla de
+    // edición pasa por el mismo guard cliente.
+    function isValidEventPricing() {
+      let d = request.resource.data;
+      return !d.requiresPayment || (d.ticketPrice is number && d.ticketPrice > 0);
     }
 
     // Valida el delta de un contador de "gente adentro" (checkedInCount /
@@ -71,23 +115,40 @@ service cloud.firestore {
     // estos límites son la última barrera real si alguien evita por completo
     // la capa de aplicación (src/firebase/wall.ts) y escribe directo contra
     // Firestore. Deben coincidir con src/utils/validation.ts.
-    function isValidWallMessage() {
+    // authorRole/postWall: antes `authorRole` no se validaba en absoluto acá
+    // (isValidWallReply sí lo restringía a ['owner','guest'], pero un mensaje
+    // NUEVO no) — el cliente decide localmente si postea como 'owner'
+    // (EventWall.tsx compara uid contra event.ownerId), sin nada del lado
+    // servidor que lo confirme. Cualquiera hablando directo contra Firestore
+    // podía postear como 'owner' y suplantar al organizador. `postWall`
+    // (permiso de coanfitrión, ver src/types/coOrganizerPermissions.ts)
+    // tampoco se aplicaba en ningún lado — el toggle del editor no tenía
+    // efecto real. Solo alcanza a coanfitriones: el dueño nunca está en
+    // coOrganizersMap (isCoOrganizer da false) y un invitado sin sesión
+    // tampoco (requiere request.auth).
+    function isValidWallMessage(eventId) {
       let d = request.resource.data;
       return d.text is string && d.text.size() > 0 && d.text.size() <= 500
         && d.type in ['comment', 'question', 'music', 'idea']
         && d.authorName is string && d.authorName.size() > 0 && d.authorName.size() <= 60
-        && d.authorToken is string && d.authorToken.size() <= 100;
+        && d.authorToken is string && d.authorToken.size() <= 100
+        && d.authorRole in ['owner', 'guest']
+        && (d.authorRole == 'guest' || isOwner(eventId))
+        && (!isCoOrganizer(eventId) || coOrgPerm(eventId, 'postWall', true));
     }
 
     // Misma validación que isValidWallMessage, para el elemento agregado al
     // array `replies` (ver isValidWallReplyAppend más abajo). authorRole no
     // se restringe a 'guest' — el anfitrión responde con este mismo flujo,
     // no uno aparte.
-    function isValidWallReply(r) {
+    function isValidWallReply(r, eventId) {
       return r.text is string && r.text.size() > 0 && r.text.size() <= 500
         && r.authorName is string && r.authorName.size() > 0 && r.authorName.size() <= 60
         && r.authorToken is string && r.authorToken.size() <= 100
-        && r.authorRole in ['owner', 'guest'];
+        && r.authorRole in ['owner', 'guest']
+        // Mismo chequeo de suplantación que isValidWallMessage: solo el
+        // dueño real puede quedar marcado 'owner' en su propia respuesta.
+        && (r.authorRole == 'guest' || isOwner(eventId));
     }
 
     // Cualquier participante autorizado del muro puede agregar una respuesta
@@ -118,7 +179,7 @@ service cloud.firestore {
         // `replies`, ver isValidWallReplyAppend arriba) en vez de devolver
         // limpiamente una lista vacía.
         && (oldReplies.size() == 0 || newReplies[0:oldReplies.size()] == oldReplies)
-        && isValidWallReply(newReplies[oldReplies.size()]);
+        && isValidWallReply(newReplies[oldReplies.size()], eventId);
     }
 
     // Auto-registro público de invitados (registerWalkInGuest, eventos
@@ -439,16 +500,21 @@ service cloud.firestore {
 
     match /events/{eventId} {
       allow read: if true;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
-      allow update: if isOwner(eventId) || isAdmin()
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId
+        && isValidEventPricing();
+      allow update: if isOwnerData(resource.data) || isAdmin()
         // Check-in/checkout individual o contador walk-in (Opciones A y C): solo
-        // organizador/co-org, y solo tocando los dos contadores de presencia.
-        // checkedInCount (asistencia acumulada) y occupancyCount (ocupación en
-        // vivo) pueden cambiar juntos (checkInGuest/walkIn) o solo el segundo
-        // (checkOutGuest, un reingreso vía checkInGuest, o walkOut cuando
-        // checkedInCount ya está en 0) — por eso se valida cada uno por
-        // separado en vez de exigir que ambos cambien a la vez.
-        || (isOwnerOrCoOrg(eventId)
+        // quien tiene el permiso `scanQr` (dueño siempre lo tiene vía canDo),
+        // y solo tocando los dos contadores de presencia. checkedInCount
+        // (asistencia acumulada) y occupancyCount (ocupación en vivo) pueden
+        // cambiar juntos (checkInGuest/walkIn) o solo el segundo (checkOutGuest,
+        // un reingreso vía checkInGuest, o walkOut cuando checkedInCount ya
+        // está en 0) — por eso se valida cada uno por separado en vez de
+        // exigir que ambos cambien a la vez. Antes esta rama solo exigía
+        // isOwnerOrCoOrg (cualquier coanfitrión, tuviera o no scanQr) — un
+        // coanfitrión con SOLO otro permiso (ej. viewGuestList) podía escribir
+        // estos contadores directo a Firestore sin pasar por checkInGuest.
+        || (canDoData(resource.data, 'scanQr', true)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount'])
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount))
@@ -460,21 +526,52 @@ service cloud.firestore {
         // resta paidCount sin tocar guestCount/peopleCount — el invitado ya
         // contaba desde que se registró, pague o no) y cambiar la cantidad
         // de acompañantes de un invitado ya pagado (updateGuest ajusta
-        // peopleCount y paidCount por la misma diferencia). Mismo margen ±50
-        // que counterDeltaOk ya usa para los contadores de presencia arriba,
-        // no un exacto ±1: un borrado puede quitar un grupo/familia entero
-        // de una sola vez.
-        || (isOwnerOrCoOrg(eventId)
+        // peopleCount y paidCount por la misma diferencia). También cubre
+        // agregar invitados (addGuest/addGuestsBulk, permiso addGuests):
+        // guestCount/peopleCount suben ahí de la misma forma. Mismo margen
+        // ±50 que counterDeltaOk ya usa para los contadores de presencia
+        // arriba, no un exacto ±1: un borrado (o una carga masiva) puede
+        // mover un grupo entero de una sola vez. Gateado por CUALQUIERA de
+        // los 4 permisos que legítimamente disparan esta escritura (antes
+        // solo isOwnerOrCoOrg, sin mirar el permiso puntual) — no se puede
+        // exigir uno solo porque addGuest/deleteGuest/confirmPayment/
+        // updateGuest son operaciones distintas que comparten este mismo
+        // rango de campos.
+        || ((canDoData(resource.data, 'addGuests', true) || canDoData(resource.data, 'deleteGuests', true) || canDoData(resource.data, 'confirmPayments', true) || canDoData(resource.data, 'editGuests', true))
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'paidCount'])
             && counterDeltaOk(request.resource.data.guestCount, resource.data.guestCount)
             && counterDeltaOk(request.resource.data.peopleCount, resource.data.peopleCount)
+            && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
+        // deleteGuest borra un invitado que puede estar en cualquier
+        // combinación de estados (adentro o no, pagado o no) — decrementa
+        // guestCount/peopleCount siempre, y ADEMÁS checkedInCount/
+        // occupancyCount (si estaba 'checked_in') y/o paidCount (si ya había
+        // pagado) en la MISMA escritura al evento. Eso no encaja en ninguna
+        // rama de arriba (cada una cubre un subconjunto fijo de campos para
+        // una operación puntual) — sin esto, un coanfitrión con deleteGuests
+        // (pero sin scanQr/confirmPayments) no podía borrar a un invitado que
+        // ya había entrado o pagado: el batch entero (borrado + contadores)
+        // se rechazaba. Gateado solo por deleteGuests — borrar ya autoriza
+        // deshacer cualquiera de estos efectos derivados del invitado
+        // borrado, no hace falta tener además scanQr/confirmPayments (mismo
+        // criterio ya usado por counterDeltaOk: es margen de la OPERACIÓN,
+        // no un permiso extra por cada campo que decida tocar).
+        || (canDoData(resource.data, 'deleteGuests', true)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'checkedInCount', 'occupancyCount', 'paidCount'])
+            && counterDeltaOk(request.resource.data.guestCount, resource.data.guestCount)
+            && counterDeltaOk(request.resource.data.peopleCount, resource.data.peopleCount)
+            && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
+            && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount)
             && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
         // Botón "Sí, ya pagó" del escáner (confirmPaymentAndCheckIn): check-in
         // + aprobación de pago en una sola escritura, así que toca los 3
         // contadores (checkedInCount/occupancyCount de la rama de arriba +
         // paidCount de la rama de justo arriba) a la vez — ninguna de esas
-        // dos ramas sola lo permite.
-        || (isOwnerOrCoOrg(eventId)
+        // dos ramas sola lo permite. Exige AMBOS permisos (scanQr y
+        // confirmPayments) a la vez, igual que ya exige la rama equivalente
+        // de `guests/{guestId}` de más abajo — antes esta rama del evento no
+        // miraba ningún permiso puntual.
+        || (canDoData(resource.data, 'scanQr', true) && canDoData(resource.data, 'confirmPayments', true)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount', 'paidCount'])
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount)
@@ -493,7 +590,7 @@ service cloud.firestore {
         // pasar por el dueño. Solo puede tocar sus propias 2 entradas
         // (coOrganizersMap/coOrganizerPermissions) y hacerlas desaparecer —
         // no puede afectar invitados, pagos, ni ningún otro campo del evento.
-        || (isCoOrganizer(eventId)
+        || (isCoOrganizerData(resource.data)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coOrganizersMap', 'coOrganizerPermissions', 'updatedAt'])
             && !(request.auth.uid in request.resource.data.get('coOrganizersMap', {}))
             && request.auth.uid in resource.data.coOrganizersMap)
@@ -502,12 +599,12 @@ service cloud.firestore {
         // no puede tocar su propia entrada en ninguno de los dos mapas — ni
         // para autoescalarse más permisos ni para autoeliminarse por esta vía
         // (para eso ya está la rama de "salir del evento" de arriba).
-        || (isCoOrganizer(eventId)
-            && coOrgPerm(eventId, 'manageCoOrganizers', false)
+        || (isCoOrganizerData(resource.data)
+            && coOrgPermData(resource.data, 'manageCoOrganizers', false)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coOrganizersMap', 'coOrganizerPermissions', 'updatedAt'])
             && request.resource.data.get('coOrganizersMap', {}).get(request.auth.uid, null) == resource.data.coOrganizersMap.get(request.auth.uid, null)
             && request.resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}) == resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}));
-      allow delete: if isOwner(eventId) || isAdmin();
+      allow delete: if isOwnerData(resource.data) || isAdmin();
 
       match /guests/{guestId} {
         allow read: if canDo(eventId, 'viewGuestList', true) || isAdmin();
@@ -614,7 +711,14 @@ service cloud.firestore {
         allow get: if true;
         allow list: if canDo(eventId, 'viewGuestList', true) || isAdmin();
         allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin();
-        allow create: if canDo(eventId, 'editGuests', true) || isAdmin()
+        // canDo(...,'addGuests',...) además de editGuests: agregar un
+        // invitado (addGuest/addGuestsBulk/import CSV) puede incluir su
+        // teléfono/email en la MISMA operación de alta — antes, un
+        // coanfitrión con addGuests:true pero editGuests:false (combinación
+        // válida, ej. "solo puede sumar invitados nuevos") no podía guardar
+        // ese contacto: el guest se creaba pero el batch entero fallaba en
+        // el `set` de guestContacts, dejando el teléfono/email perdido.
+        allow create: if canDo(eventId, 'editGuests', true) || canDo(eventId, 'addGuests', true) || isAdmin()
           || (isOpenEvent(eventId) && isValidPublicGuestContact())
           // Primer guardado de contacto del propio invitado (p.ej. un
           // invitado de lista, agregado sin teléfono, que ahora carga el
@@ -660,7 +764,7 @@ service cloud.firestore {
         // Un invitado sin sesión no pasa por este chequeo (no hay uid que
         // sancionar) — mismo límite que el resto de las protecciones
         // anti-abuso de este archivo para tráfico anónimo.
-        allow create: if isValidWallMessage() && (request.auth == null || !commentsBlocked(eventId));
+        allow create: if isValidWallMessage(eventId) && (request.auth == null || !commentsBlocked(eventId));
         // TODO Fase 3+: esta rama no verifica que la key agregada/quitada en
         // `reactions` sea el propio token del dispositivo que hace la
         // petición — solo limita qué campo se toca y el tamaño máximo del
@@ -677,7 +781,20 @@ service cloud.firestore {
           // (ver isValidWallReplyAppend) — el anfitrión y cualquier invitado
           // no sancionado usan esta misma rama, no hay una ruta aparte.
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replies'])
-              && isValidWallReplyAppend(eventId));
+              && isValidWallReplyAppend(eventId))
+          // Borrar el propio mensaje (deleteWallMessage hace un soft-delete
+          // vía update, `deleted: true` — no un `delete` real). Solo se
+          // puede verificar para un autor CON SESIÓN cuyo `authorToken`
+          // quedó igual a su uid al postear (ver `authorToken` en
+          // EventWall.tsx) — un invitado sin cuenta no tiene ninguna
+          // identidad que estas reglas puedan comprobar del lado servidor,
+          // así que no puede autoborrarse acá (mismo límite ya documentado
+          // arriba para authorRole/postWall). Solo permite marcar `deleted`,
+          // y solo a `true` (no "revivir" un mensaje ya borrado por esta
+          // vía).
+          || (request.auth != null && request.auth.uid == resource.data.authorToken
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted'])
+              && request.resource.data.deleted == true);
         allow delete: if canDo(eventId, 'moderateWall', true) || isAdmin();
       }
 

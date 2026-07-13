@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent, subscribeToEvent } from '../firebase/events'
@@ -10,8 +10,9 @@ import { saveUserInvitation } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { resolveEventPermissions } from '../types/coOrganizerPermissions'
+import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
-import { IconAlertTriangle, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconWhatsApp, IconX } from '../components/Icons'
+import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 import { InvitationCard } from '../components/InvitationCard'
@@ -23,6 +24,9 @@ import { EventCountdown } from '../components/EventCountdown'
 import { TimelineDisplay } from '../components/TimelineDisplay'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
 import { InAppBrowserBanner } from '../components/InAppBrowserBanner'
+import { InlineNotice } from '../components/InlineNotice'
+import { NoticeStack } from '../components/NoticeStack'
+import { useInAppBrowserNotice } from '../hooks/useInAppBrowserNotice'
 import { SkeletonBlock } from '../components/Skeleton'
 import { PerforatedDivider } from '../components/PerforatedDivider'
 import { PassInfoCell } from '../components/PassInfoCell'
@@ -30,13 +34,10 @@ import { GuestPassTicket } from '../components/GuestPassTicket'
 import { formatDate, formatTime12h } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadPassImage } from '../utils/downloadPass'
+import { downloadIcsFile } from '../utils/calendar'
 import { getTemplate } from '../templates/registry'
-import { buildPassUrl } from '../utils/qrUrl'
+import { buildPassUrl, QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  transfer: 'Transferencia',
-  cash: 'Efectivo',
-}
 
 // Mismo canal (WhatsApp) que ya se usa para "compartir pase con
 // acompañantes" más abajo en este archivo — reutiliza wa.me en vez de sumar
@@ -61,6 +62,7 @@ export function GuestPass() {
 
 function GuestPassInner() {
   const { eventId, qrToken } = useParams<{ eventId: string; qrToken: string }>()
+  const location = useLocation()
   const { user, loading: authLoading } = useAuth()
   const [event, setEvent] = useState<EventData | null>(null)
   const [guest, setGuest] = useState<GuestData | null>(null)
@@ -69,6 +71,12 @@ function GuestPassInner() {
   const [deviceToken, setDeviceToken] = useState<string | null>(null)
   const [multiDevice, setMultiDevice] = useState(false)
   const [multiDeviceDismissed, setMultiDeviceDismissed] = useState(false)
+  const inAppBrowserNotice = useInAppBrowserNotice()
+  const showMultiDeviceNotice = multiDevice && !multiDeviceDismissed
+  // Cuando ambos avisos pueden mostrarse a la vez, se agrupan en un solo
+  // contenedor (NoticeStack) para no duplicar borde/fondo/margen y comerse
+  // el doble de alto de viewport — ver InlineNotice/NoticeStack.
+  const groupNotices = inAppBrowserNotice.visible && showMultiDeviceNotice
   const [rsvpSaving, setRsvpSaving] = useState(false)
   const [rsvpError, setRsvpError] = useState<string | null>(null)
   const [downloaded, setDownloaded] = useState(false)
@@ -151,6 +159,22 @@ function GuestPassInner() {
       .finally(() => setLoading(false))
   }, [eventId, qrToken, user, authLoading])
 
+  // Ofrecer crear cuenta justo al llegar de un autoregistro público
+  // (EventJoin.tsx navega acá con state.justRegistered) — antes esa pantalla
+  // se abandonaba de inmediato (navigate a /pass) sin dar la misma
+  // oportunidad que ya tiene el invitado de LISTA al confirmar RSVP (ver
+  // handleRsvp más abajo). Mismo dismissKey que ese flujo: si ya la cerró en
+  // esta sesión de navegador, no se le vuelve a ofrecer.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!guest || user || loading || !eventId || !qrToken) return
+    const state = location.state as { justRegistered?: boolean } | null
+    if (!state?.justRegistered) return
+    const dismissKey = `paselink_signup_prompt_${eventId}_${qrToken}`
+    if (!sessionStorage.getItem(dismissKey)) setShowSignupPrompt(true)
+  }, [guest, user, loading, eventId, qrToken, location.state])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   // Suscripción en vivo al evento, aparte del bootstrap de arriba (que hace
   // el claim del pase una sola vez): un pase ya emitido y abierto debe
   // reflejar los cambios que el organizador guarde después (horario,
@@ -166,7 +190,7 @@ function GuestPassInner() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-dvh flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
           <SkeletonBlock className="w-full h-40 rounded-2xl mb-4" />
           <SkeletonBlock className="h-5 w-2/3 mx-auto mb-2" />
@@ -365,7 +389,7 @@ function GuestPassInner() {
                 className="invite-qr-frame p-4 border rounded-lg max-w-[250px] max-h-[250px] overflow-hidden flex items-center justify-center"
                 style={{ borderColor: 'var(--invite-border)' }}
               >
-                <QRCodeCanvas value={passUrl} size={200} marginSize={2} />
+                <QRCodeCanvas value={passUrl} size={200} marginSize={QR_QUIET_ZONE_MODULES} />
               </div>
             </div>
           )}
@@ -463,6 +487,21 @@ function GuestPassInner() {
     setTimeout(() => setDownloaded(false), 2000)
   }
 
+  function handleAddToCalendar() {
+    if (!event || !eventId) return
+    downloadIcsFile(
+      {
+        uid: `${eventId}@paselink`,
+        name: event.name,
+        date: event.date,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        location: event.location,
+      },
+      event.name,
+    )
+  }
+
   const timeLabel = event.startTime
     ? `${formatTime12h(event.startTime)}${event.endTime ? ` – ${formatTime12h(event.endTime)}` : ''}`
     : null
@@ -491,85 +530,63 @@ function GuestPassInner() {
             className="invite-cover w-full overflow-hidden"
             style={{ borderRadius: 'var(--invite-radius) var(--invite-radius) 0 0' }}
           >
+            {/* Sin loading="lazy": primera imagen del pase (candidata a LCP)
+                en una página a la que casi siempre se llega en frío desde un
+                link compartido — lazy solo demoraba su propia descarga. */}
             <img
               src={optimizedImageUrl(event.coverImage, 800)}
               alt={event.name}
-              loading="lazy"
+              fetchPriority="high"
               crossOrigin="anonymous"
               className="w-full h-full object-cover"
             />
           </div>
         )}
 
-        {/* ── SECCIÓN SUPERIOR: Detalles del evento ── */}
-        <div className="px-6 pt-5 pb-4 text-center">
-          <h1 className="text-xl font-semibold text-[var(--invite-text)]">{event.name}</h1>
-          <ThemeOrnament templateId={event.templateId} className="w-16 h-6 mx-auto mt-1.5 text-[var(--invite-accent)]" />
-
-          {/* Info grid estilo boarding pass */}
-          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-left">
-            <PassInfoCell label="Fecha" value={formatDate(event.date)} />
-            {timeLabel && <PassInfoCell label="Hora" value={timeLabel} />}
-            <PassInfoCell
-              label="Lugar"
-              value={event.location}
-              className={!timeLabel ? 'col-span-2' : ''}
-            />
-            {event.dressCode && (
-              <PassInfoCell
-                label="Vestimenta"
-                value={event.dressCode}
-                className={!timeLabel ? '' : 'col-span-2'}
-              />
-            )}
-          </div>
-
-          <EventCountdown
-            date={event.date}
-            startTime={event.startTime}
-            endTime={event.endTime}
-            className="mt-3 mx-auto"
-          />
-
-          {event.description && (
-            <p className="mt-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-center max-w-xs mx-auto">
-              {event.description}
-            </p>
-          )}
-        </div>
-
-        <PerforatedDivider />
-
-        {/* ── SECCIÓN INFERIOR: Invitado + QR ── */}
+        {/* ── SECCIÓN SUPERIOR: Invitado + QR ── (antes "inferior": el QR es
+            lo único que realmente importa mostrar sin scroll al abrir el
+            pase — más aún en la puerta, bajo presión — así que pasa a vivir
+            primero, como el código de barras de un boarding pass real; los
+            detalles del evento quedan como contexto secundario debajo). ── */}
         <div className="px-6 pb-6 pt-4 text-center">
-          <InAppBrowserBanner />
-
-          {/* Aviso informativo, no bloqueante: el invitado sigue viendo su
-              QR y puede seguir operando su pase con normalidad (ver
-              claimGuestPass) — solo le avisamos por si no reconoce el otro
-              acceso. */}
-          {multiDevice && !multiDeviceDismissed && (
-            <div
-              className="mb-4 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-left text-sm"
-              style={{ borderColor: 'var(--invite-border)', background: 'var(--invite-surface)' }}
-            >
-              <IconAlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-400" />
-              <div className="flex-1">
+          {/* Los dos avisos (navegador integrado + multi-dispositivo) son
+              independientes y pueden coincidir. Sueltos, cada uno trae su
+              propio borde/fondo/margen y juntos se comen el doble de alto
+              de viewport del que realmente necesitan — por eso, cuando
+              ambos están visibles, se agrupan en un solo NoticeStack en vez
+              de mostrarse apilados por separado. Con uno solo visible, se
+              muestra suelto (comportamiento sin cambios). */}
+          {groupNotices ? (
+            <NoticeStack>
+              <InAppBrowserBanner grouped />
+              <InlineNotice
+                grouped
+                onDismiss={() => setMultiDeviceDismissed(true)}
+                icon={<IconAlertTriangle className="w-4 h-4 text-amber-400" />}
+              >
                 <p className="text-[var(--invite-text)]">Este pase también se abrió desde otro dispositivo o navegador.</p>
                 <p className="mt-0.5 text-[var(--invite-text-muted)]">
                   Si fuiste tú (por ejemplo, al cambiar de Instagram/WhatsApp a Chrome o Safari), no hace falta hacer
                   nada. Si no reconoces ese acceso, contacta al organizador.
                 </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMultiDeviceDismissed(true)}
-                aria-label="Cerrar aviso"
-                className="text-[var(--invite-text-muted)] hover:text-[var(--invite-text)]"
-              >
-                <IconX className="w-3.5 h-3.5" />
-              </button>
-            </div>
+              </InlineNotice>
+            </NoticeStack>
+          ) : (
+            <>
+              <InAppBrowserBanner />
+              {showMultiDeviceNotice && (
+                <InlineNotice
+                  onDismiss={() => setMultiDeviceDismissed(true)}
+                  icon={<IconAlertTriangle className="w-4 h-4 text-amber-400" />}
+                >
+                  <p className="text-[var(--invite-text)]">Este pase también se abrió desde otro dispositivo o navegador.</p>
+                  <p className="mt-0.5 text-[var(--invite-text-muted)]">
+                    Si fuiste tú (por ejemplo, al cambiar de Instagram/WhatsApp a Chrome o Safari), no hace falta hacer
+                    nada. Si no reconoces ese acceso, contacta al organizador.
+                  </p>
+                </InlineNotice>
+              )}
+            </>
           )}
 
           {guest.rsvpStatus === 'no' && (
@@ -600,32 +617,38 @@ function GuestPassInner() {
                 <button
                   data-pass-exclude="true"
                   onClick={() => setEditOpen(true)}
-                  className="inline-flex items-center gap-1 text-xs mb-3 text-[var(--invite-text-muted)] hover:text-[var(--invite-text)] underline underline-offset-2"
+                  className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-11 mb-3 text-sm font-medium text-[var(--invite-text-muted)] hover:text-[var(--invite-text)] active:text-[var(--invite-text)] underline underline-offset-2 rounded-lg"
                 >
-                  <IconEdit className="w-3 h-3" /> Editar mis datos
+                  <IconEdit className="w-4 h-4" /> Editar mis datos
                 </button>
+              )}
+
+              {/* Antes el QR se mostraba blur(6px) como "incentivo" para
+                  confirmar la asistencia — pero un QR borroso deja de ser
+                  legible para un lector en la puerta, así que en la práctica
+                  bloqueaba el ingreso en vez de solo incentivar. El QR
+                  siempre se ve nítido; el aviso de "confirma tu asistencia"
+                  pasa a vivir arriba, sin superponerse, con contraste real
+                  (no texto flotando semi-transparente sobre la imagen). */}
+              {guest.rsvpStatus === 'pending' && (
+                <div className="flex items-center gap-2 mt-1 mb-3 px-3 py-2.5 rounded-lg text-left bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                  <IconAlertTriangle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 leading-snug">
+                    Tu código ya es válido — confirma tu asistencia abajo para avisarle al organizador
+                  </p>
+                </div>
               )}
 
               <div className="relative flex justify-center my-5" ref={qrWrapperRef}>
                 <div
-                  className="invite-qr-frame p-4 border rounded-xl inline-flex items-center justify-center transition-all duration-500"
+                  className="invite-qr-frame p-4 border rounded-xl inline-flex items-center justify-center"
                   style={{
                     borderColor: 'var(--invite-border)',
-                    filter: guest.rsvpStatus === 'pending' ? 'blur(6px)' : 'none',
                     background: 'var(--invite-surface)',
                   }}
                 >
-                  <QRCodeCanvas value={passUrl} size={200} marginSize={2} />
+                  <QRCodeCanvas value={passUrl} size={200} marginSize={QR_QUIET_ZONE_MODULES} />
                 </div>
-
-                {guest.rsvpStatus === 'pending' && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
-                    <IconAlertTriangle className="w-8 h-8 text-[var(--invite-accent)]" />
-                    <p className="text-xs font-semibold text-[var(--invite-text)] text-center px-6 leading-snug">
-                      Confirma tu asistencia para desbloquear tu pase
-                    </p>
-                  </div>
-                )}
               </div>
 
               {guest.rsvpStatus === 'yes' && (
@@ -648,6 +671,12 @@ function GuestPassInner() {
                     >
                       {downloaded ? <IconCheckCircle className="w-4 h-4" /> : <IconDownload className="w-4 h-4" />}
                       {downloaded ? 'Descargado' : 'Descargar pase'}
+                    </button>
+                    <button
+                      onClick={handleAddToCalendar}
+                      className="inline-flex items-center justify-center gap-2 border border-[var(--invite-border)] text-[var(--invite-text)] rounded-md px-4 py-3 sm:py-2 text-sm font-medium hover:bg-[var(--invite-accent-soft)] transition-colors"
+                    >
+                      <IconCalendar className="w-4 h-4" /> Agregar al calendario
                     </button>
                     {guest.companions.length > 0 && (
                       <a
@@ -696,8 +725,8 @@ function GuestPassInner() {
                   {rsvpError && <p className="text-sm text-red-500 mt-3">{rsvpError}</p>}
 
                   {showDeclineModal && (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                      <div className="bg-[var(--invite-surface)] rounded-2xl shadow-2xl w-full max-w-sm p-6 text-left">
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[env(safe-area-inset-bottom)] sm:pb-0 bg-black/50 backdrop-blur-sm">
+                      <div className="bg-[var(--invite-surface)] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 text-left">
                         <h2 className="text-base font-semibold mb-2 text-[var(--invite-text)]">¿Seguro que no podrás asistir?</h2>
                         <p className="text-sm text-[var(--invite-text-muted)] mb-5">
                           Si cambias de opinión, contáctale al organizador.
@@ -857,6 +886,45 @@ function GuestPassInner() {
           {event.welcomeMessage && (
             <p className="mt-4 pt-4 text-sm font-medium italic border-t text-[var(--invite-accent)]" style={{ borderColor: 'var(--invite-border)' }}>
               {event.welcomeMessage}
+            </p>
+          )}
+        </div>
+
+        <PerforatedDivider />
+
+        {/* ── SECCIÓN INFERIOR: Detalles del evento ── */}
+        <div className="px-6 pt-5 pb-4 text-center">
+          <h1 className="text-xl font-semibold text-[var(--invite-text)]">{event.name}</h1>
+          <ThemeOrnament templateId={event.templateId} className="w-16 h-6 mx-auto mt-1.5 text-[var(--invite-accent)]" />
+
+          {/* Info grid estilo boarding pass */}
+          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-left">
+            <PassInfoCell label="Fecha" value={formatDate(event.date)} />
+            {timeLabel && <PassInfoCell label="Hora" value={timeLabel} />}
+            <PassInfoCell
+              label="Lugar"
+              value={event.location}
+              className={!timeLabel ? 'col-span-2' : ''}
+            />
+            {event.dressCode && (
+              <PassInfoCell
+                label="Vestimenta"
+                value={event.dressCode}
+                className={!timeLabel ? '' : 'col-span-2'}
+              />
+            )}
+          </div>
+
+          <EventCountdown
+            date={event.date}
+            startTime={event.startTime}
+            endTime={event.endTime}
+            className="mt-3 mx-auto"
+          />
+
+          {event.description && (
+            <p className="mt-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-center max-w-xs mx-auto">
+              {event.description}
             </p>
           )}
         </div>

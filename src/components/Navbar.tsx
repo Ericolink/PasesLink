@@ -13,12 +13,11 @@ export function Navbar() {
     return location.pathname === path || (path === '/dashboard' && location.pathname.startsWith('/events/'))
   }
 
-  function desktopLinkClass(path: string, display: 'block' | 'flex' = 'block') {
-    // Las clases de Tailwind deben aparecer completas y literales en el código
-    // para que el scanner las detecte — por eso el ternario no interpola
-    // "sm:" + display, sino que escribe ambas clases completas.
-    const displayClass = display === 'flex' ? 'sm:flex' : 'sm:block'
-    return `hidden ${displayClass} px-3 py-1.5 rounded-md transition-colors border-b-2 ${
+  function desktopLinkClass(path: string) {
+    // min-h-11 + items-center: antes centraba el texto con solo padding
+    // vertical (py-1.5, ~32px de alto) — inline-flex sirve tanto para los
+    // links de solo texto como para el de Perfil (ícono + texto).
+    return `hidden sm:inline-flex min-h-11 items-center px-3 rounded-md transition-colors border-b-2 ${
       isActive(path)
         ? 'text-gray-900 dark:text-white bg-gray-900/5 dark:bg-white/10 border-primary'
         : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-900/5 dark:hover:bg-white/5 border-transparent'
@@ -59,7 +58,7 @@ export function Navbar() {
             </Link>
             <Link
               to="/profile"
-              className={`${desktopLinkClass('/profile', 'flex')} items-center gap-2`}
+              className={`${desktopLinkClass('/profile')} gap-2`}
             >
               {user.photoURL
                 ? <img src={optimizedImageUrl(user.photoURL, 48)} alt="" loading="lazy" className="w-6 h-6 rounded-full object-cover" />
@@ -71,7 +70,7 @@ export function Navbar() {
             </Link>
             <button
               onClick={handleLogout}
-              className="hidden sm:inline-block ml-1 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors"
+              className="hidden sm:inline-flex min-h-11 items-center ml-1 px-3 rounded-md border text-sm font-medium transition-colors"
               style={{
                 borderColor: 'rgba(255,20,100,0.4)',
                 color: '#FF1464',
@@ -90,13 +89,13 @@ export function Navbar() {
           <div className="flex items-center gap-2 text-sm">
             <Link
               to="/login"
-              className="px-3 py-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-900/5 dark:hover:bg-white/5 transition-colors"
+              className="min-h-11 inline-flex items-center px-3 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-900/5 dark:hover:bg-white/5 transition-colors"
             >
               Iniciar sesión
             </Link>
             <Link
               to="/register"
-              className="bg-primary text-white rounded-md px-4 py-1.5 font-medium hover:bg-primary-dark transition-colors"
+              className="min-h-11 inline-flex items-center bg-primary text-white rounded-md px-4 font-medium hover:bg-primary-dark transition-colors"
             >
               Registrarse
             </Link>

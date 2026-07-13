@@ -28,14 +28,14 @@ export function LegalDocumentSheet({ docId, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label={docId === 'terms' ? 'Términos y condiciones' : 'Política de privacidad'}
-        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[85vh] flex flex-col animate-bounce-in"
+        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[85dvh] flex flex-col animate-bounce-in"
       >
         <div className="flex justify-end p-3 border-b border-gray-100 dark:border-gray-700 shrink-0">
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <IconX className="w-5 h-5" />
           </button>

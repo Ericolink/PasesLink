@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import type { CompanionData } from '../types'
 import { IconTrash } from './Icons'
+import { ConfirmDialog } from './ConfirmDialog'
 
 export function CompanionFieldsEditor({
   companions,
@@ -15,6 +17,11 @@ export function CompanionFieldsEditor({
   // que promete algo que el guardado va a rechazar.
   allowAddRemove?: boolean
 }) {
+  // Confirmación antes de quitar — antes el botón de la papelera borraba la
+  // fila al instante, sin deshacer posible ni pregunta, fácil de tocar sin
+  // querer en una lista que se toca seguido para editar los campos vecinos.
+  const [pendingRemoveIndex, setPendingRemoveIndex] = useState<number | null>(null)
+
   function addCompanion() {
     onChange([...companions, {}])
   }
@@ -26,6 +33,8 @@ export function CompanionFieldsEditor({
   function updateCompanion(index: number, field: keyof CompanionData, value: string) {
     onChange(companions.map((c, i) => (i === index ? { ...c, [field]: value } : c)))
   }
+
+  const pendingCompanion = pendingRemoveIndex !== null ? companions[pendingRemoveIndex] : null
 
   return (
     <div className="space-y-2">
@@ -39,20 +48,20 @@ export function CompanionFieldsEditor({
         </button>
       )}
       {companions.map((companion, index) => (
-        <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-gray-50 rounded-md p-2">
+        <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-gray-50 dark:bg-gray-700/50 rounded-md p-2">
           <input
             type="text"
             placeholder="Nombre (opcional)"
             value={companion.name || ''}
             onChange={(e) => updateCompanion(index, 'name', e.target.value)}
-            className="border border-gray-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <input
             type="text"
             placeholder="Apellido (opcional)"
             value={companion.lastName || ''}
             onChange={(e) => updateCompanion(index, 'lastName', e.target.value)}
-            className="border border-gray-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <div className="flex items-center gap-1">
             <input
@@ -60,13 +69,13 @@ export function CompanionFieldsEditor({
               placeholder="Teléfono (opcional)"
               value={companion.phone || ''}
               onChange={(e) => updateCompanion(index, 'phone', e.target.value)}
-              className="flex-1 min-w-0 border border-gray-300 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {allowAddRemove && (
               <button
                 type="button"
-                onClick={() => removeCompanion(index)}
-                className="shrink-0 text-gray-400 hover:text-red-500 transition-colors p-2.5"
+                onClick={() => setPendingRemoveIndex(index)}
+                className="shrink-0 min-w-11 min-h-11 inline-flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
                 aria-label="Eliminar acompañante"
               >
                 <IconTrash className="w-4 h-4" />
@@ -75,6 +84,23 @@ export function CompanionFieldsEditor({
           </div>
         </div>
       ))}
+
+      <ConfirmDialog
+        open={pendingRemoveIndex !== null}
+        title="¿Quitar acompañante?"
+        message={
+          pendingCompanion?.name
+            ? `Se quitará a "${pendingCompanion.name}${pendingCompanion.lastName ? ` ${pendingCompanion.lastName}` : ''}" de la lista.`
+            : 'Se quitará este acompañante de la lista.'
+        }
+        confirmLabel="Quitar"
+        danger
+        onConfirm={() => {
+          if (pendingRemoveIndex !== null) removeCompanion(pendingRemoveIndex)
+          setPendingRemoveIndex(null)
+        }}
+        onCancel={() => setPendingRemoveIndex(null)}
+      />
     </div>
   )
 }

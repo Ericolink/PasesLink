@@ -52,16 +52,20 @@ export function ShareFallbackSheet({
         role="dialog"
         aria-modal="true"
         aria-label="Compartir evento"
-        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm animate-bounce-in"
+        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm max-h-[85dvh] flex flex-col animate-bounce-in"
       >
-        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">Compartir evento</h2>
-          <button onClick={onClose} aria-label="Cerrar" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="-m-2 min-w-11 min-h-11 inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
             <IconX className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-5 pb-5">
+        <div className="px-5 pb-5 overflow-y-auto">
           {imageUrl && (
             <div className="flex justify-center mb-4">
               <img src={imageUrl} alt="Vista previa de la historia" className="h-52 rounded-xl border border-gray-200 dark:border-gray-700" />

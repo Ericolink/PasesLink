@@ -42,7 +42,6 @@ const SUBCOLLECTION_GROUPS = [
   'guests',
   'guestContacts',
   'checkins',
-  'waitlist',
   'wall',
   'photos',
   'history',

@@ -18,7 +18,7 @@ export function DraftRecoveryModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0">
       <div className="bg-white dark:bg-gray-800 rounded-t-xl sm:rounded-xl shadow-xl sm:max-w-sm w-full p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 animate-bounce-in">
-        <div className="flex items-center gap-2 mb-2 text-gray-700 dark:text-gray-200">
+        <div className="flex items-center gap-2 mb-2 text-gray-700 dark:text-gray-300">
           <IconClock className="w-5 h-5" />
           <h2 className="text-base font-semibold">Tienes un borrador sin guardar</h2>
         </div>

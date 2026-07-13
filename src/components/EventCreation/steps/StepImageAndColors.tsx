@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
-import { optimizedImageUrl } from '../../../utils/cloudinary'
 import { getTemplate } from '../../../templates/registry'
 import type { TemplateId } from '../../../types'
+import { CoverImagePicker } from '../../CoverImagePicker'
 
 interface StepImageAndColorsProps {
   coverFileInputRef: RefObject<HTMLInputElement | null>
@@ -35,48 +35,16 @@ export function StepImageAndColors({
       </p>
 
       <div className="space-y-5">
-        {/* Portada */}
-        <div>
-          <label htmlFor="event-cover-image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Imagen de portada
-          </label>
-          <input
-            id="event-cover-image"
-            ref={coverFileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={onCoverFileSelected}
-            className="hidden"
-          />
-          {coverImage ? (
-            <div className="relative rounded-lg overflow-hidden h-40 bg-gray-100">
-              <img
-                src={optimizedImageUrl(coverImage, 800)}
-                alt="Portada"
-                loading="lazy"
-                crossOrigin="anonymous"
-                className="w-full h-full object-cover"
-              />
-              <button
-                type="button"
-                onClick={clearCover}
-                className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1"
-              >
-                Quitar
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={openCoverPicker}
-              disabled={coverUploading}
-              className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-8 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
-            >
-              {coverUploading ? 'Subiendo…' : '+ Subir imagen de portada'}
-            </button>
-          )}
-          {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
-        </div>
+        <CoverImagePicker
+          id="event-cover-image"
+          fileInputRef={coverFileInputRef}
+          coverImage={coverImage}
+          coverUploading={coverUploading}
+          coverError={coverError}
+          openCoverPicker={openCoverPicker}
+          onCoverFileSelected={onCoverFileSelected}
+          clearCover={clearCover}
+        />
 
         {/* Color de acento */}
         <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4">

@@ -30,7 +30,7 @@ export function ReportButton({ className, showLabel, ...contentProps }: Props) {
         onClick={() => setOpen(true)}
         aria-label="Reportar contenido"
         title="Reportar"
-        className={className || 'flex items-center gap-1 text-xs p-2.5 rounded-full text-gray-400 hover:text-red-500 transition-colors'}
+        className={className || 'wall-action-btn text-xs text-gray-400 hover:text-red-500 transition-colors'}
       >
         <IconFlag className="w-3.5 h-3.5" />
         {showLabel && 'Reportar'}

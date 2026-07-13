@@ -88,7 +88,7 @@ export function GuestSearchSheet({
           <button
             onClick={onClose}
             aria-label="Cerrar"
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="-m-2 min-w-11 min-h-11 inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <IconX className="w-5 h-5" />
           </button>

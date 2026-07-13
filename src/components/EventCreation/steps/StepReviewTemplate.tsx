@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { TemplatePicker } from '../../TemplatePicker'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/paymentMethods'
 import { formatDate } from '../../../utils/time'
@@ -81,6 +82,28 @@ export function StepReviewTemplate({
   const activeTimelineCount = timeline.filter((e) => e.time && e.label.trim()).length
   const formattedDate = date ? formatDate(date) : undefined
 
+  // Memoizado: sin esto, este objeto se recreaba (nueva referencia) en cada
+  // render de este paso, así que TemplatePicker/InvitationPreview (React.memo,
+  // ver esos archivos) igual volvían a renderizar el árbol completo de la
+  // invitación de muestra aunque ninguno de estos valores hubiera cambiado
+  // realmente — el paso de revisión es el más pesado del wizard (preview
+  // temática completa) y no necesita re-renderizarse por cambios ajenos.
+  const previewData = useMemo(
+    () => ({
+      eventName: name,
+      date: formattedDate,
+      location,
+      mapsUrl,
+      coverImage,
+      accentColor,
+      welcomeMessage,
+      description,
+      dressCode,
+      timeline,
+    }),
+    [name, formattedDate, location, mapsUrl, coverImage, accentColor, welcomeMessage, description, dressCode, timeline],
+  )
+
   return (
     <>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -134,18 +157,7 @@ export function StepReviewTemplate({
         <TemplatePicker
           selected={templateId}
           onSelect={onSelectTemplate}
-          previewData={{
-            eventName: name,
-            date: formattedDate,
-            location,
-            mapsUrl,
-            coverImage,
-            accentColor,
-            welcomeMessage,
-            description,
-            dressCode,
-            timeline,
-          }}
+          previewData={previewData}
         />
       </div>
     </>

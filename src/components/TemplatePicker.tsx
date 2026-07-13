@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { INVITATION_TEMPLATES } from '../templates/registry'
 import { useIsAdmin } from '../hooks/useIsAdmin'
 import type { TemplateId, TimelineEntry } from '../types'
@@ -28,7 +29,11 @@ interface TemplatePickerProps {
 // invitación de muestra real y completa debajo. Si el caller pasa
 // `previewData` (el estado actual del formulario), el preview completo lo
 // usa en vivo; si no, cae 100% en los datos de ejemplo de cada tema.
-export function TemplatePicker({ selected, onSelect, previewData }: TemplatePickerProps) {
+// memo: este componente renderiza InvitationPreview completo (gradientes,
+// fuentes, animaciones por tema) — el paso final del wizard (StepReviewTemplate)
+// es el más pesado y no debería volver a montar todo esto si `previewData`
+// sigue siendo el mismo objeto (ver useMemo ahí).
+export const TemplatePicker = memo(function TemplatePicker({ selected, onSelect, previewData }: TemplatePickerProps) {
   const { isAdmin } = useIsAdmin()
   // Los temas `adminOnly` (ver registry.ts) quedan ocultos para anfitriones
   // normales — salvo que el evento ya los tenga seleccionados (p.ej. un
@@ -57,4 +62,4 @@ export function TemplatePicker({ selected, onSelect, previewData }: TemplatePick
       </div>
     </div>
   )
-}
+})

@@ -7,12 +7,15 @@ import { useEventOnly } from '../hooks/useEventOnly'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { useEventPermissions } from '../hooks/useEventPermissions'
+import { useIsLandscape } from '../hooks/useIsLandscape'
+import { useLiveRef } from '../hooks/useLiveRef'
+import { IconRotateCcw } from '../components/Icons'
 import { checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
 import type { PaymentMethod } from '../types'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
 import { ExitConfirmDialog, type PendingExit } from '../components/ExitConfirmDialog'
-import { CameraPermissionHandler } from '../components/Scanner'
+import { CameraPermissionHandler, ManualCodeEntryDialog } from '../components/Scanner'
 import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { buildPassUrl, extractQrToken, isArriveQr } from '../utils/qrUrl'
 import { isNetworkError } from '../utils/network'
@@ -61,6 +64,7 @@ export function Scanner() {
   // bajo presión en la puerta (ver AppShell.tsx).
   useDashboardTheme(event?.templateId, event?.accentColor)
   const perms = useEventPermissions(event, user)
+  const isLandscape = useIsLandscape()
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
   const [scanning, setScanning] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -78,23 +82,19 @@ export function Scanner() {
   const cooldownRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasAutoStartedRef = useRef(false)
-  const eventRef = useRef(event)
-  useEffect(() => { eventRef.current = event }, [event])
   // El callback de frame de html5-qrcode se registra UNA sola vez en
   // startScanning() (auto-arranque, ver más abajo) — si processQr leyera
-  // scanMode/pendingExit directo del estado, quedaría "congelado" en el
-  // valor que tenían en ese momento y nunca vería, por ejemplo, que el
-  // guardia cambió a modo "Salida". Mismo patrón que eventRef arriba.
-  const scanModeRef = useRef(scanMode)
-  useEffect(() => { scanModeRef.current = scanMode }, [scanMode])
-  const pendingExitRef = useRef(pendingExit)
-  useEffect(() => { pendingExitRef.current = pendingExit }, [pendingExit])
-  // Igual que pendingExitRef: mientras el diálogo "¿Ya pagó?" está abierto
-  // (type 'payment_required'), un frame de cámara de fondo no debe pisarlo
-  // con otro invitado — el cooldown de SCAN_COOLDOWN_MS es mucho más corto
-  // que lo que tarda el guardia en decidir Sí/No.
-  const feedbackRef = useRef(feedback)
-  useEffect(() => { feedbackRef.current = feedback }, [feedback])
+  // event/scanMode/pendingExit/feedback directo del estado, quedaría
+  // "congelado" en el valor que tenían en ese primer render y nunca vería,
+  // por ejemplo, que el guardia cambió a modo "Salida". feedbackRef cumple
+  // además otro rol: mientras el diálogo "¿Ya pagó?" está abierto (type
+  // 'payment_required'), un frame de cámara de fondo no debe pisarlo con
+  // otro invitado — el cooldown de SCAN_COOLDOWN_MS es mucho más corto que
+  // lo que tarda el guardia en decidir Sí/No.
+  const eventRef = useLiveRef(event)
+  const scanModeRef = useLiveRef(scanMode)
+  const pendingExitRef = useLiveRef(pendingExit)
+  const feedbackRef = useLiveRef(feedback)
 
   useEffect(() => {
     return () => { void stopScanning() }
@@ -177,7 +177,12 @@ export function Scanner() {
     // Ya hay una salida esperando confirmación (Volverá / Se retira) — no
     // dejar que un frame de cámara de por medio la pise con otro invitado.
     if (pendingExitRef.current) return
-    if (feedbackRef.current?.type === 'payment_required') return
+    // Cualquier resultado en pantalla (no solo 'payment_required', como
+    // antes) bloquea un nuevo escaneo hasta que el guardia lo cierre — sin
+    // esto, el SCAN_COOLDOWN_MS (más corto que "leer el resultado y decidir")
+    // expiraba mientras el modal seguía abierto y una cámara de fondo activa
+    // podía pisarlo con otro invitado antes de que el primero se procesara.
+    if (feedbackRef.current) return
 
     if (scanModeRef.current === 'salida') {
       await processExitScan(decodedText, attempt)
@@ -527,34 +532,24 @@ export function Scanner() {
 
       {event && <p className="text-sm text-gray-400 mb-4">{event.name}</p>}
 
-      {/* Modo de escaneo: entrada (default) o salida — cambia qué hace processQr al leer un QR */}
-      <div className="grid grid-cols-2 gap-2 mb-4 bg-gray-800 rounded-xl p-1">
-        <button
-          onClick={() => setScanMode('entrada')}
-          className={`min-h-11 rounded-lg text-sm font-semibold transition-colors ${
-            scanMode === 'entrada' ? 'bg-primary text-white' : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          Entrada
-        </button>
-        <button
-          onClick={() => setScanMode('salida')}
-          className={`min-h-11 rounded-lg text-sm font-semibold transition-colors ${
-            scanMode === 'salida' ? 'bg-primary text-white' : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          Salida
-        </button>
-      </div>
-
       {/* Área de la cámara */}
       <div className="relative rounded-2xl overflow-hidden bg-black mb-3" style={{ minHeight: 320 }}>
         {/* html5-qrcode inyecta el video aquí */}
         <div id="qr-reader" className="w-full h-full" />
 
-        {/* Overlay: visible cuando la cámara está apagada */}
+        {/* Overlay: visible cuando la cámara está apagada. Con permiso
+            denegado (cameraError), el contenido (instrucciones por SO +
+            botones) puede superar los 320px del contenedor con textos
+            grandes de accesibilidad — sin overflow-y-auto quedaba cortado
+            por el overflow-hidden del contenedor de la cámara, sin forma de
+            llegar a los botones. */}
         {!scanning && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-gray-900 rounded-2xl">
+          <div
+            className={`absolute inset-0 flex flex-col items-center gap-5 bg-gray-900 rounded-2xl overflow-y-auto ${
+              cameraError ? 'justify-start py-6' : 'justify-center'
+            }`}
+          >
+
             {cameraError ? (
               <CameraPermissionHandler
                 onRetry={() => { setCameraError(null); void startScanning() }}
@@ -583,39 +578,6 @@ export function Scanner() {
           </div>
         )}
 
-        {/* Formulario manual — se muestra encima del overlay cuando está activo */}
-        {!scanning && manualOpen && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900 rounded-2xl px-5">
-            <p className="text-sm font-medium text-gray-300">Ingresar código manualmente</p>
-            <form
-              onSubmit={(e) => { e.preventDefault(); handleManualSubmit() }}
-              className="w-full max-w-xs flex flex-col gap-2"
-            >
-              <input
-                type="text"
-                value={manualValue}
-                onChange={(e) => setManualValue(e.target.value)}
-                placeholder="Pega el enlace o código del pase"
-                autoFocus
-                className="min-h-12 w-full bg-gray-800 text-white placeholder:text-gray-500 rounded-lg px-3 py-3 text-sm border border-gray-700 focus:outline-none focus:border-primary"
-              />
-              <button
-                type="submit"
-                className="min-h-12 bg-primary text-white rounded-lg py-3 text-sm font-semibold hover:opacity-90"
-              >
-                Procesar código
-              </button>
-              <button
-                type="button"
-                onClick={() => setManualOpen(false)}
-                className="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-2 mt-1"
-              >
-                Cancelar
-              </button>
-            </form>
-          </div>
-        )}
-
         {/* Overlay decorativo cuando la cámara está activa */}
         {scanning && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
@@ -625,6 +587,20 @@ export function Scanner() {
               <div className="absolute bottom-0 left-0 w-10 h-10 border-b-[3px] border-l-[3px] border-primary" />
               <div className="absolute bottom-0 right-0 w-10 h-10 border-b-[3px] border-r-[3px] border-primary" />
             </div>
+          </div>
+        )}
+
+        {/* Guía de orientación — el escáner (regiones de recorte de
+            html5-qrcode, overlay decorativo) está pensado para vertical;
+            en horizontal el video se deforma con object-fit: cover y el
+            recuadro de guía queda descentrado. En vez de reiniciar la
+            cámara al rotar (inestable: html5-qrcode tarda en reabrir el
+            stream), se la deja corriendo debajo y solo se cubre con esta
+            guía hasta que el guardia vuelve a vertical. */}
+        {scanning && isLandscape && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900/95 px-6 text-center">
+            <IconRotateCcw className="w-8 h-8 text-gray-400" />
+            <p className="text-sm text-gray-300">Gira tu teléfono en modo vertical para escanear</p>
           </div>
         )}
       </div>
@@ -638,6 +614,54 @@ export function Scanner() {
         </button>
       )}
 
+      {/* Controles principales del escaneo, agrupados justo debajo de la
+          cámara — la mitad inferior de la pantalla es la zona de alcance
+          cómodo del pulgar sosteniendo el teléfono con una mano. Antes el
+          selector Entrada/Salida vivía arriba de la cámara (fuera de esa
+          zona) y el contador walk-in hasta el final de la pantalla, lejos
+          de donde el guardia realmente interactúa mientras escanea. */}
+      <div className="space-y-3 mb-4">
+        {/* Modo de escaneo: entrada (default) o salida — cambia qué hace processQr al leer un QR */}
+        <div className="grid grid-cols-2 gap-2 bg-gray-800 rounded-xl p-1">
+          <button
+            onClick={() => setScanMode('entrada')}
+            className={`min-h-11 rounded-lg text-sm font-semibold transition-colors ${
+              scanMode === 'entrada' ? 'bg-primary text-white' : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            Entrada
+          </button>
+          <button
+            onClick={() => setScanMode('salida')}
+            className={`min-h-11 rounded-lg text-sm font-semibold transition-colors ${
+              scanMode === 'salida' ? 'bg-primary text-white' : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            Salida
+          </button>
+        </div>
+
+        {/* Contador walk-in para eventos open/hybrid */}
+        {event && event.entryMode !== 'list' && (
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-xs text-gray-400 uppercase tracking-wide mb-3">Contador walk-in</p>
+            <div className="flex items-center gap-3">
+              <button onClick={handleWalkOut} aria-label="Registrar salida" className="min-h-12 flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded-md py-3 text-lg font-bold transition-colors">−</button>
+              <div className="text-center min-w-[60px]">
+                <span className="text-2xl font-bold text-white">{event.checkedInCount}</span>
+                {event.capacity && <p className="text-xs text-gray-400">/ {event.capacity}</p>}
+              </div>
+              <button onClick={handleWalkIn} aria-label="Registrar entrada" className="min-h-12 flex-1 bg-primary hover:bg-primary-dark text-white rounded-md py-3 text-lg font-bold transition-colors">+</button>
+            </div>
+            {walkInMsg && (
+              <p className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>
+                {walkInMsg === 'full' ? '¡Cupo máximo alcanzado!' : 'Ingreso registrado'}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {feedback && (
         <ScanResultModal
           feedback={feedback}
@@ -646,6 +670,8 @@ export function Scanner() {
           onConfirmPayment={feedback.type === 'payment_required' && perms.confirmPayments ? () => { void handleConfirmPayment() } : undefined}
           confirmingPayment={confirmingPayment}
           confirmError={confirmError}
+          paymentMethods={event?.paymentMethods}
+          onSelectPaymentMethod={(method) => setFeedback((prev) => (prev ? { ...prev, paymentMethod: method } : prev))}
         />
       )}
 
@@ -659,6 +685,15 @@ export function Scanner() {
         />
       )}
 
+      {manualOpen && (
+        <ManualCodeEntryDialog
+          value={manualValue}
+          onChange={setManualValue}
+          onSubmit={handleManualSubmit}
+          onCancel={() => setManualOpen(false)}
+        />
+      )}
+
       {/* Barra de progreso */}
       {event && (
         <AttendanceProgressBar
@@ -669,26 +704,6 @@ export function Scanner() {
           showPercentage={false}
           variant="plain"
         />
-      )}
-
-      {/* Contador walk-in para eventos open/hybrid */}
-      {event && event.entryMode !== 'list' && (
-        <div className="mt-4 bg-gray-800 rounded-lg p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-3">Contador walk-in</p>
-          <div className="flex items-center gap-3">
-            <button onClick={handleWalkOut} aria-label="Registrar salida" className="min-h-12 flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded-md py-3 text-lg font-bold transition-colors">−</button>
-            <div className="text-center min-w-[60px]">
-              <span className="text-2xl font-bold text-white">{event.checkedInCount}</span>
-              {event.capacity && <p className="text-xs text-gray-400">/ {event.capacity}</p>}
-            </div>
-            <button onClick={handleWalkIn} aria-label="Registrar entrada" className="min-h-12 flex-1 bg-primary hover:bg-primary-dark text-white rounded-md py-3 text-lg font-bold transition-colors">+</button>
-          </div>
-          {walkInMsg && (
-            <p className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>
-              {walkInMsg === 'full' ? '¡Cupo máximo alcanzado!' : 'Ingreso registrado'}
-            </p>
-          )}
-        </div>
       )}
     </div>
   )

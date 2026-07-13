@@ -60,7 +60,13 @@ export function Landing() {
     <div className="text-gray-900 dark:text-gray-900">
 
       {/* ── Hero ──────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-grid min-h-[88vh] flex items-center">
+      {/* svh (no vh): en mobile, `vh` mide como si la barra de direcciones
+          estuviera oculta — el hero terminaba más alto que el área
+          realmente visible al cargar la página, empujando contenido fuera
+          del primer vistazo. `svh` asume la barra visible (el peor caso,
+          más estable) en vez de saltar de tamaño al mostrarla/ocultarla
+          como haría `dvh` en una sección estática como esta. */}
+      <section className="relative overflow-hidden bg-grid min-h-[88svh] flex items-center">
         {/* Decorative corner glow */}
         <div
           className="pointer-events-none absolute inset-0"

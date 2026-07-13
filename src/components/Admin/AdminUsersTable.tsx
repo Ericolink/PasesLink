@@ -3,6 +3,7 @@ import type { AdminUser } from '../../firebase/admin'
 import { EmptyState } from '../Empty/EmptyState'
 import { IconDownload, IconUsers } from '../Icons'
 import { Pagination } from './Pagination'
+import { ResponsiveTable } from './ResponsiveTable'
 
 type SortKey = 'email' | 'createdAt' | 'eventCount'
 
@@ -92,48 +93,79 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
-              <SortableHeader label="Email" active={sortKey === 'email'} dir={sortDir} onClick={() => toggleSort('email')} />
-              <th className="px-4 py-2 font-medium">Nombre</th>
-              <SortableHeader label="Eventos" active={sortKey === 'eventCount'} dir={sortDir} onClick={() => toggleSort('eventCount')} />
-              <SortableHeader label="Registrado" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {loading && Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i} className="animate-pulse">
-                {Array.from({ length: 4 }).map((_, j) => (
-                  <td key={j} className="px-4 py-3"><div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full max-w-[100px]" /></td>
-                ))}
-              </tr>
-            ))}
-            {!loading && pageItems.map((u) => (
-              <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
-                <td className="px-4 py-2 text-gray-900 dark:text-white">{u.email || u.id}</td>
-                <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{u.displayName || '—'}</td>
-                <td className="px-4 py-2">
-                  <button
-                    onClick={() => onFilterEventsByOwner(u)}
-                    className="text-primary font-medium hover:underline disabled:no-underline disabled:text-gray-400"
-                    disabled={!eventCountByUser.get(u.id)}
-                  >
-                    {eventCountByUser.get(u.id) || 0}
-                  </button>
-                </td>
-                <td className="px-4 py-2 text-gray-400 dark:text-gray-500">
+      <ResponsiveTable
+        mobile={<>
+          {loading && Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="p-4 animate-pulse space-y-2">
+              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
+              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+            </div>
+          ))}
+          {!loading && pageItems.map((u) => (
+            <div key={u.id} className="p-4 space-y-1.5">
+              <p className="text-gray-900 dark:text-white font-medium break-words">{u.email || u.id}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{u.displayName || 'Sin nombre'}</p>
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  onClick={() => onFilterEventsByOwner(u)}
+                  className="min-h-11 -my-2 px-2 -mx-2 text-sm text-primary font-medium hover:underline disabled:no-underline disabled:text-gray-400"
+                  disabled={!eventCountByUser.get(u.id)}
+                >
+                  {eventCountByUser.get(u.id) || 0} evento(s)
+                </button>
+                <span className="text-xs text-gray-400 dark:text-gray-500">
                   {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
-                </td>
+                </span>
+              </div>
+            </div>
+          ))}
+          {!loading && pageItems.length === 0 && (
+            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay clientes que coincidan con la búsqueda.</p>
+          )}
+        </>}
+        table={<>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                <SortableHeader label="Email" active={sortKey === 'email'} dir={sortDir} onClick={() => toggleSort('email')} />
+                <th className="px-4 py-2 font-medium">Nombre</th>
+                <SortableHeader label="Eventos" active={sortKey === 'eventCount'} dir={sortDir} onClick={() => toggleSort('eventCount')} />
+                <SortableHeader label="Registrado" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {!loading && pageItems.length === 0 && (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay clientes que coincidan con la búsqueda.</p>
-        )}
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {loading && Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  {Array.from({ length: 4 }).map((_, j) => (
+                    <td key={j} className="px-4 py-3"><div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full max-w-[100px]" /></td>
+                  ))}
+                </tr>
+              ))}
+              {!loading && pageItems.map((u) => (
+                <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                  <td className="px-4 py-2 text-gray-900 dark:text-white">{u.email || u.id}</td>
+                  <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{u.displayName || '—'}</td>
+                  <td className="px-4 py-2">
+                    <button
+                      onClick={() => onFilterEventsByOwner(u)}
+                      className="text-primary font-medium hover:underline disabled:no-underline disabled:text-gray-400"
+                      disabled={!eventCountByUser.get(u.id)}
+                    >
+                      {eventCountByUser.get(u.id) || 0}
+                    </button>
+                  </td>
+                  <td className="px-4 py-2 text-gray-400 dark:text-gray-500">
+                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && pageItems.length === 0 && (
+            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay clientes que coincidan con la búsqueda.</p>
+          )}
+        </>}
+      />
 
       <Pagination page={currentPage} pageCount={pageCount} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
     </div>

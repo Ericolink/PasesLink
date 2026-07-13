@@ -24,17 +24,16 @@ export function AdminActivityChart({ events }: { events: EventData[] }) {
       <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
         Eventos por mes (últimos {MONTHS} meses)
       </p>
+      {/* Conteo siempre visible (antes solo con hover, inutilizable en
+          touch) con una altura reservada (h-3) para no saltar de layout
+          entre meses con/sin eventos — mismo patrón que EventAnalytics.tsx. */}
       <div className="flex items-end gap-2 h-20">
         {months.map(({ key, label }, i) => (
-          <div key={key} className="flex-1 flex flex-col items-center gap-1 group relative">
-            {counts[i] > 0 && (
-              <span className="absolute -top-5 text-[10px] text-gray-500 dark:text-gray-400 hidden group-hover:block">
-                {counts[i]}
-              </span>
-            )}
+          <div key={key} className="flex-1 flex flex-col items-center gap-1">
+            <span className="h-3 text-[10px] text-gray-500 dark:text-gray-400">{counts[i] > 0 ? counts[i] : ''}</span>
             <div className="w-full flex items-end" style={{ height: '60px' }}>
               <div
-                className="w-full rounded-t bg-primary/70 group-hover:bg-primary transition-colors"
+                className="w-full rounded-t bg-primary/70 transition-colors"
                 style={{ height: counts[i] > 0 ? `${Math.max(8, (counts[i] / maxCount) * 100)}%` : '2px' }}
               />
             </div>

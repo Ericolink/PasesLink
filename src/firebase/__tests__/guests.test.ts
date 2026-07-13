@@ -13,7 +13,7 @@ vi.mock('../config', () => ({
 }))
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, setGuestPaymentStatus, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, setGuestPaymentStatus, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -376,6 +376,28 @@ describe('guests.ts', () => {
     expect(event?.peopleCount).toBe(4)
   })
 
+  it('should let a co-organizer with addGuests but WITHOUT editGuests add a guest with a phone number', async () => {
+    const COORG_UID = 'coorg-addonly-uid'
+    await seedEvent(testEnv, EVENT_ID, {
+      guestCount: 0, peopleCount: 0,
+      coOrganizersMap: { [COORG_UID]: true },
+      coOrganizerPermissions: {
+        [COORG_UID]: {
+          addGuests: true, editGuests: false, deleteGuests: false, shareInviteLink: false,
+          confirmPayments: false, scanQr: false, viewGuestList: true, postWall: false,
+          moderateWall: false, editEvent: false, manageCoOrganizers: false, viewReports: false,
+          exportLists: false, downloadEventInfo: false,
+        },
+      },
+    })
+    dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
+
+    const result = await addGuest(EVENT_ID, { name: 'Juan', lastName: 'Pérez', phone: '11-2222-3333' })
+
+    const contact = await getGuestContactDoc(testEnv, EVENT_ID, result.id)
+    expect(contact?.phone).toBe('11-2222-3333')
+  })
+
   it('should increment guestCount and peopleCount by the same amount on addGuestsBulk (no companions)', async () => {
     await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
@@ -385,6 +407,68 @@ describe('guests.ts', () => {
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.guestCount).toBe(2)
     expect(event?.peopleCount).toBe(2)
+  })
+
+  it('should let a co-organizer with addGuests bulk-add more than 50 names without the batch being rejected (issue #91)', async () => {
+    const COORG_UID = 'coorg-bulk-uid'
+    await seedEvent(testEnv, EVENT_ID, {
+      guestCount: 0,
+      peopleCount: 0,
+      coOrganizersMap: { [COORG_UID]: true },
+      coOrganizerPermissions: {
+        [COORG_UID]: {
+          addGuests: true, editGuests: false, deleteGuests: false, shareInviteLink: false,
+          confirmPayments: false, scanQr: false, viewGuestList: true, postWall: false,
+          moderateWall: false, editEvent: false, manageCoOrganizers: false, viewReports: false,
+          exportLists: false, downloadEventInfo: false,
+        },
+      },
+    })
+    dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
+    const names = Array.from({ length: 120 }, (_, i) => `Invitado ${i}`)
+
+    await addGuestsBulk(EVENT_ID, names)
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(120)
+    expect(event?.peopleCount).toBe(120)
+  })
+
+  it('should import guests from CSV rows, creating guest + contact docs and incrementing counters', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await addGuestsFromRows(EVENT_ID, [
+      { name: 'Juan', lastName: 'Pérez', phone: '11-2222-3333', email: 'juan@test.com' },
+      { name: 'María', lastName: 'López' },
+    ])
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(2)
+    expect(event?.peopleCount).toBe(2)
+  })
+
+  it('should let a co-organizer with addGuests (but not editGuests) import CSV rows with phone/email', async () => {
+    const COORG_UID = 'coorg-csv-uid'
+    await seedEvent(testEnv, EVENT_ID, {
+      guestCount: 0,
+      peopleCount: 0,
+      coOrganizersMap: { [COORG_UID]: true },
+      coOrganizerPermissions: {
+        [COORG_UID]: {
+          addGuests: true, editGuests: false, deleteGuests: false, shareInviteLink: false,
+          confirmPayments: false, scanQr: false, viewGuestList: true, postWall: false,
+          moderateWall: false, editEvent: false, manageCoOrganizers: false, viewReports: false,
+          exportLists: false, downloadEventInfo: false,
+        },
+      },
+    })
+    dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
+
+    await addGuestsFromRows(EVENT_ID, [{ name: 'Ana', lastName: 'Gómez', phone: '11-4444-5555' }])
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(1)
   })
 
   it('should decrement guestCount, peopleCount, checkedInCount and occupancyCount by partySize on deleteGuest while still inside', async () => {
@@ -425,6 +509,67 @@ describe('guests.ts', () => {
     expect(event?.peopleCount).toBe(0)
     expect(event?.checkedInCount).toBe(0)
     expect(event?.occupancyCount).toBe(0)
+  })
+
+  it('should let a co-organizer with only deleteGuests delete a guest who is both checked-in and paid (5 counters at once)', async () => {
+    const COORG_UID = 'coorg-delete-uid'
+    await seedEvent(testEnv, EVENT_ID, {
+      guestCount: 1, peopleCount: 3, checkedInCount: 3, occupancyCount: 3, paidCount: 3,
+      coOrganizersMap: { [COORG_UID]: true },
+      coOrganizerPermissions: {
+        [COORG_UID]: {
+          addGuests: false, editGuests: false, deleteGuests: true, shareInviteLink: false,
+          confirmPayments: false, scanQr: false, viewGuestList: true, postWall: false,
+          moderateWall: false, editEvent: false, manageCoOrganizers: false, viewReports: false,
+          exportLists: false, downloadEventInfo: false,
+        },
+      },
+    })
+    dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
+
+    await deleteGuest(EVENT_ID, {
+      id: GUEST_ID,
+      status: 'checked_in',
+      companions: [{}, {}],
+      checkedOutAt: null,
+      exitType: null,
+      paymentStatus: 'paid',
+    })
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(0)
+    expect(event?.peopleCount).toBe(0)
+    expect(event?.checkedInCount).toBe(0)
+    expect(event?.occupancyCount).toBe(0)
+    expect(event?.paidCount).toBe(0)
+  })
+
+  it('should reject a co-organizer WITHOUT deleteGuests trying to delete a checked-in guest', async () => {
+    const COORG_UID = 'coorg-nodelete-uid'
+    await seedEvent(testEnv, EVENT_ID, {
+      guestCount: 1, peopleCount: 3, checkedInCount: 3, occupancyCount: 3,
+      coOrganizersMap: { [COORG_UID]: true },
+      coOrganizerPermissions: {
+        [COORG_UID]: {
+          addGuests: false, editGuests: false, deleteGuests: false, shareInviteLink: false,
+          confirmPayments: false, scanQr: false, viewGuestList: true, postWall: false,
+          moderateWall: false, editEvent: false, manageCoOrganizers: false, viewReports: false,
+          exportLists: false, downloadEventInfo: false,
+        },
+      },
+    })
+    dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
+
+    await expect(
+      deleteGuest(EVENT_ID, {
+        id: GUEST_ID,
+        status: 'checked_in',
+        companions: [{}, {}],
+        checkedOutAt: null,
+        exitType: null,
+        paymentStatus: 'unpaid',
+      }),
+    ).rejects.toThrow()
   })
 
   it('should adjust peopleCount when updateGuest changes the companions count', async () => {
@@ -803,6 +948,104 @@ describe('guests.ts', () => {
           lockTokens: ['device-a', 'device-b', 'device-c', 'device-d', 'device-e'],
         }),
       )
+    })
+  })
+
+  // Antes, las 3 ramas de `allow update` de events/{eventId} que dejan tocar
+  // checkedInCount/occupancyCount/guestCount/peopleCount/paidCount solo
+  // exigían isOwnerOrCoOrg (cualquier coanfitrión) — ver Fase 1 de la
+  // auditoría de seguridad. Estos tests prueban que ahora exigen el permiso
+  // puntual (scanQr / deleteGuests+confirmPayments+editGuests / ambos a la
+  // vez), hablando directo contra Firestore (sin pasar por guests.ts) para
+  // aislar exactamente el gap que existía.
+  describe('event counter permission gate (direct writes to events/{eventId})', () => {
+    const COORG_UID = 'coorg-counter-uid'
+
+    async function seedCoOrg(overrides: Record<string, unknown>) {
+      await seedEvent(testEnv, EVENT_ID, {
+        checkedInCount: 0,
+        occupancyCount: 0,
+        guestCount: 1,
+        peopleCount: 1,
+        paidCount: 0,
+        coOrganizersMap: { [COORG_UID]: true },
+        coOrganizerPermissions: {
+          [COORG_UID]: {
+            addGuests: false,
+            editGuests: false,
+            deleteGuests: false,
+            shareInviteLink: false,
+            confirmPayments: false,
+            scanQr: false,
+            viewGuestList: true,
+            postWall: false,
+            moderateWall: false,
+            editEvent: false,
+            manageCoOrganizers: false,
+            viewReports: false,
+            exportLists: false,
+            downloadEventInfo: false,
+            ...overrides,
+          },
+        },
+      })
+    }
+
+    it('should reject a co-organizer without scanQr writing checkedInCount/occupancyCount directly', async () => {
+      await seedCoOrg({})
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(coOrgDb, 'events', EVENT_ID), { checkedInCount: 1, occupancyCount: 1 }),
+      )
+    })
+
+    it('should allow a co-organizer with scanQr writing checkedInCount/occupancyCount directly', async () => {
+      await seedCoOrg({ scanQr: true })
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await updateDoc(doc(coOrgDb, 'events', EVENT_ID), { checkedInCount: 1, occupancyCount: 1 })
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.checkedInCount).toBe(1)
+    })
+
+    it('should reject a co-organizer with only viewGuestList writing guestCount/peopleCount/paidCount directly', async () => {
+      await seedCoOrg({})
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(coOrgDb, 'events', EVENT_ID), { guestCount: 0, peopleCount: 0, paidCount: 0 }),
+      )
+    })
+
+    it('should allow a co-organizer with deleteGuests writing guestCount/peopleCount/paidCount directly', async () => {
+      await seedCoOrg({ deleteGuests: true })
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await updateDoc(doc(coOrgDb, 'events', EVENT_ID), { guestCount: 0, peopleCount: 0, paidCount: 0 })
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.guestCount).toBe(0)
+    })
+
+    it('should reject a co-organizer with scanQr but not confirmPayments combining the 3 confirmPaymentAndCheckIn counters', async () => {
+      await seedCoOrg({ scanQr: true })
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(coOrgDb, 'events', EVENT_ID), { checkedInCount: 1, occupancyCount: 1, paidCount: 1 }),
+      )
+    })
+
+    it('should allow a co-organizer with both scanQr and confirmPayments combining the 3 confirmPaymentAndCheckIn counters', async () => {
+      await seedCoOrg({ scanQr: true, confirmPayments: true })
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await updateDoc(doc(coOrgDb, 'events', EVENT_ID), { checkedInCount: 1, occupancyCount: 1, paidCount: 1 })
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.paidCount).toBe(1)
     })
   })
 })

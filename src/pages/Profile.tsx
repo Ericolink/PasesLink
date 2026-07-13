@@ -308,7 +308,7 @@ export function Profile() {
                 aria-pressed={preference === value}
                 aria-label={label}
                 title={label}
-                className={`p-1.5 rounded-full transition-colors ${
+                className={`min-w-11 min-h-11 inline-flex items-center justify-center rounded-full transition-colors ${
                   preference === value
                     ? 'bg-primary text-white'
                     : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'

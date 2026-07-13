@@ -40,7 +40,17 @@ export interface NewGuestInput {
   customData?: Record<string, string>
 }
 
-function generateQrToken(): string {
+// Token que codifica el QR del pase (buildPassUrl/extractQrToken en
+// utils/qrUrl.ts). Se parte de un UUID v4 (crypto.randomUUID(), único y
+// suficientemente aleatorio para no colisionar ni ser adivinable) pero se
+// le sacan los guiones: van a parar a una URL pública (/pass/:qrToken) y a
+// la data codificada en el QR físico — menos caracteres para el mismo
+// contenido significa un QR más chico y más rápido de leer para el
+// escáner, sin perder nada de la aleatoriedad del UUID original (los
+// guiones de un UUID no aportan entropía, son puros separadores
+// posicionales). Exportada para que capacity.ts (registerWalkInGuest) use
+// la misma función en vez de reimplementar la misma línea.
+export function generateQrToken(): string {
   return crypto.randomUUID().replace(/-/g, '')
 }
 
@@ -118,12 +128,18 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<{
   })
 }
 
-// Firestore rechaza batches de más de 500 operaciones; se reparte en chunks de
-// 450 (margen para el update del contador) confirmados uno a la vez. Si un
-// chunk falla, los anteriores ya quedaron guardados y guestCount refleja
-// exactamente lo que se confirmó — no hay overselling silencioso ni fallo
-// total al cargar listas grandes.
-const BULK_CHUNK_SIZE = 450
+// Firestore rechaza batches de más de 500 operaciones — pero el límite real
+// acá es otro: firestore.rules (counterDeltaOk) solo permite mover
+// guestCount/peopleCount del evento en ±50 por escritura cuando quien
+// escribe es un coanfitrión (no el dueño, que no tiene ese tope). Con un
+// chunk más grande, un coanfitrión con addGuests que pega una lista de más
+// de 50 nombres se encontraba con el batch ENTERO rechazado por rules (el
+// dueño no lo notaba porque su rama no tiene ese límite). 50 evita el
+// problema para cualquiera de los dos, al costo de más idas y vueltas en
+// listas muy grandes. Si un chunk falla, los anteriores ya quedaron
+// guardados y guestCount refleja exactamente lo que se confirmó — no hay
+// overselling silencioso ni fallo total al cargar listas grandes.
+const BULK_CHUNK_SIZE = 50
 
 export async function addGuestsBulk(eventId: string, names: string[]) {
   // Se valida la lista completa ANTES de escribir el primer chunk: si un solo
@@ -143,6 +159,50 @@ export async function addGuestsBulk(eventId: string, names: string[]) {
       }
       // Cada invitado de una carga masiva es individual sin acompañantes
       // (partySize == 1), así que peopleCount sube lo mismo que guestCount acá.
+      batch.update(doc(db, 'events', eventId), {
+        guestCount: increment(slice.length),
+        peopleCount: increment(slice.length),
+      })
+      await batch.commit()
+    }
+  })
+}
+
+export interface ImportedGuestRow {
+  name: string
+  lastName?: string
+  phone?: string
+  email?: string
+}
+
+// Import de invitados desde CSV (ver src/utils/csvImport.ts, que arma este
+// array a partir del archivo) — mismo chunking/contador que addGuestsBulk,
+// pero cada fila puede traer apellido/teléfono/email por separado (el CSV
+// sí distingue columnas; pegar una lista de nombres no). guestContacts
+// necesita el permiso addGuests para su `create` (ver firestore.rules) —
+// coincide con el que ya exige `guests/{guestId}` para esta misma operación.
+export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[]) {
+  const validated = rows.map((row) => ({
+    name: requireMaxLength(requireNonEmpty(row.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre'),
+    lastName: row.lastName?.trim() ? requireMaxLength(row.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido') : '',
+    phone: row.phone?.trim() ? requireMaxLength(row.phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : '',
+    email: row.email?.trim() ? requireMaxLength(requireValidEmail(row.email.trim(), 'El email'), GUEST_EMAIL_MAX, 'El email') : '',
+  }))
+
+  await measureSpan('firestore.addGuestsFromRows', 'db.firestore', async () => {
+    for (let i = 0; i < validated.length; i += BULK_CHUNK_SIZE) {
+      const slice = validated.slice(i, i + BULK_CHUNK_SIZE)
+      const batch = writeBatch(db)
+      for (const row of slice) {
+        const guestRef = doc(collection(db, 'events', eventId, 'guests'))
+        batch.set(guestRef, buildNewGuestPayload({ name: row.name, lastName: row.lastName }))
+        if (row.phone || row.email) {
+          const contact: Record<string, string> = {}
+          if (row.phone) contact.phone = row.phone
+          if (row.email) contact.email = row.email
+          batch.set(contactRef(eventId, guestRef.id), contact)
+        }
+      }
       batch.update(doc(db, 'events', eventId), {
         guestCount: increment(slice.length),
         peopleCount: increment(slice.length),

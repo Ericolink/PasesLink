@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { PICKER_ICONS } from '../templates/pickerIcons'
 import type { InvitationTemplate } from '../templates/registry'
 import type { TemplateId } from '../types'
@@ -12,8 +13,10 @@ interface TemplateIconButtonProps {
 // nombre corto. Sin seleccionar es neutro; al seleccionar "se ilumina" con
 // el acento propio de esa plantilla (mismo `vars.accent` que ya pinta toda
 // la invitación) — no un color fijo por ícono, para no duplicar la paleta
-// en un segundo lugar.
-export function TemplateIconButton({ template, isSelected, onSelect }: TemplateIconButtonProps) {
+// en un segundo lugar. memo: con 6+ botones en TemplatePicker, cambiar de
+// selección re-renderizaba los N-1 botones cuyo `isSelected` en realidad no
+// cambió.
+export const TemplateIconButton = memo(function TemplateIconButton({ template, isSelected, onSelect }: TemplateIconButtonProps) {
   const Icon = PICKER_ICONS[template.id]
   const accent = template.vars.accent
 
@@ -50,4 +53,4 @@ export function TemplateIconButton({ template, isSelected, onSelect }: TemplateI
       </span>
     </button>
   )
-}
+})

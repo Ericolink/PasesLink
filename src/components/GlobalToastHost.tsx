@@ -1,26 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { onEmailNotification } from '../utils/emailNotifications'
 import { IconAlertTriangle } from './Icons'
+import { Toast } from './Toast'
 
 const DISPLAY_MS = 6000
 
 /** Montado una sola vez en App.tsx — visible sin importar en qué ruta esté el usuario cuando un envío de email falla en segundo plano. */
 export function GlobalToastHost() {
   const [message, setMessage] = useState<string | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     return onEmailNotification((msg) => {
+      if (timerRef.current) clearTimeout(timerRef.current)
       setMessage(msg)
-      setTimeout(() => setMessage(null), DISPLAY_MS)
+      timerRef.current = setTimeout(() => setMessage(null), DISPLAY_MS)
     })
   }, [])
 
+  function dismiss() {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setMessage(null)
+  }
+
   if (!message) return null
 
-  return (
-    <div className="fixed top-16 right-4 z-50 bg-amber-600 text-white text-sm rounded-lg shadow-lg px-4 py-2.5 flex items-center gap-2 max-w-xs animate-fade-in">
-      <IconAlertTriangle className="w-4 h-4 shrink-0" />
-      {message}
-    </div>
-  )
+  return <Toast tone="warning" icon={<IconAlertTriangle className="w-4 h-4 shrink-0" />} message={message} onDismiss={dismiss} />
 }

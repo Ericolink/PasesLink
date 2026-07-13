@@ -33,5 +33,12 @@ export function useEvent(eventId: string | undefined) {
     return unsubGuests
   }, [eventId])
 
-  return { event, guests, loading, guestsLoading, error: eventError || guestsError }
+  // `error` (del doc del evento) y `guestsError` (de la subcolección) se
+  // devuelven separados a propósito — antes se fusionaban en un solo
+  // `error`, así que un coanfitrión sin permiso `viewGuestList` (a quien
+  // rules le rechaza la suscripción a `guests`) tumbaba la página ENTERA en
+  // vez de perder solo la sección de invitados. Cada consumidor decide qué
+  // hacer con `guestsError` (ver EventDetail.tsx: oculta la card de
+  // invitados si falta el permiso, en vez de reemplazar toda la pantalla).
+  return { event, guests, loading, guestsLoading, error: eventError, guestsError }
 }

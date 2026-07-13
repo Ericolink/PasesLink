@@ -10,7 +10,9 @@ import { IconCalendar, IconTrash } from '../components/Icons'
 import { LoadingInline } from '../components/LoadingInline'
 import { EmptyState } from '../components/Empty'
 import { EventTicketCard } from '../components/EventTicketCard'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { formatDate } from '../utils/time'
+import { QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 
 function todayString() {
   return new Date().toISOString().split('T')[0]
@@ -97,18 +99,23 @@ export function MyInvitations() {
                   }
                   <p className="flex-1 min-w-0 text-xs text-[var(--invite-text-muted,#6b7280)] truncate">Como: {inv.guestName}</p>
                   <div className="shrink-0 flex flex-col items-center">
-                    <QRCodeCanvas value={inv.qrToken} size={52} marginSize={1} className="rounded" />
+                    <QRCodeCanvas value={inv.qrToken} size={52} marginSize={QR_QUIET_ZONE_MODULES} className="rounded" />
                     <p className="text-[10px] text-[var(--invite-accent,#FF1464)] text-center mt-1 font-medium">Ver pase</p>
                   </div>
                 </div>
               }
             />
 
-            {/* Colores fijos (no dark:): el ticket ahora tiene su propio fondo
-                oscuro/temático sin importar el modo claro/oscuro de la app. */}
+            {/* Esquina inferior-derecha (no superior): arriba es donde
+                EventTicketCard ya dibuja sus propias insignias ("Próximo",
+                estado) — este botón flotante quedaba superpuesto con esas
+                insignias en vez de al lado. Sin `footer` en este uso del
+                ticket, la esquina inferior queda libre. Colores fijos (no
+                dark:): el ticket tiene su propio fondo oscuro/temático sin
+                importar el modo claro/oscuro de la app. */}
             <button
               onClick={() => setConfirmDelete(inv)}
-              className="absolute top-2 right-2 p-2.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+              className="absolute bottom-2 right-2 min-w-11 min-h-11 inline-flex items-center justify-center rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
               aria-label="Eliminar invitación"
             >
               <IconTrash className="w-4 h-4" />
@@ -117,31 +124,20 @@ export function MyInvitations() {
         ))}
       </div>
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h2 className="text-base font-semibold mb-1 text-gray-900 dark:text-white">¿Eliminar esta invitación?</h2>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{confirmDelete.eventName}</p>
-            <p className="text-xs text-gray-400 mt-0.5 mb-5">{formatDate(confirmDelete.eventDate)}</p>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => handleDelete(confirmDelete)}
-                disabled={deleting}
-                className="w-full bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {deleting ? 'Eliminando…' : 'Sí, eliminar'}
-              </button>
-              <button
-                onClick={() => setConfirmDelete(null)}
-                disabled={deleting}
-                className="w-full border border-gray-200 dark:border-gray-700 rounded-xl py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="¿Eliminar esta invitación?"
+        message={confirmDelete && (
+          <>
+            <span className="block font-medium text-gray-700 dark:text-gray-300">{confirmDelete.eventName}</span>
+            <span className="block text-xs text-gray-400 mt-0.5">{formatDate(confirmDelete.eventDate)}</span>
+          </>
+        )}
+        confirmLabel={deleting ? 'Eliminando…' : 'Sí, eliminar'}
+        danger
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete)}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

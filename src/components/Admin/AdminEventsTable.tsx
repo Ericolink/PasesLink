@@ -5,6 +5,7 @@ import type { EventData, EventStatus } from '../../types'
 import { EmptyState } from '../Empty/EmptyState'
 import { IconCalendar, IconDownload, IconEye, IconBarChart2, IconTrash } from '../Icons'
 import { Pagination } from './Pagination'
+import { ResponsiveTable } from './ResponsiveTable'
 
 const STATUS_LABELS: Record<EventStatus, string> = {
   active: 'Activo',
@@ -153,7 +154,7 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
 
       {selected.size > 0 && (
         <div className="flex items-center gap-1 flex-wrap px-2 py-1.5 bg-primary/5 border-b border-primary/20 text-sm">
-          <span className="font-medium text-gray-700 dark:text-gray-200 px-2">{selected.size} seleccionados</span>
+          <span className="font-medium text-gray-700 dark:text-gray-300 px-2">{selected.size} seleccionados</span>
           <button onClick={() => onRequestBulkAction(selectedEvents, 'archive')} className="px-2.5 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium">
             Archivar
           </button>
@@ -172,7 +173,8 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
       {/* Tarjetas en mobile — la tabla de 8 columnas se desborda horizontal
           en pantallas angostas; en `sm:` en adelante se muestra la tabla y
           se oculta esta vista, reutilizando el mismo `pageItems`/handlers. */}
-      <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+      <ResponsiveTable
+        mobile={<>
         {loading && Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="p-4 animate-pulse space-y-2">
             <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
@@ -234,9 +236,8 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
         {!loading && pageItems.length === 0 && (
           <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay eventos que coincidan con la búsqueda.</p>
         )}
-      </div>
-
-      <div className="hidden sm:block overflow-x-auto">
+        </>}
+        table={<>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
@@ -313,7 +314,8 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
         {!loading && pageItems.length === 0 && (
           <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay eventos que coincidan con la búsqueda.</p>
         )}
-      </div>
+        </>}
+      />
 
       <Pagination page={currentPage} pageCount={pageCount} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
     </div>

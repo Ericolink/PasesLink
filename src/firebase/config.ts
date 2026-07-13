@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 import {
   initializeFirestore,
   persistentLocalCache,
@@ -65,7 +65,6 @@ function createDb() {
 
 export const db = createDb()
 export const googleProvider = new GoogleAuthProvider()
-export const facebookProvider = new FacebookAuthProvider()
 
 // App Check (anti-bot): solo se activa si hay site key configurada. Sin esto,
 // los formularios públicos (wall, auto-registro) quedan sin esa capa.

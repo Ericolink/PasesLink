@@ -201,13 +201,18 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
               {report.contentAuthorUid ? ' (cuenta registrada)' : ' (invitado sin cuenta)'}
             </p>
             {report.contentType === 'photo' ? (
+              // max-w-full: sin ancho definido, una foto reportada muy ancha
+              // (panorámica, o simplemente de alta resolución) desbordaba el
+              // modal y forzaba scroll horizontal — object-contain (en vez de
+              // cover, que solo tiene sentido con una caja w×h fija) escala
+              // manteniendo proporción dentro de ambos límites.
               <img
                 src={optimizedImageUrl(report.contentSnapshot, 500)}
                 alt={report.contentCaption || 'Foto reportada'}
-                className="max-h-64 rounded-lg object-cover"
+                className="max-h-64 max-w-full rounded-lg object-contain"
               />
             ) : (
-              <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">
+              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">
                 {report.contentSnapshot}
               </p>
             )}
@@ -223,7 +228,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
                 <button
                   key={s}
                   onClick={() => onStatusChange(report.id, s)}
-                  className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                  className={`min-h-11 inline-flex items-center text-xs px-4 rounded-full font-medium border transition-colors ${
                     report.status === s
                       ? 'bg-primary text-white border-primary'
                       : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -238,7 +243,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
           <div>
             <button
               onClick={() => onDeleteContent(report)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"
+              className="min-h-11 -mx-2 px-2 inline-flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"
             >
               <IconTrash className="w-4 h-4" />
               Eliminar {report.contentType === 'comment' ? 'comentario' : 'foto'} reportada
@@ -263,7 +268,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
                       </span>
                       <button
                         onClick={() => handleRevoke(r.type, r.scope, r.scope === 'event' ? report.eventId : undefined, r.scope === 'event' ? report.eventName : undefined)}
-                        className="text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 font-medium shrink-0"
+                        className="min-h-11 px-2 -my-2 inline-flex items-center text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 font-medium shrink-0"
                       >
                         Quitar
                       </button>
@@ -331,7 +336,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
               <button
                 onClick={handleApplySanction}
                 disabled={applyingSanction}
-                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50"
+                className="min-h-11 inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg px-4 disabled:opacity-50"
               >
                 <IconBan className="w-4 h-4" />
                 {applyingSanction ? 'Aplicando…' : 'Aplicar sanción'}

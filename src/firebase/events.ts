@@ -297,7 +297,17 @@ export async function updateCoOrganizerPermissions(
 // colecciones juntas) también — cada `batch.commit()` es independiente del
 // resto, no hay razón para esperarlos de a uno.
 export async function deleteEvent(eventId: string) {
-  const subcollections = ['guests', 'guestContacts', 'checkins', 'waitlist']
+  // 'waitlist' listada acá hasta hace poco: la funcionalidad de espera de
+  // cupo se eliminó (ver src/firebase/waitlist.ts, borrado) y
+  // firestore.rules bloquea esa colección con `allow read, write: if
+  // false` sin excepción — ni siquiera el dueño puede leerla. Un
+  // `getDocs()` contra ella (como hacía este Promise.all) rechaza con
+  // permission-denied SIEMPRE, lo que tumbaba TODO deleteEvent antes de
+  // borrar nada, ni siquiera el documento del evento — no era "quedan
+  // fotos huérfanas", era "no se puede eliminar ningún evento". 'photos' y
+  // 'wall' sí son subcolecciones activas (fotos del muro y mensajes) que
+  // antes quedaban huérfanas silenciosamente al "eliminar" un evento.
+  const subcollections = ['guests', 'guestContacts', 'checkins', 'photos', 'wall']
   const snapshots = await Promise.all(
     subcollections.map((sub) => getDocs(collection(db, 'events', eventId, sub))),
   )

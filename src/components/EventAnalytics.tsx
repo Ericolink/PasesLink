@@ -77,27 +77,35 @@ export const EventAnalytics = memo(function EventAnalytics({ guests, loading = f
         </div>
       </div>
 
-      {/* Bar chart */}
-      <div className="flex items-end gap-1 h-24">
-        {allHours.map((h) => {
-          const count = hourCounts[h] || 0
-          const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0
-          const isPeak = h === peakHour && count > 0
-          return (
-            <div key={h} className="flex-1 flex flex-col items-center gap-0.5 group relative">
-              {count > 0 && (
-                <span className="absolute -top-5 text-[10px] text-gray-500 hidden group-hover:block">{count}</span>
-              )}
-              <div className="w-full flex items-end" style={{ height: '80px' }}>
-                <div
-                  className={`w-full rounded-t transition-all ${isPeak ? 'bg-primary' : 'bg-primary/40'}`}
-                  style={{ height: `${Math.max(heightPct, count > 0 ? 4 : 0)}%` }}
-                />
+      {/* Bar chart — cada columna tiene un ancho mínimo (min-w-[28px]): con
+          pocas horas se reparten todo el ancho igual que antes (flex-1),
+          pero en eventos largos con muchas horas dejan de comprimirse por
+          debajo de ese mínimo — el conjunto desborda horizontalmente y el
+          contenedor scrollea (overflow-x-auto) en vez de aplastar
+          etiquetas de 9px hasta volverlas ilegibles. El conteo, antes solo
+          visible con hover (sin equivalente en touch), ahora es siempre
+          visible con una altura reservada para no saltar de layout entre
+          columnas con/sin check-ins. */}
+      <div className="overflow-x-auto -mx-1 px-1">
+        <div className="flex items-end gap-1.5 h-24 min-w-full">
+          {allHours.map((h) => {
+            const count = hourCounts[h] || 0
+            const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0
+            const isPeak = h === peakHour && count > 0
+            return (
+              <div key={h} className="flex-1 min-w-[28px] flex flex-col items-center gap-0.5">
+                <span className="h-3 text-[10px] text-gray-500 dark:text-gray-400">{count > 0 ? count : ''}</span>
+                <div className="w-full flex items-end" style={{ height: '80px' }}>
+                  <div
+                    className={`w-full rounded-t transition-all ${isPeak ? 'bg-primary' : 'bg-primary/40'}`}
+                    style={{ height: `${Math.max(heightPct, count > 0 ? 4 : 0)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-gray-400">{h}</span>
               </div>
-              <span className="text-[9px] text-gray-400">{h}</span>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
       <p className="text-[10px] text-gray-400 text-center mt-1">Hora del día (check-ins)</p>
     </div>

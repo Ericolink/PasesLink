@@ -5,8 +5,14 @@ import type { CoOrganizerPermissions } from '../types/coOrganizerPermissions'
 
 // Extraído de EventDetail.tsx (Subfase 3.3): agregar/quitar co-organizadores
 // por email. `ownerId` se pasa aparte (no como objeto `event` completo) para
-// no acoplar este hook a más de lo que realmente necesita.
-export function useCoOrganizers(eventId: string | undefined, ownerId: string | undefined) {
+// no acoplar este hook a más de lo que realmente necesita. `coOrgsMap`
+// (uid -> email) se pasa por el mismo motivo: solo hace falta para detectar
+// duplicados antes de escribir.
+export function useCoOrganizers(
+  eventId: string | undefined,
+  ownerId: string | undefined,
+  coOrgsMap: Record<string, string> | undefined = {},
+) {
   const [coOrgEmail, setCoOrgEmail] = useState('')
   const [coOrgLoading, setCoOrgLoading] = useState(false)
   const [coOrgError, setCoOrgError] = useState('')
@@ -24,6 +30,13 @@ export function useCoOrganizers(eventId: string | undefined, ownerId: string | u
       }
       if (found.uid === ownerId) {
         setCoOrgError('Ese usuario ya es el organizador principal.')
+        return
+      }
+      // Sin este chequeo, re-agregar a alguien que ya es co-organizador
+      // llamaba a addCoOrganizer de nuevo y pisaba en silencio sus permisos
+      // ya personalizados con los defaults amplios de LEGACY_COORG_DEFAULTS.
+      if (found.uid in coOrgsMap) {
+        setCoOrgError('Ese usuario ya es co-organizador de este evento.')
         return
       }
       await addCoOrganizer(eventId, found.uid, found.email)

@@ -7,11 +7,15 @@ const STORAGE_KEY = 'theme'
 
 // Mismo default que public/theme-init.js (aplicado antes del primer paint,
 // fuera de React) — si uno cambia sin el otro, vuelve el flash de tema
-// incorrecto en la carga inicial.
+// incorrecto en la carga inicial. 'system' (no 'dark') para un usuario sin
+// preferencia guardada: sigue el prefers-color-scheme del SO, y además
+// quedará escrito así en localStorage (ver el useEffect de persistencia más
+// abajo) — no queda "clavado" en oscuro la primera vez, y si el SO cambia
+// de tema en caliente, la app lo sigue (mismo listener que ya existía).
 function getStoredPreference(): ThemePreference {
   const stored = localStorage.getItem(STORAGE_KEY)
   if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
-  return 'dark'
+  return 'system'
 }
 
 interface ThemeContextValue {

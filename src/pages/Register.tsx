@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import type { Location } from 'react-router-dom'
 import { checkEmailVerified, loginWithGoogle, registerWithEmail, resendVerificationEmail } from '../firebase/auth'
 import { recordLegalAcceptance } from '../firebase/legalAcceptance'
 import { AuthLayout } from '../components/AuthLayout'
@@ -19,6 +20,13 @@ const DEV_AUTO_SKIP_MS = 30000
 export function Register() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Mismo mecanismo que Login.tsx: ProtectedRoute guarda la ruta original
+  // en location.state.from — quien llega acá sin cuenta (link a una ruta
+  // protegida) también vuelve a su destino real, no siempre a /dashboard.
+  const from = (location.state as { from?: Location } | null)?.from
+  const redirectTo = from && from.pathname !== '/login' && from.pathname !== '/register' ? `${from.pathname}${from.search}` : '/dashboard'
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName]   = useState('')
   const [email, setEmail]         = useState('')
@@ -46,11 +54,11 @@ export function Register() {
 
   useEffect(() => {
     if (!showVerificationGate || !import.meta.env.DEV) return
-    const id = setTimeout(() => navigate('/dashboard'), DEV_AUTO_SKIP_MS)
+    const id = setTimeout(() => navigate(redirectTo), DEV_AUTO_SKIP_MS)
     return () => clearTimeout(id)
-  }, [showVerificationGate, navigate])
+  }, [showVerificationGate, navigate, redirectTo])
 
-  if (user && !awaitingVerification) return <Navigate to="/dashboard" replace />
+  if (user && !awaitingVerification) return <Navigate to={redirectTo} replace />
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -82,7 +90,7 @@ export function Register() {
       const u = await loginWithGoogle()
       const { isGoogleProfileComplete } = await import('../firebase/auth')
       const complete = await isGoogleProfileComplete(u.uid)
-      navigate(complete ? '/dashboard' : '/complete-profile')
+      navigate(complete ? redirectTo : '/complete-profile')
     } catch (err) {
       if (isAuthCancellation(err)) return
       console.error('Error en login con Google:', err)
@@ -99,7 +107,7 @@ export function Register() {
     try {
       const verified = await checkEmailVerified()
       if (verified) {
-        navigate('/dashboard')
+        navigate(redirectTo)
       } else {
         setVerifyHint('Aún no detectamos la verificación. Revisa tu bandeja de entrada (o spam) e intenta de nuevo.')
       }
@@ -186,7 +194,7 @@ export function Register() {
         />
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form id="register-form" onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="register-first-name" className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
@@ -211,11 +219,22 @@ export function Register() {
         </div>
         <LegalConsentCheckbox id="register-legal-consent" checked={legalAccepted} onChange={setLegalAccepted} />
         {errorInfo && <AuthErrorMessage info={errorInfo} />}
-        <button type="submit" disabled={loading || !legalAccepted}
-          className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
-          {loading ? 'Creando cuenta…' : 'Crear cuenta'}
-        </button>
       </form>
+
+      {/* CTA fijo: `form="register-form"` lo asocia al <form> de arriba
+          aunque viva fuera de él (estándar HTML5, no un hack) — necesario
+          para que `sticky` tenga contenido propio debajo (el divisor +
+          Google + link de login) y así quede "pegado" mientras se completan
+          los campos, en vez de exigir scroll hasta el final para encontrar
+          el botón principal. */}
+      <button
+        type="submit"
+        form="register-form"
+        disabled={loading || !legalAccepted}
+        className="sticky bottom-0 z-10 mt-3 w-full bg-primary text-white rounded-md pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] font-medium hover:bg-primary-dark transition-colors disabled:opacity-50 shadow-[0_-8px_20px_-6px_rgba(0,0,0,0.15)]"
+      >
+        {loading ? 'Creando cuenta…' : 'Crear cuenta'}
+      </button>
 
       <div className="my-4 flex items-center gap-2">
         <div className="flex-1 h-px bg-gray-200" />
@@ -228,7 +247,7 @@ export function Register() {
         Continuar con Google
       </button>
       <p className="text-sm text-gray-500 text-center mt-5">
-        ¿Ya tienes cuenta? <Link to="/login" className="text-primary font-medium">Inicia sesión</Link>
+        ¿Ya tienes cuenta? <Link to="/login" state={{ from }} className="text-primary font-medium">Inicia sesión</Link>
       </p>
     </AuthLayout>
   )

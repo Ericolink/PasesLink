@@ -1,5 +1,6 @@
 import { EntryModeSelector } from '../EntryModeSelector'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/paymentMethods'
+import { sanitizeDecimalInput } from '../../../utils/validationRules'
 import type { EntryMode, PaymentMethod } from '../../../types'
 
 function capacityHint(cap: string): string {
@@ -151,7 +152,7 @@ export function StepInvitationMethod({
               )}
               {paymentMethods.includes('transfer') && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Transferencia: el lugar se reserva por tiempo limitado hasta confirmar el pago.
+                  Transferencia: el invitado puede subir su comprobante cuando quiera, sin límite de tiempo — vos confirmás el pago manualmente desde la lista de invitados o el escáner.
                 </p>
               )}
             </div>
@@ -167,10 +168,13 @@ export function StepInvitationMethod({
                   min="0"
                   step="0.01"
                   value={ticketPrice}
-                  onChange={(e) => onTicketPriceChange(e.target.value)}
+                  onChange={(e) => onTicketPriceChange(sanitizeDecimalInput(e.target.value))}
                   placeholder="Ej: 5000"
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                {!(parseFloat(ticketPrice) > 0) && (
+                  <p className="text-xs text-red-500 mt-1">Ingresá un precio mayor a 0.</p>
+                )}
               </div>
               <div>
                 <label htmlFor="event-currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

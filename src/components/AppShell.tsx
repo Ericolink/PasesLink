@@ -19,7 +19,21 @@ type AppShellProps = {
 export function AppShell({ mode = 'browse', children }: AppShellProps) {
   return (
     <>
-      <main className={mode === 'browse' ? 'pb-16 sm:pb-0' : ''}>{children}</main>
+      {/* pb-16 alcanzaba para la altura "normal" de BottomTabBar, pero esa
+          barra suma env(safe-area-inset-bottom) (~34px en iPhones con Home
+          Indicator) por encima de esa altura — sin sumarlo acá también, el
+          último elemento de pantallas con poco margen propio al final
+          (Perfil, Feedback) quedaba tapado por la porción de la barra que
+          vive en la safe area. */}
+      {/* padding lateral en las 3 variantes (no solo "browse"): en landscape
+          en un dispositivo con notch, el contenido pegado al borde puede
+          quedar tapado por él — antes solo se protegía el borde inferior. */}
+      <main
+        className={mode === 'browse' ? 'pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0' : ''}
+        style={{ paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
+      >
+        {children}
+      </main>
       {mode === 'browse' && <BottomTabBar />}
     </>
   )

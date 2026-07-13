@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
     const { hasError, error, errorInfo, copied } = this.state
     if (hasError) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
+        <div className="flex flex-col items-center justify-center min-h-dvh text-center px-4">
           <IconAlertTriangle className="w-12 h-12 mb-3 text-amber-400" />
           <h1 className="text-lg font-semibold text-gray-900">Algo salió mal</h1>
           <p className="text-sm text-gray-500 mt-2 max-w-sm">

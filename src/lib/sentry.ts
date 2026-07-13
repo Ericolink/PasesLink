@@ -61,7 +61,10 @@ export function initSentry() {
       // /wall) que son justamente las que hay que abrir rápido en el wifi
       // congestionado de un evento.
     ],
-    tracesSampleRate: 1,
+    // 100% en dev (útil para depurar localmente), 10% en producción — al
+    // 100% se agotaba cuota del plan gratis de Sentry rápido sin necesitar
+    // ver cada transacción para diagnosticar un problema real.
+    tracesSampleRate: import.meta.env.PROD ? 0.1 : 1,
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1,
     beforeSend(event) {

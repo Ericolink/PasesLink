@@ -63,7 +63,7 @@ export function CompleteProfile() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-dvh flex items-center justify-center p-4">
       <div className="w-full max-w-sm animate-fade-in-up">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-2">
           Completa tu perfil

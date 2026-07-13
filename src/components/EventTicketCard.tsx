@@ -97,7 +97,11 @@ export function EventTicketCard({
             : 'var(--invite-surface, rgba(30,20,40,.8))',
         }}
       >
-        <div className="p-4 pb-3">
+        {/* Padding recortado (antes p-4 pb-3 / mb-3 / footer pt-2.5) — con
+            varias tarjetas en Dashboard/MyInvitations, el aire de sobra
+            entre secciones se acumulaba en una lista notablemente más alta
+            de lo que el contenido necesitaba. */}
+        <div className="p-3.5 pb-2.5">
           <div className="flex items-start justify-between gap-2 mb-1">
             {/* El título es lo único que hereda la tipografía del tema — las
                 etiquetas chicas (talón, PassInfoCell) se quedan en la sans
@@ -130,13 +134,13 @@ export function EventTicketCard({
             </div>
           </div>
 
-          <p className="text-sm mb-3 text-[var(--invite-text-muted,#6b7280)]">{subtitle}</p>
+          <p className="text-sm mb-2 text-[var(--invite-text-muted,#6b7280)]">{subtitle}</p>
 
           {body}
         </div>
 
         {footer && (
-          <div className="ticket-perforation px-4 pb-3 pt-2.5">
+          <div className="ticket-perforation px-3.5 pb-2.5 pt-2">
             {footer}
           </div>
         )}

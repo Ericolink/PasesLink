@@ -302,6 +302,13 @@ export const RSVP_LABELS: Record<RsvpStatus, string> = {
   no: 'No asistirá',
 }
 
+export const PAYMENT_STATUS_LABELS: Record<GuestPaymentStatus, string> = {
+  paid: 'Pagado',
+  pending_confirmation: 'En revisión',
+  unpaid: 'Sin pagar',
+  expired: 'Vencido',
+}
+
 export interface UserProfile {
   uid: string
   email: string

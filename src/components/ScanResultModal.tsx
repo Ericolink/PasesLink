@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { ScanFeedback } from '../pages/Scanner'
 import { IconAlertTriangle, IconBan, IconCheck, IconCheckCircle, IconCopy, IconHelpCircle, IconLogOut, IconUsers, IconX, IconXCircle } from './Icons'
 import { useModalA11y } from '../hooks/useModalA11y'
+import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
+import type { PaymentMethod } from '../types'
 
 function formatTimestamp(ms: number): string {
   return new Date(ms).toLocaleString('es', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -14,6 +16,8 @@ export function ScanResultModal({
   onConfirmPayment,
   confirmingPayment,
   confirmError,
+  paymentMethods,
+  onSelectPaymentMethod,
 }: {
   feedback: ScanFeedback
   onClose: () => void
@@ -21,6 +25,13 @@ export function ScanResultModal({
   onConfirmPayment?: () => void
   confirmingPayment?: boolean
   confirmError?: string | null
+  // Métodos configurados para el evento — el selector solo se muestra si hay
+  // más de uno (con un solo método no hay nada que elegir). El invitado
+  // puede ya traer uno preseleccionado (feedback.paymentMethod, ver
+  // Scanner.tsx) si mandó comprobante; el guardia puede cambiarlo antes de
+  // confirmar (ej. paga en efectivo en la puerta en vez de transferencia).
+  paymentMethods?: PaymentMethod[]
+  onSelectPaymentMethod?: (method: PaymentMethod) => void
 }) {
   const [showFirstCheckIn, setShowFirstCheckIn] = useState(false)
 
@@ -93,24 +104,67 @@ export function ScanResultModal({
           <p className="mt-3 text-sm font-medium text-white bg-black/20 rounded-md px-3 py-2">{confirmError}</p>
         )}
 
-        {feedback.type === 'payment_required' && onConfirmPayment ? (
+        {feedback.type === 'payment_required' && onConfirmPayment && paymentMethods && paymentMethods.length > 1 && (
+          <div className="mt-4">
+            <p className="text-xs opacity-75 mb-1.5">Método de pago</p>
+            <div className="flex gap-2">
+              {paymentMethods.map((method) => {
+                // Sin selección propia (invitado que nunca mandó
+                // comprobante), el primer método configurado se ve
+                // seleccionado — es el mismo fallback que usa
+                // handleConfirmPayment en Scanner.tsx si el guardia
+                // confirma sin tocar este selector.
+                const isSelected = (feedback.paymentMethod ?? paymentMethods[0]) === method
+                return (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => onSelectPaymentMethod?.(method)}
+                    disabled={confirmingPayment}
+                    aria-pressed={isSelected}
+                    className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+                      isSelected ? 'bg-white text-red-700' : 'bg-white/10 hover:bg-white/20'
+                    }`}
+                  >
+                    {PAYMENT_METHOD_LABELS[method]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {feedback.type === 'payment_required' ? (
+          // Orden y prominencia invertidos a propósito: el encabezado de
+          // esta tarjeta ya dice "Acceso denegado" — la acción que CONFIRMA
+          // ese veredicto (no pagó) va primero y con el estilo sólido/alto
+          // contraste; "Sí, ya pagó" es la excepción que requiere criterio
+          // del guardia (verificó el pago por otro medio) y queda segunda,
+          // con menos peso visual, para reducir el riesgo de tocarla por
+          // reflejo bajo presión en la puerta. "No, aún no pagó" se muestra
+          // siempre (equivale a cerrar el modal, no requiere confirmPayments)
+          // — antes, si el guardia no tenía ese permiso, esta tarjeta perdía
+          // TAMBIÉN el botón de rechazo explícito y colapsaba a un genérico
+          // "Cerrar", como si no hubiera ninguna decisión que tomar.
           <div className="flex flex-col gap-2.5 mt-6">
-            <button
-              onClick={onConfirmPayment}
-              disabled={confirmingPayment}
-              className="min-h-14 inline-flex items-center justify-center gap-2 bg-white text-red-700 hover:opacity-90 transition-opacity rounded-md px-4 py-3 text-sm font-semibold disabled:opacity-50"
-            >
-              <IconCheck className="w-4 h-4" />
-              {confirmingPayment ? 'Confirmando…' : 'Sí, ya pagó'}
-            </button>
             <button
               onClick={onClose}
               disabled={confirmingPayment}
-              className="min-h-14 inline-flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-3 text-sm font-semibold disabled:opacity-50"
+              className="min-h-14 inline-flex items-center justify-center gap-2 bg-white text-red-700 hover:opacity-90 transition-opacity rounded-md px-4 py-3 text-sm font-semibold disabled:opacity-50"
             >
               <IconX className="w-4 h-4" />
               No, aún no pagó
             </button>
+            {onConfirmPayment && (
+              <button
+                onClick={onConfirmPayment}
+                disabled={confirmingPayment}
+                className="min-h-14 inline-flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 transition-colors rounded-md px-4 py-3 text-sm font-semibold disabled:opacity-50"
+              >
+                <IconCheck className="w-4 h-4" />
+                {confirmingPayment ? 'Confirmando…' : 'Sí, ya pagó'}
+              </button>
+            )}
           </div>
         ) : (
           <button

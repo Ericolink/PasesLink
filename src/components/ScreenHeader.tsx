@@ -33,12 +33,17 @@ type ScreenHeaderProps = {
 // rediseño de navegación).
 export function ScreenHeader({ title, backTo, action, templateId }: ScreenHeaderProps) {
   return (
-    <header className="dash-header sticky top-14 z-30 flex items-center gap-3 border-b border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-100/90 backdrop-blur px-1 py-3 mb-4">
+    // static en mobile (no sm:): con Navbar ya fijo arriba (h-14, sticky
+    // top-0), este header también sticky sumaba un segundo bloque fijo
+    // permanente — en mobile (donde BottomTabBar ya ancla la navegación
+    // principal) alcanza con que se desplace con el contenido; desde `sm:`
+    // el layout tiene más aire vertical y se mantiene sticky como antes.
+    <header className="dash-header static sm:sticky sm:top-14 z-30 flex items-center gap-3 border-b border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-100/90 backdrop-blur px-1 py-3 mb-4">
       {backTo && (
         <Link
           to={backTo}
           aria-label="Volver"
-          className="shrink-0 -ml-1 p-1.5 rounded-full text-gray-500 hover:text-primary hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5 transition-colors"
+          className="shrink-0 -ml-2 min-w-11 min-h-11 inline-flex items-center justify-center rounded-full text-gray-500 hover:text-primary hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5 transition-colors"
         >
           <IconArrowLeft className="w-5 h-5" />
         </Link>

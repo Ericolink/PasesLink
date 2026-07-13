@@ -44,7 +44,7 @@ export function AdminActivityLog({ entries, loading }: { entries: AdminAuditLogE
             {entry.action === 'event_delete' ? <IconTrash className="w-4 h-4" /> : <IconRotateCcw className="w-4 h-4" />}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm text-gray-700 dark:text-gray-200">
+            <p className="text-sm text-gray-700 dark:text-gray-300">
               <span className="font-medium">{entry.adminEmail || entry.adminUid}</span>{' '}
               {ACTION_LABELS[entry.action]}{' '}
               <span className="font-medium">{entry.targetName}</span>

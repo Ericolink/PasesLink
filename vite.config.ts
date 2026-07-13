@@ -82,11 +82,32 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,webmanifest}', 'icons/*.png'],
+        // Antes se precacheaban los 104 archivos de la build (~3.1 MB) para
+        // CUALQUIER visitante en su primera visita, incluidos chunks pesados
+        // de rutas que un invitado (/pass, /join, /wall) nunca abre: el panel
+        // de admin, el escáner (solo lo usa quien tiene el rol de puerta) y
+        // las dependencias de exportar PDF (html2canvas + el propio
+        // exportPdf, ~600 KB juntos). Se excluyen del precache — quedan
+        // disponibles igual la primera vez que alguien SÍ visita esa ruta,
+        // vía el runtimeCaching de abajo, y de ahí en adelante sí quedan
+        // cacheados para esa persona puntual.
+        globIgnores: ['**/AdminDashboard-*.js', '**/Scanner-*.js', '**/exportPdf-*.js', '**/html2canvas-*.js'],
         navigateFallback: '/index.html',
         // /__/* son los helpers de Firebase Hosting (p. ej. /__/auth para el
         // popup de Google/Facebook) — nunca deben caer en el fallback del SW.
         navigateFallbackDenylist: [/^\/__\//],
         runtimeCaching: [
+          {
+            // Cubre los chunks recién excluidos del precache de arriba —
+            // sin esta regla, quedarían sin cachear para siempre (se
+            // bajarían de la red en cada visita a esa ruta, ni siquiera la
+            // segunda vez). StaleWhileRevalidate: sirve la copia cacheada al
+            // instante si ya existe, y de paso pide una versión fresca en
+            // segundo plano para la próxima vez.
+            urlPattern: /\/assets\/.*\.js$/i,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'app-chunks-lazy', expiration: { maxEntries: 20 } },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'StaleWhileRevalidate',

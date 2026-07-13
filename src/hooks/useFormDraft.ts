@@ -21,6 +21,11 @@ export interface DraftEnvelope<T> {
 export function useFormDraft<T>(storageKey: string, serverUpdatedAt?: number) {
   const [pendingDraft, setPendingDraft] = useState<DraftEnvelope<T> | null>(null)
   const lastSavedRef = useRef<string>('')
+  // Expuesto para que la pantalla muestre "Guardado a las HH:MM" — antes el
+  // autoguardado no tenía ningún indicador visible, así que cerrar la
+  // pestaña por error se sentía arriesgado aunque el draft sí se hubiera
+  // guardado. null = todavía no se guardó nada en esta sesión.
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
 
   // Lee localStorage (sistema externo) cuando storageKey queda disponible —
   // en EventCreate, `user` (y por lo tanto la key) se resuelve después del
@@ -51,7 +56,9 @@ export function useFormDraft<T>(storageKey: string, serverUpdatedAt?: number) {
     const serialized = JSON.stringify(fields)
     if (serialized === lastSavedRef.current) return
     lastSavedRef.current = serialized
-    localStorage.setItem(storageKey, JSON.stringify({ savedAt: Date.now(), fields }))
+    const savedAt = Date.now()
+    localStorage.setItem(storageKey, JSON.stringify({ savedAt, fields }))
+    setLastSavedAt(savedAt)
   }, [storageKey])
 
   const clearDraft = useCallback(() => {
@@ -61,5 +68,5 @@ export function useFormDraft<T>(storageKey: string, serverUpdatedAt?: number) {
 
   const dismissPrompt = useCallback(() => setPendingDraft(null), [])
 
-  return { pendingDraft, saveDraft, clearDraft, dismissPrompt }
+  return { pendingDraft, saveDraft, clearDraft, dismissPrompt, lastSavedAt }
 }

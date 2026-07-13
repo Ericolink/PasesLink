@@ -31,22 +31,6 @@
         { "fieldPath": "guestId", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "ASCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "guests",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
-        { "fieldPath": "holdExpiresAt", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "waitlist",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []

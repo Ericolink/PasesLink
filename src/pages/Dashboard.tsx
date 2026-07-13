@@ -44,6 +44,7 @@ export function Dashboard() {
   const [events, setEvents] = useState<EventData[]>([])
   const [loading, setLoading] = useState(true)
   const [showPast, setShowPast] = useState(false)
+  const [showCancelled, setShowCancelled] = useState(false)
   const [onboardingModal, setOnboardingModal] = useState<'welcome' | 'novedades' | null>(null)
   const archivingRef = useRef<Set<string>>(new Set())
 
@@ -93,7 +94,13 @@ export function Dashboard() {
   }, [user])
 
   const activeEvents = events.filter((e) => e.status === 'active')
-  const pastEvents = events.filter((e) => e.status !== 'active')
+  // Separados: 'archived' (activo cuya fecha ya pasó, ver el auto-archivado
+  // más arriba) y 'cancelled' (el organizador lo canceló explícitamente,
+  // sin importar si su fecha ya pasó o es futura) se mezclaban antes bajo
+  // un mismo "Eventos pasados" — un evento cancelado con fecha FUTURA
+  // aparecía ahí como si ya hubiera ocurrido.
+  const pastEvents = events.filter((e) => e.status === 'archived')
+  const cancelledEvents = events.filter((e) => e.status === 'cancelled')
 
   // activeEvents ya viene ordenado por relevancia (compareEventsByRelevance,
   // ver subscribeToUserEvents) con los futuros primero de más cercano a más
@@ -112,19 +119,22 @@ export function Dashboard() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">
+      {/* Header — min-w-0 en el texto: sin esto, un nombre largo empujaba el
+          botón "+ Nuevo evento" fuera de la fila (o forzaba overflow
+          horizontal) en vez de truncar/envolver. El botón, siempre shrink-0,
+          ahora también cumple el mínimo táctil de 44px (antes py-2 ≈ 36px). */}
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">
             {firstName ? `Hola, ${firstName}` : 'Mis eventos'}
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-500 mt-0.5 truncate">
             {firstName ? 'Mis eventos' : user?.email}
           </p>
         </div>
         <Link
           to="/events/new"
-          className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-semibold hover:-translate-y-0.5 transition-all shrink-0"
+          className="min-h-11 inline-flex items-center bg-primary text-white rounded-lg px-4 text-sm font-semibold hover:-translate-y-0.5 transition-all shrink-0"
         >
           + Nuevo evento
         </Link>
@@ -165,7 +175,12 @@ export function Dashboard() {
       {!loading && events.length === 0 && (
         <div
           className="text-center rounded-2xl py-16 animate-fade-in-up"
-          style={{ background: 'rgba(30,20,40,.5)', border: '1px dashed rgba(74,50,92,.9)' }}
+          // Caja intencionalmente oscura en los dos modos (no seguía el
+          // toggle claro/oscuro) — con opacidad .5 el texto blanco de abajo
+          // quedaba con contraste insuficiente (~3:1) sobre el fondo claro
+          // de la página en modo claro. Más opaca para que se lea bien sin
+          // importar el tema, igual que .dark .bg-gray-50/800 de index.css.
+          style={{ background: 'rgba(30,20,40,.9)', border: '1px dashed rgba(74,50,92,.9)' }}
         >
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
@@ -206,6 +221,27 @@ export function Dashboard() {
           {showPast && (
             <div className="space-y-3">
               {pastEvents.map((event, i) => (
+                <EventTicket key={event.id} event={event} index={i} past />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Cancelled events — separados de "pasados": un evento cancelado con
+          fecha futura no "ya ocurrió", así que no comparte la sección. */}
+      {!loading && cancelledEvents.length > 0 && (
+        <div className="mt-8">
+          <button
+            onClick={() => setShowCancelled((v) => !v)}
+            className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-300 mb-3 transition-colors"
+          >
+            <span className={`transition-transform duration-200 ${showCancelled ? 'rotate-90' : ''}`}>▶</span>
+            Eventos cancelados ({cancelledEvents.length})
+          </button>
+          {showCancelled && (
+            <div className="space-y-3">
+              {cancelledEvents.map((event, i) => (
                 <EventTicket key={event.id} event={event} index={i} past />
               ))}
             </div>

@@ -6,7 +6,7 @@
 // identidad.
 export function CrownLoader({
   label = 'Cargando…',
-  className = 'min-h-screen',
+  className = 'min-h-dvh',
 }: {
   label?: string
   className?: string

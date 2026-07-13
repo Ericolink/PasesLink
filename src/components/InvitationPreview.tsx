@@ -8,6 +8,7 @@ import { EventMap } from './EventMap'
 import { TimelineDisplay } from './TimelineDisplay'
 import { IconDownload, IconWhatsApp } from './Icons'
 import { PREVIEW_CONTENT, PREVIEW_WALL_MESSAGES } from '../templates/previewContent'
+import { QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 import type { TemplateId, TimelineEntry } from '../types'
 
 interface InvitationPreviewProps {
@@ -79,7 +80,7 @@ export function InvitationPreview({
         <p className="text-lg font-medium mt-6">{sample.guestName}</p>
         <div className="flex justify-center my-6">
           <div className="invite-qr-frame p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
-            <QRCodeCanvas value="https://paselink.app/vista-previa" size={180} marginSize={2} />
+            <QRCodeCanvas value="https://paselink.app/vista-previa" size={180} marginSize={QR_QUIET_ZONE_MODULES} />
           </div>
         </div>
         <p className="text-sm text-[var(--invite-text-muted)]">Presenta este código QR en la entrada</p>

@@ -120,6 +120,7 @@ export function PhotoFeedCard({
           alt={photo.caption || `Foto de ${photo.authorName}`}
           width={photo.width}
           height={photo.height}
+          fallbackAspectRatio={4 / 5}
           className="w-full max-h-[420px]"
           imgClassName="object-cover cursor-pointer"
         />
@@ -144,14 +145,14 @@ export function PhotoFeedCard({
             />
           )}
           {canReply && onReply && !replying && (
-            <button onClick={() => setReplying(true)} className="text-xs text-gray-400 hover:text-primary">
+            <button onClick={() => setReplying(true)} className="wall-action-btn text-xs text-gray-400 hover:text-primary">
               Responder
             </button>
           )}
           {isOrg && onDelete && (
             <button
               onClick={() => onDelete(photo.id)}
-              className="text-xs text-red-400 hover:text-red-300"
+              className="wall-action-btn text-xs text-red-400 hover:text-red-300"
             >
               Eliminar foto
             </button>
@@ -165,7 +166,7 @@ export function PhotoFeedCard({
             contentCaption={photo.caption}
             contentAuthorName={photo.authorName}
             contentAuthorToken={photo.authorToken}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+            className="wall-action-btn text-xs text-gray-400 hover:text-red-500 transition-colors"
             showLabel
           />
         </div>

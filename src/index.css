@@ -61,6 +61,31 @@
    transparente en ambos modos. ──────────────────────────────────── */
 html {
   background-color: var(--app-html-bg);
+  /* Apaga el flash gris/azul que Safari/Chrome dibujan al tocar cualquier
+     elemento tapeable en touch — es puramente decorativo (no tiene relación
+     con :focus/:focus-visible, que la app ya maneja aparte más abajo), así
+     que quitarlo no afecta el foco de teclado ni ningún estado de
+     accesibilidad. El feedback táctil real de cada botón sigue viniendo de
+     sus propios hover/active (p.ej. active:scale-95, hover:bg-*). */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS Safari hace zoom automático del viewport entero al enfocar cualquier
+   <input>/<select>/<textarea> con font-size computado menor a 16px — varios
+   formularios de la app (Register, CompleteProfile, EditNameModal, el
+   `inputClass` de EventJoin.tsx reusado en GuestAddForm/GuestEditModal/
+   CustomFieldsBuilder/ReportModal, etc.) usan `text-sm` (14px) en sus
+   inputs, así que el bug aparecía repetido en cada uno por separado. En vez
+   de tocar cada formulario, se resuelve acá una sola vez con especificidad
+   más alta que las utilidades de Tailwind (que viven en @layer utilities) —
+   el font-size VISUAL del texto ya tipeado no cambia (line-height/padding
+   de cada input siguen intactos), solo el que ve el navegador para decidir
+   si hace zoom. Ver también DESIGN_GOVERNANCE.md si se agrega un input
+   nuevo: no hace falta ninguna clase extra, esto ya lo cubre. */
+input,
+select,
+textarea {
+  font-size: 16px;
 }
 
 body {
@@ -263,6 +288,65 @@ body {
 
 .dark .bg-gray-100 {
   background-color: rgba(21, 13, 28, 0.8) !important;
+}
+
+/* dark:bg-gray-700/800/900: el bloque .dark de arriba redefine
+   --color-gray-700 a --color-gray-900 para que FUNCIONEN COMO TEXTO en
+   oscuro (tonos claros, ~10-14:1 de contraste) — es necesario para que
+   dark:text-gray-800 siga leyéndose bien. Pero eso invierte también estas
+   mismas clases cuando se usan como FONDO (el idiom más común de Tailwind
+   para tarjetas: "bg-white dark:bg-gray-800", usado en ~150 lugares de este
+   proyecto y protegido explícitamente por src/design-system/
+   DESIGN_GOVERNANCE.md como intacto): sin este override, esas tarjetas
+   quedaban con fondo casi blanco en modo oscuro (texto blanco encima,
+   invisible).
+   OJO con el selector: a diferencia de bg-gray-50/100 de arriba (que SÍ
+   funcionan con `.dark .bg-gray-50`, porque esas clases se usan SIN
+   prefijo `dark:` como mitad "clara" del idiom "bg-gray-50 dark:bg-X"), acá
+   la clase que hay que pisar es la que Tailwind genera para el propio
+   `dark:bg-gray-700` — literalmente `.dark\:bg-gray-700` (con los dos
+   puntos escapados), NO `.bg-gray-700`. Un primer intento de este fix usó
+   `.dark .bg-gray-700` por copiar el patrón de arriba sin verificar contra
+   el HTML compilado — compilaba sin error pero nunca coincidía con ningún
+   elemento real (verificado con Playwright: el color no cambiaba), porque
+   ningún componente tiene la clase *plana* `bg-gray-700` de fondo, solo la
+   condicional `dark:bg-gray-700`. Escala de elevación propia (900 = más
+   recesado/oscuro, 800 = tarjeta estándar — mismo tono que .bg-white de
+   arriba, para que el idiom "bg-white dark:bg-gray-800" dé una tarjeta
+   visualmente consistente en los dos modos —, 700 = superficie más clara/
+   hover). Los `/NN` cubren los únicos moduladores de opacidad que el
+   proyecto usa hoy sobre estas 3 clases (grep dark:bg-gray-[789]00/NN) —
+   si se agrega un modulador nuevo, hay que sumar su propia línea acá. */
+.dark .dark\:bg-gray-700 {
+  background-color: rgba(42, 30, 56, 0.85) !important;
+}
+
+.dark .dark\:bg-gray-800 {
+  background-color: rgba(30, 20, 40, 0.88) !important;
+}
+
+.dark .dark\:bg-gray-900 {
+  background-color: rgba(18, 12, 24, 0.9) !important;
+}
+
+.dark .dark\:bg-gray-700\/30 {
+  background-color: rgba(42, 30, 56, 0.25) !important;
+}
+
+.dark .dark\:bg-gray-700\/40 {
+  background-color: rgba(42, 30, 56, 0.34) !important;
+}
+
+.dark .dark\:bg-gray-700\/50 {
+  background-color: rgba(42, 30, 56, 0.42) !important;
+}
+
+.dark .dark\:bg-gray-800\/60 {
+  background-color: rgba(30, 20, 40, 0.53) !important;
+}
+
+.dark .dark\:bg-gray-900\/50 {
+  background-color: rgba(18, 12, 24, 0.45) !important;
 }
 
 .dark input,
@@ -844,6 +928,7 @@ textarea:focus {
   align-items: center;
   gap: 0.3rem;
   font-size: 0.75rem;
+  min-height: 2.75rem;
   padding: 0.75rem 0.7rem;
   border-radius: 9999px;
   color: #9ca3af;
@@ -884,11 +969,13 @@ textarea:focus {
   align-items: center;
   gap: 0.25rem;
   font-size: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.5rem;
+  border-radius: 9999px;
   color: #9ca3af;
   cursor: pointer;
   background: none;
   border: none;
-  padding: 0;
   font-family: inherit;
 }
 
@@ -902,9 +989,16 @@ textarea:focus {
   bottom: calc(100% + 6px);
   left: 0;
   display: flex;
+  /* flex-wrap + max-width: los botones pasaron de ~36px a 44px mínimo (ver
+     .reaction-popup-emoji) para cumplir el target táctil — sin este tope,
+     las 7 reacciones en una sola fila podían desbordar el ancho de la
+     pantalla en celulares angostos. Envuelve a una segunda fila en vez de
+     forzar scroll horizontal. */
+  flex-wrap: wrap;
+  max-width: min(19rem, calc(100vw - 2rem));
   gap: 0.15rem;
   padding: 0.35rem 0.45rem;
-  border-radius: 9999px;
+  border-radius: 1.5rem;
   background-color: var(--invite-surface, #fff);
   border: 1px solid var(--invite-border, rgba(0, 0, 0, 0.08));
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
@@ -920,9 +1014,13 @@ textarea:focus {
 }
 
 .reaction-popup-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   font-size: 1.35rem;
   line-height: 1;
-  padding: 0.45rem;
   border-radius: 9999px;
   transform-origin: bottom center;
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease;
@@ -958,6 +1056,24 @@ textarea:focus {
     transform: none;
     background-color: transparent;
   }
+}
+
+/* ── Acciones secundarias del muro ("Responder", "Eliminar", "Reportar") ──
+   Antes cada una tenía su propio padding ad-hoc (o ninguno) — target táctil
+   inconsistente entre sí y respecto al botón de reacción principal
+   (.reaction-main-btn, arriba) y "Ver reacciones" (.reaction-summary). Una
+   sola clase de tamaño/espaciado reutilizada en PhotoFeedCard.tsx y
+   EventWall.tsx; el color y su hover siguen viniendo de las utilidades de
+   Tailwind que ya traía cada botón (text-gray-400 hover:text-primary, etc.),
+   así que combinarla no cambia la paleta de ninguno. */
+.wall-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 9999px;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 /* ── Card hover ──────────────────────────────────────────────── */

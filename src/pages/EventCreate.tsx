@@ -5,6 +5,7 @@ import { createEvent } from '../firebase/events'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useFormDraft } from '../hooks/useFormDraft'
 import { isNetworkError } from '../utils/network'
+import { isEventPast } from '../utils/time'
 import { parseCapacity } from '../utils/validationRules'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -45,7 +46,7 @@ interface EventDraftFields {
   timeline: TimelineEntry[]
 }
 
-const DRAFT_SAVE_INTERVAL_MS = 5000
+const DRAFT_SAVE_DEBOUNCE_MS = 5000
 
 type StepKey = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
@@ -120,7 +121,7 @@ export function EventCreate() {
 
   // — Draft —
   const draftKey = user ? `eventDraft_${user.uid}_new` : ''
-  const { pendingDraft, saveDraft, clearDraft, dismissPrompt } = useFormDraft<EventDraftFields>(draftKey)
+  const { pendingDraft, saveDraft, clearDraft, dismissPrompt, lastSavedAt } = useFormDraft<EventDraftFields>(draftKey)
 
   function applyDraft(fields: EventDraftFields) {
     setName(fields.name)
@@ -147,9 +148,15 @@ export function EventCreate() {
     if (fields.coverImage) setCoverImage(fields.coverImage)
   }
 
+  // Debounce explícito (antes un setInterval que, al tener todos estos campos
+  // en las deps, se recreaba en cada tecla — terminaba comportándose como un
+  // debounce por accidente, nunca como un guardado realmente periódico
+  // mientras el usuario tipeaba sin pausar). setTimeout deja esa intención
+  // clara: guarda DRAFT_SAVE_DEBOUNCE_MS después del último cambio, no cada
+  // tanto tiempo fijo.
   useEffect(() => {
     if (!draftKey || pendingDraft) return
-    const id = setInterval(() => {
+    const id = setTimeout(() => {
       const hasContent = name.trim() || date || location.trim() || description.trim()
       if (!hasContent) return
       saveDraft({
@@ -157,8 +164,8 @@ export function EventCreate() {
         welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment, paymentMethods,
         ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
       })
-    }, DRAFT_SAVE_INTERVAL_MS)
-    return () => clearInterval(id)
+    }, DRAFT_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(id)
   }, [
     draftKey, pendingDraft, name, date, startTime, endTime, location, description, dressCode, templateId,
     accentColor, welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment, paymentMethods,
@@ -167,11 +174,11 @@ export function EventCreate() {
 
   // — Validación por paso —
   function canProceedStep(s: StepKey): boolean {
-    if (s === 1) return !!(name.trim() && date && location.trim())
+    if (s === 1) return !!(name.trim() && date && !isEventPast(date) && location.trim())
     if (s === 2) {
       const { error: capErr } = parseCapacity(capacity)
       if (capErr) return false
-      if (requiresPayment) return paymentMethods.length > 0
+      if (requiresPayment) return paymentMethods.length > 0 && parseFloat(ticketPrice) > 0
       return true
     }
     return true
@@ -334,6 +341,7 @@ export function EventCreate() {
         canProceed={canProceed}
         isSubmitting={loading}
         nextLabel={returnStep ? 'Confirmar cambios →' : undefined}
+        savedLabel={lastSavedAt ? `Guardado ${new Date(lastSavedAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}` : undefined}
       >
         {returnStep && (
           <p className="text-sm text-primary bg-primary/10 rounded-lg px-3 py-2.5 mb-5">
@@ -349,11 +357,15 @@ export function EventCreate() {
             onLocationChange={setLocation}
             date={date}
             onDateChange={setDate}
+            dateMin={new Date().toISOString().slice(0, 10)}
             startTime={startTime}
             onStartTimeChange={setStartTime}
             endTime={endTime}
             onEndTimeChange={setEndTime}
           />
+          {date && isEventPast(date) && (
+            <p className="text-xs text-red-500 mt-1">La fecha ya pasó — elegí una fecha de hoy en adelante.</p>
+          )}
         </WizardStep>
 
         <WizardStep number={2} currentStep={step}>

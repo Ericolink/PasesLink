@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { logout } from '../firebase/auth'
@@ -15,18 +15,23 @@ import { CrownLoader } from './CrownLoader'
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   const { banned, banMessage } = useSanctionStatus()
+  const location = useLocation()
 
   if (loading) {
     return <CrownLoader />
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />
+    // Guarda de dónde venía (path + query) para que Login.tsx pueda volver
+    // ahí después de autenticar, en vez de mandar siempre a /dashboard —
+    // antes, un link directo a una ruta protegida (ej. compartido por otro
+    // organizador) que forzaba pasar por /login perdía el destino original.
+    return <Navigate to="/login" state={{ from: location }} replace />
   }
 
   if (banned) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-4">
+      <div className="flex items-center justify-center min-h-dvh p-4">
         <div className="max-w-sm w-full text-center bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
           <div className="mx-auto w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
             <IconBan className="w-6 h-6 text-red-600 dark:text-red-400" />

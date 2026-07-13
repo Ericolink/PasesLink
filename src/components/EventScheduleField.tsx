@@ -3,6 +3,13 @@ import { IconCalendar, IconClock } from './Icons'
 interface Props {
   date: string
   onDateChange: (value: string) => void
+  // Solo lo pasa StepBasicInfo.tsx (creación) — EditEventForm.tsx no, para
+  // no invalidar visualmente la fecha ya guardada de un evento que ya
+  // pasó (el `min` nativo no bloquea un value existente por debajo suyo,
+  // pero sí lo marca `:invalid`). La validación real ("no crear con fecha
+  // pasada") vive en EventCreate.tsx/canProceedStep — esto es solo la
+  // ayuda visual del picker nativo.
+  dateMin?: string
   startTime: string
   onStartTimeChange: (value: string) => void
   endTime: string
@@ -47,6 +54,7 @@ const dividerClass = 'grid grid-cols-2 divide-x divide-black/10 dark:divide-whit
 export function EventScheduleField({
   date,
   onDateChange,
+  dateMin,
   startTime,
   onStartTimeChange,
   endTime,
@@ -61,7 +69,7 @@ export function EventScheduleField({
         <IconCalendar className="w-4 h-4 text-gray-400 shrink-0" />
         <div className="flex-1 min-w-0">
           <label htmlFor={dateId} className={labelClass}>Fecha</label>
-          <input id={dateId} type="date" required value={date} onChange={(e) => onDateChange(e.target.value)} className={inputClass} />
+          <input id={dateId} type="date" required min={dateMin} value={date} onChange={(e) => onDateChange(e.target.value)} className={inputClass} />
         </div>
       </div>
       <div className={dividerClass}>

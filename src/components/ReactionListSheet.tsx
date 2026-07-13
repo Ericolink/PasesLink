@@ -52,14 +52,14 @@ export function ReactionListSheet({ reactions, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label="Personas que reaccionaron"
-        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm max-h-[75dvh] flex flex-col animate-bounce-in"
+        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm max-h-[85dvh] flex flex-col animate-bounce-in"
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">Reacciones ({total})</h2>
           <button
             onClick={onClose}
             aria-label="Cerrar"
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="-m-2 min-w-11 min-h-11 inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <IconX className="w-5 h-5" />
           </button>

@@ -4,6 +4,7 @@ import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useCheckinToast } from '../hooks/useCheckinToast'
+import { Toast } from '../components/Toast'
 import { useEventExport } from '../hooks/useEventExport'
 import { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { useEventPermissions } from '../hooks/useEventPermissions'
@@ -47,12 +48,13 @@ export function EventDetail() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const { event, guests, loading, error } = useEvent(eventId)
+  const { event, guests, loading, error, guestsError } = useEvent(eventId)
   useDocumentTitle(event?.name || 'Evento')
   useDashboardTheme(event?.templateId, event?.accentColor)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmCancelEvent, setConfirmCancelEvent] = useState(false)
   const [actionError, setActionError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'scanned' | 'declined' | 'pending'>('all')
@@ -64,7 +66,7 @@ export function EventDetail() {
   const [expandedCoOrgUid, setExpandedCoOrgUid] = useState<string | null>(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [leaving, setLeaving] = useState(false)
-  const checkinToast = useCheckinToast(eventId)
+  const [checkinToast, dismissCheckinToast] = useCheckinToast(eventId)
   const hasUnseenWallMessage = useHasUnseenWallMessage(eventId)
   const { exporting, exportProgress, exportPdfError, handleExportPdf, handleCancelExportPdf, handleExportCsv } =
     useEventExport(event, guests)
@@ -78,7 +80,7 @@ export function EventDetail() {
     handleRemoveCoOrg,
     handleLeaveEvent,
     handleUpdatePermissions,
-  } = useCoOrganizers(eventId, event?.ownerId)
+  } = useCoOrganizers(eventId, event?.ownerId, event?.coOrganizersMap)
   const perms = useEventPermissions(event, user)
 
   // Permite que el CTA del modal de éxito de EventCreate (u otros enlaces)
@@ -214,22 +216,52 @@ export function EventDetail() {
     <>
       {/* Toasts flotantes */}
       {checkinToast && (
-        <div className="fixed top-16 right-4 z-50 bg-primary text-white text-sm rounded-lg shadow-lg px-4 py-2.5 animate-pulse flex items-center gap-2">
-          <IconCheckCircle className="w-4 h-4" /> {checkinToast}
-        </div>
+        <Toast icon={<IconCheckCircle className="w-4 h-4 shrink-0" />} message={checkinToast} onDismiss={dismissCheckinToast} />
       )}
 
       {/* Navegación */}
       <ScreenHeader title={event.name} backTo="/dashboard" templateId={event.templateId} />
 
+      {/* ── ACCIONES PRIMARIAS ── movidas antes del hero (que puede incluir
+          una imagen de portada + countdown y ocupar fácilmente el primer
+          viewport en mobile): Escanear/Muro/Reportes deben quedar visibles
+          sin scroll apenas se entra al evento. */}
+      <div className="flex gap-2.5 mb-5">
+        <Link
+          to={`/events/${event.id}/scan`}
+          className="flex-1 flex items-center justify-center bg-primary text-white rounded-xl py-3.5 text-sm font-semibold hover:bg-primary-dark transition-colors"
+        >
+          Escanear pases
+        </Link>
+        <Link
+          to={`/events/${event.id}/wall`}
+          className="relative border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
+        >
+          Muro
+          {hasUnseenWallMessage && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
+          )}
+        </Link>
+        <Link
+          to={`/events/${event.id}/reports`}
+          className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
+        >
+          Reportes
+        </Link>
+      </div>
+
       {/* ── HERO DEL EVENTO ── */}
       <div className="invite-card-accent rounded-2xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mb-5">
         {event.coverImage && (
           <div className="h-44 sm:h-56 overflow-hidden">
+            {/* Sin loading="lazy": es la imagen principal del primer
+                viewport (candidata a LCP) — lazy-loading una imagen que ya
+                está visible al cargar la página solo retrasa su propia
+                descarga. */}
             <img
               src={optimizedImageUrl(event.coverImage, 800)}
               alt="Portada del evento"
-              loading="lazy"
+              fetchPriority="high"
               crossOrigin="anonymous"
               className="w-full h-full object-cover"
             />
@@ -408,30 +440,6 @@ export function EventDetail() {
         </div>
       )}
 
-      {/* ── ACCIONES PRIMARIAS ── */}
-      <div className="flex gap-2.5 mb-5">
-        <Link
-          to={`/events/${event.id}/scan`}
-          className="flex-1 flex items-center justify-center bg-primary text-white rounded-xl py-3.5 text-sm font-semibold hover:bg-primary-dark transition-colors"
-        >
-          Escanear pases
-        </Link>
-        <Link
-          to={`/events/${event.id}/wall`}
-          className="relative border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
-        >
-          Muro
-          {hasUnseenWallMessage && (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
-          )}
-        </Link>
-        <Link
-          to={`/events/${event.id}/reports`}
-          className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
-        >
-          Reportes
-        </Link>
-      </div>
 
       {/* ── AUTO-REGISTRO ── arriba y compacto: es de las acciones más usadas
           durante la organización (copiar/compartir el enlace), así que no
@@ -480,15 +488,28 @@ export function EventDetail() {
       )}
 
       {/* ── GESTIÓN DE INVITADOS ── */}
+      {/* Toda la card queda detrás de viewGuestList: un coanfitrión sin ese
+          permiso (ej. solo scanQr) nunca se suscribe a un dato que igual no
+          puede ver — antes la página entera se rompía con un error genérico
+          apenas rules rechazaba la suscripción a `guests`. */}
+      {perms.viewGuestList && (
       <div id="add-guests" className="invite-card-accent border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden mb-5">
-        {/* Formulario de agregar (según permiso addGuests, en modo lista o mixto) */}
-        {perms.addGuests && event.entryMode !== 'open' && (
+        {/* Formulario de agregar (según permiso addGuests) — sin importar el
+            modo de entrada: firestore.rules ya lo permite en cualquier
+            entryMode vía canDo('addGuests'), la restricción a "no open" era
+            solo de esta UI (el organizador de un evento 100% autoregistro
+            no tenía forma de cargar a mano a alguien que se anotó por
+            teléfono, por ejemplo). */}
+        {perms.addGuests && (
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
             <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} />
           </div>
         )}
 
         <div className="p-5">
+          {guestsError && (
+            <p className="text-sm text-red-500 mb-4">{guestsError}</p>
+          )}
           {/* Encabezado + exportar */}
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
@@ -568,9 +589,10 @@ export function EventDetail() {
           />
         </div>
       </div>
+      )}
 
       {/* ── RECORDATORIOS ── */}
-      {guests.length > 0 && (
+      {perms.viewGuestList && guests.length > 0 && (
         <ReminderSection event={event} guests={guests} />
       )}
 
@@ -598,7 +620,7 @@ export function EventDetail() {
               <div className="flex gap-2 flex-wrap">
                 {event.status === 'active' ? (
                   <button
-                    onClick={() => handleStatusChange('cancelled')}
+                    onClick={() => setConfirmCancelEvent(true)}
                     disabled={updatingStatus}
                     className="text-sm border border-red-200 text-red-600 dark:border-red-700/60 dark:text-red-400 rounded-lg px-4 py-2 font-medium hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
                   >
@@ -685,6 +707,16 @@ export function EventDetail() {
         cancelLabel="Cancelar"
         onConfirm={handleLeave}
         onCancel={() => setConfirmLeave(false)}
+      />
+      <ConfirmDialog
+        open={confirmCancelEvent}
+        danger
+        title={`Cancelar "${event.name}"`}
+        message="Los invitados y coanfitriones van a ver el evento marcado como cancelado. Podés reactivarlo después si fue un error."
+        confirmLabel={updatingStatus ? 'Cancelando…' : 'Sí, cancelar evento'}
+        cancelLabel="Volver"
+        onConfirm={() => { void handleStatusChange('cancelled'); setConfirmCancelEvent(false) }}
+        onCancel={() => setConfirmCancelEvent(false)}
       />
 
     </>

@@ -1,3 +1,9 @@
+// "Quiet zone" mínima recomendada por el estándar QR (4 módulos en blanco
+// alrededor del patrón) para que un lector lo detecte de forma confiable —
+// los distintos <QRCodeCanvas>/<QRCodeSVG> de la app usaban 1 o 2, la mitad
+// o un cuarto de lo recomendado.
+export const QR_QUIET_ZONE_MODULES = 4
+
 export function buildPassUrl(eventId: string, qrToken: string): string {
   return `${window.location.origin}/pass/${eventId}/${qrToken}`
 }

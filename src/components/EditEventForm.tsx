@@ -2,23 +2,19 @@ import { useEffect, useState } from 'react'
 import { updateEventDetails } from '../firebase/events'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useFormDraft } from '../hooks/useFormDraft'
-import { optimizedImageUrl } from '../utils/cloudinary'
 import { isNetworkError } from '../utils/network'
-import { parseCapacity } from '../utils/validationRules'
+import { EVENT_NAME_MAX, parseCapacity, sanitizeDecimalInput } from '../utils/validationRules'
 import { ImageCropModal } from './ImageCropModal'
 import { CustomFieldsBuilder } from './CustomFieldsBuilder'
 import { TimelineEditor } from './TimelineEditor'
 import { TemplatePicker } from './TemplatePicker'
+import { CoverImagePicker } from './CoverImagePicker'
 import { DraftRecoveryModal } from './DraftRecoveryModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import { EventScheduleField } from './EventScheduleField'
 import { getTemplate } from '../templates/registry'
+import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import type { CustomField, EntryMode, EventData, PaymentMethod, TemplateId, TimelineEntry } from '../types'
-
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  transfer: 'Transferencia',
-  cash: 'Efectivo',
-}
 
 interface EventEditDraftFields {
   name: string
@@ -315,6 +311,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       setSubmitError('Elegí al menos un método de cobro.')
       return
     }
+    if (requiresPayment && !(parseFloat(ticketPrice) > 0)) {
+      setSubmitError('Ingresá un precio mayor a 0 para el boleto.')
+      return
+    }
     const { value: parsedCapacity, error: capacityValidationError } = parseCapacity(capacity)
     if (capacityValidationError) {
       setCapacityError(capacityValidationError)
@@ -378,6 +378,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
+            maxLength={EVENT_NAME_MAX}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
@@ -442,24 +443,17 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         </div>
 
         <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-3">
-          <div>
-            <label htmlFor="edit-event-cover-image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Imagen de portada</label>
-            <input id="edit-event-cover-image" ref={coverFileInputRef} type="file" accept="image/*" onChange={onCoverFileSelected} className="hidden" />
-            {coverImage ? (
-              <div className="relative rounded-lg overflow-hidden h-28 bg-gray-100">
-                <img src={optimizedImageUrl(coverImage, 800)} alt="Portada" loading="lazy" crossOrigin="anonymous" className="w-full h-full object-cover" />
-                <button type="button" onClick={clearCover} className="absolute top-2 right-2 bg-black/50 text-white text-xs rounded-md px-2 py-1">
-                  Quitar
-                </button>
-              </div>
-            ) : (
-              <button type="button" onClick={openCoverPicker} disabled={coverUploading}
-                className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-4 text-sm text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-50">
-                {coverUploading ? 'Subiendo…' : '+ Subir imagen de portada'}
-              </button>
-            )}
-            {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
-          </div>
+          <CoverImagePicker
+            id="edit-event-cover-image"
+            fileInputRef={coverFileInputRef}
+            coverImage={coverImage}
+            coverUploading={coverUploading}
+            coverError={coverError}
+            openCoverPicker={openCoverPicker}
+            onCoverFileSelected={onCoverFileSelected}
+            clearCover={clearCover}
+            compact
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -567,7 +561,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                   min="0"
                   step="0.01"
                   value={ticketPrice}
-                  onChange={(e) => setTicketPrice(e.target.value)}
+                  onChange={(e) => setTicketPrice(sanitizeDecimalInput(e.target.value))}
                   placeholder="Ej: 5000"
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />

@@ -37,6 +37,12 @@ export function BottomTabBar() {
         WebkitBackdropFilter: 'blur(16px)',
         borderColor: 'var(--app-chrome-border)',
         paddingBottom: 'env(safe-area-inset-bottom)',
+        // En landscape en un dispositivo con notch (ej. iPhone acostado),
+        // sin esto los tabs de los extremos quedan pegados/tapados por el
+        // borde curvo o la cámara — mismo criterio que ya se aplicaba solo
+        // a "bottom".
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
       }}
     >
       {TABS.map(({ to, label, icon: Icon, isActive }) => {

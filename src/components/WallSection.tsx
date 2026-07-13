@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reactToWallMessage, fetchWallMessages } from '../firebase/wall'
 import { fetchPhotos, reactToPhoto, replyToPhoto } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { useWallComposer } from '../hooks/useWallComposer'
-import { IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb, IconCrown, IconRotateCcw, IconCamera, IconX } from './Icons'
+import { IconCrown, IconRotateCcw, IconCamera, IconX } from './Icons'
 import { ThemeSeal } from './ThemeSeal'
 import { Avatar } from './Avatar'
 import { PhotoFeedCard } from './PhotoFeedCard'
@@ -14,9 +14,11 @@ import { PhotoViewer } from './PhotoViewer'
 import { ReactionPicker } from './ReactionPicker'
 import { ReportButton } from './ReportButton'
 import { StoriesBar } from './StoriesBar'
+import { WallTypeChipSelector } from './WallTypeChipSelector'
+import { WALL_TYPE_CONFIG } from '../utils/wallMessageTypes'
 import { mergeWallFeed } from '../utils/wallFeed'
 import { captureException } from '../lib/sentry'
-import type { ReactionType, TemplateId, WallMessage, WallMessageType } from '../types'
+import type { ReactionType, TemplateId, WallMessage } from '../types'
 
 const DEVICE_TOKEN_KEY = 'wall_device_token'
 const GUEST_NAME_KEY   = 'wall_guest_name'
@@ -39,12 +41,7 @@ function getAge(birthDate: string): number {
   return age
 }
 
-const TYPE_CONFIG: Record<WallMessageType, { label: string; Icon: React.FC<{className?:string}>; color: string }> = {
-  comment:  { label: 'Comentario', Icon: IconMessageSquare, color: 'bg-blue-100 text-blue-700' },
-  question: { label: 'Pregunta',   Icon: IconHelpCircle,    color: 'bg-yellow-100 text-yellow-700' },
-  music:    { label: 'Música',     Icon: IconMusic,          color: 'bg-purple-100 text-purple-700' },
-  idea:     { label: 'Idea',       Icon: IconLightbulb,      color: 'bg-green-100 text-green-700' },
-}
+const TYPE_CONFIG = WALL_TYPE_CONFIG
 
 interface Props { eventId: string; eventName?: string; guestName?: string; guestToken?: string; templateId?: TemplateId }
 
@@ -241,22 +238,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
           className="invite-wall-form border p-4 mb-4 space-y-3 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
           style={{ borderColor: 'var(--invite-border)' }}
         >
-          {!attachedFile && (
-            <div className="flex gap-2 flex-wrap">
-              {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
-                const cfg = TYPE_CONFIG[t]
-                return (
-                  <button key={t} type="button" onClick={() => setType(t)}
-                    className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 font-medium transition-all ${
-                      type === t ? cfg.color + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}>
-                    <cfg.Icon className="w-3 h-3" />
-                    {cfg.label}
-                  </button>
-                )
-              })}
-            </div>
-          )}
+          {!attachedFile && <WallTypeChipSelector value={type} onChange={setType} />}
           {photoBlockedMessage && (
             <p className="text-xs text-red-500">{photoBlockedMessage}</p>
           )}

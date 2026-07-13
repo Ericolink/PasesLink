@@ -6,6 +6,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from './config'
+import { generateQrToken } from './guests'
 import {
   GUEST_CUSTOM_FIELD_MAX_COUNT,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
@@ -124,7 +125,7 @@ export async function registerWalkInGuest(
     const requiresPayment = (data.requiresPayment as boolean) || false
     const resolvedMethod = requiresPayment ? paymentMethod || null : null
 
-    const qrToken = crypto.randomUUID().replace(/-/g, '')
+    const qrToken = generateQrToken()
     const guestRef = doc(collection(db, 'events', eventId, 'guests'))
     tx.set(guestRef, {
       name: trimmedName,

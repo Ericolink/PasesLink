@@ -53,7 +53,7 @@ export function EventArrive() {
 
   if (state === 'not_found' || state === 'error') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-dvh flex items-center justify-center p-4">
         <div className="text-center">
           <div className="flex justify-center mb-3">
             <IconBan className="w-12 h-12 text-gray-400" />
@@ -70,7 +70,7 @@ export function EventArrive() {
     <InvitationThemeRoot
       templateId={event?.templateId}
       accentOverride={event?.accentColor}
-      className="min-h-screen flex items-center justify-center text-center p-4"
+      className="min-h-dvh flex items-center justify-center text-center p-4"
     >
       <div className="w-full max-w-sm">
         <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>

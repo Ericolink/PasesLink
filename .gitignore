@@ -31,3 +31,4 @@ dist-ssr
 # el repo privado paselink-backups, nunca acá)
 backups-data/
 test-backup-output/
+qa-tmp/

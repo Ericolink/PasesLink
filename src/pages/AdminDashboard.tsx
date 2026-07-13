@@ -33,6 +33,7 @@ import { AdminFeedbackTable } from '../components/Admin/AdminFeedbackTable'
 import { AdminFeedbackDetail } from '../components/Admin/AdminFeedbackDetail'
 import { AdminReportsTab } from '../components/Admin/AdminReportsTab'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { ScrollableTabs } from '../components/ScrollableTabs'
 import {
   IconBarChart,
   IconBarChart2,
@@ -336,13 +337,13 @@ export function AdminDashboard() {
         </div>
       )}
 
-      <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 mb-4">
+      <ScrollableTabs className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
         <TabButton label="Eventos" count={events.length} active={tab === 'events'} onClick={() => setTab('events')} />
         <TabButton label="Clientes" count={users.length} active={tab === 'users'} onClick={() => setTab('users')} />
         <TabButton label="Buzón" unreadCount={unreadFeedbackCount} active={tab === 'feedback'} onClick={() => setTab('feedback')} />
         <TabButton label="Reportes" active={tab === 'reports'} onClick={() => setTab('reports')} />
         <TabButton label="Actividad" active={tab === 'activity'} onClick={() => setTab('activity')} />
-      </div>
+      </ScrollableTabs>
 
       {tab === 'events' && (
         <AdminEventsTable
@@ -462,7 +463,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+      className={`shrink-0 whitespace-nowrap min-h-11 px-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
         active
           ? 'border-primary text-primary'
           : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'

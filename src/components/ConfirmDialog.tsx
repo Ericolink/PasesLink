@@ -56,22 +56,31 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm animate-bounce-in"
+        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm max-h-[85dvh] flex flex-col animate-bounce-in"
       >
-        {danger && (
-          <div className="flex items-center justify-center pt-6 pb-2">
-            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-              <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-              </svg>
+        {/* Header + mensaje son la única región que scrollea — el mensaje
+            puede ser largo (p.ej. la lista de cambios del "modo anti-tontos"
+            de EditEventForm.tsx) y sin esto el diálogo simplemente se
+            recortaba contra el viewport, dejando los botones inalcanzables. */}
+        <div className="overflow-y-auto">
+          {danger && (
+            <div className="flex items-center justify-center pt-6 pb-2">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
             </div>
+          )}
+          <div className="px-6 pt-4 pb-2">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{title}</h2>
+            <div className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{message}</div>
           </div>
-        )}
-        <div className="px-6 pt-4 pb-2">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{title}</h2>
-          <div className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{message}</div>
         </div>
-        <div className="flex gap-3 p-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
+        {/* shrink-0: los botones nunca se comprimen ni se van con el scroll
+            del mensaje — separación (gap-4, antes gap-3) pensada para reducir
+            el riesgo de tocar el botón equivocado en una acción destructiva. */}
+        <div className="shrink-0 flex gap-4 p-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
           <button
             onClick={onCancel}
             className="flex-1 border border-gray-300 dark:border-gray-600 rounded-xl py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"

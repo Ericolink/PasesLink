@@ -1,3 +1,5 @@
+import { PASSWORD_MIN_LENGTH } from './validationRules'
+
 export interface AuthErrorInfo {
   message: string
   actionLabel?: string
@@ -8,15 +10,27 @@ export interface AuthErrorInfo {
 // `actionTo` solo se incluye cuando hay una página concreta que resuelve el
 // problema (registrarse, recuperar contraseña, iniciar sesión) — el resto
 // queda como mensaje informativo sin acción clicable.
+// Mismo mensaje para las 3 — deliberado (evita enumeración de usuarios).
+// Firebase puede devolver 'auth/user-not-found' o 'auth/wrong-password' por
+// separado (según esté configurada la protección "enumeration protection"
+// del proyecto en la consola), o el genérico 'auth/invalid-credential' si
+// esa protección está activa. Antes 'user-not-found' mostraba "Email no
+// existe" + un CTA a /register — eso por sí solo confirmaba a un atacante
+// qué emails están registrados, sin importar la config de la consola. Con
+// el mismo mensaje/CTA para los 3 códigos, esta pantalla no filtra esa
+// información pase lo que pase del lado de la consola.
+const INVALID_CREDENTIAL_INFO: AuthErrorInfo = {
+  message: 'Email o contraseña incorrectos.',
+  actionLabel: '¿Olvidaste tu contraseña?',
+  actionTo: '/forgot-password',
+}
+
 const AUTH_ERROR_INFO: Record<string, AuthErrorInfo> = {
-  'auth/user-not-found': { message: 'Email no existe.', actionLabel: '¿Quieres registrarte?', actionTo: '/register' },
-  'auth/wrong-password': { message: 'Contraseña incorrecta.', actionLabel: '¿Olvidaste tu contraseña?', actionTo: '/forgot-password' },
-  // Firebase devuelve este código genérico (en vez de user-not-found/wrong-password)
-  // desde la protección "enumeration protection" — no se puede saber cuál de
-  // las dos falló, así que el mensaje cubre ambos casos.
-  'auth/invalid-credential': { message: 'Email o contraseña incorrectos.', actionLabel: '¿Olvidaste tu contraseña?', actionTo: '/forgot-password' },
+  'auth/user-not-found': INVALID_CREDENTIAL_INFO,
+  'auth/wrong-password': INVALID_CREDENTIAL_INFO,
+  'auth/invalid-credential': INVALID_CREDENTIAL_INFO,
   'auth/email-already-in-use': { message: 'Este email ya está registrado.', actionLabel: '¿Iniciar sesión?', actionTo: '/login' },
-  'auth/weak-password': { message: 'Contraseña muy corta (mín. 6 caracteres).' },
+  'auth/weak-password': { message: `Contraseña muy corta (mín. ${PASSWORD_MIN_LENGTH} caracteres).` },
   'auth/network-request-failed': { message: 'Sin conexión. Intenta en unos segundos.' },
   'auth/invalid-email': { message: 'El email no tiene un formato válido.' },
   'auth/too-many-requests': { message: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },

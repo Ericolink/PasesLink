@@ -304,15 +304,21 @@ export const GuestList = memo(function GuestList({
         <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-md px-3 py-2">{actionError}</p>
       )}
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
-          className="text-xs font-semibold text-primary hover:underline"
-        >
-          {selectMode ? 'Cancelar selección' : 'Seleccionar'}
-        </button>
-      </div>
+      {/* Sin esto, un coanfitrión sin deleteGuests ni confirmPayments podía
+          activar el modo selección igual y terminar viendo una barra
+          (GuestSelectionBar) con solo el botón "Cancelar" — ninguna acción
+          real disponible. */}
+      {(canDeleteGuests || (requiresPayment && canConfirmPayments)) && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            {selectMode ? 'Cancelar selección' : 'Seleccionar'}
+          </button>
+        </div>
+      )}
 
       {groups ? (
         <div className="space-y-4">

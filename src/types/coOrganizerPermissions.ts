@@ -58,6 +58,14 @@ export interface EventPermissions extends CoOrganizerPermissions {
   isOwner: boolean
   isCoOrg: boolean
   hasAccess: boolean
+  // `postWall` (arriba, parte de CoOrganizerPermissions) solo restringe a
+  // coanfitriones — el dueño y cualquier invitado sin relación con el evento
+  // siempre pueden postear en el muro (ver firestore.rules: `!isCoOrganizer
+  // || coOrgPerm(postWall)`). Un consumidor que mire `perms.postWall` a
+  // secas se equivoca para esos dos casos (NO_ACCESS/FULL_ACCESS tienen
+  // `postWall` fijo, no relevante). `canPostWall` ya resuelve esa
+  // combinación una sola vez acá, para no repetirla ad-hoc en cada página.
+  canPostWall: boolean
 }
 
 const NO_ACCESS: EventPermissions = {
@@ -78,6 +86,7 @@ const NO_ACCESS: EventPermissions = {
   isOwner: false,
   isCoOrg: false,
   hasAccess: false,
+  canPostWall: true,
 }
 
 const FULL_ACCESS: CoOrganizerPermissions = {
@@ -108,13 +117,14 @@ export function resolveEventPermissions(
   if (!event || !uid) return NO_ACCESS
 
   if (uid === event.ownerId) {
-    return { ...FULL_ACCESS, isOwner: true, isCoOrg: false, hasAccess: true }
+    return { ...FULL_ACCESS, isOwner: true, isCoOrg: false, hasAccess: true, canPostWall: true }
   }
 
   const coOrgsMap = event.coOrganizersMap || {}
   if (uid in coOrgsMap) {
     const stored = event.coOrganizerPermissions?.[uid]
-    return { ...LEGACY_COORG_DEFAULTS, ...stored, isOwner: false, isCoOrg: true, hasAccess: true }
+    const merged = { ...LEGACY_COORG_DEFAULTS, ...stored }
+    return { ...merged, isOwner: false, isCoOrg: true, hasAccess: true, canPostWall: merged.postWall }
   }
 
   return NO_ACCESS

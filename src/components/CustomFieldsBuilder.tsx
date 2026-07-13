@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { CustomField, CustomFieldType } from '../types'
+import { ConfirmDialog } from './ConfirmDialog'
 
 const TYPE_LABELS: Record<CustomFieldType, string> = {
   text: 'Texto',
@@ -13,6 +15,12 @@ interface Props {
 }
 
 export function CustomFieldsBuilder({ fields, onChange }: Props) {
+  // Confirmación antes de quitar — un campo personalizado puede ya tener
+  // datos guardados de invitados existentes; borrarlo de un toque, sin
+  // preguntar, hacía fácil perderlo sin querer mientras se edita el campo de
+  // al lado.
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null)
+
   function addField() {
     const newField: CustomField = {
       id: crypto.randomUUID(),
@@ -30,6 +38,8 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
   function removeField(id: string) {
     onChange(fields.filter((f) => f.id !== id))
   }
+
+  const pendingField = fields.find((f) => f.id === pendingRemoveId) || null
 
   return (
     <div className="space-y-2">
@@ -62,9 +72,9 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
           </label>
           <button
             type="button"
-            onClick={() => removeField(field.id)}
+            onClick={() => setPendingRemoveId(field.id)}
             aria-label="Eliminar campo"
-            className="ml-auto w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors shrink-0 text-lg leading-none"
+            className="ml-auto min-w-11 min-h-11 inline-flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors shrink-0 text-lg leading-none"
           >
             ×
           </button>
@@ -77,6 +87,23 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
       >
         + Agregar campo
       </button>
+
+      <ConfirmDialog
+        open={pendingRemoveId !== null}
+        title="¿Quitar este campo?"
+        message={
+          pendingField?.label
+            ? `Se quitará el campo "${pendingField.label}" del formulario de registro. Los datos que ya cargaron los invitados para este campo no se van a mostrar más.`
+            : 'Se quitará este campo del formulario de registro.'
+        }
+        confirmLabel="Quitar"
+        danger
+        onConfirm={() => {
+          if (pendingRemoveId) removeField(pendingRemoveId)
+          setPendingRemoveId(null)
+        }}
+        onCancel={() => setPendingRemoveId(null)}
+      />
     </div>
   )
 }

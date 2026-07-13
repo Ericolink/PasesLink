@@ -23,10 +23,6 @@ import { mergeWallFeed } from '../utils/wallFeed'
 import { captureException } from '../lib/sentry'
 import {
   IconCamera,
-  IconHelpCircle,
-  IconLightbulb,
-  IconMessageSquare,
-  IconMusic,
   IconPin,
   IconX,
 } from '../components/Icons'
@@ -41,20 +37,11 @@ import { ReactionPicker } from '../components/ReactionPicker'
 import { RepliesList } from '../components/RepliesList'
 import { ReportButton } from '../components/ReportButton'
 import { StoriesBar } from '../components/StoriesBar'
-import type { EventData, ReactionType, WallMessage, WallMessageType } from '../types'
+import { WallTypeChipSelector } from '../components/WallTypeChipSelector'
+import { WALL_TYPE_CONFIG } from '../utils/wallMessageTypes'
+import type { EventData, ReactionType, WallMessage } from '../types'
 
-interface TypeConfig {
-  label: string
-  Icon: ({ className }: { className?: string }) => React.ReactElement
-  color: string
-}
-
-const TYPE_CONFIG: Record<WallMessageType, TypeConfig> = {
-  comment:  { label: 'Comentario', Icon: IconMessageSquare, color: 'bg-blue-100 text-blue-700' },
-  question: { label: 'Pregunta',   Icon: IconHelpCircle,    color: 'bg-yellow-100 text-yellow-700' },
-  music:    { label: 'Música',     Icon: IconMusic,          color: 'bg-purple-100 text-purple-700' },
-  idea:     { label: 'Idea',       Icon: IconLightbulb,      color: 'bg-green-100 text-green-700' },
-}
+const TYPE_CONFIG = WALL_TYPE_CONFIG
 
 const GUEST_NAME_KEY  = 'wall_guest_name'
 const DEVICE_TOKEN_KEY = 'wall_device_token'
@@ -111,6 +98,10 @@ export function EventWall() {
   // postLabel/authorRole más abajo).
   const isOrg      = perms.moderateWall
   const isMinor    = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
+  // perms.canPostWall (useEventPermissions/resolveEventPermissions) ya
+  // resuelve que postWall solo restringe a coanfitriones, nunca al dueño ni
+  // a un invitado sin relación con el evento.
+  const canPostWall = perms.canPostWall
 
   const postLabel = isOwner ? OWNER_DISPLAY : (user ? (profile?.displayName || user.displayName || guestName) : guestName)
   const postPhotoURL = isOwner ? undefined : (user ? (profile?.photoURL || user.photoURL || undefined) : undefined)
@@ -324,11 +315,11 @@ export function EventWall() {
       </div>
     )
     return event?.templateId === 'cowboy' || event?.templateId === 'graduation' ? (
-      <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="min-h-screen flex items-center justify-center p-4">
+      <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="min-h-dvh flex items-center justify-center p-4">
         {nameGateContent}
       </InvitationThemeRoot>
     ) : (
-      <div className="min-h-screen flex items-center justify-center p-4">{nameGateContent}</div>
+      <div className="min-h-dvh flex items-center justify-center p-4">{nameGateContent}</div>
     )
   }
 
@@ -384,29 +375,16 @@ export function EventWall() {
         </div>
       )}
 
+      {!canPostWall && (
+        <div className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md px-3 py-2 mb-4">
+          No tenés permiso para publicar en el muro de este evento.
+        </div>
+      )}
+
       {/* Post form */}
-      {!isMinor && !commentBlockedMessage && (
+      {!isMinor && !commentBlockedMessage && canPostWall && (
         <form onSubmit={handleSubmit} className="invite-wall-form bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-5 space-y-3">
-          {!attachedFile && (
-            <div className="flex gap-2 flex-wrap">
-              {(Object.keys(TYPE_CONFIG) as WallMessageType[]).map((t) => {
-                const cfg = TYPE_CONFIG[t]
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setType(t)}
-                    className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 font-medium transition-all ${
-                      type === t ? cfg.color + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                  >
-                    <cfg.Icon className="w-3 h-3" />
-                    {cfg.label}
-                  </button>
-                )
-              })}
-            </div>
-          )}
+          {!attachedFile && <WallTypeChipSelector value={type} onChange={setType} />}
           {photoBlockedMessage && <p className="text-xs text-red-500">{photoBlockedMessage}</p>}
           <div className="flex items-start gap-2">
             <Avatar name={postLabel} photoURL={postPhotoURL} size={28} />
@@ -540,11 +518,26 @@ export function EventWall() {
                     <button
                       onClick={() => setDeletingMessageId(msg.id)}
                       aria-label="Eliminar mensaje"
-                      className="p-2.5 text-xs text-red-400 hover:text-red-600"
+                      className="wall-action-btn text-xs text-red-400 hover:text-red-600"
                     >
                       Eliminar
                     </button>
                   </div>
+                )}
+                {/* Borrar el propio mensaje: solo para el autor real logueado
+                    (authorToken == su uid, ver EventWall.tsx authorToken de
+                    arriba) — firestore.rules solo puede verificar esto
+                    cuando hay una identidad de Firebase Auth detrás; un
+                    invitado sin cuenta no tiene forma de probar autoría del
+                    lado servidor, así que no ve este botón. */}
+                {!isOrg && !!user && msg.authorToken === user.uid && (
+                  <button
+                    onClick={() => setDeletingMessageId(msg.id)}
+                    aria-label="Eliminar mensaje"
+                    className="wall-action-btn text-xs text-red-400 hover:text-red-600 shrink-0"
+                  >
+                    Eliminar
+                  </button>
                 )}
               </div>
 
@@ -565,7 +558,7 @@ export function EventWall() {
                   onReact={(type) => handleReact(msg, type)}
                 />
                 {!isMinor && !commentBlockedMessage && replyingTo !== msg.id && (
-                  <button onClick={() => setReplyingTo(msg.id)} className="text-xs text-gray-400 hover:text-primary">
+                  <button onClick={() => setReplyingTo(msg.id)} className="wall-action-btn text-xs text-gray-400 hover:text-primary">
                     Responder
                   </button>
                 )}
@@ -585,6 +578,11 @@ export function EventWall() {
               {/* Reply input */}
               {!isMinor && !commentBlockedMessage && replyingTo === msg.id && (
                 <div className="mt-3 flex gap-2 ml-9">
+                  {/* onFocus + scrollIntoView: este input vive dentro de una
+                      lista larga de mensajes — sin esto, el teclado podía
+                      taparlo (o tapar el botón "Enviar") si no quedaba
+                      suficiente margen de scroll debajo de su posición
+                      natural en la página. */}
                   <input
                     type="text"
                     value={replyText}
@@ -592,6 +590,7 @@ export function EventWall() {
                     placeholder="Escribe tu respuesta…"
                     maxLength={WALL_TEXT_MAX}
                     autoFocus
+                    onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                     className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
                     onKeyDown={(e) => { if (e.key === 'Enter') handleReply(msg) }}
                   />
@@ -646,10 +645,10 @@ export function EventWall() {
   )
 
   return event?.templateId === 'cowboy' || event?.templateId === 'graduation' ? (
-    <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="max-w-xl mx-auto px-4 py-6 min-h-screen">
+    <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="max-w-xl mx-auto px-4 py-6 min-h-dvh">
       {content}
     </InvitationThemeRoot>
   ) : (
-    <div className="max-w-xl mx-auto px-4 py-6 min-h-screen">{content}</div>
+    <div className="max-w-xl mx-auto px-4 py-6 min-h-dvh">{content}</div>
   )
 }

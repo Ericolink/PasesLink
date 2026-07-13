@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react'
-import { addGuest, addGuestsBulk } from '../firebase/guests'
+import { addGuest, addGuestsBulk, addGuestsFromRows, type ImportedGuestRow } from '../firebase/guests'
+import { parseGuestsCsv } from '../utils/csvImport'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
+import { ScrollableTabs } from './ScrollableTabs'
 import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
+import { customFieldInputProps } from '../utils/customFieldInput'
 import { captureException } from '../lib/sentry'
 import type { CompanionData, CustomField, GuestData } from '../types'
 
@@ -17,10 +20,14 @@ function parseBulkNames(raw: string): string[] {
     .filter(Boolean)
 }
 
-type PendingDuplicate = { type: 'single' } | { type: 'group' } | { type: 'bulk'; duplicates: string[] }
+type PendingDuplicate =
+  | { type: 'single' }
+  | { type: 'group' }
+  | { type: 'bulk'; duplicates: string[] }
+  | { type: 'csv'; duplicates: string[] }
 
 export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: string; guests: GuestData[]; customFields?: CustomField[] }) {
-  const [mode, setMode] = useState<'single' | 'group' | 'bulk'>('single')
+  const [mode, setMode] = useState<'single' | 'group' | 'bulk' | 'csv'>('single')
   const [name, setName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
@@ -30,6 +37,10 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
   const [groupName, setGroupName] = useState('')
   const [memberCount, setMemberCount] = useState(2)
   const [bulkNames, setBulkNames] = useState('')
+  const [csvFileName, setCsvFileName] = useState('')
+  const [csvRows, setCsvRows] = useState<ImportedGuestRow[]>([])
+  const [csvRowErrors, setCsvRowErrors] = useState<string[]>([])
+  const [csvHeaderError, setCsvHeaderError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [pendingDuplicate, setPendingDuplicate] = useState<PendingDuplicate | null>(null)
@@ -148,21 +159,66 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
     await submitBulkGuests(names)
   }
 
+  async function handleCsvFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // permite volver a elegir el mismo archivo si el usuario lo corrige y reintenta
+    if (!file) return
+    setError('')
+    setCsvFileName(file.name)
+    const text = await file.text()
+    const result = parseGuestsCsv(text)
+    setCsvHeaderError(result.headerError)
+    setCsvRows(result.headerError ? [] : result.rows)
+    setCsvRowErrors(result.rowErrors.map((e) => `Fila ${e.line}: ${e.message}`))
+  }
+
+  async function submitCsvGuests(rows: ImportedGuestRow[]) {
+    setLoading(true)
+    setError('')
+    try {
+      await addGuestsFromRows(eventId, rows)
+      setCsvFileName('')
+      setCsvRows([])
+      setCsvRowErrors([])
+      setCsvHeaderError(null)
+    } catch (err) {
+      captureException(err, { tags: { component: 'guest_add_form', action: 'add_csv' } })
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Ocurrió un error importando el archivo. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function handleCsvImport() {
+    if (csvRows.length === 0) return
+    const duplicates = findBulkDuplicates(csvRows.map((r) => `${r.name} ${r.lastName || ''}`))
+    if (duplicates.length > 0) {
+      setPendingDuplicate({ type: 'csv', duplicates })
+      return
+    }
+    void submitCsvGuests(csvRows)
+  }
+
   function handleConfirmDuplicate() {
     const pending = pendingDuplicate
     setPendingDuplicate(null)
     if (!pending) return
     if (pending.type === 'single') void submitSingleGuest()
     else if (pending.type === 'group') void submitGroupGuest()
-    else void submitBulkGuests(parseBulkNames(bulkNames))
+    else if (pending.type === 'bulk') void submitBulkGuests(parseBulkNames(bulkNames))
+    else void submitCsvGuests(csvRows)
   }
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-white">
-      <div className="flex gap-2 mb-4">
+      <ScrollableTabs className="mb-4">
         <button
           onClick={() => setMode('single')}
-          className={`text-sm px-3 py-2 rounded-md font-medium ${
+          className={`shrink-0 whitespace-nowrap min-h-11 text-sm px-3 rounded-md font-medium ${
             mode === 'single' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
           }`}
         >
@@ -170,7 +226,7 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
         </button>
         <button
           onClick={() => setMode('group')}
-          className={`text-sm px-3 py-2 rounded-md font-medium ${
+          className={`shrink-0 whitespace-nowrap min-h-11 text-sm px-3 rounded-md font-medium ${
             mode === 'group' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
           }`}
         >
@@ -178,13 +234,21 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
         </button>
         <button
           onClick={() => setMode('bulk')}
-          className={`text-sm px-3 py-2 rounded-md font-medium ${
+          className={`shrink-0 whitespace-nowrap min-h-11 text-sm px-3 rounded-md font-medium ${
             mode === 'bulk' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
           }`}
         >
           Agregar lista
         </button>
-      </div>
+        <button
+          onClick={() => setMode('csv')}
+          className={`shrink-0 whitespace-nowrap min-h-11 text-sm px-3 rounded-md font-medium ${
+            mode === 'csv' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          Importar CSV
+        </button>
+      </ScrollableTabs>
 
       {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
 
@@ -226,7 +290,7 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
               {customFields.map((field) => (
                 <input
                   key={field.id}
-                  type="text"
+                  {...customFieldInputProps(field.type)}
                   placeholder={field.label}
                   maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
                   value={customValues[field.id] || ''}
@@ -280,7 +344,7 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
               {customFields.map((field) => (
                 <input
                   key={field.id}
-                  type="text"
+                  {...customFieldInputProps(field.type)}
                   placeholder={field.label}
                   maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
                   value={groupCustomValues[field.id] || ''}
@@ -299,7 +363,7 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
             {loading ? 'Agregando…' : 'Agregar familia o grupo'}
           </button>
         </form>
-      ) : (
+      ) : mode === 'bulk' ? (
         <form onSubmit={handleBulkSubmit} className="space-y-3">
           <textarea
             placeholder={'Un nombre por línea\nEj.\nJuan Pérez\nMaría López'}
@@ -316,6 +380,53 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
             {loading ? 'Agregando…' : 'Agregar lista de invitados'}
           </button>
         </form>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">
+            Un archivo .csv con columnas Nombre, Apellido, Teléfono y Email (Apellido/Teléfono/Email son opcionales).
+            La primera fila debe tener los encabezados.
+          </p>
+          <label className="flex items-center justify-center border-2 border-dashed border-gray-300 rounded-md px-3 py-6 text-sm text-gray-500 cursor-pointer hover:border-primary hover:text-primary transition-colors">
+            {csvFileName || 'Elegir archivo .csv'}
+            <input type="file" accept=".csv,text/csv" onChange={(e) => void handleCsvFileSelected(e)} className="hidden" />
+          </label>
+
+          {csvHeaderError && <p className="text-xs text-red-500">{csvHeaderError}</p>}
+
+          {csvRows.length > 0 && (
+            <div className="border border-gray-200 rounded-md p-3 space-y-2">
+              <p className="text-sm font-medium text-gray-700">
+                {csvRows.length} invitado{csvRows.length === 1 ? '' : 's'} listo{csvRows.length === 1 ? '' : 's'} para importar
+              </p>
+              <ul className="text-xs text-gray-500 space-y-0.5 max-h-32 overflow-y-auto">
+                {csvRows.slice(0, 8).map((row, i) => (
+                  <li key={i}>
+                    {row.name} {row.lastName || ''}
+                    {row.phone ? ` · ${row.phone}` : ''}
+                    {row.email ? ` · ${row.email}` : ''}
+                  </li>
+                ))}
+                {csvRows.length > 8 && <li>… y {csvRows.length - 8} más</li>}
+              </ul>
+            </div>
+          )}
+
+          {csvRowErrors.length > 0 && (
+            <div className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-2 space-y-0.5">
+              {csvRowErrors.slice(0, 5).map((msg, i) => <p key={i}>{msg}</p>)}
+              {csvRowErrors.length > 5 && <p>… y {csvRowErrors.length - 5} más</p>}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleCsvImport}
+            disabled={loading || csvRows.length === 0}
+            className="w-full bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Importando…' : `Importar ${csvRows.length || ''} invitado${csvRows.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
       )}
 
       <ConfirmDialog
@@ -328,7 +439,9 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
               ? `${groupName.trim()} ya está en la lista de invitados. ¿Agregar de todas formas?`
               : pendingDuplicate?.type === 'bulk'
                 ? `${pendingDuplicate.duplicates.length} de los nombres pegados ya están en la lista o se repiten: ${pendingDuplicate.duplicates.join(', ')}. ¿Agregar todos de todas formas?`
-                : ''
+                : pendingDuplicate?.type === 'csv'
+                  ? `${pendingDuplicate.duplicates.length} de los nombres del archivo ya están en la lista o se repiten: ${pendingDuplicate.duplicates.join(', ')}. ¿Importar todos de todas formas?`
+                  : ''
         }
         confirmLabel="Agregar de todas formas"
         cancelLabel="Cancelar"

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import type { Location } from 'react-router-dom'
 import { loginWithEmail, loginWithGoogle } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
@@ -15,8 +16,15 @@ export function Login() {
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
 
-  if (user) return <Navigate to="/dashboard" replace />
+  // ProtectedRoute guarda la ruta original en location.state.from (ver ese
+  // componente) para volver ahí después de autenticar, en vez de siempre a
+  // /dashboard — descartada si por algún motivo apuntara de nuevo a /login.
+  const from = (location.state as { from?: Location } | null)?.from
+  const redirectTo = from && from.pathname !== '/login' ? `${from.pathname}${from.search}` : '/dashboard'
+
+  if (user) return <Navigate to={redirectTo} replace />
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -24,7 +32,7 @@ export function Login() {
     setLoading(true)
     try {
       await loginWithEmail(email, password)
-      navigate('/dashboard')
+      navigate(redirectTo)
     } catch (err) {
       setErrorInfo(getAuthErrorInfo(err, 'No pudimos iniciar sesión. Revisa tu email y contraseña.'))
     } finally {
@@ -40,7 +48,7 @@ export function Login() {
       const u = await loginWithGoogle()
       const { isGoogleProfileComplete } = await import('../firebase/auth')
       const complete = await isGoogleProfileComplete(u.uid)
-      navigate(complete ? '/dashboard' : '/complete-profile')
+      navigate(complete ? redirectTo : '/complete-profile')
     } catch (err) {
       if (isAuthCancellation(err)) return
       console.error('Error en login con Google:', err)
@@ -69,7 +77,12 @@ export function Login() {
           />
         </div>
         <div>
-          <div className="flex items-center justify-between mb-1">
+          {/* flex-wrap: los flex items no se achican por debajo de su ancho
+              de texto sin envolver a menos que se les permita — sin esto,
+              en pantallas angostas (320px) o con letra grande de
+              accesibilidad, "¿Olvidaste tu contraseña?" desbordaba la fila
+              en vez de bajar de línea. */}
+          <div className="flex items-center flex-wrap justify-between gap-x-2 gap-y-0.5 mb-1">
             <label htmlFor="login-password" className="block text-sm font-medium text-gray-700">Contraseña</label>
             <Link to="/forgot-password" className="text-xs text-primary font-medium">
               ¿Olvidaste tu contraseña?
@@ -107,7 +120,7 @@ export function Login() {
       </button>
       <p className="text-sm text-gray-500 text-center mt-6">
         ¿No tienes cuenta?{' '}
-        <Link to="/register" className="text-primary font-medium">
+        <Link to="/register" state={{ from }} className="text-primary font-medium">
           Regístrate
         </Link>
       </p>

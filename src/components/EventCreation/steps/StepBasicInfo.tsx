@@ -1,4 +1,5 @@
 import { EventScheduleField } from '../../EventScheduleField'
+import { EVENT_NAME_MAX } from '../../../utils/validationRules'
 
 interface StepBasicInfoProps {
   name: string
@@ -7,6 +8,7 @@ interface StepBasicInfoProps {
   onLocationChange: (value: string) => void
   date: string
   onDateChange: (value: string) => void
+  dateMin?: string
   startTime: string
   onStartTimeChange: (value: string) => void
   endTime: string
@@ -20,6 +22,7 @@ export function StepBasicInfo({
   onLocationChange,
   date,
   onDateChange,
+  dateMin,
   startTime,
   onStartTimeChange,
   endTime,
@@ -42,6 +45,7 @@ export function StepBasicInfo({
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
             placeholder="Mi graduación, Boda de Ana y Luis…"
+            maxLength={EVENT_NAME_MAX}
             autoFocus
             className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
           />
@@ -68,6 +72,7 @@ export function StepBasicInfo({
           <EventScheduleField
             date={date}
             onDateChange={onDateChange}
+            dateMin={dateMin}
             startTime={startTime}
             onStartTimeChange={onStartTimeChange}
             endTime={endTime}

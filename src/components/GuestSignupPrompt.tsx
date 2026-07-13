@@ -119,7 +119,7 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
             type="button"
             onClick={onDismiss}
             aria-label="Cerrar"
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            className="absolute top-2 right-2 min-w-11 min-h-11 inline-flex items-center justify-center text-gray-400 hover:text-gray-600 z-10"
           >
             <IconX className="w-4 h-4" />
           </button>

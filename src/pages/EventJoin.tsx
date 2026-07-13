@@ -30,11 +30,8 @@ import { formatTime12h } from '../utils/time'
 import { IconBan } from '../components/Icons'
 import type { EventData, PaymentMethod } from '../types'
 import { buildPassUrl } from '../utils/qrUrl'
-
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  transfer: 'Transferencia',
-  cash: 'Efectivo',
-}
+import { customFieldInputProps } from '../utils/customFieldInput'
+import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 
 type State = 'loading' | 'form' | 'submitting' | 'not_found' | 'error'
 
@@ -182,8 +179,12 @@ export function EventJoin() {
       }
       // Mismo destino que un invitado de lista (GuestList.tsx) — una sola
       // pantalla de pase (GuestPass) con descarga, compartir y RSVP, en vez
-      // de una vista de éxito propia y más limitada acá.
-      navigate(`/pass/${id}/${token}`, { replace: true })
+      // de una vista de éxito propia y más limitada acá. `justRegistered`
+      // es lo que le permite a GuestPass ofrecer crear cuenta apenas llega
+      // (mismo criterio que ya tiene un invitado de lista al confirmar
+      // RSVP) — sin esto, este registro nunca alcanzaba a mostrar esa
+      // oferta porque esta pantalla se abandona de inmediato.
+      navigate(`/pass/${id}/${token}`, { replace: true, state: { justRegistered: true } })
     } catch (err) {
       console.error('Error registering guest:', err)
       setRegError(err instanceof Error ? err.message : 'No se pudo completar el registro. Intenta de nuevo.')
@@ -197,7 +198,7 @@ export function EventJoin() {
 
   if (state === 'not_found' || state === 'error') {
     return (
-      <div className="min-h-screen flex items-center justify-center text-center p-4">
+      <div className="min-h-dvh flex items-center justify-center text-center p-4">
         <div className="text-center">
           <div className="flex justify-center mb-3">
             <IconBan className="w-12 h-12 text-gray-400" />
@@ -216,7 +217,7 @@ export function EventJoin() {
     <InvitationThemeRoot
       templateId={event?.templateId}
       accentOverride={event?.accentColor}
-      className="min-h-screen flex items-center justify-center text-center p-4"
+      className="min-h-dvh flex items-center justify-center text-center p-4"
     >
       <div className="w-full max-w-sm">
         <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
@@ -332,7 +333,7 @@ export function EventJoin() {
                   {field.label}{field.required ? ' *' : ''}
                 </label>
                 <input
-                  type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'}
+                  {...customFieldInputProps(field.type)}
                   required={field.required}
                   maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
                   value={customValues[field.id] || ''}

@@ -7,6 +7,7 @@ export function useCheckinToast(eventId: string | undefined) {
   const [message, setMessage] = useState<string | null>(null)
   const isFirstSnapshot = useRef(true)
   const lastId = useRef<string | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!eventId) return
@@ -28,9 +29,15 @@ export function useCheckinToast(eventId: string | undefined) {
         ? (data.exitKind === 'final' ? 'se retiró del evento' : 'salió temporalmente')
         : (data.reentry ? 'reingresó al evento' : 'hizo check-in')
       setMessage(`${data.guestName} ${verb}`)
-      setTimeout(() => setMessage(null), 4000)
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => setMessage(null), 4000)
     }, withListenerReporting('checkinToast'))
   }, [eventId])
 
-  return message
+  function dismiss() {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setMessage(null)
+  }
+
+  return [message, dismiss] as const
 }
