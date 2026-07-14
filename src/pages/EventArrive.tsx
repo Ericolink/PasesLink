@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { getEvent, subscribeToEvent } from '../firebase/events'
+import { subscribeToEventWithInitial } from '../firebase/events'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
@@ -19,23 +19,20 @@ export function EventArrive() {
   const [state, setState] = useState<State>('loading')
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  // Un único listener cubre tanto la decisión de estado inicial
+  // (not_found/error/ready, resuelta con su primer snapshot) como las
+  // actualizaciones en vivo posteriores (horario, portada, mensaje de
+  // bienvenida) — evita el getDoc aparte que antes leía el mismo documento
+  // dos veces en cada visita.
   useEffect(() => {
     if (!id) return
-    getEvent(id).then((ev) => {
+    const { unsubscribe, initial } = subscribeToEventWithInitial(id, (ev) => {
+      if (ev) setEvent(ev)
+    })
+    initial.then((ev) => {
       if (!ev) { setState('not_found'); return }
       if (ev.entryMode === 'list') { setState('error'); return }
-      setEvent(ev)
       setState('ready')
-    })
-  }, [id])
-
-  // Suscripción en vivo: una vez que se decidió el estado 'ready', el evento
-  // sigue actualizándose si el organizador guarda cambios (horario, portada,
-  // mensaje de bienvenida, etc.) — mismo mecanismo que EventJoin/GuestPass.
-  useEffect(() => {
-    if (!id) return
-    const unsubscribe = subscribeToEvent(id, (ev) => {
-      if (ev) setEvent(ev)
     })
     return unsubscribe
   }, [id])

@@ -163,6 +163,50 @@ export async function getEvent(eventId: string): Promise<EventData | null> {
   return mapEvent(snapshot.id, snapshot.data())
 }
 
+// Para pantallas que hasta ahora hacían un getEvent() puntual para decidir su
+// estado inicial (not_found/error/listo) Y ADEMÁS abrían un subscribeToEvent
+// aparte para mantenerse al día (GuestPass/EventJoin/EventArrive) — eso lee
+// el mismo documento dos veces en cada visita. Esta función abre un único
+// listener y expone además una promesa que resuelve con su PRIMER snapshot,
+// para que el bootstrap de la pantalla pueda esperar por ese dato sin pagar
+// una lectura getDoc de más. `callback` sigue recibiendo cada snapshot
+// (incluido el primero), igual que subscribeToEvent.
+export function subscribeToEventWithInitial(
+  eventId: string,
+  callback: (event: EventData | null) => void,
+  onError?: (error: Error) => void,
+): { unsubscribe: Unsubscribe; initial: Promise<EventData | null> } {
+  let resolveInitial!: (event: EventData | null) => void
+  let rejectInitial!: (error: Error) => void
+  const initial = new Promise<EventData | null>((resolve, reject) => {
+    resolveInitial = resolve
+    rejectInitial = reject
+  })
+  let settled = false
+  const unsubscribe = subscribeToEvent(
+    eventId,
+    (event) => {
+      callback(event)
+      if (!settled) {
+        settled = true
+        resolveInitial(event)
+      }
+    },
+    (error) => {
+      // Si el listener falla antes de entregar ningún snapshot (p.ej.
+      // permission-denied), `initial` debe rechazar para que el bootstrap de
+      // la pantalla caiga en su catch() y muestre error en vez de quedarse
+      // cargando para siempre esperando una promesa que ya no va a resolver.
+      if (!settled) {
+        settled = true
+        rejectInitial(error)
+      }
+      onError?.(error)
+    },
+  )
+  return { unsubscribe, initial }
+}
+
 export async function setEventStatus(eventId: string, status: EventStatus) {
   await updateDoc(doc(db, 'events', eventId), {
     status,

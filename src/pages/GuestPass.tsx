@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
-import { getEvent, subscribeToEvent } from '../firebase/events'
+import { subscribeToEventWithInitial } from '../firebase/events'
 import { canSubmitPaymentProof, checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp, submitPaymentProof } from '../firebase/guests'
 import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
@@ -94,6 +94,33 @@ function GuestPassInner() {
   const perms = useEventPermissions(event, user)
   const qrWrapperRef = useRef<HTMLDivElement>(null)
   const ticketRef = useRef<HTMLDivElement>(null)
+  // Guarda la promesa del PRIMER snapshot del listener de evento (efecto de
+  // abajo, "Suscripción en vivo"), keyeada por eventId. El bootstrap de acá
+  // abajo depende también de user/authLoading (que pueden cambiar de
+  // identidad sin que cambie eventId — ver useAuth.ts), así que no puede
+  // compartir el mismo useEffect que el listener en vivo sin forzarlo a
+  // resuscribirse en cada uno de esos cambios. Este ref deja al listener
+  // vivir en su propio efecto (estable, solo depende de eventId) mientras el
+  // bootstrap reusa su primer snapshot en vez de pagar un getEvent() aparte.
+  const eventInitialRef = useRef<{ eventId: string; initial: Promise<EventData | null> } | null>(null)
+
+  // Suscripción en vivo al evento — estable, solo depende de eventId (no de
+  // qrToken/user/authLoading, que cambian con más frecuencia). Un pase ya
+  // emitido y abierto debe reflejar los cambios que el organizador guarde
+  // después (horario, portada, instrucciones de pago, plantilla, etc.).
+  // Expone además la promesa de su PRIMER snapshot vía el ref de arriba, que
+  // el bootstrap de abajo reusa en vez de pagar un getEvent() aparte —
+  // declarado ANTES que el efecto de bootstrap para que React lo ejecute
+  // primero en el mismo commit y el ref ya esté poblado cuando el bootstrap
+  // lo lea.
+  useEffect(() => {
+    if (!eventId) return
+    const { unsubscribe, initial } = subscribeToEventWithInitial(eventId, (ev) => {
+      if (ev) setEvent(ev)
+    })
+    eventInitialRef.current = { eventId, initial }
+    return unsubscribe
+  }, [eventId])
 
   useEffect(() => {
     // Esperar a que useAuth() confirme la sesión antes de decidir si el visor
@@ -102,7 +129,10 @@ function GuestPassInner() {
     // (auth.currentUser todavía no resuelto) y aplicarle el flujo de RSVP/lock
     // en vez del de check-in.
     if (!eventId || !qrToken || authLoading) return
-    Promise.all([getEvent(eventId), findGuestByToken(eventId, qrToken)])
+    // El efecto de arriba (mismo eventId, declarado antes) ya dejó la
+    // promesa del primer snapshot en el ref antes de que este efecto corra.
+    const initial = eventInitialRef.current!.initial
+    Promise.all([initial, findGuestByToken(eventId, qrToken)])
       .then(async ([eventData, guestData]) => {
         if (!eventData || !guestData) {
           setError(true)
@@ -174,19 +204,6 @@ function GuestPassInner() {
     if (!sessionStorage.getItem(dismissKey)) setShowSignupPrompt(true)
   }, [guest, user, loading, eventId, qrToken, location.state])
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Suscripción en vivo al evento, aparte del bootstrap de arriba (que hace
-  // el claim del pase una sola vez): un pase ya emitido y abierto debe
-  // reflejar los cambios que el organizador guarde después (horario,
-  // portada, instrucciones de pago, plantilla, etc.), no solo los pases que
-  // se generen de ahí en adelante.
-  useEffect(() => {
-    if (!eventId) return
-    const unsubscribe = subscribeToEvent(eventId, (ev) => {
-      if (ev) setEvent(ev)
-    })
-    return unsubscribe
-  }, [eventId])
 
   if (loading) {
     return (

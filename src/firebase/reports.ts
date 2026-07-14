@@ -1,7 +1,5 @@
-import { collection, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore'
-import type { Unsubscribe } from 'firebase/firestore'
+import { collection, getDocs, orderBy, query, where } from 'firebase/firestore'
 import { db } from './config'
-import { withListenerReporting } from '../lib/sentry'
 import type { CheckinLog } from '../types'
 import { CheckinSchema, warnIfInvalidShape } from '../types/schemas'
 
@@ -28,11 +26,23 @@ function toMillis(value: unknown): number {
   return 0
 }
 
-export function subscribeToCheckins(eventId: string, callback: (checkins: CheckinLog[]) => void): Unsubscribe {
+// Antes era un listener permanente (onSnapshot): en un evento con
+// reingresos frecuentes y Reports abierto durante horas de puerta activa,
+// eso redescargaba un delta por cada escaneo mientras la pantalla siguiera
+// abierta, sin ningún techo — el patrón de lectura más costoso de la app
+// (ver auditoría). El historial de check-ins no necesita estar "en vivo" en
+// el mismo sentido que el conteo de asistencia (que sigue actualizándose en
+// tiempo real vía event.checkedInCount/occupancyCount, alimentado por
+// useEvent — eso no cambia). "Llegadas por hora" agrupa por hora del día
+// sobre el historial COMPLETO del evento, así que un límite parcial daría un
+// gráfico incorrecto sin avisar en vez de simplemente más lento — se prefirió
+// una carga puntual completa, con un botón "Actualizar" para refrescar bajo
+// demanda, sobre truncar silenciosamente el conteo real. Mismo criterio ya
+// usado por getGuestCheckins (historial de un invitado) más abajo.
+export async function getCheckins(eventId: string): Promise<CheckinLog[]> {
   const q = query(collection(db, 'events', eventId, 'checkins'), orderBy('timestamp', 'asc'))
-  return onSnapshot(q, (snapshot) => {
-    callback(snapshot.docs.map((d) => mapCheckin(d.id, d.data())))
-  }, withListenerReporting('checkins'))
+  const snapshot = await getDocs(q)
+  return snapshot.docs.map((d) => mapCheckin(d.id, d.data()))
 }
 
 // Historial de accesos de UN invitado (entradas, salidas y reingresos), para

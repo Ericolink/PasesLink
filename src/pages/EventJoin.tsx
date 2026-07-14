@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getEvent, subscribeToEvent } from '../firebase/events'
+import { subscribeToEventWithInitial } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { useAuth } from '../hooks/useAuth'
@@ -65,12 +65,19 @@ export function EventJoin() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
   const [regError, setRegError] = useState('')
 
+  // Un único listener cubre tanto la decisión de estado inicial
+  // (not_found/error/form, resuelta con su primer snapshot) como las
+  // actualizaciones en vivo posteriores que el organizador guarde desde
+  // EditEventForm — evita el getDoc aparte que antes leía el mismo
+  // documento dos veces en cada visita.
   useEffect(() => {
     if (!id) return
-    getEvent(id).then((ev) => {
+    const { unsubscribe, initial } = subscribeToEventWithInitial(id, (ev) => {
+      if (ev) setEvent(ev)
+    })
+    initial.then((ev) => {
       if (!ev) { setState('not_found'); return }
       if (ev.entryMode === 'list') { setState('error'); return }
-      setEvent(ev)
 
       // Ya registrado antes en este navegador: llevarlo directo a su pase
       // (misma ruta que usa un invitado de lista) en vez de re-registrarlo.
@@ -89,22 +96,8 @@ export function EventJoin() {
 
       setState('form')
     })
-  }, [id, navigate])
-
-  // Suscripción en vivo, aparte del bootstrap de arriba (que decide el estado
-  // inicial una sola vez): cualquier cambio que el organizador guarde en
-  // EditEventForm (horario, portada, mensaje de bienvenida, etc.) debe
-  // reflejarse en esta misma invitación ya abierta, no solo en registros
-  // nuevos. `getEvent` de arriba sigue siendo una lectura única (decide
-  // not_found/error/form/success), esta suscripción solo mantiene `event` al
-  // día una vez que ya se decidió cuál de esos estados mostrar.
-  useEffect(() => {
-    if (!id) return
-    const unsubscribe = subscribeToEvent(id, (ev) => {
-      if (ev) setEvent(ev)
-    })
     return unsubscribe
-  }, [id])
+  }, [id, navigate])
 
   // Pre-fill name/lastName from profile. Intencionalmente un efecto: profile
   // llega async después de user, y el guard `!name` evita pisar lo que el

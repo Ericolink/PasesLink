@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
+  getEventStats,
+  getUserStats,
   subscribeToAdminAuditLog,
   subscribeToAllEvents,
   subscribeToAllUsers,
   logAdminAction,
   type AdminAuditLogEntry,
+  type AdminEventStats,
   type AdminUser,
+  type AdminUserStats,
 } from '../firebase/admin'
 import {
   deleteFeedback,
@@ -20,6 +24,7 @@ import {
 } from '../firebase/feedback'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useUnreadFeedbackCount } from '../hooks/useUnreadFeedbackCount'
 import { deleteEvent, setEventStatus } from '../firebase/events'
 import { attendancePercent } from '../utils/attendance'
 import type { EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
@@ -64,6 +69,11 @@ export function AdminDashboard() {
   const [feedback, setFeedback] = useState<Feedback[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [eventStats, setEventStats] = useState<AdminEventStats | null>(null)
+  const [userStats, setUserStats] = useState<AdminUserStats | null>(null)
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [feedbackLoading, setFeedbackLoading] = useState(true)
+  const unreadFeedbackCount = useUnreadFeedbackCount()
 
   // Link directo del correo de aviso de reportes (ver sendReportNotificationEmail):
   // /admin?tab=reports&reportId=X abre el panel directo en el caso reportado.
@@ -95,13 +105,53 @@ export function AdminDashboard() {
       setLoading(false)
     }, handleLoadError)
     const unsubUsers = subscribeToAllUsers(setUsers, handleLoadError)
-    const unsubFeedback = subscribeToAllFeedback(setFeedback, handleLoadError)
     return () => {
       unsubEvents()
       unsubUsers()
-      unsubFeedback()
     }
   }, [])
+
+  // Tarjetas de resumen: agregaciones server-side, una sola vez al montar
+  // (no en vivo — Firestore no ofrece un listener para agregaciones, mismo
+  // límite que ya acepta getReportCountForContent en moderation.ts). A
+  // diferencia de `events`/`users` de arriba, esto ya NO descarga la
+  // colección completa solo para sumar/contar unos pocos números.
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([getEventStats(), getUserStats(Date.now() - WEEK_MS)])
+      .then(([ev, us]) => {
+        if (cancelled) return
+        setEventStats(ev)
+        setUserStats(us)
+      })
+      .catch((err) => {
+        console.error('Error loading admin stats:', err)
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  // Colección completa de feedback: solo hace falta para listar mensajes en
+  // la pestaña "Buzón" — el badge de no leídos (siempre visible) ya usa
+  // subscribeToUnreadFeedbackCount vía useUnreadFeedbackCount, que es una
+  // query acotada (where read==false), no esta descarga completa. Así, un
+  // admin que nunca abre "Buzón" no paga por ella.
+  useEffect(() => {
+    if (tab !== 'feedback') return
+    return subscribeToAllFeedback(
+      (data) => {
+        setFeedback(data)
+        setFeedbackLoading(false)
+      },
+      (err) => {
+        console.error('Error loading feedback:', err)
+        setLoadError('No se pudieron cargar los mensajes del buzón. Verifica tu conexión o tus permisos.')
+        setFeedbackLoading(false)
+      },
+    )
+  }, [tab])
 
   // Memoizado: recorrer eventos+usuarios para construir estos mapas es
   // O(n) — intrascendente hoy, pero deja de serlo con miles de filas si se
@@ -114,32 +164,25 @@ export function AdminDashboard() {
     }
     return counts
   }, [events])
-  const unreadFeedbackCount = useMemo(() => feedback.filter((f) => !f.read).length, [feedback])
-
-  // Fijado al montar (no en cada render) para que el cálculo de "nuevos en
-  // 7 días" sea puro dentro del useMemo de abajo.
-  const [now] = useState(() => Date.now())
-
-  const stats = useMemo(() => {
-    const totalGuests = events.reduce((s, e) => s + e.guestCount, 0)
-    // totalPeople (suma de peopleCount, personas reales incluyendo
-    // acompañantes/familias) es el denominador correcto para checkinRate —
-    // totalGuests (invitaciones) da porcentajes >100% en cuanto hay
-    // acompañantes, igual que el bug corregido en Reports.tsx. totalGuests
-    // se sigue mostrando aparte como "Invitados totales" (conteo de
-    // invitaciones, una métrica válida por sí misma).
-    const totalPeople = events.reduce((s, e) => s + e.peopleCount, 0)
-    const totalCheckins = events.reduce((s, e) => s + e.checkedInCount, 0)
-    return {
-      activeEvents: events.filter((e) => e.status === 'active').length,
-      totalEvents: events.length,
-      totalUsers: users.length,
-      newUsers7d: users.filter((u) => u.createdAt && now - u.createdAt <= WEEK_MS).length,
-      totalGuests,
-      totalCheckins,
-      checkinRate: totalPeople > 0 ? Math.round(attendancePercent(totalCheckins, totalPeople)) : null,
-    }
-  }, [events, users, now])
+  // totalPeople (suma de peopleCount, personas reales incluyendo
+  // acompañantes/familias) es el denominador correcto para checkinRate —
+  // totalGuests (invitaciones) da porcentajes >100% en cuanto hay
+  // acompañantes, igual que el bug corregido en Reports.tsx. totalGuests se
+  // sigue mostrando aparte como "Invitados totales" (conteo de invitaciones,
+  // una métrica válida por sí misma). Ambos vienen ahora de getEventStats
+  // (agregación server-side, ver efecto de arriba) en vez de recorrer el
+  // array completo de eventos.
+  const stats = useMemo(() => ({
+    activeEvents: eventStats?.activeEvents ?? 0,
+    totalEvents: eventStats?.totalEvents ?? 0,
+    totalUsers: userStats?.totalUsers ?? 0,
+    newUsers7d: userStats?.newUsers7d ?? 0,
+    totalGuests: eventStats?.totalGuests ?? 0,
+    totalCheckins: eventStats?.totalCheckins ?? 0,
+    checkinRate: eventStats && eventStats.totalPeople > 0
+      ? Math.round(attendancePercent(eventStats.totalCheckins, eventStats.totalPeople))
+      : null,
+  }), [eventStats, userStats])
 
   function auditContext() {
     if (!user) throw new Error('No hay sesión de admin activa')
@@ -316,7 +359,7 @@ export function AdminDashboard() {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        {loading ? (
+        {statsLoading ? (
           Array.from({ length: 7 }).map((_, i) => <AdminStatCardSkeleton key={i} />)
         ) : (
           <>
@@ -370,7 +413,7 @@ export function AdminDashboard() {
       {tab === 'feedback' && (
         <AdminFeedbackTable
           items={feedback}
-          loading={loading}
+          loading={feedbackLoading}
           search={feedbackSearch}
           onSearchChange={setFeedbackSearch}
           onOpen={handleOpenFeedback}

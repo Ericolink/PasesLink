@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { subscribeToCheckins } from '../firebase/reports'
+import { getCheckins } from '../firebase/reports'
 import { partySize } from '../firebase/guests'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
@@ -25,6 +25,10 @@ export function Reports() {
   useDashboardTheme(event?.templateId, event?.accentColor)
   const [checkins, setCheckins] = useState<CheckinLog[]>([])
   const [checkinsLoading, setCheckinsLoading] = useState(true)
+  const [checkinsError, setCheckinsError] = useState(false)
+  // Incrementarlo vuelve a disparar el efecto de abajo sin depender de
+  // eventId — es el botón "Actualizar" de la línea de tiempo/llegadas por hora.
+  const [refreshToken, setRefreshToken] = useState(0)
 
   // Mismo cálculo que usaba EventDetail.tsx antes del rediseño dashboard/
   // reportes — se llama sin condicionales (regla de hooks) aunque `event`
@@ -32,17 +36,30 @@ export function Reports() {
   const { totalPeople, totalCollected, rsvpYes, rsvpNo, rsvpPending } = useGuestStats(guests, event?.ticketPrice ?? 0)
   const perms = useEventPermissions(event, user)
 
-  // Resetea el loading al cambiar de evento, antes de (re)suscribirse —
-  // necesario para no mostrar datos del evento anterior como si fueran del nuevo.
+  // Carga puntual (no en vivo, ver getCheckins) — se repite al cambiar de
+  // evento y cada vez que se pide "Actualizar". Las tarjetas de "Escaneados"/
+  // "Dentro ahora" de arriba siguen en tiempo real (vienen de
+  // event.checkedInCount/occupancyCount vía useEvent, no de esta lista).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!eventId) return
+    let cancelled = false
     setCheckinsLoading(true)
-    return subscribeToCheckins(eventId, (data) => {
-      setCheckins(data)
-      setCheckinsLoading(false)
-    })
-  }, [eventId])
+    setCheckinsError(false)
+    getCheckins(eventId)
+      .then((data) => {
+        if (cancelled) return
+        setCheckins(data)
+      })
+      .catch((err) => {
+        console.error('Error loading checkins:', err)
+        if (!cancelled) setCheckinsError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setCheckinsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [eventId, refreshToken])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
@@ -182,7 +199,9 @@ export function Reports() {
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
         <h2 className="font-medium text-gray-900 dark:text-white mb-3">Llegadas por hora</h2>
-        {checkinsLoading ? (
+        {checkinsError ? (
+          <p className="text-sm text-red-500">No se pudo cargar el historial de check-ins.</p>
+        ) : checkinsLoading ? (
           <LoadingInline label="Cargando asistentes…" />
         ) : hourEntries.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">Aún no hay check-ins registrados.</p>
@@ -254,8 +273,23 @@ export function Reports() {
       </div>
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4">
-        <h2 className="font-medium text-gray-900 dark:text-white mb-3">Línea de tiempo</h2>
-        {checkinsLoading ? (
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-medium text-gray-900 dark:text-white">Línea de tiempo</h2>
+          {/* "Llegadas por hora" y esta lista se cargan una vez al abrir (no
+              en vivo, ver getCheckins) — este botón las refresca sin salir
+              de la pantalla. Los conteos de arriba (Escaneados/Dentro ahora)
+              siguen en tiempo real, no dependen de este botón. */}
+          <button
+            onClick={() => setRefreshToken((n) => n + 1)}
+            disabled={checkinsLoading}
+            className="text-sm text-primary font-medium disabled:opacity-50"
+          >
+            {checkinsLoading ? 'Actualizando…' : 'Actualizar'}
+          </button>
+        </div>
+        {checkinsError ? (
+          <p className="text-sm text-red-500">No se pudo cargar el historial de check-ins. Intenta actualizar de nuevo.</p>
+        ) : checkinsLoading ? (
           <LoadingInline label="Cargando asistentes…" />
         ) : checkins.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">Aún no hay check-ins registrados.</p>

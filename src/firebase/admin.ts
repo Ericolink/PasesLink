@@ -1,4 +1,19 @@
-import { addDoc, collection, doc, getDoc, limit, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore'
+import {
+  addDoc,
+  collection,
+  doc,
+  getAggregateFromServer,
+  getCountFromServer,
+  getDoc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  sum,
+  Timestamp,
+  where,
+} from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { mapEvent } from './events'
@@ -35,16 +50,14 @@ export async function checkIsAdmin(uid: string): Promise<boolean> {
   return snap.exists()
 }
 
-// TODO Fase 4+: sin `limit()` a propósito. AdminDashboard.tsx usa
-// `events.length`/`users.length` como "Eventos totales"/"Clientes" (métricas
-// reales del negocio, no de una página) y cuenta eventos por organizador
-// sobre el array completo. Un `limit(100)` haría que esos totales queden
-// silenciosamente truncados y mal en cuanto el volumen real supere el
-// límite — exactamente el tipo de bug "dato incorrecto sin aviso" que es
-// peor que el problema que se buscaba resolver. Es un panel de un solo
-// admin (no público ni de alto tráfico, a diferencia del muro), así que el
-// riesgo de costo es bajo hoy; agregar límite real requeriría separar la
-// query de la tabla (paginada) de un conteo agregado para los totales.
+// TODO Fase 6+: sin `limit()` a propósito todavía. Los totales de
+// AdminDashboard.tsx ya NO dependen de esta descarga completa (ver
+// getEventStats/getUserStats, agregaciones server-side más abajo) — pero la
+// tabla de eventos (búsqueda por nombre/ubicación/email del dueño, cruce con
+// usersById) sigue necesitando el conjunto completo, así que este listener
+// se queda sin límite por ahora. Paginar la tabla en sí requeriría rehacer
+// esa búsqueda como query server-side en vez de un filtro en memoria —
+// esfuerzo mayor, pendiente como su propia fase.
 export function subscribeToAllEvents(
   callback: (events: EventData[]) => void,
   onError?: (error: Error) => void,
@@ -81,6 +94,60 @@ export function subscribeToAllUsers(
     },
     withListenerReporting('admin.allUsers', onError),
   )
+}
+
+export interface AdminEventStats {
+  totalEvents: number
+  activeEvents: number
+  totalGuests: number
+  totalPeople: number
+  totalCheckins: number
+}
+
+// Reemplaza el patrón anterior (descargar TODOS los eventos solo para sumar
+// 5 números en el cliente) por agregaciones server-side: cada
+// getCountFromServer/getAggregateFromServer cuesta 1 lectura sin importar
+// cuántos documentos matcheen, en vez de 1 lectura POR documento. Las
+// tarjetas de resumen del panel ya no dependen de subscribeToAllEvents.
+export async function getEventStats(): Promise<AdminEventStats> {
+  const eventsCol = collection(db, 'events')
+  const [totalSnap, activeSnap, sumsSnap] = await Promise.all([
+    getCountFromServer(eventsCol),
+    getCountFromServer(query(eventsCol, where('status', '==', 'active'))),
+    getAggregateFromServer(eventsCol, {
+      totalGuests: sum('guestCount'),
+      totalPeople: sum('peopleCount'),
+      totalCheckins: sum('checkedInCount'),
+    }),
+  ])
+  return {
+    totalEvents: totalSnap.data().count,
+    activeEvents: activeSnap.data().count,
+    totalGuests: sumsSnap.data().totalGuests,
+    totalPeople: sumsSnap.data().totalPeople,
+    totalCheckins: sumsSnap.data().totalCheckins,
+  }
+}
+
+export interface AdminUserStats {
+  totalUsers: number
+  newUsers7d: number
+}
+
+// `sinceMs`: borde de la ventana de "nuevos en 7 días", calculado por quien
+// llama (mismo criterio que el `now` fijado al montar que ya usaba
+// AdminDashboard, para que el número no cambie de un render a otro dentro de
+// la misma sesión).
+export async function getUserStats(sinceMs: number): Promise<AdminUserStats> {
+  const usersCol = collection(db, 'users')
+  const [totalSnap, newSnap] = await Promise.all([
+    getCountFromServer(usersCol),
+    getCountFromServer(query(usersCol, where('createdAt', '>=', Timestamp.fromMillis(sinceMs)))),
+  ])
+  return {
+    totalUsers: totalSnap.data().count,
+    newUsers7d: newSnap.data().count,
+  }
 }
 
 // No usa serverTimestamp() para createdAt del payload local, pero sí lo
