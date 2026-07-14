@@ -169,7 +169,7 @@ describe('photos.ts — replyToPhoto', () => {
     await seedPhoto(testEnv)
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
-    const reply = await replyToPhoto(EVENT_ID, PHOTO_ID, '¡Qué linda foto!', [], 'Invitado', 'guest-token-2')
+    const reply = await replyToPhoto(EVENT_ID, PHOTO_ID, '¡Qué linda foto!', 'Invitado', 'guest-token-2')
     expect(reply.text).toBe('¡Qué linda foto!')
 
     const photo = await getPhotoDoc(testEnv)
@@ -183,7 +183,7 @@ describe('photos.ts — replyToPhoto', () => {
     await seedPhoto(testEnv, { replies: [existingReply] })
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
-    await replyToPhoto(EVENT_ID, PHOTO_ID, 'segunda', [existingReply as never], 'B', 'guest-token-3')
+    await replyToPhoto(EVENT_ID, PHOTO_ID, 'segunda', 'B', 'guest-token-3')
 
     const photo = await getPhotoDoc(testEnv)
     const replies = photo?.replies as { text: string }[]

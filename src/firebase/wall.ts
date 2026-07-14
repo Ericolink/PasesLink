@@ -26,7 +26,7 @@ import {
   WALL_TOKEN_MAX,
   WALL_TYPES,
 } from '../utils/validation'
-import type { ReactionType, WallMessage, WallMessageType, WallReaction, WallReply } from '../types'
+import type { ReactionType, WallMessage, WallMessageType, WallReaction } from '../types'
 import { WallMessageSchema, warnIfInvalidShape } from '../types/schemas'
 
 export const DEFAULT_WALL_LIVE_LIMIT = 50
@@ -237,13 +237,12 @@ export async function replyToWallMessage(
   eventId: string,
   messageId: string,
   text: string,
-  currentReplies: WallReply[],
   authorName: string,
   authorToken: string,
   authorRole: 'owner' | 'guest' = 'guest',
   authorPhotoURL?: string,
 ) {
-  await replyToContent(eventId, 'wall', messageId, text, currentReplies, authorName, authorToken, authorRole, authorPhotoURL)
+  await replyToContent(eventId, 'wall', messageId, text, authorName, authorToken, authorRole, authorPhotoURL)
 }
 
 export async function deleteWallMessage(eventId: string, messageId: string) {

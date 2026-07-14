@@ -14,12 +14,11 @@ import {
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
-import { deleteWallMessage } from './wall'
 import { withListenerReporting } from '../lib/sentry'
-import { deletePhoto } from './photos'
 import {
   REPORT_CONTENT_SNAPSHOT_MAX,
   REPORT_EVENT_NAME_MAX,
@@ -262,16 +261,24 @@ export async function saveReportNotes(
 // Elimina el contenido reportado (comentario o foto) y deja constancia en el
 // historial de acciones del reporte — no cambia el estado del reporte por su
 // cuenta, el admin decide por separado si lo marca resuelto.
+// Un solo batch (antes: dos escrituras separadas, borrar el contenido y
+// luego actualizar el reporte) — si la segunda fallaba tras un corte de red,
+// el contenido ya estaba borrado pero el reporte seguía 'pending' sin
+// ningún registro de que se hizo algo. El soft-delete del comentario
+// (`deleted: true`) es el mismo que hace deleteWallMessage en wall.ts,
+// inlineado acá para que quede en el mismo batch que la entrada de
+// auditoría del reporte.
 export async function deleteReportedContent(
   report: ContentReport,
   admin: { adminUid: string; adminEmail: string | null },
 ): Promise<void> {
+  const batch = writeBatch(db)
   if (report.contentType === 'comment') {
-    await deleteWallMessage(report.eventId, report.contentId)
+    batch.update(doc(db, 'events', report.eventId, 'wall', report.contentId), { deleted: true })
   } else {
-    await deletePhoto(report.eventId, report.contentId)
+    batch.delete(doc(db, 'events', report.eventId, 'photos', report.contentId))
   }
-  await updateDoc(doc(db, 'reports', report.id), {
+  batch.update(doc(db, 'reports', report.id), {
     updatedAt: serverTimestamp(),
     actionHistory: arrayUnion(
       newActionEntry(
@@ -282,6 +289,7 @@ export async function deleteReportedContent(
       ),
     ),
   })
+  await batch.commit()
 }
 
 export async function appendReportSanctionAction(

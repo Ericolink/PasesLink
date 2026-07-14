@@ -184,7 +184,6 @@ export function EventWall() {
         id,
         message.id,
         replyText,
-        message.replies,
         postLabel,
         authorToken,
         isOwner ? 'owner' : 'guest',
@@ -287,7 +286,7 @@ export function EventWall() {
 
   async function handleReplyPhoto(photo: PhotoData, text: string) {
     if (!id) return
-    await replyToPhoto(id, photo.id, text, photo.replies, postLabel, authorToken, isOwner ? 'owner' : 'guest', postPhotoURL)
+    await replyToPhoto(id, photo.id, text, postLabel, authorToken, isOwner ? 'owner' : 'guest', postPhotoURL)
   }
 
   if (!nameConfirmed && !isOwner && !user) {

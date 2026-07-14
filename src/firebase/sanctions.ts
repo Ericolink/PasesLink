@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
+import { collection, doc, FieldPath, getDoc, getDocs, increment, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { appendReportSanctionAction } from './moderation'
@@ -117,51 +117,85 @@ function durationLabel(durationMs: number | null): string {
 
 // Aplica una sanción y dos escrituras atómicas: el resumen usado por
 // firestore.rules / la UI para bloquear en tiempo real (sanctions/{uid}), y
-// una entrada de auditoría en el historial (sanctions/{uid}/history). Se
-// hace en un solo batch para que nunca quede una sin la otra.
+// una entrada de auditoría en el historial (sanctions/{uid}/history).
+//
+// Transacción, no batch: la versión anterior leía el resumen con un getDoc
+// suelto (fuera de cualquier transacción) y después escribía `warningsCount:
+// summary.warningsCount + 1` y sub-objetos `global`/`events.{id}` enteros
+// reconstruidos por spread — dos admins sancionando al mismo usuario casi al
+// mismo tiempo (o un doble clic) podían perder un incremento, o peor, uno
+// podía pisar por completo el cambio del otro en el mismo scope (ej. un
+// comment_restriction aplicado justo después de un ban sobre el mismo
+// usuario/evento, ambos partiendo del mismo estado leído antes de que el
+// primero se guardara). Acá cada rama toca SOLO sus campos puntuales
+// (bannedUntil/reason, o warningsCount vía increment()) en una única llamada
+// a tx.update() — Firestore no permite más de una escritura por documento
+// dentro de una misma transacción, por eso todos los campos de una rama van
+// juntos en esa llamada — así que dos admins escribiendo campos distintos
+// del mismo scope ya no pueden pisarse, y Firestore reintenta solo la
+// transacción entera si de verdad hay un conflicto real sobre el mismo campo.
 export async function applySanction(input: ApplySanctionInput): Promise<void> {
-  const summary = await getUserSanctionSummary(input.targetUid)
   const expiresAt = input.type === 'warning'
     ? 0
     : input.durationMs === null
       ? PERMANENT_SANCTION_MS
       : Date.now() + input.durationMs
 
-  const batch = writeBatch(db)
   const summaryRef = doc(db, 'sanctions', input.targetUid)
-
-  if (input.type === 'warning') {
-    batch.set(summaryRef, { warningsCount: summary.warningsCount + 1, updatedAt: serverTimestamp() }, { merge: true })
-  } else {
-    const field = FIELD_BY_TYPE[input.type]
-    if (!field) throw new Error('Tipo de sanción no soportado.')
-    if (input.scope === 'global') {
-      const nextGlobal = { ...summary.global, [field]: expiresAt, reason: input.reason }
-      batch.set(summaryRef, { global: nextGlobal, updatedAt: serverTimestamp() }, { merge: true })
-    } else {
-      if (!input.eventId) throw new Error('Falta el evento para una sanción a nivel de evento.')
-      const currentEventScope = summary.events[input.eventId] || { ...EMPTY_SCOPE }
-      const nextEventScope = { ...currentEventScope, [field]: expiresAt, reason: input.reason }
-      batch.set(summaryRef, { events: { [input.eventId]: nextEventScope }, updatedAt: serverTimestamp() }, { merge: true })
-    }
-  }
-
   const historyRef = doc(collection(db, 'sanctions', input.targetUid, 'history'))
-  batch.set(historyRef, {
-    type: input.type,
-    scope: input.scope,
-    eventId: input.eventId || null,
-    eventName: input.eventName || null,
-    reason: input.reason,
-    durationMs: input.durationMs,
-    expiresAt: input.type === 'warning' ? null : expiresAt,
-    adminUid: input.adminUid,
-    adminEmail: input.adminEmail,
-    reportId: input.reportId || null,
-    createdAt: serverTimestamp(),
-  })
 
-  await batch.commit()
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(summaryRef)
+
+    if (input.type === 'warning') {
+      if (!snap.exists()) {
+        tx.set(summaryRef, { warningsCount: 1, updatedAt: serverTimestamp() })
+      } else {
+        tx.update(summaryRef, 'warningsCount', increment(1), 'updatedAt', serverTimestamp())
+      }
+    } else {
+      const field = FIELD_BY_TYPE[input.type]
+      if (!field) throw new Error('Tipo de sanción no soportado.')
+      if (input.scope === 'global') {
+        if (!snap.exists()) {
+          tx.set(summaryRef, { global: { ...EMPTY_SCOPE, [field]: expiresAt, reason: input.reason }, updatedAt: serverTimestamp() })
+        } else {
+          tx.update(
+            summaryRef,
+            new FieldPath('global', field), expiresAt,
+            new FieldPath('global', 'reason'), input.reason,
+            'updatedAt', serverTimestamp(),
+          )
+        }
+      } else {
+        if (!input.eventId) throw new Error('Falta el evento para una sanción a nivel de evento.')
+        if (!snap.exists()) {
+          tx.set(summaryRef, { events: { [input.eventId]: { ...EMPTY_SCOPE, [field]: expiresAt, reason: input.reason } }, updatedAt: serverTimestamp() })
+        } else {
+          tx.update(
+            summaryRef,
+            new FieldPath('events', input.eventId, field), expiresAt,
+            new FieldPath('events', input.eventId, 'reason'), input.reason,
+            'updatedAt', serverTimestamp(),
+          )
+        }
+      }
+    }
+
+    tx.set(historyRef, {
+      type: input.type,
+      scope: input.scope,
+      eventId: input.eventId || null,
+      eventName: input.eventName || null,
+      reason: input.reason,
+      durationMs: input.durationMs,
+      expiresAt: input.type === 'warning' ? null : expiresAt,
+      adminUid: input.adminUid,
+      adminEmail: input.adminEmail,
+      reportId: input.reportId || null,
+      createdAt: serverTimestamp(),
+    })
+  })
 
   if (input.reportId) {
     const scopeLabel = input.scope === 'global' ? 'toda la app' : `el evento "${input.eventName || input.eventId}"`
@@ -185,39 +219,44 @@ export interface RevokeSanctionInput {
 }
 
 export async function revokeSanction(input: RevokeSanctionInput): Promise<void> {
-  const summary = await getUserSanctionSummary(input.targetUid)
   const field = FIELD_BY_TYPE[input.type]
   if (!field) throw new Error('Tipo de sanción no soportado.')
 
-  const batch = writeBatch(db)
   const summaryRef = doc(db, 'sanctions', input.targetUid)
-
-  if (input.scope === 'global') {
-    const nextGlobal = { ...summary.global, [field]: 0 }
-    batch.set(summaryRef, { global: nextGlobal, updatedAt: serverTimestamp() }, { merge: true })
-  } else {
-    if (!input.eventId) throw new Error('Falta el evento para revertir una sanción a nivel de evento.')
-    const currentEventScope = summary.events[input.eventId] || { ...EMPTY_SCOPE }
-    const nextEventScope = { ...currentEventScope, [field]: 0 }
-    batch.set(summaryRef, { events: { [input.eventId]: nextEventScope }, updatedAt: serverTimestamp() }, { merge: true })
-  }
-
   const historyRef = doc(collection(db, 'sanctions', input.targetUid, 'history'))
-  batch.set(historyRef, {
-    type: 'revoked',
-    scope: input.scope,
-    eventId: input.eventId || null,
-    eventName: input.eventName || null,
-    reason: `Se revirtió: ${SANCTION_TYPE_LABELS[input.type]}`,
-    durationMs: null,
-    expiresAt: null,
-    adminUid: input.adminUid,
-    adminEmail: input.adminEmail,
-    reportId: input.reportId || null,
-    createdAt: serverTimestamp(),
-  })
 
-  await batch.commit()
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(summaryRef)
+
+    if (input.scope === 'global') {
+      if (!snap.exists()) {
+        tx.set(summaryRef, { global: { ...EMPTY_SCOPE, [field]: 0 }, updatedAt: serverTimestamp() })
+      } else {
+        tx.update(summaryRef, new FieldPath('global', field), 0, 'updatedAt', serverTimestamp())
+      }
+    } else {
+      if (!input.eventId) throw new Error('Falta el evento para revertir una sanción a nivel de evento.')
+      if (!snap.exists()) {
+        tx.set(summaryRef, { events: { [input.eventId]: { ...EMPTY_SCOPE, [field]: 0 } }, updatedAt: serverTimestamp() })
+      } else {
+        tx.update(summaryRef, new FieldPath('events', input.eventId, field), 0, 'updatedAt', serverTimestamp())
+      }
+    }
+
+    tx.set(historyRef, {
+      type: 'revoked',
+      scope: input.scope,
+      eventId: input.eventId || null,
+      eventName: input.eventName || null,
+      reason: `Se revirtió: ${SANCTION_TYPE_LABELS[input.type]}`,
+      durationMs: null,
+      expiresAt: null,
+      adminUid: input.adminUid,
+      adminEmail: input.adminEmail,
+      reportId: input.reportId || null,
+      createdAt: serverTimestamp(),
+    })
+  })
 
   if (input.reportId) {
     const scopeLabel = input.scope === 'global' ? 'toda la app' : `el evento "${input.eventName || input.eventId}"`

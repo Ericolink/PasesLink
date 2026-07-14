@@ -1,6 +1,8 @@
 import { memo, useState } from 'react'
 import {
   allowGuestReentry,
+  bulkDeleteGuests,
+  bulkSetGuestPaymentStatus,
   deleteGuest,
   resetGuestRsvp,
   setGuestPaymentStatus,
@@ -267,8 +269,7 @@ export const GuestList = memo(function GuestList({
   async function bulkMarkPaid() {
     setActionError('')
     const targets = guests.filter((g) => selected.has(g.id))
-    const results = await Promise.allSettled(targets.map((g) => setGuestPaymentStatus(eventId, g.id, 'paid', resolveMethod(g))))
-    const failed = results.filter((r) => r.status === 'rejected').length
+    const { failed } = await bulkSetGuestPaymentStatus(eventId, targets, 'paid', resolveMethod)
     if (failed > 0) setActionError(`No se pudo marcar como pagado a ${failed} de ${targets.length} invitados.`)
     exitSelectMode()
   }
@@ -276,8 +277,7 @@ export const GuestList = memo(function GuestList({
   async function bulkDelete() {
     setActionError('')
     const targets = guests.filter((g) => selected.has(g.id))
-    const results = await Promise.allSettled(targets.map((g) => deleteGuest(eventId, g)))
-    const failed = results.filter((r) => r.status === 'rejected').length
+    const { failed } = await bulkDeleteGuests(eventId, targets)
     if (failed > 0) setActionError(`No se pudo eliminar a ${failed} de ${targets.length} invitados.`)
     setBulkDeleteConfirmOpen(false)
     exitSelectMode()

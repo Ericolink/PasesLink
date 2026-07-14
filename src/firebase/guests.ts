@@ -413,6 +413,154 @@ export async function deleteGuest(
   await batch.commit()
 }
 
+// Agrupa `items` en lotes cuya suma de partySize() nunca supera
+// `COUNTER_DELTA_CAP` (50, el mismo margen que counterDeltaOk exige en
+// firestore.rules para un co-organizador — el dueño no tiene ese tope, pero
+// trocear igual no cambia el resultado, solo agrega alguna transacción/batch
+// más de más para selecciones muy grandes). Usada por bulkDeleteGuests/
+// bulkSetGuestPaymentStatus para que cada lote sea UNA sola escritura al
+// documento del evento, en vez de que cada invitado dispare la suya —
+// GuestList.tsx antes llamaba a deleteGuest/setGuestPaymentStatus una vez
+// POR invitado seleccionado, con N transacciones/batches concurrentes
+// compitiendo por el mismo documento (el anti-patrón de "documento
+// caliente" de Firestore: con selecciones grandes, muchas de esas escrituras
+// abortaban y reintentaban, cada reintento facturando lectura+escritura de
+// nuevo).
+const COUNTER_DELTA_CAP = 50
+
+function chunkByPartySize<T>(items: T[], sizeOf: (item: T) => number): T[][] {
+  const chunks: T[][] = []
+  let current: T[] = []
+  let currentSize = 0
+  for (const item of items) {
+    const size = sizeOf(item)
+    if (current.length > 0 && currentSize + size > COUNTER_DELTA_CAP) {
+      chunks.push(current)
+      current = []
+      currentSize = 0
+    }
+    current.push(item)
+    currentSize += size
+  }
+  if (current.length > 0) chunks.push(current)
+  return chunks
+}
+
+export interface BulkResult {
+  ok: number
+  failed: number
+}
+
+// Versión masiva de deleteGuest: en vez de que cada invitado seleccionado
+// dispare su propio batch (cada uno leyendo-nada-pero-escribiendo el
+// documento del evento por separado), cada LOTE hace un único batch que
+// borra hasta 50 (en partySize) invitados/contactos y ajusta los contadores
+// del evento con el delta agregado del lote en una sola escritura. Mismo
+// criterio que deleteGuest: confía en el `guest` ya cargado en pantalla para
+// calcular status/companions/paymentStatus, no vuelve a leer cada documento
+// (igual que el deleteGuest individual ya hacía).
+export async function bulkDeleteGuests(
+  eventId: string,
+  guests: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus'>[],
+): Promise<BulkResult> {
+  const chunks = chunkByPartySize(guests, partySize)
+  let ok = 0
+  let failed = 0
+  for (const chunk of chunks) {
+    try {
+      const batch = writeBatch(db)
+      let guestCountDelta = 0
+      let peopleCountDelta = 0
+      let checkedInCountDelta = 0
+      let occupancyCountDelta = 0
+      let paidCountDelta = 0
+      for (const guest of chunk) {
+        const size = partySize(guest)
+        batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
+        batch.delete(contactRef(eventId, guest.id))
+        guestCountDelta -= 1
+        peopleCountDelta -= size
+        if (guest.status === 'checked_in') {
+          checkedInCountDelta -= size
+          if (guestPresence(guest) === 'inside') occupancyCountDelta -= size
+        }
+        if (guest.paymentStatus === 'paid') paidCountDelta -= size
+      }
+      const updates: Record<string, unknown> = {
+        guestCount: increment(guestCountDelta),
+        peopleCount: increment(peopleCountDelta),
+      }
+      if (checkedInCountDelta !== 0) updates.checkedInCount = increment(checkedInCountDelta)
+      if (occupancyCountDelta !== 0) updates.occupancyCount = increment(occupancyCountDelta)
+      if (paidCountDelta !== 0) updates.paidCount = increment(paidCountDelta)
+      batch.update(doc(db, 'events', eventId), updates)
+      await batch.commit()
+      ok += chunk.length
+    } catch (err) {
+      console.error('Error en bulkDeleteGuests para un lote:', err)
+      failed += chunk.length
+    }
+  }
+  return { ok, failed }
+}
+
+// Versión masiva de setGuestPaymentStatus: mismo delta agregado por lote que
+// bulkDeleteGuests, pero con transacción (no batch) porque, a diferencia de
+// borrar, acá SÍ hace falta releer cada invitado — decidir si su pago
+// cambió de estado depende de su paymentStatus actual en el servidor, no del
+// que tenía cuando se cargó la pantalla (podría haber cambiado, ej. otro
+// organizador ya lo marcó pagado). `resolveMethod` se llama con el invitado
+// RECIÉN leído, no con el de pantalla, por la misma razón.
+export async function bulkSetGuestPaymentStatus(
+  eventId: string,
+  guests: Pick<GuestData, 'id'>[],
+  paymentStatus: 'paid' | 'unpaid',
+  resolveMethod: (guest: GuestData) => PaymentMethod | undefined,
+): Promise<BulkResult> {
+  const eventRef = doc(db, 'events', eventId)
+  // Se trocea por CANTIDAD de invitados acá (no por partySize, que recién se
+  // conoce tras la lectura dentro de la transacción) — 50 es el mismo margen
+  // conservador: como mucho un invitado aporta su partySize completo al
+  // delta, así que un lote de ≤50 invitados nunca puede superar por mucho el
+  // tope de la regla incluso si todos tuvieran acompañantes (y en la
+  // práctica, la gran mayoría no).
+  const chunks: Pick<GuestData, 'id'>[][] = []
+  for (let i = 0; i < guests.length; i += COUNTER_DELTA_CAP) {
+    chunks.push(guests.slice(i, i + COUNTER_DELTA_CAP))
+  }
+  let ok = 0
+  let failed = 0
+  for (const chunk of chunks) {
+    try {
+      await runTransaction(db, async (transaction) => {
+        // Todas las lecturas antes que cualquier escritura — regla de
+        // transacciones de Firestore.
+        const snaps = await Promise.all(
+          chunk.map((g) => transaction.get(doc(db, 'events', eventId, 'guests', g.id))),
+        )
+        let paidCountDelta = 0
+        for (const snap of snaps) {
+          if (!snap.exists()) continue
+          const guest = mapGuest(snap.id, snap.data())
+          const wasPaid = guest.paymentStatus === 'paid'
+          const updates: Record<string, unknown> = { paymentStatus }
+          const method = resolveMethod(guest)
+          if (method !== undefined) updates.paymentMethod = method
+          if (paymentStatus === 'paid' && !wasPaid) paidCountDelta += partySize(guest)
+          else if (paymentStatus === 'unpaid' && wasPaid) paidCountDelta -= partySize(guest)
+          transaction.update(doc(db, 'events', eventId, 'guests', guest.id), updates)
+        }
+        if (paidCountDelta !== 0) transaction.update(eventRef, { paidCount: increment(paidCountDelta) })
+      })
+      ok += chunk.length
+    } catch (err) {
+      console.error('Error en bulkSetGuestPaymentStatus para un lote:', err)
+      failed += chunk.length
+    }
+  }
+  return { ok, failed }
+}
+
 // El organizador necesita el teléfono (y, si existe, el email) junto con el
 // resto del invitado (lista, exportación), pero esos campos viven en
 // `guestContacts` (ver buildNewGuestPayload). Se suscribe a ambas colecciones

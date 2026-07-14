@@ -186,7 +186,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
   // manual del usuario (mismo criterio que onPosted/onPhotoUploaded del
   // composer: la propia acción se refleja al toque).
   async function handleReplyPhoto(photo: PhotoData, text: string) {
-    const newReply = await replyToPhoto(eventId, photo.id, text, photo.replies, authorName, messageAuthorToken, 'guest', authorPhoto)
+    const newReply = await replyToPhoto(eventId, photo.id, text, authorName, messageAuthorToken, 'guest', authorPhoto)
     setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, replies: [...p.replies, newReply] } : p)))
   }
 

@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc, where, writeBatch } from 'firebase/firestore'
 import { db } from './config'
 import type { UserProfile, UserInvitation } from '../types'
 
@@ -32,6 +32,18 @@ export async function getUserInvitations(uid: string): Promise<UserInvitation[]>
 
 export async function deleteUserInvitation(uid: string, eventId: string): Promise<void> {
   await deleteDoc(doc(db, 'users', uid, 'invitations', eventId))
+}
+
+// Versión masiva: MyInvitations.tsx borra todas las invitaciones vencidas de
+// una sola vez al abrir la pantalla — antes disparaba un deleteDoc
+// independiente por invitación (vía Promise.all), acá es un único batch.
+export async function deleteUserInvitations(uid: string, eventIds: string[]): Promise<void> {
+  if (eventIds.length === 0) return
+  const batch = writeBatch(db)
+  for (const eventId of eventIds) {
+    batch.delete(doc(db, 'users', uid, 'invitations', eventId))
+  }
+  await batch.commit()
 }
 
 // Inverso de getUserByEmail: lee el perfil completo por uid.

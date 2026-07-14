@@ -6,7 +6,7 @@
 // funciones. Extraído de lo que antes vivía hardcodeado a `wall` en
 // wall.ts — mismo comportamiento, ahora parametrizado por colección para no
 // duplicarlo en photos.ts.
-import { doc, deleteField, FieldPath, updateDoc } from 'firebase/firestore'
+import { arrayUnion, doc, deleteField, FieldPath, updateDoc } from 'firebase/firestore'
 import { db } from './config'
 import {
   requireMaxLength,
@@ -70,12 +70,25 @@ export async function reactToContent(
 // listener en vivo (ver handleReplyPhoto en WallSection.tsx) pueda
 // reflejarla de inmediato en su estado local sin reconstruir a mano la
 // misma forma ni inventar un id que no coincida con el que quedó escrito.
+//
+// arrayUnion en vez de `{ replies: [...currentReplies, newReply] }`: la
+// versión anterior reenviaba el arreglo COMPLETO de respuestas en cada
+// respuesta nueva (hasta 500, ver isValidWallReplyAppend en
+// firestore.rules) — write amplification O(n) más una condición de carrera
+// real si dos respuestas casi simultáneas partían del mismo `currentReplies`
+// desactualizado (la segunda quedaba rechazada por la regla, sin reintento
+// automático, más visible en WallSection.tsx que no tiene onSnapshot propio
+// y puede comparar contra un arreglo ya viejo). arrayUnion no necesita leer
+// el estado anterior: el servidor agrega el elemento de forma atómica, sin
+// enviar el arreglo previo por la red. `request.resource.data.replies` en
+// las reglas de seguridad ya refleja el arreglo DESPUÉS del transform, así
+// que isValidWallReplyAppend sigue validando exactamente igual sin tocar
+// firestore.rules.
 export async function replyToContent(
   eventId: string,
   collectionName: InteractiveCollection,
   docId: string,
   text: string,
-  currentReplies: WallReply[],
   authorName: string,
   authorToken: string,
   authorRole: 'owner' | 'guest' = 'guest',
@@ -96,7 +109,7 @@ export async function replyToContent(
     ...(authorPhotoURL ? { authorPhotoURL } : {}),
   }
   await updateDoc(doc(db, 'events', eventId, collectionName, docId), {
-    replies: [...currentReplies, newReply],
+    replies: arrayUnion(newReply),
   })
   return newReply
 }

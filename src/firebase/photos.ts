@@ -137,11 +137,10 @@ export async function replyToPhoto(
   eventId: string,
   photoId: string,
   text: string,
-  currentReplies: WallReply[],
   authorName: string,
   authorToken: string,
   authorRole: 'owner' | 'guest' = 'guest',
   authorPhotoURL?: string,
 ): Promise<WallReply> {
-  return replyToContent(eventId, 'photos', photoId, text, currentReplies, authorName, authorToken, authorRole, authorPhotoURL)
+  return replyToContent(eventId, 'photos', photoId, text, authorName, authorToken, authorRole, authorPhotoURL)
 }

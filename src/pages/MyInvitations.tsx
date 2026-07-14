@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { deleteUserInvitation, getUserInvitations } from '../firebase/userProfile'
+import { deleteUserInvitation, deleteUserInvitations, getUserInvitations } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { optimizedImageUrl } from '../utils/cloudinary'
@@ -34,7 +34,7 @@ export function MyInvitations() {
         const expired = all.filter((inv) => inv.eventDate < today)
         const active = all.filter((inv) => inv.eventDate >= today)
         if (expired.length > 0) {
-          await Promise.all(expired.map((inv) => deleteUserInvitation(user.uid, inv.eventId)))
+          await deleteUserInvitations(user.uid, expired.map((inv) => inv.eventId))
         }
         setInvitations(active)
       })

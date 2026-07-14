@@ -152,7 +152,7 @@ describe('wall.ts — authorRole y postWall', () => {
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
     await expect(
-      replyToWallMessage(EVENT_ID, 'msg-1', 'Respuesta falsa', [], 'Falso organizador', 'tok-7', 'owner'),
+      replyToWallMessage(EVENT_ID, 'msg-1', 'Respuesta falsa', 'Falso organizador', 'tok-7', 'owner'),
     ).rejects.toThrow()
   })
 
@@ -161,7 +161,7 @@ describe('wall.ts — authorRole y postWall', () => {
     await seedWallMessage(testEnv, 'msg-1')
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-    await replyToWallMessage(EVENT_ID, 'msg-1', 'Respuesta real', [], 'El organizador', 'tok-8', 'owner')
+    await replyToWallMessage(EVENT_ID, 'msg-1', 'Respuesta real', 'El organizador', 'tok-8', 'owner')
 
     const messages = await getWallMessages(testEnv)
     expect((messages[0].replies as { authorRole: string }[])).toHaveLength(1)
