@@ -1,27 +1,7 @@
-import { useEffect, useState } from 'react'
-import { onAuthStateChanged, type User } from 'firebase/auth'
-import { auth } from '../firebase/config'
-import { setSentryUser } from '../lib/sentry'
-
-export function useAuth() {
-  // Inicializar desde auth.currentUser (no null) evita un "flash" de sesión
-  // cerrada cada vez que este hook se remonta dentro de la misma sesión del
-  // navegador — por ejemplo en GuestPass, que se remonta a propósito (key)
-  // en cada invitado escaneado. onAuthStateChanged siempre dispara su primer
-  // callback de forma asíncrona, incluso si Firebase ya conoce al usuario, así
-  // que sin esto cada remonte pasaba por un instante con user=null donde la
-  // app trataba al organizador como invitado público.
-  const [user, setUser] = useState<User | null>(() => auth.currentUser)
-  const [loading, setLoading] = useState(() => !auth.currentUser)
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser)
-      setLoading(false)
-      setSentryUser(currentUser ? { uid: currentUser.uid, email: currentUser.email } : null)
-    })
-    return unsubscribe
-  }, [])
-
-  return { user, loading }
-}
+// Antes este hook tenía su propia suscripción onAuthStateChanged, llamada de
+// forma independiente en cada uno de sus ~27 puntos de uso (hasta 8
+// listeners simultáneos en una sola pantalla — ver el comentario en
+// AuthContext.tsx). Ahora es un re-export delgado del contexto compartido,
+// para que ningún punto de llamada existente (`import { useAuth } from
+// '../hooks/useAuth'`) tenga que cambiar.
+export { useAuthContext as useAuth } from '../contexts/AuthContext'

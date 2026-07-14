@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 export type ResolvedTheme = 'light' | 'dark'
@@ -58,8 +58,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => mql.removeEventListener('change', handleChange)
   }, [preference])
 
+  // Memoizado: sin esto, cada render de ThemeProvider (uno de los providers
+  // más altos del árbol) crea un objeto value nuevo y re-renderiza a TODOS
+  // los consumidores de useTheme(), aunque preference/resolvedTheme no hayan
+  // cambiado.
+  const value = useMemo(() => ({ preference, resolvedTheme, setPreference }), [preference, resolvedTheme])
+
   return (
-    <ThemeContext.Provider value={{ preference, resolvedTheme, setPreference }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   )
