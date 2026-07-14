@@ -4,7 +4,7 @@ import type { EventData, GuestData } from '../types'
 import { partySize } from '../firebase/guests'
 import { buildPassUrl } from './qrUrl'
 import { formatDate, formatTime12h } from './time'
-import { getTemplate } from '../templates/registry'
+import { getExportPalette } from './exportTheme'
 
 export interface ExportPdfOptions {
   onProgress?: (done: number, total: number) => void
@@ -13,41 +13,14 @@ export interface ExportPdfOptions {
 
 export type ExportPdfResult = 'completed' | 'cancelled'
 
-type Rgb = [number, number, number]
-
-function hexToRgb(hex: string): Rgb {
-  const n = parseInt(hex.replace('#', ''), 16)
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-}
-
-function lighten([r, g, b]: Rgb, amount: number): Rgb {
-  return [r + (255 - r) * amount, g + (255 - g) * amount, b + (255 - b) * amount].map(Math.round) as Rgb
-}
-
-// Plantillas serif (Boda, Graduación, Evento formal) usan una fuente de
-// titular con serifas en el PDF para evocar la misma sensación "editorial"
-// que su tema web; el resto usa sans. jsPDF solo trae 14 fuentes núcleo
-// (sin Cormorant/Cinzel/Rye/Baloo), así que esto es la aproximación más
-// cercana sin tener que empotrar archivos de fuente externos.
-const SERIF_TEMPLATES = new Set(['wedding', 'graduation', 'formal'])
-
-// Deriva la paleta del PDF a partir de la MISMA fuente de verdad que el tema
-// web del evento (src/templates/registry.ts), para que el pase impreso se
-// sienta del mismo evento que la invitación digital en vez de usar siempre
-// los mismos colores fijos sin importar la plantilla elegida.
+// jsPDF solo trae 14 fuentes núcleo (sin Cormorant/Cinzel/Rye/Baloo, etc.),
+// así que las plantillas serif (ver SERIF_TEMPLATES en exportTheme.ts) caen a
+// 'times' como aproximación más cercana sin empotrar archivos de fuente.
 function getPdfPalette(templateId: EventData['templateId']) {
-  const template = getTemplate(templateId)
-  const text = hexToRgb(template.vars.text)
-  const muted = hexToRgb(template.vars.textMuted)
+  const { isSerif, rgb } = getExportPalette(templateId)
   return {
-    headFont: SERIF_TEMPLATES.has(template.id) ? ('times' as const) : ('helvetica' as const),
-    headerBg: hexToRgb(template.vars.accentDark),
-    accent: hexToRgb(template.vars.accent),
-    text,
-    muted,
-    faint: lighten(muted, 0.35),
-    cardBg: hexToRgb(template.vars.accentSoft),
-    link: hexToRgb(template.vars.accentDark),
+    headFont: isSerif ? ('times' as const) : ('helvetica' as const),
+    ...rgb,
   }
 }
 

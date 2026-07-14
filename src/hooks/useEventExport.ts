@@ -1,15 +1,20 @@
 import { useRef, useState } from 'react'
-import { partySize } from '../firebase/guests'
 import type { EventData, GuestData } from '../types'
 
-// Extraído de EventDetail.tsx (Subfase 3.3): exportación PDF/CSV de la
+// Extraído de EventDetail.tsx (Subfase 3.3): exportación PDF/Excel de la
 // lista de invitados. `event` puede ser null porque el hook se llama antes
 // del guard `if (!event) return` de la página (las reglas de hooks no
 // permiten llamarlo después de un return condicional).
+//
+// PDF y Excel comparten `exporting`/`exportProgress`/`exportCancelledRef`:
+// los botones de disparo ya se deshabilitan mutuamente mientras cualquiera
+// de las dos corre (ver EventDetail.tsx), así que nunca compiten por el
+// mismo estado.
 export function useEventExport(event: EventData | null, guests: GuestData[]) {
   const [exporting, setExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState<{ done: number; total: number } | null>(null)
   const [exportPdfError, setExportPdfError] = useState('')
+  const [exportExcelError, setExportExcelError] = useState('')
   const exportCancelledRef = useRef(false)
 
   async function handleExportPdf() {
@@ -36,37 +41,41 @@ export function useEventExport(event: EventData | null, guests: GuestData[]) {
     }
   }
 
-  function handleCancelExportPdf() {
+  async function handleExportExcel() {
+    if (!event) return
+    setExporting(true)
+    setExportExcelError('')
+    setExportProgress({ done: 0, total: guests.length })
+    exportCancelledRef.current = false
+    try {
+      const { exportGuestListExcel } = await import('../utils/exportExcel')
+      const result = await exportGuestListExcel(event, guests, {
+        onProgress: (done, total) => setExportProgress({ done, total }),
+        isCancelled: () => exportCancelledRef.current,
+      })
+      if (result === 'cancelled') {
+        setExportExcelError('Exportación cancelada.')
+      }
+    } catch (err) {
+      console.error('Error exporting guest list Excel:', err)
+      setExportExcelError('No se pudo generar el Excel. Intenta de nuevo.')
+    } finally {
+      setExporting(false)
+      setExportProgress(null)
+    }
+  }
+
+  function handleCancelExport() {
     exportCancelledRef.current = true
   }
 
-  function handleExportCsv() {
-    if (!event) return
-    const rows = [
-      [
-        'Nombre', 'Apellido', 'Teléfono', 'Acompañantes', 'Estado', 'Confirmación', 'Check-in',
-        ...(event.requiresPayment ? ['Pago'] : []),
-      ],
-      ...guests.map((g) => [
-        g.name,
-        g.lastName || '',
-        g.phone || '',
-        g.isGroup ? String(partySize(g)) : String(g.companions.length),
-        g.status === 'checked_in' ? 'Asistió' : 'Invitado',
-        g.rsvpStatus === 'yes' ? 'Sí' : g.rsvpStatus === 'no' ? 'No' : 'Pendiente',
-        g.checkedInAt ? new Date(g.checkedInAt).toLocaleString('es') : '',
-        ...(event.requiresPayment ? [g.paymentStatus === 'paid' ? 'Pagó' : 'Pendiente'] : []),
-      ]),
-    ]
-    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `invitados-${event.name.replace(/\s+/g, '_')}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  return {
+    exporting,
+    exportProgress,
+    exportPdfError,
+    exportExcelError,
+    handleExportPdf,
+    handleExportExcel,
+    handleCancelExport,
   }
-
-  return { exporting, exportProgress, exportPdfError, handleExportPdf, handleCancelExportPdf, handleExportCsv }
 }

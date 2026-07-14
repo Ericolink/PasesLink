@@ -24,15 +24,21 @@ export const GUEST_EMAIL_MAX = 120
 // para su evento (texto/número/email/teléfono), llenados por el público.
 export const GUEST_CUSTOM_FIELD_VALUE_MAX = 300
 export const GUEST_CUSTOM_FIELD_MAX_COUNT = 30
-// Tope de "¿cuántos vienen?" en el autoregistro público (EventJoin) — antes
-// de este campo, esa vía nunca exponía cantidad de acompañantes (eso lo
-// controlaba solo el organizador autenticado vía CompanionFieldsEditor), así
-// que no existía ningún límite explícito para una entrada anónima.
-export const GUEST_MAX_PARTY_SIZE = 10
+// Techo del campo configurable EventData.maxCompanions (0–20, ver
+// StepInvitationMethod/EditEventForm) — cuántos acompañantes puede sumar UN
+// invitado individual, autoregistro o alta/edición manual. El valor
+// EFECTIVO por evento es siempre <= este techo (ver resolveMaxCompanions en
+// firebase/guests.ts, única fuente de verdad); esta constante es solo el
+// límite superior que puede configurar el organizador, no el límite en sí.
+// No aplica a invitados `isGroup: true` ("familia o grupo"), que sigue
+// gobernado por GUEST_GROUP_MAX_MEMBERS más abajo.
+export const GUEST_MAX_COMPANIONS = 20
 // Tope de "cantidad de integrantes" al crear/editar una familia o grupo desde
 // el panel del organizador (GuestAddForm/GuestList) — a diferencia de
-// GUEST_MAX_PARTY_SIZE (autoregistro público, sin control del organizador),
-// esta vía la usa un organizador autenticado, por eso el límite es más alto.
+// GUEST_MAX_COMPANIONS (acompañantes de un invitado individual, gobernados
+// por EventData.maxCompanions), este límite es fijo y NO configurable por
+// evento: "familia o grupo" es una herramienta de alta masiva distinta, ya
+// confiada al organizador autenticado, por eso el límite es más alto.
 export const GUEST_GROUP_MAX_MEMBERS = 50
 
 // Buzón de feedback (src/pages/Feedback.tsx, src/firebase/feedback.ts). Deben

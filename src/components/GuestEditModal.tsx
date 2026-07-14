@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getGuestContact, updateGuestSelf } from '../firebase/guests'
+import { getGuestContact, resolveMaxCompanions, updateGuestSelf } from '../firebase/guests'
 import type { CompanionData, EventData, GuestData } from '../types'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { CustomFieldsEditRow } from './CustomFieldsEditor'
@@ -148,7 +148,12 @@ export function GuestEditModal({
                 {companions.length > 0 && (
                   <div>
                     <label className={labelClass}>Acompañantes</label>
-                    <CompanionFieldsEditor companions={companions} onChange={setCompanions} allowAddRemove={false} />
+                    <CompanionFieldsEditor
+                      companions={companions}
+                      onChange={setCompanions}
+                      allowAddRemove={false}
+                      maxCompanions={resolveMaxCompanions(event)}
+                    />
                   </div>
                 )}
               </>

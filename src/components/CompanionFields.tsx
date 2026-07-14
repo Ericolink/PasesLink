@@ -7,6 +7,7 @@ export function CompanionFieldsEditor({
   companions,
   onChange,
   allowAddRemove = true,
+  maxCompanions,
 }: {
   companions: CompanionData[]
   onChange: (companions: CompanionData[]) => void
@@ -16,6 +17,11 @@ export function CompanionFieldsEditor({
   // de los que ya existen, así que ocultar "agregar"/"quitar" evita una UI
   // que promete algo que el guardado va a rechazar.
   allowAddRemove?: boolean
+  // Tope de acompañantes configurado para este evento (ver
+  // EventData.maxCompanions / resolveMaxCompanions en firebase/guests.ts) —
+  // gatea el botón "+ Agregar acompañante" acá; la barrera real (por si
+  // alguien evita esta UI) vive en firebase/guests.ts y firestore.rules.
+  maxCompanions: number
 }) {
   // Confirmación antes de quitar — antes el botón de la papelera borraba la
   // fila al instante, sin deshacer posible ni pregunta, fácil de tocar sin
@@ -35,17 +41,26 @@ export function CompanionFieldsEditor({
   }
 
   const pendingCompanion = pendingRemoveIndex !== null ? companions[pendingRemoveIndex] : null
+  const atLimit = companions.length >= maxCompanions
 
   return (
     <div className="space-y-2">
       {allowAddRemove && (
-        <button
-          type="button"
-          onClick={addCompanion}
-          className="text-xs text-primary font-medium hover:underline"
-        >
-          + Agregar acompañante
-        </button>
+        atLimit ? (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {maxCompanions > 0
+              ? `Alcanzaste el máximo de acompañantes permitidos para este evento (${maxCompanions}).`
+              : 'Este evento no permite acompañantes.'}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={addCompanion}
+            className="text-xs text-primary font-medium hover:underline"
+          >
+            + Agregar acompañante
+          </button>
+        )
       )}
       {companions.map((companion, index) => (
         <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-gray-50 dark:bg-gray-700/50 rounded-md p-2">

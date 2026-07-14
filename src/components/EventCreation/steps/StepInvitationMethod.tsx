@@ -1,6 +1,7 @@
 import { EntryModeSelector } from '../EntryModeSelector'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/paymentMethods'
 import { sanitizeDecimalInput } from '../../../utils/validationRules'
+import { GUEST_MAX_COMPANIONS } from '../../../utils/validation'
 import type { EntryMode, PaymentMethod } from '../../../types'
 
 function capacityHint(cap: string): string {
@@ -17,6 +18,8 @@ interface StepInvitationMethodProps {
   onEntryModeChange: (mode: EntryMode) => void
   capacity: string
   onCapacityChange: (value: string) => void
+  maxCompanions: string
+  onMaxCompanionsChange: (value: string) => void
   requiresPayment: boolean
   onRequiresPaymentChange: (value: boolean) => void
   paymentMethods: PaymentMethod[]
@@ -36,6 +39,8 @@ export function StepInvitationMethod({
   onEntryModeChange,
   capacity,
   onCapacityChange,
+  maxCompanions,
+  onMaxCompanionsChange,
   requiresPayment,
   onRequiresPaymentChange,
   paymentMethods,
@@ -101,6 +106,26 @@ export function StepInvitationMethod({
         <p className="text-xs text-gray-400 mt-1">
           Es una capacidad recomendada, no un límite estricto: si se supera, los nuevos invitados igual pueden
           registrarse.
+        </p>
+      </div>
+
+      {/* Acompañantes por invitado */}
+      <div className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+        <label htmlFor="event-max-companions" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+          Acompañantes por invitado
+        </label>
+        <input
+          id="event-max-companions"
+          type="number"
+          min="0"
+          max={GUEST_MAX_COMPANIONS}
+          value={maxCompanions}
+          onChange={(e) => onMaxCompanionsChange(e.target.value)}
+          className="w-24 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-center font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        <p className="text-xs text-gray-400 mt-2">
+          Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten
+          acompañantes. No aplica a "Familia o grupo", que tiene su propio límite de integrantes.
         </p>
       </div>
 

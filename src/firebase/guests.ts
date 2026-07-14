@@ -17,19 +17,31 @@ import {
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
-import type { CompanionData, CustomField, GuestData, PaymentMethod, RsvpStatus } from '../types'
+import type { CompanionData, CustomField, EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { GuestSchema, warnIfInvalidShape } from '../types/schemas'
 import {
   GUEST_CUSTOM_FIELD_MAX_COUNT,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_EMAIL_MAX,
   GUEST_FULL_NAME_MAX,
+  GUEST_MAX_COMPANIONS,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
   requireMaxLength,
   requireNonEmpty,
   requireValidEmail,
 } from '../utils/validation'
+
+// Única fuente de verdad para "cuántos acompañantes puede sumar UN invitado
+// individual" en este evento (ver EventData.maxCompanions) — clampea a
+// [0, GUEST_MAX_COMPANIONS] y trata "ausente" (evento de antes de este
+// campo) igual que "0 explícito", nunca como "sin límite". NO aplica a
+// invitados `isGroup: true` ("familia o grupo"), que sigue gobernado por su
+// propio tope GUEST_GROUP_MAX_MEMBERS — quien llama a esta función decide
+// si corresponde chequearla para el invitado puntual que está creando/editando.
+export function resolveMaxCompanions(event: Pick<EventData, 'maxCompanions'>): number {
+  return Math.min(Math.max(event.maxCompanions ?? 0, 0), GUEST_MAX_COMPANIONS)
+}
 
 export interface NewGuestInput {
   name: string
@@ -101,7 +113,13 @@ function contactRef(eventId: string, guestId: string) {
 
 // Registro nunca se bloquea por cupo (capacity es puramente informativo, ver
 // EventData.capacity) — el invitado siempre se crea.
-export async function addGuest(eventId: string, input: NewGuestInput): Promise<{ id: string }> {
+//
+// `maxCompanions` es el límite YA RESUELTO para este evento (ver
+// resolveMaxCompanions) — no se recibe el evento completo para no acoplar
+// esta función a EventData por un solo campo. No aplica si `input.isGroup`
+// (familia o grupo, gobernado por GUEST_GROUP_MAX_MEMBERS en la UI, no por
+// este límite — ver EventData.maxCompanions).
+export async function addGuest(eventId: string, input: NewGuestInput, maxCompanions: number): Promise<{ id: string }> {
   const name = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
   const lastName = input.lastName
     ? requireMaxLength(input.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
@@ -109,6 +127,13 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<{
   const phone = input.phone ? requireMaxLength(input.phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
   for (const value of Object.values(input.customData || {})) {
     requireMaxLength(value, GUEST_CUSTOM_FIELD_VALUE_MAX, 'Uno de los campos personalizados')
+  }
+  if (!input.isGroup && (input.companions?.length || 0) > maxCompanions) {
+    throw new Error(
+      maxCompanions > 0
+        ? `Este evento permite hasta ${maxCompanions} acompañante${maxCompanions === 1 ? '' : 's'} por invitado.`
+        : 'Este evento no permite acompañantes.',
+    )
   }
 
   return measureSpan('firestore.addGuest', 'db.firestore', async () => {
@@ -220,7 +245,13 @@ export interface UpdateGuestInput {
   customData?: Record<string, string>
 }
 
-export async function updateGuest(eventId: string, guestId: string, input: UpdateGuestInput) {
+// `maxCompanions` es el límite YA RESUELTO para este evento (ver
+// resolveMaxCompanions) — solo se valida contra él cuando `companions`
+// cambia de largo Y el invitado no es una familia/grupo (`isGroup`, que se
+// lee del documento existente dentro de la transacción, no de `input`: esta
+// función no distingue de antemano si el invitado que está editando es un
+// grupo o no).
+export async function updateGuest(eventId: string, guestId: string, input: UpdateGuestInput, maxCompanions: number) {
   const { phone, ...guestFields } = input
 
   // Si `companions` cambia de largo (acompañantes agregados/quitados, o
@@ -238,6 +269,19 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
       const existing = mapGuest(snap.id, snap.data())
       const before = partySize(existing)
       const after = 1 + guestFields.companions!.length
+      // Grandfathering: si el invitado ya tenía más acompañantes que el
+      // límite actual (evento cargado antes de configurarlo, o el
+      // organizador lo bajó después), se sigue permitiendo guardar mientras
+      // no AUMENTE el conteo — solo se bloquea sumar más allá del límite.
+      // Mismo criterio que companionsWithinLimit en firestore.rules.
+      if (!existing.isGroup && guestFields.companions!.length > maxCompanions
+        && guestFields.companions!.length > existing.companions.length) {
+        throw new Error(
+          maxCompanions > 0
+            ? `Este evento permite hasta ${maxCompanions} acompañante${maxCompanions === 1 ? '' : 's'} por invitado.`
+            : 'Este evento no permite acompañantes.',
+        )
+      }
       transaction.update(guestRef, { ...guestFields })
       if (phone !== undefined) {
         transaction.set(contactRef(eventId, guestId), { phone }, { merge: true })
@@ -369,11 +413,12 @@ export async function deleteGuest(
   await batch.commit()
 }
 
-// El organizador necesita el teléfono junto con el resto del invitado (lista,
-// CSV), pero ese campo vive en `guestContacts` (ver buildNewGuestPayload). Se
-// suscribe a ambas colecciones y se fusionan por id antes de emitir, así el
-// resto de la app sigue recibiendo el mismo `GuestData[]` de siempre sin saber
-// que los datos vienen de dos lugares.
+// El organizador necesita el teléfono (y, si existe, el email) junto con el
+// resto del invitado (lista, exportación), pero esos campos viven en
+// `guestContacts` (ver buildNewGuestPayload). Se suscribe a ambas colecciones
+// y se fusionan por id antes de emitir, así el resto de la app sigue
+// recibiendo el mismo `GuestData[]` de siempre sin saber que los datos vienen
+// de dos lugares.
 //
 // TODO Fase 4+: ambas queries son sin `limit()` — en un evento de miles de
 // invitados, cada organizador/co-organizador con el dashboard abierto
@@ -395,7 +440,7 @@ export function subscribeToGuests(
   onError?: (error: Error) => void,
 ): Unsubscribe {
   let baseGuests: GuestData[] | null = null
-  let contacts: Record<string, { phone: string }> | null = null
+  let contacts: Record<string, { phone: string; email: string }> | null = null
 
   function emitIfReady() {
     if (baseGuests === null || contacts === null) return
@@ -403,6 +448,7 @@ export function subscribeToGuests(
       baseGuests.map((g) => ({
         ...g,
         phone: contacts![g.id]?.phone || g.phone,
+        email: contacts![g.id]?.email || g.email,
       })),
     )
   }
@@ -422,7 +468,7 @@ export function subscribeToGuests(
     (snapshot) => {
       contacts = {}
       snapshot.docs.forEach((d) => {
-        contacts![d.id] = { phone: (d.data().phone as string) || '' }
+        contacts![d.id] = { phone: (d.data().phone as string) || '', email: (d.data().email as string) || '' }
       })
       emitIfReady()
     },

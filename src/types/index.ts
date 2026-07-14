@@ -85,6 +85,17 @@ export interface EventData {
   mapsUrl?: string
   entryMode: EntryMode
   capacity: number
+  // Tope de acompañantes que puede sumar UN invitado individual (autoregistro
+  // público o alta/edición manual del organizador) — ver GUEST_MAX_COMPANIONS
+  // en utils/validation.ts (techo 20) y resolveMaxCompanions en
+  // firebase/guests.ts (única fuente de verdad del valor efectivo). Ausente
+  // en eventos de antes de este campo: se resuelve a 0 (sin acompañantes),
+  // no a "sin límite" — pedido explícito para no dejar overselling
+  // silencioso en eventos ya creados. NO aplica a invitados `isGroup: true`
+  // ("familia o grupo"), que sigue gobernado por su propio tope
+  // GUEST_GROUP_MAX_MEMBERS — es una herramienta de alta masiva distinta, ya
+  // confiada al organizador.
+  maxCompanions?: number
   customFields?: CustomField[]
   requiresPayment: boolean
   // Métodos de cobro activos cuando requiresPayment es true — puede incluir
@@ -223,6 +234,12 @@ export interface GuestData {
   name: string
   lastName?: string
   phone?: string
+  // Al igual que `phone`, vive en `guestContacts/{guestId}` (no en el
+  // documento público del invitado) y se fusiona en subscribeToGuests —
+  // presente solo para autoregistro e invitados importados por CSV, que son
+  // los únicos flujos que hoy capturan email (ver buildNewGuestPayload/
+  // registerWalkInGuest en src/firebase/guests.ts y capacity.ts).
+  email?: string
   qrToken: string
   status: GuestStatus
   companions: CompanionData[]

@@ -17,7 +17,14 @@ import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
 import { compareEventsByRelevance } from '../utils/time'
+import { GUEST_MAX_COMPANIONS } from '../utils/validation'
 import type { CustomField, EntryMode, EventData, EventStatus, PaymentMethod, TemplateId, TimelineEntry } from '../types'
+
+// Clampea a [0, GUEST_MAX_COMPANIONS] — defensa además de la validación de
+// UI (EventCreate/EditEventForm) y de firestore.rules (isValidMaxCompanions).
+function clampMaxCompanions(value: number | undefined): number {
+  return Math.min(Math.max(Math.trunc(value ?? 0), 0), GUEST_MAX_COMPANIONS)
+}
 import { EventSchema, warnIfInvalidShape } from '../types/schemas'
 import { LEGACY_COORG_DEFAULTS, type CoOrganizerPermissions } from '../types/coOrganizerPermissions'
 
@@ -36,6 +43,7 @@ export interface NewEventInput {
   mapsUrl?: string
   entryMode?: EntryMode
   capacity: number
+  maxCompanions?: number
   customFields?: CustomField[]
   requiresPayment?: boolean
   paymentMethods?: PaymentMethod[]
@@ -63,6 +71,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     mapsUrl: input.mapsUrl || '',
     entryMode: input.entryMode || 'list',
     capacity: input.capacity,
+    maxCompanions: clampMaxCompanions(input.maxCompanions),
     customFields: input.customFields || [],
     requiresPayment: input.requiresPayment || false,
     paymentMethods: input.requiresPayment ? input.paymentMethods || [] : [],
@@ -176,6 +185,7 @@ export interface UpdateEventInput {
   mapsUrl?: string
   entryMode?: EntryMode
   capacity: number
+  maxCompanions?: number
   customFields?: CustomField[]
   requiresPayment?: boolean
   paymentMethods?: PaymentMethod[]
@@ -202,6 +212,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     mapsUrl: input.mapsUrl ?? '',
     entryMode: input.entryMode || 'list',
     capacity: input.capacity,
+    maxCompanions: clampMaxCompanions(input.maxCompanions),
     customFields: input.customFields || [],
     requiresPayment: input.requiresPayment || false,
     paymentMethods: input.requiresPayment ? input.paymentMethods || [] : [],
@@ -355,6 +366,11 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     mapsUrl: (data.mapsUrl as string) || '',
     entryMode: (data.entryMode as EntryMode) || 'list',
     capacity: (data.capacity as number) || 0,
+    // Sin default a 0 acá (a diferencia de la mayoría de campos de este
+    // mapper): "ausente" (evento de antes de este campo) y "0 explícito"
+    // deben distinguirse solo si algún día hace falta — hoy da lo mismo,
+    // porque resolveMaxCompanions (firebase/guests.ts) trata ambos como 0.
+    maxCompanions: typeof data.maxCompanions === 'number' ? data.maxCompanions : undefined,
     customFields: (data.customFields as CustomField[]) || [],
     requiresPayment: (data.requiresPayment as boolean) || false,
     // Eventos creados antes de este campo (con requiresPayment ya activado)

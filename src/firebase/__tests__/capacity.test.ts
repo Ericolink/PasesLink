@@ -115,8 +115,8 @@ describe('capacity.ts', () => {
     expect(event?.guestCount).toBe(1)
   })
 
-  it('should increment peopleCount by the party size on registerWalkInGuest', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0 })
+  it('should increment peopleCount by the party size on registerWalkInGuest, clamped to the event maxCompanions', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0, maxCompanions: 5 })
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
     const result = await registerWalkInGuest(EVENT_ID, 'Invitado Con Acompañantes', undefined, undefined, undefined, 4)
@@ -125,6 +125,29 @@ describe('capacity.ts', () => {
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.guestCount).toBe(1)
     expect(event?.peopleCount).toBe(4)
+  })
+
+  it('should clamp the requested party size down to the event maxCompanions instead of registering it as-is', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0, maxCompanions: 2 })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Con Muchos Acompañantes', undefined, undefined, undefined, 8)
+
+    expect(result.status).toBe('success')
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    // maxCompanions: 2 -> party size máximo 3 (invitado + 2 acompañantes), no los 8 pedidos.
+    expect(event?.peopleCount).toBe(3)
+  })
+
+  it('should default to no companions (party size 1) when the event has no maxCompanions configured (legacy)', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0 })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Sin Límite Configurado', undefined, undefined, undefined, 4)
+
+    expect(result.status).toBe('success')
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.peopleCount).toBe(1)
   })
 
   it('should register by transfer without any hold/expiry (no more apartado temporal)', async () => {

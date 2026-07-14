@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, updateDoc } from 'firebase/firestore'
+import { doc, setDoc, updateDoc } from 'firebase/firestore'
 import { createTestEnv, getEventDoc, getGuestContactDoc, getGuestDoc, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
 
 // Mismo mock que capacity.test.ts: redirige el `db` singleton de guests.ts/capacity.ts
@@ -327,11 +327,11 @@ describe('guests.ts', () => {
   })
 
   it('should adjust paidCount when updateGuest changes the companions count of an already-paid guest', async () => {
-    await seedEvent(testEnv, EVENT_ID, { peopleCount: 4, paidCount: 4 })
+    await seedEvent(testEnv, EVENT_ID, { peopleCount: 4, paidCount: 4, maxCompanions: 20 })
     await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid', companions: [{}, {}, {}] })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-    await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}, {}, {}, {}] })
+    await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}, {}, {}, {}] }, 20)
 
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.peopleCount).toBe(6)
@@ -364,11 +364,13 @@ describe('guests.ts', () => {
     await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
+    // maxCompanions: 0 a propósito — isGroup: true debe bypassear el límite
+    // por completo, tanto en la capa de aplicación como en firestore.rules.
     const result = await addGuest(EVENT_ID, {
       name: 'Familia Muñoz',
       companions: [{}, {}, {}],
       isGroup: true,
-    })
+    }, 0)
 
     expect(result.id).toBeTruthy()
     const event = await getEventDoc(testEnv, EVENT_ID)
@@ -392,7 +394,7 @@ describe('guests.ts', () => {
     })
     dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
 
-    const result = await addGuest(EVENT_ID, { name: 'Juan', lastName: 'Pérez', phone: '11-2222-3333' })
+    const result = await addGuest(EVENT_ID, { name: 'Juan', lastName: 'Pérez', phone: '11-2222-3333' }, 0)
 
     const contact = await getGuestContactDoc(testEnv, EVENT_ID, result.id)
     expect(contact?.phone).toBe('11-2222-3333')
@@ -573,14 +575,123 @@ describe('guests.ts', () => {
   })
 
   it('should adjust peopleCount when updateGuest changes the companions count', async () => {
-    await seedEvent(testEnv, EVENT_ID, { peopleCount: 4 })
+    await seedEvent(testEnv, EVENT_ID, { peopleCount: 4, maxCompanions: 20 })
     await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-    await updateGuest(EVENT_ID, GUEST_ID, { name: 'Familia Muñoz', companions: [{}, {}, {}, {}, {}] })
+    await updateGuest(EVENT_ID, GUEST_ID, { name: 'Familia Muñoz', companions: [{}, {}, {}, {}, {}] }, 20)
 
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.peopleCount).toBe(6)
+  })
+
+  describe('maxCompanions (tope de acompañantes por invitado)', () => {
+    it('should allow addGuest with exactly the configured limit of companions', async () => {
+      await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0, maxCompanions: 2 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const result = await addGuest(EVENT_ID, { name: 'Ana', companions: [{}, {}] }, 2)
+
+      expect(result.id).toBeTruthy()
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.peopleCount).toBe(3)
+    })
+
+    it('should reject addGuest with more companions than the configured limit (app layer)', async () => {
+      await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0, maxCompanions: 1 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await expect(
+        addGuest(EVENT_ID, { name: 'Ana', companions: [{}, {}] }, 1),
+      ).rejects.toThrow()
+    })
+
+    it('should reject a direct write exceeding the limit, bypassing the app function (rules layer)', async () => {
+      await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0, maxCompanions: 1 })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertFails(
+        setDoc(doc(ownerDb, 'events', EVENT_ID, 'guests', 'new-guest'), {
+          name: 'Ana',
+          lastName: '',
+          companions: [{}, {}],
+          isGroup: false,
+          customData: {},
+          rsvpStatus: 'pending',
+          qrToken: 'qr-new',
+          status: 'invited',
+          checkedInAt: null,
+          checkedInBy: null,
+          checkedInByEmail: null,
+          checkedOutAt: null,
+          checkedOutByEmail: null,
+          exitType: null,
+          lockToken: null,
+          paymentStatus: 'unpaid',
+          paymentMethod: null,
+          createdAt: Date.now(),
+        }),
+      )
+    })
+
+    it('should reject updateGuest increasing companions past the configured limit', async () => {
+      await seedEvent(testEnv, EVENT_ID, { peopleCount: 1, maxCompanions: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [] })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await expect(
+        updateGuest(EVENT_ID, GUEST_ID, { companions: [{}] }, 0),
+      ).rejects.toThrow()
+    })
+
+    it('should let addGuest bypass the limit for a group (isGroup: true)', async () => {
+      await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0, maxCompanions: 0 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const result = await addGuest(EVENT_ID, {
+        name: 'Familia Grande',
+        companions: [{}, {}, {}, {}],
+        isGroup: true,
+      }, 0)
+
+      expect(result.id).toBeTruthy()
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.peopleCount).toBe(5)
+    })
+
+    it('should grandfather a legacy guest already over the limit: editing other fields without increasing companions still works', async () => {
+      await seedEvent(testEnv, EVENT_ID, { peopleCount: 4, maxCompanions: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Nombre editado' }, 0)
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.name).toBe('Nombre editado')
+      expect(guest?.companions).toHaveLength(3)
+    })
+
+    it('should grandfather a legacy guest already over the limit: reducing companions (but not increasing) still works', async () => {
+      await seedEvent(testEnv, EVENT_ID, { peopleCount: 4, maxCompanions: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}] }, 0)
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.companions).toHaveLength(2)
+    })
+
+    it('should treat an event without maxCompanions configured as limit 0 (legacy default)', async () => {
+      // Sin `maxCompanions` en absoluto (evento de antes de este campo) —
+      // debe comportarse igual que maxCompanions: 0, no como "sin límite".
+      await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await expect(
+        addGuest(EVENT_ID, { name: 'Ana', companions: [{}] }, 0),
+      ).rejects.toThrow()
+    })
   })
 
   describe('confirmPaymentAndCheckIn (botón "Sí, ya pagó" del escáner)', () => {
@@ -859,7 +970,7 @@ describe('guests.ts', () => {
       await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: 'device-a' })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Editado por organizador' })
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Editado por organizador' }, 0)
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
       expect(guest?.name).toBe('Editado por organizador')

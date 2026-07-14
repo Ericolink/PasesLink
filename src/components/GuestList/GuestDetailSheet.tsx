@@ -80,6 +80,7 @@ export function GuestDetailSheet({
   ticketPrice,
   currency,
   customFields = [],
+  maxCompanions,
   copiedId,
   canEditGuests = true,
   canConfirmPayments = true,
@@ -100,6 +101,7 @@ export function GuestDetailSheet({
   ticketPrice: number
   currency: string
   customFields?: CustomField[]
+  maxCompanions: number
   copiedId: string | null
   // Defaults en `true` para no romper a ningún caller que todavía no pasa
   // estos props (mismo criterio de compatibilidad que el resto de esta
@@ -156,7 +158,7 @@ export function GuestDetailSheet({
 
         <div className="px-5 py-4 overflow-y-auto space-y-5">
           {editing ? (
-            <GuestEditForm eventId={eventId} guest={guest} customFields={customFields} onDone={() => setEditing(false)} />
+            <GuestEditForm eventId={eventId} guest={guest} customFields={customFields} maxCompanions={maxCompanions} onDone={() => setEditing(false)} />
           ) : (
             <>
               <section className="space-y-2">

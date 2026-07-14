@@ -68,8 +68,15 @@ export function EventDetail() {
   const [leaving, setLeaving] = useState(false)
   const [checkinToast, dismissCheckinToast] = useCheckinToast(eventId)
   const hasUnseenWallMessage = useHasUnseenWallMessage(eventId)
-  const { exporting, exportProgress, exportPdfError, handleExportPdf, handleCancelExportPdf, handleExportCsv } =
-    useEventExport(event, guests)
+  const {
+    exporting,
+    exportProgress,
+    exportPdfError,
+    exportExcelError,
+    handleExportPdf,
+    handleExportExcel,
+    handleCancelExport,
+  } = useEventExport(event, guests)
   const {
     coOrgEmail,
     setCoOrgEmail,
@@ -502,7 +509,7 @@ export function EventDetail() {
             teléfono, por ejemplo). */}
         {perms.addGuests && (
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
-            <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} />
+            <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} maxCompanions={event.maxCompanions ?? 0} />
           </div>
         )}
 
@@ -517,32 +524,34 @@ export function EventDetail() {
             </h2>
             {perms.exportLists && (
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleExportCsv}
-                  disabled={guests.length === 0}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
-                >
-                  CSV
-                </button>
-                <span className="text-gray-200 dark:text-gray-600 select-none">|</span>
                 {exporting ? (
-                  <button onClick={handleCancelExportPdf} className="text-xs text-red-500 font-medium hover:underline">
+                  <button onClick={handleCancelExport} className="text-xs text-red-500 font-medium hover:underline">
                     Cancelar {exportProgress ? `(${exportProgress.done}/${exportProgress.total})` : ''}
                   </button>
                 ) : (
-                  <button
-                    onClick={handleExportPdf}
-                    disabled={guests.length === 0}
-                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
-                  >
-                    PDF
-                  </button>
+                  <>
+                    <button
+                      onClick={handleExportExcel}
+                      disabled={guests.length === 0}
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
+                    >
+                      Excel
+                    </button>
+                    <span className="text-gray-200 dark:text-gray-600 select-none">|</span>
+                    <button
+                      onClick={handleExportPdf}
+                      disabled={guests.length === 0}
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
+                    >
+                      PDF
+                    </button>
+                  </>
                 )}
               </div>
             )}
           </div>
 
-          {/* Barra de progreso de exportación PDF */}
+          {/* Barra de progreso de exportación Excel/PDF */}
           {exporting && exportProgress && exportProgress.total > 0 && (
             <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden mb-3">
               <div
@@ -551,7 +560,9 @@ export function EventDetail() {
               />
             </div>
           )}
-          {exportPdfError && <p className="text-xs text-red-500 mb-3">{exportPdfError}</p>}
+          {(exportPdfError || exportExcelError) && (
+            <p className="text-xs text-red-500 mb-3">{exportPdfError || exportExcelError}</p>
+          )}
 
           {/* Buscar y filtrar: un solo control abre el sheet con el input y
               los dos filtros que antes ocupaban tres filas separadas. */}
@@ -581,6 +592,7 @@ export function EventDetail() {
             ticketPrice={event.ticketPrice}
             currency={event.currency}
             customFields={event.customFields}
+            maxCompanions={event.maxCompanions ?? 0}
             hasActiveFilters={Boolean(search.trim()) || statusFilter !== 'all'}
             hasSearchText={Boolean(search.trim())}
             canEditGuests={perms.editGuests}

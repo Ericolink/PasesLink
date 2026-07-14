@@ -6,7 +6,7 @@ import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useFormDraft } from '../hooks/useFormDraft'
 import { isNetworkError } from '../utils/network'
 import { isEventPast } from '../utils/time'
-import { parseCapacity } from '../utils/validationRules'
+import { parseCapacity, parseMaxCompanions } from '../utils/validationRules'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal'
@@ -35,6 +35,7 @@ interface EventDraftFields {
   mapsUrl: string
   entryMode: EntryMode
   capacity: string
+  maxCompanions: string
   customFields: CustomField[]
   requiresPayment: boolean
   paymentMethods: PaymentMethod[]
@@ -92,6 +93,7 @@ export function EventCreate() {
   const [mapsUrl, setMapsUrl] = useState('')
   const [entryMode, setEntryMode] = useState<EntryMode>('list')
   const [capacity, setCapacity] = useState('100')
+  const [maxCompanions, setMaxCompanions] = useState('0')
   const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [requiresPayment, setRequiresPayment] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(['transfer'])
@@ -137,6 +139,7 @@ export function EventCreate() {
     setMapsUrl(fields.mapsUrl)
     setEntryMode(fields.entryMode)
     setCapacity(fields.capacity || '100')
+    setMaxCompanions(fields.maxCompanions ?? '0')
     setCustomFields(fields.customFields)
     setRequiresPayment(fields.requiresPayment)
     setPaymentMethods(fields.paymentMethods?.length ? fields.paymentMethods : ['transfer'])
@@ -161,14 +164,14 @@ export function EventCreate() {
       if (!hasContent) return
       saveDraft({
         name, date, startTime, endTime, location, description, dressCode, templateId, accentColor,
-        welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment, paymentMethods,
+        welcomeMessage, mapsUrl, entryMode, capacity, maxCompanions, customFields, requiresPayment, paymentMethods,
         ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
       })
     }, DRAFT_SAVE_DEBOUNCE_MS)
     return () => clearTimeout(id)
   }, [
     draftKey, pendingDraft, name, date, startTime, endTime, location, description, dressCode, templateId,
-    accentColor, welcomeMessage, mapsUrl, entryMode, capacity, customFields, requiresPayment, paymentMethods,
+    accentColor, welcomeMessage, mapsUrl, entryMode, capacity, maxCompanions, customFields, requiresPayment, paymentMethods,
     ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline, saveDraft,
   ])
 
@@ -178,6 +181,8 @@ export function EventCreate() {
     if (s === 2) {
       const { error: capErr } = parseCapacity(capacity)
       if (capErr) return false
+      const { error: companionsErr } = parseMaxCompanions(maxCompanions)
+      if (companionsErr) return false
       if (requiresPayment) return paymentMethods.length > 0 && parseFloat(ticketPrice) > 0
       return true
     }
@@ -236,6 +241,11 @@ export function EventCreate() {
       setError(capacityError)
       return
     }
+    const { value: parsedMaxCompanions, error: maxCompanionsError } = parseMaxCompanions(maxCompanions)
+    if (maxCompanionsError) {
+      setError(maxCompanionsError)
+      return
+    }
     setLoading(true)
     try {
       const eventId = await createEvent(user.uid, {
@@ -253,6 +263,7 @@ export function EventCreate() {
         mapsUrl: mapsUrl.trim() || undefined,
         entryMode,
         capacity: parsedCapacity,
+        maxCompanions: parsedMaxCompanions,
         customFields,
         requiresPayment,
         paymentMethods: requiresPayment ? paymentMethods : [],
@@ -374,6 +385,8 @@ export function EventCreate() {
             onEntryModeChange={setEntryMode}
             capacity={capacity}
             onCapacityChange={setCapacity}
+            maxCompanions={maxCompanions}
+            onMaxCompanionsChange={setMaxCompanions}
             requiresPayment={requiresPayment}
             onRequiresPaymentChange={setRequiresPayment}
             paymentMethods={paymentMethods}

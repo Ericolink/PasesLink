@@ -9,11 +9,13 @@ export function EditGuestRow({
   eventId,
   guest,
   customFields = [],
+  maxCompanions,
   onDone,
 }: {
   eventId: string
   guest: GuestData
   customFields?: CustomField[]
+  maxCompanions: number
   onDone: () => void
 }) {
   const [name, setName] = useState(guest.name)
@@ -36,7 +38,7 @@ export function EditGuestRow({
         phone: phone.trim(),
         companions,
         customData: customValues,
-      })
+      }, maxCompanions)
       onDone()
     } catch (err) {
       console.error('Error updating guest:', err)
@@ -73,7 +75,7 @@ export function EditGuestRow({
           className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="Teléfono"
         />
-        <CompanionFieldsEditor companions={companions} onChange={setCompanions} />
+        <CompanionFieldsEditor companions={companions} onChange={setCompanions} maxCompanions={maxCompanions} />
         <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />
         <div className="flex gap-2">
           <button
@@ -130,7 +132,11 @@ export function EditGroupRow({
         { length: targetCompanionCount },
         (_, i) => guest.companions[i] || {},
       )
-      await updateGuest(eventId, guest.id, { name: name.trim(), companions, customData: customValues })
+      // maxCompanions no aplica a un grupo (isGroup: true) — updateGuest lo
+      // bypassea leyendo isGroup del documento existente, así que el valor
+      // que se pasa acá es irrelevante; GUEST_GROUP_MAX_MEMBERS ya limita
+      // memberCount arriba.
+      await updateGuest(eventId, guest.id, { name: name.trim(), companions, customData: customValues }, 0)
       onDone()
     } catch (err) {
       console.error('Error updating group:', err)
@@ -190,16 +196,18 @@ export function GuestEditForm({
   eventId,
   guest,
   customFields = [],
+  maxCompanions,
   onDone,
 }: {
   eventId: string
   guest: GuestData
   customFields?: CustomField[]
+  maxCompanions: number
   onDone: () => void
 }) {
   return guest.isGroup ? (
     <EditGroupRow eventId={eventId} guest={guest} customFields={customFields} onDone={onDone} />
   ) : (
-    <EditGuestRow eventId={eventId} guest={guest} customFields={customFields} onDone={onDone} />
+    <EditGuestRow eventId={eventId} guest={guest} customFields={customFields} maxCompanions={maxCompanions} onDone={onDone} />
   )
 }

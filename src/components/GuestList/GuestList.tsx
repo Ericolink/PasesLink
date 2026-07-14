@@ -103,6 +103,7 @@ export const GuestList = memo(function GuestList({
   ticketPrice = 0,
   currency = '',
   customFields = [],
+  maxCompanions = 0,
   hasActiveFilters = false,
   hasSearchText = false,
   // Defaults en `true`: sin permisos granulares (dueño, o co-organizador
@@ -119,6 +120,7 @@ export const GuestList = memo(function GuestList({
   ticketPrice?: number
   currency?: string
   customFields?: CustomField[]
+  maxCompanions?: number
   // true cuando `guests` ya viene reducido por búsqueda/filtro de estado (no
   // por el orden, que nunca produce cero resultados) — distingue "todavía no
   // hay invitados" de "ninguno coincide con lo que buscás", que antes
@@ -366,6 +368,7 @@ export const GuestList = memo(function GuestList({
         ticketPrice={ticketPrice}
         currency={currency}
         customFields={customFields}
+        maxCompanions={maxCompanions}
         copiedId={copiedId}
         canEditGuests={canEditGuests}
         canConfirmPayments={canConfirmPayments}

@@ -98,6 +98,17 @@ service cloud.firestore {
       return !d.requiresPayment || (d.ticketPrice is number && d.ticketPrice > 0);
     }
 
+    // EventData.maxCompanions (StepInvitationMethod/EditEventForm): tope de
+    // acompañantes por invitado individual, 0-20 — debe coincidir con
+    // GUEST_MAX_COMPANIONS en src/utils/validation.ts. Mismo criterio que
+    // isValidEventPricing: solo se valida en `create`, en `update` el dueño
+    // ya tiene control total sobre su propio evento.
+    function isValidMaxCompanions() {
+      let d = request.resource.data;
+      return !('maxCompanions' in d)
+        || (d.maxCompanions is number && d.maxCompanions >= 0 && d.maxCompanions <= 20);
+    }
+
     // Valida el delta de un contador de "gente adentro" (checkedInCount /
     // occupancyCount): sin cambios, o +-1..50 en cualquier dirección —
     // walkIn/walkOut mueven de a 1 (Opción A/C, sin acompañantes), mientras
@@ -206,7 +217,7 @@ service cloud.firestore {
     // Rules trata como error, no como null). Queda como defensa en
     // profundidad: nadie, ni hablando directo contra Firestore, puede
     // fabricarse un cronómetro que ya no existe en la app.
-    function isValidPublicGuestRegistration() {
+    function isValidPublicGuestRegistration(eventId) {
       let d = request.resource.data;
       return d.name is string && d.name.size() > 0 && d.name.size() <= 121
         && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30))
@@ -217,6 +228,7 @@ service cloud.firestore {
         && d.paymentStatus == 'unpaid'
         && d.paymentMethod in [null, 'transfer', 'cash']
         && d.holdExpiresAt == null
+        && companionsWithinLimit(eventId, d, false)
         && (
           // guestUid/guestPhotoURL: src/firebase/capacity.ts los escribe SIEMPRE
           // en el auto-registro (null si no hay sesión). Sin esta validación, un
@@ -244,19 +256,50 @@ service cloud.firestore {
         && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30));
     }
 
-    // Tamaño de `companions` ANTES de esta escritura, sea cual sea su
+    // Tamaño de `companions` de un documento dado (`d`), sea cual sea su
     // representación actual: array (organizador, o cualquier invitado que ya
     // haya editado su información una vez) o número legado (autoregistro
     // público vía registerWalkInGuest/capacity.ts, que nunca escribe un
     // array — ver normalizeCompanions() en src/firebase/guests.ts, misma
-    // traducción del lado cliente). Sin esto, resource.data.companions.size()
-    // lanzaría un error de tipo para todo invitado autoregistrado en un
-    // evento open/hybrid, bloqueando el self-edit justo para el público que
-    // más lo necesita.
+    // traducción del lado cliente). Reutilizada tanto para el doc VIEJO
+    // (resource.data, ver companionsCountBefore) como para el NUEVO
+    // (request.resource.data, ver companionsWithinLimit).
+    function companionsCountOf(d) {
+      return d.companions is list
+        ? d.companions.size()
+        : (d.companions is number ? d.companions : 0);
+    }
+
+    // Tamaño de `companions` ANTES de esta escritura. Sin esto,
+    // resource.data.companions.size() lanzaría un error de tipo para todo
+    // invitado autoregistrado en un evento open/hybrid, bloqueando el
+    // self-edit justo para el público que más lo necesita.
     function companionsCountBefore() {
-      return resource.data.companions is list
-        ? resource.data.companions.size()
-        : (resource.data.companions is number ? resource.data.companions : 0);
+      return companionsCountOf(resource.data);
+    }
+
+    // Tope de acompañantes configurado por el organizador para este evento
+    // (EventData.maxCompanions, default 0 — ver isValidMaxCompanions). NO
+    // aplica a invitados `isGroup: true` ("familia o grupo"), que sigue
+    // gobernado por su propio tope GUEST_GROUP_MAX_MEMBERS (solo en el
+    // cliente, es una herramienta de alta masiva ya confiada al organizador).
+    function eventMaxCompanions(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)).data.get('maxCompanions', 0);
+    }
+
+    // `d` es el documento NUEVO (request.resource.data) que se está
+    // creando/actualizando. `allowGrandfathered` (literal true/false en cada
+    // call site, nunca una expresión que dependa de `resource`) habilita
+    // tolerar un valor por ENCIMA del límite si no lo está AUMENTANDO
+    // respecto del documento viejo — así un invitado cargado antes de
+    // configurar este límite (o antes de que existiera el campo) se puede
+    // seguir editando/guardando sin recortarlo a la fuerza; solo se bloquea
+    // sumar más acompañantes por encima del tope. En `create` no hay
+    // documento viejo, así que ese caso siempre pasa `false`.
+    function companionsWithinLimit(eventId, d, allowGrandfathered) {
+      return d.get('isGroup', false) == true
+        || companionsCountOf(d) <= eventMaxCompanions(eventId)
+        || (allowGrandfathered && companionsCountOf(d) <= companionsCountBefore());
     }
 
     // Auto-edición del propio invitado desde su pase (GuestPass, "Editar mis
@@ -501,7 +544,7 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if true;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId
-        && isValidEventPricing();
+        && isValidEventPricing() && isValidMaxCompanions();
       allow update: if isOwnerData(resource.data) || isAdmin()
         // Check-in/checkout individual o contador walk-in (Opciones A y C): solo
         // quien tiene el permiso `scanQr` (dueño siempre lo tiene vía canDo),
@@ -609,8 +652,9 @@ service cloud.firestore {
       match /guests/{guestId} {
         allow read: if canDo(eventId, 'viewGuestList', true) || isAdmin();
         allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin();
-        allow create: if canDo(eventId, 'addGuests', true) || isAdmin()
-          || (isOpenEvent(eventId) && isValidPublicGuestRegistration());
+        allow create: if (canDo(eventId, 'addGuests', true) && companionsWithinLimit(eventId, request.resource.data, false))
+          || isAdmin()
+          || (isOpenEvent(eventId) && isValidPublicGuestRegistration(eventId));
         allow list: if request.query.limit <= 1;
         allow get: if true;
         // Rama del organizador: updateGuest (nombre/apellido/companions/
@@ -619,8 +663,14 @@ service cloud.firestore {
         // confirmar pago sí quedan acotados a sus campos exactos, para que
         // un co-organizador con SOLO scanQr (sin editGuests) pueda escanear,
         // y uno con SOLO confirmPayments pueda aprobar pagos, sin heredar
-        // acceso al resto del invitado.
-        allow update: if canDo(eventId, 'editGuests', true) || isAdmin() ||
+        // acceso al resto del invitado. companionsWithinLimit (grandfathered)
+        // es la única rama de `update` que valida el tope de acompañantes —
+        // es la única que puede tocar `companions` desde el organizador; el
+        // resto de ramas de abajo no la necesitan (no tocan ese campo) y
+        // agregarla ahí multiplicaría get()s por cada rama sin necesidad (ver
+        // el incidente de "maximum of 1000 expressions" documentado en
+        // canDoData más arriba).
+        allow update: if (canDo(eventId, 'editGuests', true) && companionsWithinLimit(eventId, request.resource.data, true)) || isAdmin() ||
           (
             canDo(eventId, 'scanQr', true) &&
             request.resource.data.diff(resource.data).affectedKeys()

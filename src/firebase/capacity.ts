@@ -6,13 +6,12 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from './config'
-import { generateQrToken } from './guests'
+import { generateQrToken, resolveMaxCompanions } from './guests'
 import {
   GUEST_CUSTOM_FIELD_MAX_COUNT,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_EMAIL_MAX,
   GUEST_FULL_NAME_MAX,
-  GUEST_MAX_PARTY_SIZE,
   GUEST_PHONE_MAX,
   requireMaxLength,
   requireNonEmpty,
@@ -102,10 +101,6 @@ export async function registerWalkInGuest(
   const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
   const trimmedEmail = email?.trim() ? requireMaxLength(email.trim(), GUEST_EMAIL_MAX, 'El email') : ''
   const trimmedPhone = phone?.trim() ? requireMaxLength(phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
-  // Clampeado, no rechazado: un valor fuera de rango (incluido undefined, el
-  // caso normal para llamadores que no piden acompañantes) cae a un tamaño
-  // de grupo válido en vez de romper el registro.
-  const clampedPartySize = Math.min(Math.max(Math.trunc(partySize || 1), 1), GUEST_MAX_PARTY_SIZE)
   const customEntries = Object.entries(customData || {})
   if (customEntries.length > GUEST_CUSTOM_FIELD_MAX_COUNT) {
     throw new Error('El formulario tiene demasiados campos.')
@@ -124,6 +119,13 @@ export async function registerWalkInGuest(
     const data = snap.data()
     const requiresPayment = (data.requiresPayment as boolean) || false
     const resolvedMethod = requiresPayment ? paymentMethod || null : null
+    // Clampeado, no rechazado: un valor fuera de rango (incluido undefined,
+    // el caso normal para llamadores que no piden acompañantes) cae a un
+    // tamaño de grupo válido en vez de romper el registro. El techo es el
+    // límite de ESTE evento (EventData.maxCompanions), no un valor global —
+    // ver resolveMaxCompanions.
+    const maxPartySize = 1 + resolveMaxCompanions({ maxCompanions: data.maxCompanions as number | undefined })
+    const clampedPartySize = Math.min(Math.max(Math.trunc(partySize || 1), 1), maxPartySize)
 
     const qrToken = generateQrToken()
     const guestRef = doc(collection(db, 'events', eventId, 'guests'))

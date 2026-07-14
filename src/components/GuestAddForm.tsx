@@ -26,7 +26,17 @@ type PendingDuplicate =
   | { type: 'bulk'; duplicates: string[] }
   | { type: 'csv'; duplicates: string[] }
 
-export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: string; guests: GuestData[]; customFields?: CustomField[] }) {
+export function GuestAddForm({
+  eventId,
+  guests,
+  customFields = [],
+  maxCompanions,
+}: {
+  eventId: string
+  guests: GuestData[]
+  customFields?: CustomField[]
+  maxCompanions: number
+}) {
   const [mode, setMode] = useState<'single' | 'group' | 'bulk' | 'csv'>('single')
   const [name, setName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -68,7 +78,7 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
     setLoading(true)
     setError('')
     try {
-      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions, customData: customValues })
+      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions, customData: customValues }, maxCompanions)
       setName('')
       setLastName('')
       setPhone('')
@@ -107,7 +117,7 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
         companions: Array.from({ length: Math.max(0, memberCount - 1) }, () => ({})),
         isGroup: true,
         customData: groupCustomValues,
-      })
+      }, maxCompanions)
       setGroupName('')
       setMemberCount(2)
       setGroupCustomValues({})
@@ -283,7 +293,7 @@ export function GuestAddForm({ eventId, guests, customFields = [] }: { eventId: 
             />
           </div>
 
-          <CompanionFieldsEditor companions={companions} onChange={setCompanions} />
+          <CompanionFieldsEditor companions={companions} onChange={setCompanions} maxCompanions={maxCompanions} />
 
           {customFields.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

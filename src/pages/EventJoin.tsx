@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getEvent, subscribeToEvent } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
+import { resolveMaxCompanions } from '../firebase/guests'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
@@ -9,7 +10,6 @@ import { sendGuestPassEmail } from '../utils/emailjs'
 import {
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_EMAIL_MAX,
-  GUEST_MAX_PARTY_SIZE,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
 } from '../utils/validation'
@@ -119,6 +119,11 @@ export function EventJoin() {
   }, [profile, user])
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
+  // Tope de "¿cuántos vienen?" — límite de acompañantes configurado para
+  // ESTE evento (EventData.maxCompanions), no un valor global. Mientras
+  // `event` todavía no cargó, cae a 1 (sin acompañantes) en vez de permitir
+  // de más por un instante.
+  const maxPartySize = 1 + resolveMaxCompanions({ maxCompanions: event?.maxCompanions })
   const needsMethodChoice = !!event?.requiresPayment && (event?.paymentMethods.length || 0) > 1
   const resolvedPaymentMethod: PaymentMethod | undefined = !event?.requiresPayment
     ? undefined
@@ -290,14 +295,21 @@ export function EventJoin() {
                 <span className="text-base font-semibold text-[var(--invite-text)] tabular-nums">{partySize}</span>
                 <button
                   type="button"
-                  onClick={() => setPartySize(Math.min(partySize + 1, GUEST_MAX_PARTY_SIZE))}
-                  disabled={partySize >= GUEST_MAX_PARTY_SIZE}
+                  onClick={() => setPartySize(Math.min(partySize + 1, maxPartySize))}
+                  disabled={partySize >= maxPartySize}
                   aria-label="Sumar acompañante"
                   className="w-11 h-11 shrink-0 rounded-full text-xl font-bold text-[var(--invite-text)] disabled:opacity-30 active:bg-[var(--invite-accent-soft)] transition-colors"
                 >
                   +
                 </button>
               </div>
+              {partySize >= maxPartySize && (
+                <p className="text-xs mt-1 text-[var(--invite-text-muted)]">
+                  {maxPartySize <= 1
+                    ? 'Este evento no permite acompañantes.'
+                    : 'Alcanzaste el máximo de acompañantes permitidos para este evento.'}
+                </p>
+              )}
             </div>
             <div>
               <label className={labelClass}>Teléfono <span className="font-normal normal-case">(opcional)</span></label>

@@ -3,7 +3,8 @@ import { updateEventDetails } from '../firebase/events'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useFormDraft } from '../hooks/useFormDraft'
 import { isNetworkError } from '../utils/network'
-import { EVENT_NAME_MAX, parseCapacity, sanitizeDecimalInput } from '../utils/validationRules'
+import { EVENT_NAME_MAX, parseCapacity, parseMaxCompanions, sanitizeDecimalInput } from '../utils/validationRules'
+import { GUEST_MAX_COMPANIONS } from '../utils/validation'
 import { ImageCropModal } from './ImageCropModal'
 import { CustomFieldsBuilder } from './CustomFieldsBuilder'
 import { TimelineEditor } from './TimelineEditor'
@@ -29,6 +30,7 @@ interface EventEditDraftFields {
   welcomeMessage: string
   mapsUrl: string
   capacity: string
+  maxCompanions: string
   customFields: CustomField[]
   requiresPayment: boolean
   paymentMethods: PaymentMethod[]
@@ -112,6 +114,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   // o links de autoregistro rompería esos links (ver firestore.rules y EventJoin).
   const entryMode = event.entryMode || 'list'
   const [capacity, setCapacity] = useState(event.capacity ? String(event.capacity) : '')
+  const [maxCompanions, setMaxCompanions] = useState(String(event.maxCompanions ?? 0))
   const [customFields, setCustomFields] = useState<CustomField[]>(event.customFields || [])
   const [requiresPayment, setRequiresPayment] = useState(event.requiresPayment || false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(event.paymentMethods?.length ? event.paymentMethods : ['transfer'])
@@ -125,6 +128,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const [submitError, setSubmitError] = useState('')
 
   const [capacityError, setCapacityError] = useState('')
+  const [maxCompanionsError, setMaxCompanionsError] = useState('')
 
   // "Modo anti-tontos": antes de guardar de verdad, se muestra un resumen de
   // qué va a cambiar y hay que confirmarlo explícitamente. `null` = sin
@@ -148,6 +152,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     setWelcomeMessage(fields.welcomeMessage)
     setMapsUrl(fields.mapsUrl)
     setCapacity(fields.capacity)
+    setMaxCompanions(fields.maxCompanions ?? String(event.maxCompanions ?? 0))
     setCustomFields(fields.customFields)
     setRequiresPayment(fields.requiresPayment)
     setPaymentMethods(fields.paymentMethods?.length ? fields.paymentMethods : ['transfer'])
@@ -172,13 +177,13 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     const id = setInterval(() => {
       saveDraft({
         name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
-        capacity, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
+        capacity, maxCompanions, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
       })
     }, DRAFT_SAVE_INTERVAL_MS)
     return () => clearInterval(id)
   }, [
     pendingDraft, name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
-    capacity, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
+    capacity, maxCompanions, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
     saveDraft,
   ])
 
@@ -186,7 +191,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   // texto corto muestra antes/después, texto largo o listas solo dicen
   // "Actualizado/a" (mostrar un párrafo entero en el diálogo sería más
   // ruido que ayuda). Nada se guarda todavía acá, solo se describe.
-  function computeChanges(parsedCapacity: number): ChangeEntry[] {
+  function computeChanges(parsedCapacity: number, parsedMaxCompanions: number): ChangeEntry[] {
     const changes: ChangeEntry[] = []
     const trimmedName = name.trim()
     const trimmedLocation = location.trim()
@@ -224,6 +229,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if ((event.capacity || 0) !== parsedCapacity) {
       changes.push({ label: 'Límite de invitados', detail: `${event.capacity || 0} → ${parsedCapacity}` })
     }
+    if ((event.maxCompanions ?? 0) !== parsedMaxCompanions) {
+      changes.push({ label: 'Acompañantes por invitado', detail: `${event.maxCompanions ?? 0} → ${parsedMaxCompanions}` })
+    }
     if (JSON.stringify(event.customFields || []) !== JSON.stringify(customFields)) {
       changes.push({ label: 'Campos de registro', detail: `${(event.customFields || []).length} → ${customFields.length} campo(s)` })
     }
@@ -258,7 +266,13 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       setCapacityError(capacityValidationError)
       return
     }
+    const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(maxCompanions)
+    if (maxCompanionsValidationError) {
+      setMaxCompanionsError(maxCompanionsValidationError)
+      return
+    }
     setCapacityError('')
+    setMaxCompanionsError('')
     setSubmitError('')
     setNetworkRetry(false)
     setSaving(true)
@@ -278,6 +292,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         mapsUrl: mapsUrl.trim() || undefined,
         entryMode,
         capacity: parsedCapacity,
+        maxCompanions: parsedMaxCompanions,
         customFields,
         requiresPayment,
         paymentMethods: requiresPayment ? paymentMethods : [],
@@ -320,8 +335,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       setCapacityError(capacityValidationError)
       return
     }
+    const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(maxCompanions)
+    if (maxCompanionsValidationError) {
+      setMaxCompanionsError(maxCompanionsValidationError)
+      return
+    }
     setCapacityError('')
-    const changes = computeChanges(parsedCapacity)
+    setMaxCompanionsError('')
+    const changes = computeChanges(parsedCapacity, parsedMaxCompanions)
     if (changes.length === 0) {
       onDone()
       return
@@ -512,6 +533,16 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             se supera.
           </p>
           {capacityError && <p className="text-xs text-red-500 mt-1">{capacityError}</p>}
+        </div>
+        <div>
+          <label htmlFor="edit-event-max-companions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Acompañantes por invitado</label>
+          <input id="edit-event-max-companions" type="number" min="0" max={GUEST_MAX_COMPANIONS} value={maxCompanions} onChange={(e) => setMaxCompanions(e.target.value)}
+            className="w-24 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          <p className="text-xs text-gray-400 mt-1">
+            Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten
+            acompañantes. No aplica a "Familia o grupo", que tiene su propio límite de integrantes.
+          </p>
+          {maxCompanionsError && <p className="text-xs text-red-500 mt-1">{maxCompanionsError}</p>}
         </div>
       </EditSection>
 
