@@ -1,0 +1,12 @@
+{
+  "entry": ["vitest.firebase.config.ts", "src/__perf__/measure-baseline.tsx"],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignoreDependencies": ["playwright", "tailwindcss"],
+  "ignoreBinaries": ["firebase"],
+  "rules": {
+    "exports": "warn",
+    "types": "warn",
+    "enumMembers": "warn",
+    "duplicates": "warn"
+  }
+}

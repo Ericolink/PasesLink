@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  documentId,
   getDoc,
   getDocs,
   increment,
@@ -572,60 +573,106 @@ export async function bulkSetGuestPaymentStatus(
 // invitados, cada organizador/co-organizador con el dashboard abierto
 // descarga la colección completa en tiempo real. NO se le agregó un
 // `limit()` simple en Subfase 3.2 a propósito: `guests` (el array completo)
-// alimenta hoy 4 cosas que necesitan el TOTAL, no una página — la
-// exportación CSV/PDF de EventDetail, las 6 estadísticas derivadas
-// (totalPeople, rsvpYes/No, etc., ver useMemo en EventDetail.tsx) y la
-// búsqueda/filtro de GuestList. Un `limit(50)` silencioso habría hecho que
-// el CSV/PDF exportado, las estadísticas mostradas y la búsqueda dejaran de
-// reflejar invitados reales en cualquier evento de más de 50 personas —
-// una regresión funcional real, no un cambio "transparente". Requiere
-// paginación cursor-based real en GuestList (con una query separada, sin
-// límite, para export/stats) — cambio de mayor alcance que queda fuera de
-// esta subfase.
+// alimenta hoy varias cosas que necesitan el TOTAL, no una página — la
+// exportación CSV/PDF/Excel de EventDetail, las estadísticas derivadas
+// (rsvpYes/No/etc.) y la búsqueda/filtro de GuestList. Un `limit()` a secas
+// habría hecho que esas tres cosas dejaran de reflejar invitados reales en
+// cualquier evento por encima del límite — una regresión funcional real, no
+// un cambio "transparente". Fase 6 (auditoría de rendimiento): en vez de un
+// límite fijo silencioso, `limitCount` deja la ventana en vivo ACOTADA por
+// default (Fase 6, ver GUEST_WINDOW_DEFAULT) pero explícitamente
+// ampliable a `null` (sin límite) — quien llama decide cuándo pasar a "traer
+// todos" (EventDetail.tsx lo hace al escribir en el buscador o exportar,
+// Reports.tsx lo pide siempre porque su tabla y estadísticas ya muestran el
+// evento completo). `totalPeople`/`totalCollected` ya no dependen de esto —
+// EventDetail.tsx/Reports.tsx los toman de event.peopleCount/paidCount
+// (contadores desnormalizados, siempre exactos, sin leer ningún invitado).
+export const GUEST_WINDOW_DEFAULT = 300
+
+// guestContacts no tiene un campo de fecha para ordenar/acotar igual que
+// `guests` (createdAt) — se pide por id exacto (query 'in', en lotes de 30,
+// el máximo que acepta Firestore) en vez de suscribirse a la colección
+// completa. Solo se vuelve a pedir el contacto de un id que TODAVÍA no está
+// en caché (ver `contacts` más abajo): si un invitado ya cargado edita su
+// teléfono/email, ese cambio puntual no llega en vivo hasta que se
+// remonte la pantalla — trade-off aceptado a cambio de no releer el resto de
+// contactos ya conocidos en cada snapshot de `guests` (que sí sigue en vivo
+// completo, incluidos check-in/pago/RSVP).
+const CONTACT_FETCH_CHUNK = 30
+
+async function fetchContactsByIds(
+  eventId: string,
+  ids: string[],
+): Promise<Record<string, { phone: string; email: string }>> {
+  const result: Record<string, { phone: string; email: string }> = {}
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += CONTACT_FETCH_CHUNK) chunks.push(ids.slice(i, i + CONTACT_FETCH_CHUNK))
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const snap = await getDocs(
+        query(collection(db, 'events', eventId, 'guestContacts'), where(documentId(), 'in', chunk)),
+      )
+      snap.docs.forEach((d) => {
+        result[d.id] = { phone: (d.data().phone as string) || '', email: (d.data().email as string) || '' }
+      })
+    }),
+  )
+  return result
+}
+
 export function subscribeToGuests(
   eventId: string,
   callback: (guests: GuestData[]) => void,
   onError?: (error: Error) => void,
+  limitCount: number | null = GUEST_WINDOW_DEFAULT,
 ): Unsubscribe {
   let baseGuests: GuestData[] | null = null
-  let contacts: Record<string, { phone: string; email: string }> | null = null
+  let contacts: Record<string, { phone: string; email: string }> = {}
+  let cancelled = false
 
-  function emitIfReady() {
-    if (baseGuests === null || contacts === null) return
+  function emit() {
+    if (baseGuests === null) return
     callback(
       baseGuests.map((g) => ({
         ...g,
-        phone: contacts![g.id]?.phone || g.phone,
-        email: contacts![g.id]?.email || g.email,
+        phone: contacts[g.id]?.phone || g.phone,
+        email: contacts[g.id]?.email || g.email,
       })),
     )
   }
 
-  const guestsQuery = query(collection(db, 'events', eventId, 'guests'), orderBy('createdAt', 'asc'))
+  const constraints = [orderBy('createdAt', 'asc'), ...(limitCount !== null ? [limit(limitCount)] : [])]
+  const guestsQuery = query(collection(db, 'events', eventId, 'guests'), ...constraints)
   const unsubGuests = onSnapshot(
     guestsQuery,
     (snapshot) => {
       baseGuests = snapshot.docs.map((d) => mapGuest(d.id, d.data()))
-      emitIfReady()
+      emit()
+      const missingIds = baseGuests.filter((g) => !(g.id in contacts)).map((g) => g.id)
+      if (missingIds.length > 0) {
+        fetchContactsByIds(eventId, missingIds)
+          .then((fetched) => {
+            if (cancelled) return
+            contacts = { ...contacts, ...fetched }
+            emit()
+          })
+          .catch((err) => {
+            // No se reporta a onError (el listener de arriba ya sigue
+            // funcionando bien sin estos contactos, no hace falta tumbar
+            // toda la suscripción) — pero SÍ hay que atraparlo: sin este
+            // catch, una petición en vuelo que rechaza (ej. la conexión se
+            // corta) queda como unhandled rejection.
+            if (cancelled) return
+            console.error('Error fetching guest contacts:', err)
+          })
+      }
     },
     withListenerReporting('guests', onError),
   )
 
-  const unsubContacts = onSnapshot(
-    collection(db, 'events', eventId, 'guestContacts'),
-    (snapshot) => {
-      contacts = {}
-      snapshot.docs.forEach((d) => {
-        contacts![d.id] = { phone: (d.data().phone as string) || '', email: (d.data().email as string) || '' }
-      })
-      emitIfReady()
-    },
-    withListenerReporting('guestContacts', onError),
-  )
-
   return () => {
+    cancelled = true
     unsubGuests()
-    unsubContacts()
   }
 }
 

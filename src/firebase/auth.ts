@@ -106,13 +106,6 @@ export async function confirmPasswordReset(oobCode: string, newPassword: string)
   await firebaseConfirmPasswordReset(auth, oobCode, newPassword)
 }
 
-export async function updateDisplayName(displayName: string) {
-  const user = auth.currentUser
-  if (!user) throw new Error('No hay un usuario autenticado.')
-  await updateProfile(user, { displayName })
-  await setDoc(doc(db, 'users', user.uid), { displayName }, { merge: true })
-}
-
 export async function changePassword(currentPassword: string, newPassword: string) {
   const user = auth.currentUser
   if (!user || !user.email) throw new Error('No hay un usuario autenticado.')

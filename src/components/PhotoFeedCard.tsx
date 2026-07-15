@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import type { PhotoData } from '../firebase/photos'
 import type { ReactionType, TemplateId } from '../types'
 import { optimizedImageUrl } from '../utils/cloudinary'
@@ -14,7 +14,7 @@ import { ThemeSeal } from './ThemeSeal'
 interface Props {
   photo: PhotoData
   isOrg: boolean
-  onOpen: () => void
+  onOpen: (photo: PhotoData) => void
   onDelete?: (photoId: string) => void
   onPin?: (photo: PhotoData) => void
   templateId?: TemplateId
@@ -44,7 +44,13 @@ interface Props {
 // (borde/resplandor dorado + ThemeSeal) — antes las fotos no tenían `pinned`
 // en absoluto (ni el campo en Firestore ni este botón), así que no se podían
 // fijar aunque el organizador sí podía fijar comentarios de texto.
-export function PhotoFeedCard({
+// memo: sin esto, cada card se re-renderizaba junto con TODO el feed en
+// cada tecla escrita en el compositor del padre (EventWall.tsx/
+// WallSection.tsx) — ver también WallMessageCard.tsx, mismo motivo. Los
+// handlers que recibe (onOpen/onDelete/onPin/onReact/onReply) ahora están
+// estabilizados con useCallback en ambos padres para que este memo no quede
+// anulado igual que antes.
+export const PhotoFeedCard = memo(function PhotoFeedCard({
   photo,
   isOrg,
   onOpen,
@@ -114,7 +120,7 @@ export function PhotoFeedCard({
         )}
       </div>
 
-      <button type="button" onClick={onOpen} className="block rounded-lg overflow-hidden ml-9 w-[calc(100%-2.25rem)]">
+      <button type="button" onClick={() => onOpen(photo)} className="block rounded-lg overflow-hidden ml-9 w-[calc(100%-2.25rem)]">
         <ProgressiveImage
           src={optimizedImageUrl(photo.url, 600)}
           alt={photo.caption || `Foto de ${photo.authorName}`}
@@ -195,4 +201,4 @@ export function PhotoFeedCard({
       </div>
     </div>
   )
-}
+})

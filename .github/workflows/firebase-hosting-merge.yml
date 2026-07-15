@@ -20,6 +20,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
+      - run: npm run knip
       - run: npm run test
         env:
           # src/firebase/config.ts llama a getAuth(app) apenas se importa —

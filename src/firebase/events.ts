@@ -269,30 +269,6 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
   })
 }
 
-export async function updateEventWelcomeMessage(eventId: string, welcomeMessage: string) {
-  await updateDoc(doc(db, 'events', eventId), {
-    welcomeMessage,
-    updatedAt: serverTimestamp(),
-  })
-}
-
-export async function updateEventBranding(
-  eventId: string,
-  branding: { accentColor?: string; logoUrl?: string },
-) {
-  await updateDoc(doc(db, 'events', eventId), {
-    ...branding,
-    updatedAt: serverTimestamp(),
-  })
-}
-
-export async function updateEventTemplate(eventId: string, templateId: TemplateId) {
-  await updateDoc(doc(db, 'events', eventId), {
-    templateId,
-    updatedAt: serverTimestamp(),
-  })
-}
-
 // `permissions` por defecto LEGACY_COORG_DEFAULTS: agregar un co-organizador
 // sigue siendo un flujo de un solo paso (email + botón) — quien quiera
 // otorgar un set distinto lo ajusta después con updateCoOrganizerPermissions.

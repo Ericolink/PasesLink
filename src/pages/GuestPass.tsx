@@ -187,7 +187,14 @@ function GuestPassInner() {
         setError(true)
       })
       .finally(() => setLoading(false))
-  }, [eventId, qrToken, user, authLoading])
+    // Depende de user?.uid (primitivo), no del objeto `user` completo:
+    // Firebase Auth emite una nueva instancia de user en cada cambio de
+    // estado de auth aunque el uid no cambie, y resuscribirse en esos casos
+    // — repitiendo getEvent/findGuestByToken y la escritura de
+    // claimGuestPass — sería innecesario. Mismo criterio ya usado en
+    // useUserProfile.ts/useSanctionStatus.ts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId, qrToken, user?.uid, authLoading])
 
   // Ofrecer crear cuenta justo al llegar de un autoregistro público
   // (EventJoin.tsx navega acá con state.justRegistered) — antes esa pantalla

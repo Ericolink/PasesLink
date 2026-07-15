@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { updateEventDetails } from '../firebase/events'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useFormDraft } from '../hooks/useFormDraft'
+import { useLiveRef } from '../hooks/useLiveRef'
 import { isNetworkError } from '../utils/network'
 import { EVENT_NAME_MAX, parseCapacity, parseMaxCompanions, sanitizeDecimalInput } from '../utils/validationRules'
 import { GUEST_MAX_COMPANIONS } from '../utils/validation'
@@ -172,20 +173,30 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
   // Autoguardado del borrador c/5s mientras haya cambios sin guardar — protege
   // ediciones largas de un cierre accidental de pestaña o un fallo de red.
+  //
+  // draftFieldsRef (useLiveRef) en vez de listar los 22 campos como
+  // dependencias del efecto: con los 22 en el array, cada tecla en
+  // CUALQUIER campo destruía y volvía a crear el setInterval — si el
+  // usuario tipeaba sin pausas de 5s, el intervalo nunca llegaba a
+  // dispararse (se comportaba como un debounce-tras-inactividad, no como
+  // "cada 5s" real). El intervalo ahora se crea UNA sola vez (mientras no
+  // haya un borrador pendiente) y en cada tick lee los valores más
+  // recientes a través del ref — mismo patrón que ya usa Scanner.tsx para
+  // que el callback de cámara no se resuscriba en cada cambio de estado.
+  const draftFields: EventEditDraftFields = {
+    name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
+    capacity, maxCompanions, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
+  }
+  const draftFieldsRef = useLiveRef(draftFields)
+  const saveDraftRef = useLiveRef(saveDraft)
+
   useEffect(() => {
     if (pendingDraft) return
     const id = setInterval(() => {
-      saveDraft({
-        name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
-        capacity, maxCompanions, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
-      })
+      saveDraftRef.current(draftFieldsRef.current)
     }, DRAFT_SAVE_INTERVAL_MS)
     return () => clearInterval(id)
-  }, [
-    pendingDraft, name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
-    capacity, maxCompanions, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
-    saveDraft,
-  ])
+  }, [pendingDraft, draftFieldsRef, saveDraftRef])
 
   // Compara el estado actual del formulario contra el evento original —
   // texto corto muestra antes/después, texto largo o listas solo dicen

@@ -309,10 +309,6 @@ export interface CheckinLog {
   scannedByEmail: string | null
 }
 
-export const PLAN_LABELS: Record<Plan, string> = {
-  premium: 'Premium',
-}
-
 export const RSVP_LABELS: Record<RsvpStatus, string> = {
   pending: 'Sin responder',
   yes: 'Asistirá',

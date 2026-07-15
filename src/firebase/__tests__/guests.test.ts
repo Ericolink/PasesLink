@@ -13,7 +13,7 @@ vi.mock('../config', () => ({
 }))
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, setGuestPaymentStatus, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, setGuestPaymentStatus, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -1157,6 +1157,73 @@ describe('guests.ts', () => {
 
       const event = await getEventDoc(testEnv, EVENT_ID)
       expect(event?.paidCount).toBe(1)
+    })
+  })
+
+  // Fase 6 de la auditoría de rendimiento: subscribeToGuests pasó de un
+  // listener sin límite a una ventana en vivo acotada (limitCount), con
+  // guestContacts resuelto por id (no por su propio listener sin límite).
+  // Estos tests cubren exactamente ese comportamiento nuevo.
+  describe('subscribeToGuests (Fase 6: ventana acotada)', () => {
+    // Junta emisiones del callback hasta `count` (subscribeToGuests emite al
+    // menos dos veces cuando hay contactos que resolver: una vez con los
+    // guests recién llegados, sin contacto, y otra vez ya fusionados) y
+    // devuelve la ÚLTIMA — el estado asentado, no el intermedio.
+    function collectGuestEmissions(
+      eventId: string,
+      limitCount: number | null,
+      count: number,
+    ): Promise<import('../../types').GuestData[]> {
+      return new Promise((resolve, reject) => {
+        const emissions: import('../../types').GuestData[][] = []
+        const unsub = subscribeToGuests(
+          eventId,
+          (guests) => {
+            emissions.push(guests)
+            if (emissions.length >= count) {
+              unsub()
+              resolve(emissions[emissions.length - 1])
+            }
+          },
+          (err) => { unsub(); reject(err) },
+          limitCount,
+        )
+      })
+    }
+
+    async function seedContact(eventId: string, guestId: string, data: { phone?: string; email?: string }) {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'events', eventId, 'guestContacts', guestId), data)
+      })
+    }
+
+    it('respects limitCount, ordered by createdAt asc (oldest first), and fuses guestContacts by id', async () => {
+      await seedEvent(testEnv, EVENT_ID, { guestCount: 5 })
+      for (let i = 0; i < 5; i++) {
+        await seedGuest(testEnv, EVENT_ID, `guest-${i}`, { createdAt: 1000 + i, name: `Guest ${i}` })
+      }
+      await seedContact(EVENT_ID, 'guest-0', { phone: '555-0000', email: '' })
+      await seedContact(EVENT_ID, 'guest-1', { phone: '555-0001', email: '' })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const bounded = await collectGuestEmissions(EVENT_ID, 2, 2)
+
+      expect(bounded).toHaveLength(2)
+      expect(bounded.map((g) => g.name)).toEqual(['Guest 0', 'Guest 1'])
+      expect(bounded.find((g) => g.id === 'guest-0')?.phone).toBe('555-0000')
+      expect(bounded.find((g) => g.id === 'guest-1')?.phone).toBe('555-0001')
+    })
+
+    it('returns every guest when limitCount is null, not just the default window', async () => {
+      await seedEvent(testEnv, EVENT_ID, { guestCount: 5 })
+      for (let i = 0; i < 5; i++) {
+        await seedGuest(testEnv, EVENT_ID, `guest-${i}`, { createdAt: 2000 + i, name: `Guest ${i}` })
+      }
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const all = await collectGuestEmissions(EVENT_ID, null, 1)
+
+      expect(all).toHaveLength(5)
     })
   })
 })

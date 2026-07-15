@@ -1,7 +1,6 @@
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDocs,
   limit,
@@ -251,9 +250,6 @@ export async function deleteWallMessage(eventId: string, messageId: string) {
   })
 }
 
-export async function hardDeleteWallMessage(eventId: string, messageId: string) {
-  await deleteDoc(doc(db, 'events', eventId, 'wall', messageId))
-}
 
 function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
   const message: WallMessage = {

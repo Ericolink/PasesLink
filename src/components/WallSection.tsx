@@ -6,14 +6,12 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { useWallComposer } from '../hooks/useWallComposer'
-import { IconCrown, IconRotateCcw, IconCamera, IconX } from './Icons'
-import { ThemeSeal } from './ThemeSeal'
+import { IconRotateCcw, IconCamera, IconX } from './Icons'
 import { Avatar } from './Avatar'
 import { PhotoFeedCard } from './PhotoFeedCard'
 import { PhotoViewer } from './PhotoViewer'
-import { ReactionPicker } from './ReactionPicker'
-import { ReportButton } from './ReportButton'
 import { StoriesBar } from './StoriesBar'
+import { WallSectionMessageCard } from './WallSectionMessageCard'
 import { WallTypeChipSelector } from './WallTypeChipSelector'
 import { WALL_TYPE_CONFIG } from '../utils/wallMessageTypes'
 import { mergeWallFeed } from '../utils/wallFeed'
@@ -56,6 +54,10 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
   const [refreshing, setRefreshing] = useState(false)
   const [wallError, setWallError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Estable entre renders (localStorage, nunca cambia durante la sesión) —
+  // se computa una sola vez acá en vez de llamar getDeviceToken() de nuevo
+  // por cada card del feed en cada render.
+  const [deviceToken] = useState(getDeviceToken)
 
   const isMinor = profile?.birthDate ? getAge(profile.birthDate) < 18 : false
 
@@ -141,14 +143,16 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
   // confirme, y solo se revierte si la escritura falla — evita el viaje
   // redondo de un `loadMessages()` completo (que además recargaría fotos y
   // reordenaría toda la lista) por cada tap en una carita.
-  async function handleReact(msg: WallMessage, type: ReactionType | null) {
+  //
+  // useCallback en los 4 handlers de acá abajo (antes funciones planas): son
+  // los que WallSectionMessageCard/PhotoFeedCard (ambos memoizados) reciben
+  // como props — sin esto, cada uno se recreaba en cada render de
+  // WallSection y anulaba el memo de cada card del feed en cada tecla
+  // escrita en el compositor de posts (arriba, mismo componente).
+  const handleReact = useCallback(async (msg: WallMessage, type: ReactionType | null) => {
     const token = getDeviceToken()
     const prevReactions = msg.reactions
     const nextReactions = { ...prevReactions }
-    // Date.now() acá corre solo al tocar una reacción (evento de usuario),
-    // nunca durante un render — react-hooks/purity no distingue eso de un
-    // impuro dentro del cuerpo de render y lo marca en falso positivo.
-    // eslint-disable-next-line react-hooks/purity
     if (type) nextReactions[token] = { type, name: authorName || 'Invitado', reactedAt: Date.now(), ...(authorPhoto ? { photoURL: authorPhoto } : {}) }
     else delete nextReactions[token]
     setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: nextReactions } : m)))
@@ -159,12 +163,12 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
       console.error('Error reacting to wall message:', err)
       setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: prevReactions } : m)))
     }
-  }
+  }, [eventId, authorName, authorPhoto])
 
   // Mismo patrón optimista que handleReact, sobre `photos` — reutiliza
   // reactToPhoto/replyToPhoto (src/firebase/photos.ts), que comparten motor
   // con los mensajes (ver src/firebase/interactions.ts).
-  async function handleReactPhoto(photo: PhotoData, type: ReactionType | null) {
+  const handleReactPhoto = useCallback(async (photo: PhotoData, type: ReactionType | null) => {
     const token = getDeviceToken()
     const prevReactions = photo.reactions
     const nextReactions = { ...prevReactions }
@@ -178,17 +182,23 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
       console.error('Error reacting to photo:', err)
       setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: prevReactions } : p)))
     }
-  }
+  }, [eventId, authorName, authorPhoto])
 
   // A diferencia de EventWall.tsx (con listener en vivo, ver comentario en
   // loadMessages más arriba), este widget no tiene onSnapshot — la propia
   // respuesta se agrega a mano al estado local en vez de esperar un refresh
   // manual del usuario (mismo criterio que onPosted/onPhotoUploaded del
   // composer: la propia acción se refleja al toque).
-  async function handleReplyPhoto(photo: PhotoData, text: string) {
+  const handleReplyPhoto = useCallback(async (photo: PhotoData, text: string) => {
     const newReply = await replyToPhoto(eventId, photo.id, text, authorName, messageAuthorToken, 'guest', authorPhoto)
     setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, replies: [...p.replies, newReply] } : p)))
-  }
+  }, [eventId, authorName, messageAuthorToken, authorPhoto])
+
+  // Ídem: reemplaza el arrow function inline que antes se pasaba como onOpen
+  // a cada PhotoFeedCard, creado de nuevo por cada foto en cada render.
+  const openPhoto = useCallback((photo: PhotoData) => {
+    setGalleryIndex(photos.findIndex((p) => p.id === photo.id))
+  }, [photos])
 
   const canPost = user ? !isMinor : !!resolvedGuestName
 
@@ -197,7 +207,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
       <StoriesBar
         eventId={eventId}
         photos={photos}
-        myToken={getDeviceToken()}
+        myToken={deviceToken}
         canReply={canPost && !commentBlockedMessage}
         onReact={handleReactPhoto}
         onReply={handleReplyPhoto}
@@ -311,77 +321,27 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
                 key={item.id}
                 photo={item.photo}
                 isOrg={false}
-                onOpen={() => setGalleryIndex(photos.findIndex((p) => p.id === item.photo.id))}
+                onOpen={openPhoto}
                 templateId={templateId}
                 eventId={eventId}
                 eventName={eventName}
-                myToken={getDeviceToken()}
+                myToken={deviceToken}
                 canReply={canPost && !commentBlockedMessage}
                 onReact={handleReactPhoto}
                 onReply={handleReplyPhoto}
               />
             )
           }
-          const msg       = item.message
-          const cfg       = TYPE_CONFIG[msg.type]
-          const isOwnerMsg = msg.authorRole === 'owner'
           return (
-            <div key={msg.id}
-              data-pinned={msg.pinned}
-              className="invite-wall-message border p-4 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
-              style={{ borderColor: msg.pinned ? '#facc15' : 'var(--invite-border)' }}>
-              {msg.pinned && <ThemeSeal templateId={templateId} />}
-              <div className="flex items-start gap-2 mb-2">
-                <Avatar name={msg.authorName} photoURL={msg.authorPhotoURL} size={28} />
-                <div className="flex-1 min-w-0">
-                  {/* Sin flex-wrap a propósito: con un nombre muy largo, el
-                      badge de tipo y "Destacado" (tamaño fijo, shrink-0)
-                      nunca se aplastan ni saltan de línea — el nombre es lo
-                      único que cede espacio, con ellipsis prolijo en vez de
-                      un wrap tosco en pantallas angostas. */}
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`shrink-0 flex items-center gap-1 text-xs rounded-full px-2 py-0.5 font-medium ${cfg.color}`}>
-                      <cfg.Icon className="w-3 h-3" />
-                      {cfg.label}
-                    </span>
-                    {msg.pinned && (
-                      <span className="invite-pin-label hidden shrink-0 text-[10px] uppercase tracking-wide font-bold rounded-full px-2 py-0.5 bg-[var(--invite-accent)] text-white">
-                        Destacado
-                      </span>
-                    )}
-                    {isOwnerMsg
-                      ? <span className="min-w-0 inline-flex items-center gap-1 text-xs font-bold"
-                          style={{ color: '#E8B84B', textShadow: '0 0 8px rgba(232,184,75,.8)' }}>
-                          <IconCrown className="w-3 h-3 shrink-0" /><span className="min-w-0 truncate">{msg.authorName}</span>
-                        </span>
-                      : <span className="min-w-0 truncate text-xs font-semibold text-[var(--invite-text)]">{msg.authorName}</span>
-                    }
-                  </div>
-                </div>
-              </div>
-              <p className="text-sm mb-3 ml-9 text-[var(--invite-text)]">{msg.text}</p>
-              <div className="flex items-center gap-1 ml-[1.625rem]">
-                {/* ml-9 (36px) del texto de arriba menos el padding nuevo del
-                    botón (p-2.5 = 10px) mantiene el ícono alineado con el
-                    resto del bloque — el padding deja el target táctil real
-                    en ~40px+ (antes el botón era solo el ícono de 14px,
-                    imposible de tocar con precisión en celular). */}
-                <ReactionPicker
-                  reactions={msg.reactions}
-                  myToken={getDeviceToken()}
-                  onReact={(type) => handleReact(msg, type)}
-                />
-                <ReportButton
-                  eventId={eventId}
-                  eventName={eventName}
-                  contentType="comment"
-                  contentId={msg.id}
-                  contentSnapshot={msg.text}
-                  contentAuthorName={msg.authorName}
-                  contentAuthorToken={msg.authorToken}
-                />
-              </div>
-            </div>
+            <WallSectionMessageCard
+              key={item.id}
+              message={item.message}
+              templateId={templateId}
+              eventId={eventId}
+              eventName={eventName}
+              myToken={deviceToken}
+              onReact={handleReact}
+            />
           )
         })}
       </div>

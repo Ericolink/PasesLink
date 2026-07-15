@@ -1,13 +1,6 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc, where, writeBatch } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDocs, limit, orderBy, query, setDoc, where, writeBatch } from 'firebase/firestore'
 import { db } from './config'
 import type { UserProfile, UserInvitation } from '../types'
-
-function toMillis(value: unknown): number {
-  if (value && typeof value === 'object' && 'toMillis' in value) {
-    return (value as { toMillis: () => number }).toMillis()
-  }
-  return 0
-}
 
 export async function saveUserProfile(uid: string, data: Partial<Omit<UserProfile, 'uid'>>) {
   await setDoc(doc(db, 'users', uid), data, { merge: true })
@@ -44,23 +37,6 @@ export async function deleteUserInvitations(uid: string, eventIds: string[]): Pr
     batch.delete(doc(db, 'users', uid, 'invitations', eventId))
   }
   await batch.commit()
-}
-
-// Inverso de getUserByEmail: lee el perfil completo por uid.
-export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  const snap = await getDoc(doc(db, 'users', uid))
-  if (!snap.exists()) return null
-  const data = snap.data()
-  return {
-    uid,
-    email: (data.email as string) || '',
-    firstName: (data.firstName as string) || '',
-    lastName: (data.lastName as string) || '',
-    displayName: (data.displayName as string) || '',
-    birthDate: (data.birthDate as string) || '',
-    photoURL: data.photoURL as string | undefined,
-    createdAt: toMillis(data.createdAt),
-  }
 }
 
 export async function getUserByEmail(email: string): Promise<{ uid: string; email: string; displayName: string } | null> {

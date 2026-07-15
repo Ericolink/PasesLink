@@ -49,6 +49,14 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- res.cloudinary.com sirve la portada del evento, casi siempre el
+         elemento LCP de GuestPass/EventDetail/EventJoin/EventArrive.
+         firestore.googleapis.com se consulta en TODA página de la app (el
+         propio documento del evento). Sin esto, la primera petición a cada
+         origen paga DNS+TLS(+TCP) recién cuando el navegador la descubre,
+         en vez de en paralelo con el resto de la carga inicial. -->
+    <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
     <!-- Space Grotesk: tipografía de la app. El resto son las fuentes que usan
          las plantillas de invitación (src/templates/registry.ts) — se cargan
          una sola vez acá, nunca por plantilla, así agregar un tema nuevo que

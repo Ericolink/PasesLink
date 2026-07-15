@@ -93,14 +93,20 @@ export function Dashboard() {
     return unsubscribe
   }, [user])
 
-  const activeEvents = events.filter((e) => e.status === 'active')
+  // Memoizados por `events` (no recalculados en cada render, ej. al escribir
+  // en un input desconectado de esta lista): además de evitar recorrer el
+  // array de más, esto es lo que permite que `nextEvent` de abajo reciba una
+  // referencia ESTABLE de activeEvents entre renders — sin esto, `events.filter(...)`
+  // creaba un array nuevo en cada render y su propio useMemo (dependiente de
+  // activeEvents) quedaba efectivamente desactivado.
+  const activeEvents = useMemo(() => events.filter((e) => e.status === 'active'), [events])
   // Separados: 'archived' (activo cuya fecha ya pasó, ver el auto-archivado
   // más arriba) y 'cancelled' (el organizador lo canceló explícitamente,
   // sin importar si su fecha ya pasó o es futura) se mezclaban antes bajo
   // un mismo "Eventos pasados" — un evento cancelado con fecha FUTURA
   // aparecía ahí como si ya hubiera ocurrido.
-  const pastEvents = events.filter((e) => e.status === 'archived')
-  const cancelledEvents = events.filter((e) => e.status === 'cancelled')
+  const pastEvents = useMemo(() => events.filter((e) => e.status === 'archived'), [events])
+  const cancelledEvents = useMemo(() => events.filter((e) => e.status === 'cancelled'), [events])
 
   // activeEvents ya viene ordenado por relevancia (compareEventsByRelevance,
   // ver subscribeToUserEvents) con los futuros primero de más cercano a más
@@ -111,7 +117,7 @@ export function Dashboard() {
 
   const CHART_MONTHS = 6
   const monthLabels = lastNMonthLabels(CHART_MONTHS)
-  const monthCounts = eventsPerMonth(events, CHART_MONTHS)
+  const monthCounts = useMemo(() => eventsPerMonth(events, CHART_MONTHS), [events])
   const maxMonthCount = Math.max(...monthCounts, 1)
 
   const firstName = profile?.firstName || user?.email?.split('@')[0] || ''

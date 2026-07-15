@@ -20,7 +20,7 @@ import { EventAnalytics } from '../components/EventAnalytics'
 export function Reports() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
-  const { event, guests, loading, guestsLoading } = useEvent(eventId)
+  const { event, guests, loading, guestsLoading, guestsTruncated, showAllGuests } = useEvent(eventId)
   useDocumentTitle(event ? `Reportes · ${event.name}` : 'Reportes')
   useDashboardTheme(event?.templateId, event?.accentColor)
   const [checkins, setCheckins] = useState<CheckinLog[]>([])
@@ -30,11 +30,25 @@ export function Reports() {
   // eventId — es el botón "Actualizar" de la línea de tiempo/llegadas por hora.
   const [refreshToken, setRefreshToken] = useState(0)
 
-  // Mismo cálculo que usaba EventDetail.tsx antes del rediseño dashboard/
-  // reportes — se llama sin condicionales (regla de hooks) aunque `event`
-  // todavía pueda ser null en el primer render.
-  const { totalPeople, totalCollected, rsvpYes, rsvpNo, rsvpPending } = useGuestStats(guests, event?.ticketPrice ?? 0)
+  // Fase 6: a diferencia de EventDetail (que puede convivir con una ventana
+  // acotada, ver useEvent/GUEST_WINDOW_DEFAULT), esta pantalla siempre
+  // muestra el detalle y las estadísticas de TODOS los invitados — no tiene
+  // sentido acotar acá, así que pide el conjunto completo apenas monta.
+  useEffect(() => { showAllGuests() }, [showAllGuests])
+
+  // rsvpYes/No/Pending siguen necesitando el detalle por invitado (no hay
+  // contador desnormalizado para eso en el evento) — totalPeople/
+  // totalCollected sí lo tienen (event.peopleCount/paidCount) y ya no
+  // dependen de `guests`, ver más abajo.
+  const { rsvpYes, rsvpNo, rsvpPending } = useGuestStats(guests, event?.ticketPrice ?? 0)
+  const totalPeople = event?.peopleCount ?? 0
+  const totalCollected = (event?.ticketPrice ?? 0) * (event?.paidCount ?? 0)
   const perms = useEventPermissions(event, user)
+  // Mientras `guests` todavía no cubre a todos (showAllGuests recién
+  // disparado, esperando el snapshot completo), tratar la sección de
+  // invitados/RSVP como "cargando" en vez de mostrar rsvpYes/No/Pending
+  // calculados sobre un subconjunto parcial.
+  const guestsEffectivelyLoading = guestsLoading || guestsTruncated
 
   // Carga puntual (no en vivo, ver getCheckins) — se repite al cambiar de
   // evento y cada vez que se pide "Actualizar". Las tarjetas de "Escaneados"/
@@ -181,9 +195,9 @@ export function Reports() {
 
       {/* ── CONFIRMACIONES Y PAGOS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Asistirán" value={rsvpYes} valueClass="text-primary" />
-        <StatCard label="No asistirán" value={rsvpNo} />
-        <StatCard label="Sin responder" value={rsvpPending} />
+        <StatCard label="Asistirán" value={guestsEffectivelyLoading ? '—' : rsvpYes} valueClass="text-primary" />
+        <StatCard label="No asistirán" value={guestsEffectivelyLoading ? '—' : rsvpNo} />
+        <StatCard label="Sin responder" value={guestsEffectivelyLoading ? '—' : rsvpPending} />
         {event.requiresPayment && (
           <StatCard
             label={`Recaudado (${event.currency})`}
@@ -195,7 +209,7 @@ export function Reports() {
 
       {/* ── ACTIVIDAD DE LLEGADA ── (extraído de EventDetail.tsx, mismo
           componente reutilizado, sin cambios en su lógica interna) */}
-      <EventAnalytics guests={guests} loading={guestsLoading} />
+      <EventAnalytics guests={guests} loading={guestsEffectivelyLoading} />
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
         <h2 className="font-medium text-gray-900 dark:text-white mb-3">Llegadas por hora</h2>
@@ -227,19 +241,23 @@ export function Reports() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-medium text-gray-900 dark:text-white">Detalle por invitado</h2>
           {perms.exportLists && (
-            <button onClick={exportCsv} className="text-sm text-primary font-medium">
+            <button
+              onClick={exportCsv}
+              disabled={guestsEffectivelyLoading}
+              className="text-sm text-primary font-medium disabled:opacity-40"
+            >
               Exportar CSV
             </button>
           )}
         </div>
-        {guestsLoading && <LoadingInline label="Cargando asistentes…" />}
+        {guestsEffectivelyLoading && <LoadingInline label="Cargando asistentes…" />}
         <div className="divide-y divide-gray-100 dark:divide-gray-700">
           {/* flex-wrap + el span de estado en w-full: cuando el nombre es
               largo y no entran los 3 en una fila, el estado pasa solo a su
               propia línea en vez de superponerse o forzar scroll horizontal
               — en pantallas con más ancho (sm+), si entran los tres en una
               fila, se acomodan igual que antes (w-auto). */}
-          {!guestsLoading && guests.map((guest) => (
+          {!guestsEffectivelyLoading && guests.map((guest) => (
             <div key={guest.id} className="flex flex-wrap items-start justify-between gap-x-2 gap-y-0.5 py-2 text-sm">
               <span className="text-gray-900 dark:text-white min-w-0 flex-1 break-words">
                 {guest.isGroup ? (

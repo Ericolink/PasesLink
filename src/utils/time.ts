@@ -5,20 +5,6 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('es-MX', {
   year: 'numeric',
 })
 
-const DATE_SHORT_FORMATTER = new Intl.DateTimeFormat('es-MX', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-})
-
-// Versión compacta para controles de UI (DateField) — "2 ago 2026" en vez
-// del formato largo de formatDate ("Sábado 2 de agosto, 2026").
-export function formatDateShort(date: string): string {
-  const d = new Date(date + 'T00:00:00')
-  if (isNaN(d.getTime())) return date
-  return DATE_SHORT_FORMATTER.format(d)
-}
-
 /** Convierte una fecha ISO 'YYYY-MM-DD' o un Date a "Sábado 31 de diciembre, 2025". */
 export function formatDate(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : date

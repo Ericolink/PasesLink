@@ -8,7 +8,6 @@ import { Toast } from '../components/Toast'
 import { useEventExport } from '../hooks/useEventExport'
 import { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { useEventPermissions } from '../hooks/useEventPermissions'
-import { useGuestStats } from '../hooks/useGuestStats'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { deleteEvent, setEventStatus } from '../firebase/events'
 import { LEGACY_COORG_DEFAULTS } from '../types/coOrganizerPermissions'
@@ -48,7 +47,7 @@ export function EventDetail() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const { event, guests, loading, error, guestsError } = useEvent(eventId)
+  const { event, guests, loading, error, guestsError, guestsTruncated, showAllGuests } = useEvent(eventId)
   useDocumentTitle(event?.name || 'Evento')
   useDashboardTheme(event?.templateId, event?.accentColor)
   const [updatingStatus, setUpdatingStatus] = useState(false)
@@ -124,9 +123,57 @@ export function EventDetail() {
   // en el propio botón disparador) para el badge de "Buscar y filtrar".
   const activeFilterCount = (statusFilter !== 'all' ? 1 : 0) + (sortBy !== 'newest' ? 1 : 0)
 
-  // Solo `totalPeople` se usa aquí (aviso de cupo) — el resto de las métricas
-  // que este hook expone (recaudado, RSVP) ahora se consumen desde Reports.tsx.
-  const { totalPeople } = useGuestStats(guests, event?.ticketPrice ?? 0)
+  // event.peopleCount (contador desnormalizado, mantenido con increment() en
+  // cada alta/baja/edición de invitado) en vez de sumar partySize() sobre
+  // `guests` — Fase 6: `guests` puede venir acotado (ver useEvent/
+  // GUEST_WINDOW_DEFAULT), así que ya no es una fuente confiable para un
+  // total que se muestra siempre. event.peopleCount es exacto sin importar
+  // cuántos invitados estén cargados en pantalla.
+  const totalPeople = event?.peopleCount ?? 0
+
+  // Fase 6: exportar necesita el conjunto COMPLETO de invitados, no la
+  // ventana acotada por default — si `guests` todavía está truncado al
+  // pedir la exportación, primero se pide el resto (showAllGuests) y la
+  // exportación real se dispara sola en cuanto termine de llegar (ver el
+  // efecto más abajo), en vez de generar un PDF/Excel incompleto sin avisar.
+  const [pendingExport, setPendingExport] = useState<'pdf' | 'excel' | null>(null)
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!pendingExport || guestsTruncated) return
+    if (pendingExport === 'pdf') handleExportPdf()
+    else handleExportExcel()
+    setPendingExport(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingExport, guestsTruncated])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  function requestExportPdf() {
+    if (guestsTruncated) { showAllGuests(); setPendingExport('pdf'); return }
+    handleExportPdf()
+  }
+
+  function requestExportExcel() {
+    if (guestsTruncated) { showAllGuests(); setPendingExport('excel'); return }
+    handleExportExcel()
+  }
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    // Búsqueda tiene que alcanzar a cualquier invitado, no solo a los que
+    // ya están en la ventana acotada por default — mismo criterio que
+    // exportar arriba.
+    if (value.trim()) showAllGuests()
+  }
+
+  function handleStatusFilterChange(value: typeof statusFilter) {
+    setStatusFilter(value)
+    // Filtrar por estado (Confirmados/Escaneados/etc.) también tiene que
+    // mirar a todos los invitados, no solo la ventana acotada — a
+    // diferencia de ordenar (sortBy), que solo reacomoda lo ya cargado y no
+    // esconde nada.
+    if (value !== 'all') showAllGuests()
+  }
 
   if (loading) {
     return (
@@ -528,10 +575,15 @@ export function EventDetail() {
                   <button onClick={handleCancelExport} className="text-xs text-red-500 font-medium hover:underline">
                     Cancelar {exportProgress ? `(${exportProgress.done}/${exportProgress.total})` : ''}
                   </button>
+                ) : pendingExport ? (
+                  // Esperando a que showAllGuests() termine de traer el
+                  // resto de los invitados (ver requestExportPdf/Excel) antes
+                  // de arrancar la exportación real.
+                  <span className="text-xs text-gray-400 dark:text-gray-500">Preparando…</span>
                 ) : (
                   <>
                     <button
-                      onClick={handleExportExcel}
+                      onClick={requestExportExcel}
                       disabled={guests.length === 0}
                       className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
                     >
@@ -539,7 +591,7 @@ export function EventDetail() {
                     </button>
                     <span className="text-gray-200 dark:text-gray-600 select-none">|</span>
                     <button
-                      onClick={handleExportPdf}
+                      onClick={requestExportPdf}
                       disabled={guests.length === 0}
                       className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-40 transition-colors"
                     >
@@ -562,6 +614,17 @@ export function EventDetail() {
           )}
           {(exportPdfError || exportExcelError) && (
             <p className="text-xs text-red-500 mb-3">{exportPdfError || exportExcelError}</p>
+          )}
+
+          {/* Fase 6: en eventos grandes, `guests` puede venir acotado a los
+              primeros GUEST_WINDOW_DEFAULT (ver useEvent.ts) — nunca en
+              silencio: este aviso explica por qué la lista de abajo no
+              muestra a todos, y "Buscar y filtrar" ya trae al resto en
+              cuanto se escribe algo (ver handleSearchChange). */}
+          {guestsTruncated && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2 mb-3">
+              Mostrando los primeros {guests.length} de {event.guestCount} invitados. Usá la búsqueda para encontrar a cualquiera.
+            </p>
           )}
 
           {/* Buscar y filtrar: un solo control abre el sheet con el input y
@@ -682,9 +745,9 @@ export function EventDetail() {
       <GuestSearchSheet
         open={guestSearchSheetOpen}
         search={search}
-        onSearchChange={setSearch}
+        onSearchChange={handleSearchChange}
         statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
+        onStatusFilterChange={handleStatusFilterChange}
         sortBy={sortBy}
         onSortByChange={setSortBy}
         resultCount={filteredGuests.length}

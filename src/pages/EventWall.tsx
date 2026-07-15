@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getEvent } from '../firebase/events'
 import {
@@ -18,25 +18,21 @@ import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { useWallComposer } from '../hooks/useWallComposer'
 import { markWallSeen } from '../hooks/useWallActivity'
 import { optimizedImageUrl } from '../utils/cloudinary'
-import { WALL_NAME_MAX, WALL_TEXT_MAX } from '../utils/validation'
+import { WALL_NAME_MAX } from '../utils/validation'
 import { mergeWallFeed } from '../utils/wallFeed'
 import { captureException } from '../lib/sentry'
 import {
   IconCamera,
-  IconPin,
   IconX,
 } from '../components/Icons'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
-import { ThemeSeal } from '../components/ThemeSeal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Avatar } from '../components/Avatar'
 import { AuthorName } from '../components/AuthorName'
 import { PhotoFeedCard } from '../components/PhotoFeedCard'
 import { PhotoViewer } from '../components/PhotoViewer'
-import { ReactionPicker } from '../components/ReactionPicker'
-import { RepliesList } from '../components/RepliesList'
-import { ReportButton } from '../components/ReportButton'
 import { StoriesBar } from '../components/StoriesBar'
+import { WallMessageCard } from '../components/WallMessageCard'
 import { WallTypeChipSelector } from '../components/WallTypeChipSelector'
 import { WALL_TYPE_CONFIG } from '../utils/wallMessageTypes'
 import type { EventData, ReactionType, WallMessage } from '../types'
@@ -83,11 +79,12 @@ export function EventWall() {
   const [olderError, setOlderError]       = useState('')
   const [guestName, setGuestName]   = useState(() => localStorage.getItem(GUEST_NAME_KEY) || '')
   const [nameConfirmed, setNameConfirmed] = useState(() => !!localStorage.getItem(GUEST_NAME_KEY) || !!localStorage.getItem('firebase:authUser'))
-  const [replyingTo, setReplyingTo] = useState<string | null>(null)
-  const [replyText, setReplyText]   = useState('')
-  const [replyError, setReplyError] = useState('')
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Estable entre renders (localStorage, nunca cambia durante la sesión) —
+  // se computa una sola vez acá en vez de llamar getDeviceToken() de nuevo
+  // por cada card del feed en cada render.
+  const [deviceToken] = useState(getDeviceToken)
 
   const isOwner    = !!(user && event && user.uid === event.ownerId)
   const perms = useEventPermissions(event, user)
@@ -177,26 +174,22 @@ export function EventWall() {
     setNameConfirmed(true)
   }
 
-  async function handleReply(message: WallMessage) {
-    if (!id || !replyText.trim()) return
+  // Ya no atrapa el error para setear un state compartido: WallMessageCard
+  // (memoizado, ver components/WallMessageCard.tsx) guarda su propio texto
+  // de respuesta LOCAL, así que este handler solo necesita propagar el error
+  // (throw) para que la card lo muestre junto a SU propio input, en vez de
+  // un replyError global que antes vivía acá y obligaba a que todo el feed
+  // recibiera props nuevas (y se re-renderizara) en cada tecla escrita.
+  const handleReply = useCallback(async (message: WallMessage, text: string) => {
+    if (!id) return
     try {
-      await replyToWallMessage(
-        id,
-        message.id,
-        replyText,
-        postLabel,
-        authorToken,
-        isOwner ? 'owner' : 'guest',
-        postPhotoURL,
-      )
-      setReplyText('')
-      setReplyingTo(null)
+      await replyToWallMessage(id, message.id, text, postLabel, authorToken, isOwner ? 'owner' : 'guest', postPhotoURL)
     } catch (err) {
       console.error('Error replying to wall message:', err)
       captureException(err, { tags: { component: 'event_wall', action: 'reply' } })
-      setReplyError(err instanceof Error ? err.message : 'No se pudo enviar la respuesta. Intenta de nuevo.')
+      throw err
     }
-  }
+  }, [id, postLabel, authorToken, isOwner, postPhotoURL])
 
   async function confirmDeleteMessage() {
     if (!id || !deletingMessageId) return
@@ -204,16 +197,16 @@ export function EventWall() {
     setDeletingMessageId(null)
   }
 
-  async function handlePin(msg: WallMessage) {
+  const handlePin = useCallback(async (msg: WallMessage) => {
     if (!id) return
     await pinWallMessage(id, msg.id, msg.pinned)
-  }
+  }, [id])
 
   // Optimista: refleja la reacción en `messages` antes de que Firestore
   // confirme (el listener en vivo la va a pisar con el eco del server en
   // cuanto llegue, pero el usuario la ve al instante). Si la escritura
   // falla, se revierte a mano.
-  async function handleReact(msg: WallMessage, type: ReactionType | null) {
+  const handleReact = useCallback(async (msg: WallMessage, type: ReactionType | null) => {
     if (!id) return
     const token = getDeviceToken()
     const prevReactions = msg.reactions
@@ -228,7 +221,7 @@ export function EventWall() {
       console.error('Error reacting to wall message:', err)
       setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: prevReactions } : m)))
     }
-  }
+  }, [id, postLabel, postPhotoURL])
 
   // Mensajes en vivo (recientes + destacados) + históricos cargados a pedido,
   // sin duplicar (un mensaje destacado viejo puede llegar por ambas vías).
@@ -250,15 +243,15 @@ export function EventWall() {
 
   const feed = useMemo(() => mergeWallFeed(sorted, photos), [sorted, photos])
 
-  async function handleDeletePhoto(photoId: string) {
+  const handleDeletePhoto = useCallback(async (photoId: string) => {
     if (!id) return
     await deletePhoto(id, photoId)
-  }
+  }, [id])
 
-  async function handlePinPhoto(photo: PhotoData) {
+  const handlePinPhoto = useCallback(async (photo: PhotoData) => {
     if (!id) return
     await pinPhoto(id, photo.id, photo.pinned)
-  }
+  }, [id])
 
   // Mismo patrón optimista que handleReact/handleReply (arriba), pero sobre
   // `photos` — reutiliza reactToPhoto/replyToPhoto (src/firebase/photos.ts),
@@ -267,7 +260,7 @@ export function EventWall() {
   // historia (PhotoViewer modo story, vía StoriesBar) actualiza el mismo
   // estado `photos` que la card del feed, así que ambas vistas quedan en
   // sync sin lógica extra.
-  async function handleReactPhoto(photo: PhotoData, type: ReactionType | null) {
+  const handleReactPhoto = useCallback(async (photo: PhotoData, type: ReactionType | null) => {
     if (!id) return
     const token = getDeviceToken()
     const prevReactions = photo.reactions
@@ -282,12 +275,19 @@ export function EventWall() {
       console.error('Error reacting to photo:', err)
       setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: prevReactions } : p)))
     }
-  }
+  }, [id, postLabel, postPhotoURL])
 
-  async function handleReplyPhoto(photo: PhotoData, text: string) {
+  const handleReplyPhoto = useCallback(async (photo: PhotoData, text: string) => {
     if (!id) return
     await replyToPhoto(id, photo.id, text, postLabel, authorToken, isOwner ? 'owner' : 'guest', postPhotoURL)
-  }
+  }, [id, postLabel, authorToken, isOwner, postPhotoURL])
+
+  // Estable: sin esto, el arrow function inline que antes se pasaba como
+  // onOpen (creado de nuevo por cada foto en cada render del feed) también
+  // habría anulado el memo de PhotoFeedCard.
+  const openPhoto = useCallback((photo: PhotoData) => {
+    setGalleryIndex(photos.findIndex((p) => p.id === photo.id))
+  }, [photos])
 
   if (!nameConfirmed && !isOwner && !user) {
     const nameGateContent = (
@@ -435,7 +435,7 @@ export function EventWall() {
               {posting ? 'Publicando…' : 'Publicar'}
             </button>
           </div>
-          {(postError || replyError) && <p className="text-xs text-red-500">{postError || replyError}</p>}
+          {postError && <p className="text-xs text-red-500">{postError}</p>}
         </form>
       )}
 
@@ -459,149 +459,35 @@ export function EventWall() {
                 key={item.id}
                 photo={item.photo}
                 isOrg={isOrg}
-                onOpen={() => setGalleryIndex(photos.findIndex((p) => p.id === item.photo.id))}
+                onOpen={openPhoto}
                 onDelete={handleDeletePhoto}
                 onPin={handlePinPhoto}
                 templateId={event?.templateId}
                 eventId={id || ''}
                 eventName={event?.name || ''}
-                myToken={getDeviceToken()}
+                myToken={deviceToken}
                 canReply={!isMinor && !commentBlockedMessage}
                 onReact={handleReactPhoto}
                 onReply={handleReplyPhoto}
               />
             )
           }
-          const msg       = item.message
-          const cfg       = TYPE_CONFIG[msg.type]
           return (
-            <div
-              key={msg.id}
-              data-pinned={msg.pinned}
-              className={`invite-wall-message bg-white dark:bg-gray-800 rounded-xl border p-4 animate-fade-in-up transition-all ${
-                msg.pinned
-                  ? 'border-yellow-400/60 dark:border-yellow-500/40 shadow-[0_0_12px_rgba(232,184,75,.18)]'
-                  : 'border-gray-200 dark:border-gray-700'
-              }`}
-            >
-              {msg.pinned && <ThemeSeal templateId={event?.templateId} />}
-              {/* Header */}
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-start gap-2 flex-1 min-w-0">
-                  <Avatar name={msg.authorName} photoURL={msg.authorPhotoURL} size={28} />
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {msg.pinned && (
-                      <span className="flex items-center gap-1 text-xs font-medium text-yellow-500">
-                        <IconPin className="w-3 h-3" />
-                        Destacado
-                      </span>
-                    )}
-                    <span className={`flex items-center gap-1 text-xs rounded-full px-2 py-0.5 font-medium ${cfg.color}`}>
-                      <cfg.Icon className="w-3 h-3" />
-                      {cfg.label}
-                    </span>
-                    <AuthorName name={msg.authorName} role={msg.authorRole} />
-                  </div>
-                </div>
-                {/* Owner/co-org actions */}
-                {isOrg && (
-                  <div className="flex items-center -mr-2 shrink-0">
-                    <button
-                      onClick={() => handlePin(msg)}
-                      title={msg.pinned ? 'Quitar destacado' : 'Destacar mensaje'}
-                      aria-label={msg.pinned ? 'Quitar destacado' : 'Destacar mensaje'}
-                      className={`p-2.5 transition-colors ${msg.pinned ? 'text-yellow-500 hover:text-yellow-400' : 'text-gray-400 hover:text-yellow-500'}`}
-                    >
-                      <IconPin className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setDeletingMessageId(msg.id)}
-                      aria-label="Eliminar mensaje"
-                      className="wall-action-btn text-xs text-red-400 hover:text-red-600"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                )}
-                {/* Borrar el propio mensaje: solo para el autor real logueado
-                    (authorToken == su uid, ver EventWall.tsx authorToken de
-                    arriba) — firestore.rules solo puede verificar esto
-                    cuando hay una identidad de Firebase Auth detrás; un
-                    invitado sin cuenta no tiene forma de probar autoría del
-                    lado servidor, así que no ve este botón. */}
-                {!isOrg && !!user && msg.authorToken === user.uid && (
-                  <button
-                    onClick={() => setDeletingMessageId(msg.id)}
-                    aria-label="Eliminar mensaje"
-                    className="wall-action-btn text-xs text-red-400 hover:text-red-600 shrink-0"
-                  >
-                    Eliminar
-                  </button>
-                )}
-              </div>
-
-              <p className="text-sm text-gray-900 dark:text-white mb-3 ml-9">{msg.text}</p>
-
-              {/* Replies */}
-              <RepliesList replies={msg.replies} />
-
-              {/* Reactions row — padding del botón deja el target táctil real
-                  en ~40px+ (antes el botón era solo el ícono de 14px,
-                  imposible de tocar con precisión en celular); ml-[1.625rem]
-                  = ml-9 (36px) menos el padding nuevo (p-2.5 = 10px), para
-                  que el ícono siga alineado con el resto del bloque. */}
-              <div className="flex items-center gap-1 ml-[1.625rem]">
-                <ReactionPicker
-                  reactions={msg.reactions}
-                  myToken={getDeviceToken()}
-                  onReact={(type) => handleReact(msg, type)}
-                />
-                {!isMinor && !commentBlockedMessage && replyingTo !== msg.id && (
-                  <button onClick={() => setReplyingTo(msg.id)} className="wall-action-btn text-xs text-gray-400 hover:text-primary">
-                    Responder
-                  </button>
-                )}
-                {id && (
-                  <ReportButton
-                    eventId={id}
-                    eventName={event?.name || ''}
-                    contentType="comment"
-                    contentId={msg.id}
-                    contentSnapshot={msg.text}
-                    contentAuthorName={msg.authorName}
-                    contentAuthorToken={msg.authorToken}
-                  />
-                )}
-              </div>
-
-              {/* Reply input */}
-              {!isMinor && !commentBlockedMessage && replyingTo === msg.id && (
-                <div className="mt-3 flex gap-2 ml-9">
-                  {/* onFocus + scrollIntoView: este input vive dentro de una
-                      lista larga de mensajes — sin esto, el teclado podía
-                      taparlo (o tapar el botón "Enviar") si no quedaba
-                      suficiente margen de scroll debajo de su posición
-                      natural en la página. */}
-                  <input
-                    type="text"
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Escribe tu respuesta…"
-                    maxLength={WALL_TEXT_MAX}
-                    autoFocus
-                    onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                    className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleReply(msg) }}
-                  />
-                  <button onClick={() => handleReply(msg)} className="bg-primary text-white rounded-md px-3 py-1.5 text-xs font-medium">
-                    Enviar
-                  </button>
-                  <button onClick={() => setReplyingTo(null)} aria-label="Cancelar respuesta" className="flex items-center text-gray-400 hover:text-gray-600">
-                    <IconX className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
+            <WallMessageCard
+              key={item.id}
+              message={item.message}
+              isOrg={isOrg}
+              currentUserUid={user?.uid}
+              canReply={!isMinor && !commentBlockedMessage}
+              templateId={event?.templateId}
+              eventId={id || ''}
+              eventName={event?.name || ''}
+              myToken={deviceToken}
+              onPin={handlePin}
+              onRequestDelete={setDeletingMessageId}
+              onReact={handleReact}
+              onReply={handleReply}
+            />
           )
         })}
       </div>

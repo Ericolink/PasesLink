@@ -86,12 +86,14 @@ export default defineConfig({
         // CUALQUIER visitante en su primera visita, incluidos chunks pesados
         // de rutas que un invitado (/pass, /join, /wall) nunca abre: el panel
         // de admin, el escáner (solo lo usa quien tiene el rol de puerta) y
-        // las dependencias de exportar PDF (html2canvas + el propio
-        // exportPdf, ~600 KB juntos). Se excluyen del precache — quedan
-        // disponibles igual la primera vez que alguien SÍ visita esa ruta,
-        // vía el runtimeCaching de abajo, y de ahí en adelante sí quedan
-        // cacheados para esa persona puntual.
-        globIgnores: ['**/AdminDashboard-*.js', '**/Scanner-*.js', '**/exportPdf-*.js', '**/html2canvas-*.js'],
+        // las dependencias de exportar PDF/Excel (html2canvas + exportPdf +
+        // exportExcel, ~1.5 MB juntos — exportExcel solo es alcanzable desde
+        // Reports/EventDetail, exclusivo de organizadores, vía import()
+        // dinámico que ningún invitado ejecuta nunca). Se excluyen del
+        // precache — quedan disponibles igual la primera vez que alguien SÍ
+        // visita esa ruta, vía el runtimeCaching de abajo, y de ahí en
+        // adelante sí quedan cacheados para esa persona puntual.
+        globIgnores: ['**/AdminDashboard-*.js', '**/Scanner-*.js', '**/exportPdf-*.js', '**/exportExcel-*.js', '**/html2canvas-*.js'],
         navigateFallback: '/index.html',
         // /__/* son los helpers de Firebase Hosting (p. ej. /__/auth para el
         // popup de Google/Facebook) — nunca deben caer en el fallback del SW.

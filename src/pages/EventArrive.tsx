@@ -70,7 +70,7 @@ export function EventArrive() {
       className="min-h-dvh flex items-center justify-center text-center p-4"
     >
       <div className="w-full max-w-sm">
-        <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name}>
+        <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name} priority>
           <h1 className="text-xl font-bold mb-1">{event?.name}</h1>
           <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-2 text-[var(--invite-accent)]" />
           <p className={`text-sm text-[var(--invite-text-muted)] ${event?.startTime ? '' : 'mb-4'}`}>

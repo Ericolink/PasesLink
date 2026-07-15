@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import {
   allowGuestReentry,
   bulkDeleteGuests,
@@ -148,6 +148,42 @@ export const GuestList = memo(function GuestList({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
 
+  // Los dos useCallback de acá abajo tienen que vivir ANTES del early return
+  // de "sin invitados" (regla de hooks: siempre en el mismo orden, nunca
+  // detrás de un return condicional), aunque conceptualmente sean parte del
+  // bloque de acciones sobre filas más abajo.
+
+  // useCallback (deps vacíos: solo usa el updater funcional de setSelected)
+  // — es una de las dos props "problema" que rowProps le pasa a cada
+  // GuestRow (memo, ver GuestRow.tsx). Sin esto, GuestList recreaba esta
+  // función en cada render y anulaba el memo de CADA fila visible ante
+  // cualquier cambio (ej. un check-in de OTRO invitado durante una hora
+  // pico de puerta), no solo la fila que de verdad cambió.
+  const toggleSelect = useCallback((guest: GuestData) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(guest.id)) next.delete(guest.id)
+      else next.add(guest.id)
+      return next
+    })
+  }, [])
+
+  // useCallback: la otra prop "problema" de rowProps — antes era un arrow
+  // function literal creado de nuevo en CADA render de GuestList. No reusa
+  // handleMarkPaid directamente porque esa sigue siendo una función plana
+  // (recreada cada render, usada también por GuestDetailSheet, que no está
+  // memoizado y no lo necesita) — duplicar estas pocas líneas es más simple
+  // que forzar a handleMarkPaid a ser estable para un único llamador que sí
+  // lo necesita.
+  const handleQuickPay = useCallback((guest: GuestData) => {
+    setActionError('')
+    const method = guest.paymentMethod || paymentMethods[0]
+    setGuestPaymentStatus(eventId, guest.id, 'paid', method).catch((err) => {
+      console.error('Error marking guest as paid:', err)
+      setActionError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
+    })
+  }, [eventId, paymentMethods])
+
   if (guests.length === 0) {
     return (
       <div className="text-center py-8 animate-fade-in">
@@ -252,15 +288,6 @@ export const GuestList = memo(function GuestList({
     }
   }
 
-  function toggleSelect(guest: GuestData) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(guest.id)) next.delete(guest.id)
-      else next.add(guest.id)
-      return next
-    })
-  }
-
   function exitSelectMode() {
     setSelectMode(false)
     setSelected(new Set())
@@ -292,7 +319,7 @@ export const GuestList = memo(function GuestList({
     canDeleteGuests,
     onToggleSelect: toggleSelect,
     onOpenDetail: setDetailGuest,
-    onQuickPay: (guest: GuestData) => handleMarkPaid(guest, resolveMethod(guest)),
+    onQuickPay: handleQuickPay,
     onQuickDeleteRequest: setDeletingGuest,
   }
 
