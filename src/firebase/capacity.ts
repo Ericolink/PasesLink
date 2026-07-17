@@ -159,7 +159,21 @@ export async function registerWalkInGuest(
         phone: trimmedPhone,
       })
     }
-    tx.update(eventRef, { guestCount: increment(1), peopleCount: increment(clampedPartySize) })
+    // Valor absoluto calculado dentro de la transacción, NO increment():
+    // eventos creados antes de que existiera peopleCount no tienen ese campo,
+    // e increment() lo crearía arrancando de 0, dejando el total inconsistente
+    // con lo que la app ya muestra (getEvent en events.ts aproxima el
+    // peopleCount ausente con guestCount — mismo fallback de acá). Escribir el
+    // valor calculado backfillea el campo legacy con esa misma aproximación, y
+    // la transacción garantiza la atomicidad que antes daba increment().
+    // firestore.rules aplica este mismo fallback al validar el delta (ver
+    // eventPeopleCountBefore ahí).
+    const currentGuestCount = typeof data.guestCount === 'number' ? data.guestCount : 0
+    const currentPeopleCount = typeof data.peopleCount === 'number' ? data.peopleCount : currentGuestCount
+    tx.update(eventRef, {
+      guestCount: currentGuestCount + 1,
+      peopleCount: currentPeopleCount + clampedPartySize,
+    })
 
     return { status: 'success', qrToken }
   })

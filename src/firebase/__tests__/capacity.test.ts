@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { addDoc, collection, doc, updateDoc } from 'firebase/firestore'
-import { createTestEnv, getEventDoc, getGuestDoc, guestIdByToken, seedEvent, seedGuest, seedUserProfile, type EmulatorFirestore } from './helpers'
+import { addDoc, collection, doc, setDoc, updateDoc } from 'firebase/firestore'
+import { createTestEnv, defaultEventData, getEventDoc, getGuestDoc, guestIdByToken, seedEvent, seedGuest, seedUserProfile, type EmulatorFirestore } from './helpers'
 
 // capacity.ts y guests.ts importan `db` de './config' como singleton de producción.
 // Lo reemplazamos por un getter que apunta al Firestore del emulador activo en cada
@@ -260,6 +260,83 @@ describe('capacity.ts', () => {
       guestPhotoURL: 'https://evil.example.com/offensive.jpg',
       createdAt: Date.now(),
     }))
+  })
+
+  // Regresión del "Missing or insufficient permissions" en el autoregistro
+  // público: eventos creados antes de que existiera peopleCount no tienen ese
+  // campo, y la regla del update del evento leía resource.data.peopleCount a
+  // secas — leer una clave ausente en reglas es un error que deniega la
+  // transacción entera. Ver eventPeopleCountBefore en firestore.rules.
+  it('should self-register on a legacy event that has no peopleCount field, backfilling it from guestCount', async () => {
+    const legacy = defaultEventData({ entryMode: 'open', guestCount: 3 })
+    delete (legacy as Record<string, unknown>).peopleCount
+    delete (legacy as Record<string, unknown>).paidCount
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'events', EVENT_ID), legacy)
+    })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Legacy')
+
+    expect(result.status).toBe('success')
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(4)
+    // Backfill con el mismo fallback que getEvent: peopleCount ausente ≈ guestCount.
+    expect(event?.peopleCount).toBe(4)
+  })
+
+  // Regresión: si el listener de perfil todavía no emitió cuando el usuario
+  // envía el formulario, EventJoin manda guestUid con la sesión activa pero
+  // guestPhotoURL null aunque el perfil SÍ tenga foto — antes la regla exigía
+  // igualdad exacta con users/{uid}.photoURL y denegaba el registro.
+  it('should let a logged-in user self-register without a photo even if their profile has one (profile not loaded yet)', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', guestCount: 0 })
+    const uid = 'user-foto-sin-cargar'
+    await seedUserProfile(testEnv, uid, { photoURL: 'https://res.cloudinary.com/demo/foto.jpg' })
+    dbHolder.db = testEnv.authenticatedContext(uid).firestore()
+
+    const result = await registerWalkInGuest(
+      EVENT_ID, 'Invitado Con Sesión', undefined, undefined, undefined, undefined, undefined,
+      uid, undefined,
+    )
+
+    expect(result.status).toBe('success')
+    const guest = await getGuestDoc(testEnv, EVENT_ID, await guestIdByToken(testEnv, EVENT_ID, result.qrToken!))
+    expect(guest?.guestUid).toBe(uid)
+    expect(guest?.guestPhotoURL).toBeNull()
+  })
+
+  // Regresión: cuenta autenticada SIN documento users/{uid} (p.ej. login con
+  // Google sin completar el perfil) — el get() de la regla sobre un documento
+  // inexistente es un error, así que antes denegaba el registro.
+  it('should let a logged-in user without a users/{uid} document self-register', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', guestCount: 0 })
+    const uid = 'user-sin-perfil'
+    dbHolder.db = testEnv.authenticatedContext(uid).firestore()
+
+    const result = await registerWalkInGuest(
+      EVENT_ID, 'Invitado Sin Perfil', undefined, undefined, undefined, undefined, undefined,
+      uid, undefined,
+    )
+
+    expect(result.status).toBe('success')
+    const guest = await getGuestDoc(testEnv, EVENT_ID, await guestIdByToken(testEnv, EVENT_ID, result.qrToken!))
+    expect(guest?.guestUid).toBe(uid)
+  })
+
+  // Regresión: la regla del update del evento limitaba el delta de peopleCount
+  // a +10 (copiado de una constante GUEST_MAX_PARTY_SIZE que ya no existe),
+  // pero maxCompanions puede configurarse hasta 20 (GUEST_MAX_COMPANIONS) —
+  // un grupo legítimo de 11 a 21 personas quedaba denegado.
+  it('should self-register a full party of 21 when the event allows the maximum 20 companions', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', guestCount: 0, peopleCount: 0, maxCompanions: 20 })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Grupo Grande', undefined, undefined, undefined, 21)
+
+    expect(result.status).toBe('success')
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.peopleCount).toBe(21)
   })
 
   it('should reject a raw public write that tries to self-mark as paid or checked-in', async () => {

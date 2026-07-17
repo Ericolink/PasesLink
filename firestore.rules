@@ -236,18 +236,51 @@ service cloud.firestore {
           // de otra persona (apareciendo en el dashboard del organizador como si
           // esa cuenta ajena se hubiera autoregistrado) o mandar cualquier URL
           // arbitraria como foto. Defensa: guestUid debe ser el uid autenticado
-          // del propio request, y guestPhotoURL debe coincidir con el photoURL
-          // que ESE usuario ya tiene en su propio perfil — nunca inventado.
-          (request.auth == null && d.guestUid == null && d.guestPhotoURL == null)
+          // del propio request, y guestPhotoURL (si viene) debe coincidir con el
+          // photoURL que ESE usuario ya tiene en su propio perfil — nunca inventado.
+          //
+          // guestUid/guestPhotoURL en null se acepta CON o SIN sesión (antes la
+          // primera rama exigía request.auth == null): null no reclama ninguna
+          // identidad ni publica ninguna URL, así que no hay nada que suplantar.
+          // Exigir sesión nula acá rompía el registro real: si el listener de
+          // perfil (useAuth) todavía no había emitido cuando el usuario envió el
+          // formulario, EventJoin mandaba null teniendo el request una sesión
+          // activa, y el registro entero moría con permission-denied.
+          (d.guestUid == null && d.guestPhotoURL == null)
           || (
             request.auth != null
             && d.guestUid == request.auth.uid
-            // .data.get('photoURL', null), no .data.photoURL: leer una clave
-            // ausente de un mapa en reglas de Firestore lanza error, no null —
-            // un usuario sin foto debe poder autoregistrarse igual.
-            && d.guestPhotoURL == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('photoURL', null)
+            && (
+              // Registrarse sin foto siempre es válido, aunque el perfil sí
+              // tenga una (perfil aún no cargado en el cliente, o usuario de
+              // Google sin documento users/{uid} — en ambos casos el get() de
+              // abajo denegaría un registro legítimo). El corto-circuito además
+              // evita ese get() cuando no hay foto que verificar.
+              d.guestPhotoURL == null
+              // .data.get('photoURL', null), no .data.photoURL: leer una clave
+              // ausente de un mapa en reglas de Firestore lanza error, no null —
+              // un usuario sin foto debe poder autoregistrarse igual.
+              || d.guestPhotoURL == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('photoURL', null)
+            )
           )
         );
+    }
+
+    // Contadores del EVENTO tolerantes a documentos legacy: eventos creados
+    // antes de que existieran estos campos no los tienen, y en reglas de
+    // Firestore leer una clave ausente (resource.data.peopleCount) es un
+    // ERROR que deniega la escritura entera — era la causa del
+    // "Missing or insufficient permissions" del autoregistro público sobre
+    // eventos viejos. El fallback de peopleCount a guestCount replica el
+    // mismo criterio que ya usan la lectura (getEvent, src/firebase/events.ts)
+    // y la escritura (registerWalkInGuest, src/firebase/capacity.ts, que
+    // backfillea el campo con este mismo valor).
+    function eventGuestCountBefore(evData) {
+      return evData.get('guestCount', 0);
+    }
+
+    function eventPeopleCountBefore(evData) {
+      return evData.get('peopleCount', eventGuestCountBefore(evData));
     }
 
     function isValidPublicGuestContact() {
@@ -620,15 +653,21 @@ service cloud.firestore {
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount)
             && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
         // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
-        // invitación en 1 (guestCount), sumando entre 1 y GUEST_MAX_PARTY_SIZE
-        // personas (peopleCount) — ese invitado puede traer acompañantes (ver
-        // GUEST_MAX_PARTY_SIZE en src/utils/validation.ts, debe coincidir con
-        // el 10 de acá).
+        // invitación en 1 (guestCount), sumando entre 1 y 21 personas
+        // (peopleCount): el invitado más los acompañantes que el organizador le
+        // permita traer — el 21 es 1 + GUEST_MAX_COMPANIONS (techo de
+        // EventData.maxCompanions, ver src/utils/validation.ts e
+        // isValidMaxCompanions arriba; antes decía 10, copiado de una constante
+        // GUEST_MAX_PARTY_SIZE que ya no existe, y rechazaba registros legítimos
+        // en eventos con maxCompanions entre 10 y 20). eventGuestCountBefore/
+        // eventPeopleCountBefore y no resource.data.guestCount/peopleCount a
+        // secas: ver el comentario de esas funciones (eventos legacy sin esos
+        // campos denegaban el registro entero).
         || (resource.data.entryMode in ['open', 'hybrid']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount'])
-            && request.resource.data.guestCount == resource.data.guestCount + 1
-            && request.resource.data.peopleCount >= resource.data.peopleCount + 1
-            && request.resource.data.peopleCount <= resource.data.peopleCount + 10)
+            && request.resource.data.guestCount == eventGuestCountBefore(resource.data) + 1
+            && request.resource.data.peopleCount >= eventPeopleCountBefore(resource.data) + 1
+            && request.resource.data.peopleCount <= eventPeopleCountBefore(resource.data) + 21)
         // "Salir del evento": un co-organizador puede quitarse a sí mismo sin
         // pasar por el dueño. Solo puede tocar sus propias 2 entradas
         // (coOrganizersMap/coOrganizerPermissions) y hacerlas desaparecer —
