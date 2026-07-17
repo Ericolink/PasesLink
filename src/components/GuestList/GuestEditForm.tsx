@@ -4,6 +4,8 @@ import type { CompanionData, CustomField, GuestData } from '../../types'
 import { CompanionFieldsEditor } from '../CompanionFields'
 import { CustomFieldsEditRow } from '../CustomFieldsEditor'
 import { GUEST_GROUP_MAX_MEMBERS } from '../../utils/validation'
+import { Button } from '../Button'
+import { FieldError } from '../FieldError'
 
 export function EditGuestRow({
   eventId,
@@ -50,7 +52,7 @@ export function EditGuestRow({
 
   return (
     <form onSubmit={handleSave} className="space-y-2">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      <FieldError message={error} />
       <div className="grid grid-cols-1 gap-2">
         <input
           type="text"
@@ -78,20 +80,12 @@ export function EditGuestRow({
         <CompanionFieldsEditor companions={companions} onChange={setCompanions} maxCompanions={maxCompanions} />
         <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 bg-primary text-white rounded-md px-2 py-2.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-          >
+          <Button type="submit" size="sm" disabled={saving} className="flex-1">
             Guardar
-          </button>
-          <button
-            type="button"
-            onClick={onDone}
-            className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={onDone} className="flex-1">
             Cancelar
-          </button>
+          </Button>
         </div>
       </div>
     </form>
@@ -148,7 +142,7 @@ export function EditGroupRow({
 
   return (
     <form onSubmit={handleSave} className="space-y-2">
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      <FieldError message={error} />
       <div className="grid grid-cols-1 gap-2">
         <input
           type="text"
@@ -172,20 +166,12 @@ export function EditGroupRow({
         />
         <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 bg-primary text-white rounded-md px-2 py-2.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-          >
+          <Button type="submit" size="sm" disabled={saving} className="flex-1">
             Guardar
-          </button>
-          <button
-            type="button"
-            onClick={onDone}
-            className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={onDone} className="flex-1">
             Cancelar
-          </button>
+          </Button>
         </div>
       </div>
     </form>

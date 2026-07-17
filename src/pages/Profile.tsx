@@ -17,13 +17,17 @@ import {
 import { saveUserProfile } from '../firebase/userProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
-import { useModalA11y } from '../hooks/useModalA11y'
+import { Modal } from '../components/Modal'
 import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
+import { Button } from '../components/Button'
+import { FieldError } from '../components/FieldError'
+import { PasswordInput } from '../components/PasswordInput'
 import { useTheme, type ThemePreference } from '../hooks/useTheme'
 import {
   IconCheckCircle,
   IconEdit,
+  IconGoogle,
   IconLink,
   IconLogOut,
   IconMessageSquare,
@@ -55,9 +59,6 @@ function EditNameModal({
   const [last, setLast]   = useState(initial.lastName)
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
-  // El padre monta/desmonta este componente en vez de un flag `open`
-  // interno — el montaje ya equivale a "abierto".
-  const dialogRef = useModalA11y<HTMLDivElement>(true, onClose)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -75,17 +76,11 @@ function EditNameModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Editar nombre"
-        className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 animate-fade-in"
-      >
+    <Modal open onClose={onClose} label="Editar nombre" variant="dialog" maxWidth="max-w-sm">
+      <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">Editar nombre</h3>
-          <button onClick={onClose} aria-label="Cerrar" className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} aria-label="Cerrar" className="min-w-11 min-h-11 -m-2 inline-flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <IconX className="w-5 h-5" />
           </button>
         </div>
@@ -114,20 +109,18 @@ function EditNameModal({
               className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          <FieldError message={error} />
           <div className="flex gap-2 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md py-2 text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <Button type="button" variant="secondary" size="sm" onClick={onClose} className="flex-1">
               Cancelar
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
+            </Button>
+            <Button type="submit" size="sm" disabled={saving} className="flex-1">
               {saving ? 'Guardando…' : 'Guardar'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -327,7 +320,7 @@ export function Profile() {
             <IconShield className="w-5 h-5 text-amber-500 shrink-0" />
             <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">Admin</span>
             {unreadFeedback > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-white text-[10px] font-bold leading-none">
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-white text-2xs font-bold leading-none">
                 {unreadFeedback > 99 ? '99+' : unreadFeedback}
               </span>
             )}
@@ -367,7 +360,7 @@ export function Profile() {
               className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50">
               {photoUploading ? 'Subiendo…' : 'Cambiar foto'}
             </button>
-            {(photoError || pickError) && <p className="text-xs text-red-500">{photoError || pickError}</p>}
+            <FieldError message={photoError || pickError} />
           </div>
         </div>
 
@@ -430,12 +423,7 @@ export function Profile() {
           {/* Google */}
           <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3">
             <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
+              <IconGoogle className="w-5 h-5 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Google</p>
                 <p className="text-xs text-gray-500">{hasGoogle ? 'Cuenta vinculada' : 'No vinculada'}</p>
@@ -462,7 +450,7 @@ export function Profile() {
               </button>
             )}
           </div>
-          {googleLinkError && <p className="text-xs text-red-500">{googleLinkError}</p>}
+          <FieldError message={googleLinkError} />
 
           {/* Email / Contraseña */}
           <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3">
@@ -501,34 +489,31 @@ export function Profile() {
             {/* Add password mini-form */}
             {showAddPassword && !hasEmail && (
               <form onSubmit={handleAddPassword} className="mt-3 space-y-2 border-t border-gray-200 dark:border-gray-700 pt-3">
-                <input
-                  type="password"
+                <PasswordInput
                   required
                   autoComplete="new-password"
                   minLength={PASSWORD_MIN_LENGTH}
                   placeholder="Nueva contraseña"
-                  aria-label="Nueva contraseña"
+                  ariaLabel="Nueva contraseña"
                   value={newLinkPassword}
-                  onChange={(e) => setNewLinkPassword(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  onChange={setNewLinkPassword}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md pl-3 pr-11 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
-                <p className="text-xs text-gray-400">{PASSWORD_HINT}</p>
-                <input
-                  type="password"
+                <p className="text-xs text-gray-500">{PASSWORD_HINT}</p>
+                <PasswordInput
                   required
                   autoComplete="new-password"
                   minLength={PASSWORD_MIN_LENGTH}
                   placeholder="Confirmar contraseña"
-                  aria-label="Confirmar contraseña"
+                  ariaLabel="Confirmar contraseña"
                   value={confirmLinkPassword}
-                  onChange={(e) => setConfirmLinkPassword(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  onChange={setConfirmLinkPassword}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md pl-3 pr-11 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
-                {linkPasswordError && <p className="text-xs text-red-500">{linkPasswordError}</p>}
-                <button type="submit" disabled={linkPasswordSaving}
-                  className="w-full bg-primary text-white rounded-md py-1.5 text-sm font-medium disabled:opacity-50">
+                <FieldError message={linkPasswordError} />
+                <Button type="submit" size="sm" disabled={linkPasswordSaving} className="w-full">
                   {linkPasswordSaving ? 'Guardando…' : 'Guardar contraseña'}
-                </button>
+                </Button>
               </form>
             )}
             {linkPasswordMsg && (
@@ -538,7 +523,7 @@ export function Profile() {
             )}
           </div>
 
-          {unlinkError && <p className="text-xs text-red-500">{unlinkError}</p>}
+          <FieldError message={unlinkError} />
         </div>
       </section>
 
@@ -549,30 +534,29 @@ export function Profile() {
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
               <label htmlFor="change-password-current" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña actual</label>
-              <input id="change-password-current" type="password" required autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
+              <PasswordInput id="change-password-current" required autoComplete="current-password" value={currentPassword} onChange={setCurrentPassword}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md pl-3 pr-11 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <div>
               <label htmlFor="change-password-new" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
-              <input id="change-password-new" type="password" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
-              <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
+              <PasswordInput id="change-password-new" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={newPassword} onChange={setNewPassword}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md pl-3 pr-11 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
+              <p className="text-xs text-gray-500 mt-1">{PASSWORD_HINT}</p>
             </div>
             <div>
               <label htmlFor="change-password-confirm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
-              <input id="change-password-confirm" type="password" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
+              <PasswordInput id="change-password-confirm" required autoComplete="new-password" minLength={PASSWORD_MIN_LENGTH} value={confirmPassword} onChange={setConfirmPassword}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md pl-3 pr-11 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
-            {passwordError   && <p className="text-sm text-red-500">{passwordError}</p>}
+            <FieldError message={passwordError} />
             {passwordMessage && (
               <p className="text-sm text-green-500 flex items-center gap-1">
                 <IconCheckCircle className="w-4 h-4" /> {passwordMessage}
               </p>
             )}
-            <button type="submit" disabled={passwordSaving}
-              className="bg-primary text-white rounded-md px-4 py-2 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
+            <Button type="submit" disabled={passwordSaving}>
               {passwordSaving ? 'Guardando…' : 'Cambiar contraseña'}
-            </button>
+            </Button>
           </form>
         </section>
       )}

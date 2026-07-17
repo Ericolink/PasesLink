@@ -62,7 +62,7 @@ export function Navbar() {
             >
               {user.photoURL
                 ? <img src={optimizedImageUrl(user.photoURL, 48)} alt="" loading="lazy" className="w-6 h-6 rounded-full object-cover" />
-                : <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center text-[10px] font-bold text-primary">
+                : <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center text-2xs font-bold text-primary">
                     {(user.displayName || user.email || '?')[0].toUpperCase()}
                   </div>
               }
@@ -73,7 +73,7 @@ export function Navbar() {
               className="hidden sm:inline-flex min-h-11 items-center ml-1 px-3 rounded-md border text-sm font-medium transition-colors"
               style={{
                 borderColor: 'rgba(255,20,100,0.4)',
-                color: '#FF1464',
+                color: 'var(--color-primary)',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'rgba(255,20,100,0.12)'

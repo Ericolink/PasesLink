@@ -4,6 +4,9 @@ import { parseGuestsCsv } from '../utils/csvImport'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ScrollableTabs } from './ScrollableTabs'
+import { TabButton } from './TabButton'
+import { Button } from './Button'
+import { FieldError } from './FieldError'
 import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
 import { customFieldInputProps } from '../utils/customFieldInput'
 import { captureException } from '../lib/sentry'
@@ -225,42 +228,14 @@ export function GuestAddForm({
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-white">
-      <ScrollableTabs className="mb-4">
-        <button
-          onClick={() => setMode('single')}
-          className={`shrink-0 whitespace-nowrap min-h-11 text-sm px-3 rounded-md font-medium ${
-            mode === 'single' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
-          }`}
-        >
-          Agregar uno
-        </button>
-        <button
-          onClick={() => setMode('group')}
-          className={`shrink-0 whitespace-nowrap min-h-11 text-sm px-3 rounded-md font-medium ${
-            mode === 'group' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
-          }`}
-        >
-          Familia o grupo
-        </button>
-        <button
-          onClick={() => setMode('bulk')}
-          className={`shrink-0 whitespace-nowrap min-h-11 text-sm px-3 rounded-md font-medium ${
-            mode === 'bulk' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
-          }`}
-        >
-          Agregar lista
-        </button>
-        <button
-          onClick={() => setMode('csv')}
-          className={`shrink-0 whitespace-nowrap min-h-11 text-sm px-3 rounded-md font-medium ${
-            mode === 'csv' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
-          }`}
-        >
-          Importar CSV
-        </button>
+      <ScrollableTabs className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
+        <TabButton label="Agregar uno" active={mode === 'single'} onClick={() => setMode('single')} />
+        <TabButton label="Familia o grupo" active={mode === 'group'} onClick={() => setMode('group')} />
+        <TabButton label="Agregar lista" active={mode === 'bulk'} onClick={() => setMode('bulk')} />
+        <TabButton label="Importar CSV" active={mode === 'csv'} onClick={() => setMode('csv')} />
       </ScrollableTabs>
 
-      {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+      <div className="mb-3"><FieldError message={error} /></div>
 
       {mode === 'single' ? (
         <form onSubmit={handleSingleSubmit} className="space-y-3">
@@ -311,13 +286,9 @@ export function GuestAddForm({
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-          >
+          <Button type="submit" size="sm" disabled={loading} className="w-full">
             {loading ? 'Agregando…' : 'Agregar invitado'}
-          </button>
+          </Button>
         </form>
       ) : mode === 'group' ? (
         <form onSubmit={handleGroupSubmit} className="space-y-3">
@@ -365,13 +336,9 @@ export function GuestAddForm({
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-          >
+          <Button type="submit" size="sm" disabled={loading} className="w-full">
             {loading ? 'Agregando…' : 'Agregar familia o grupo'}
-          </button>
+          </Button>
         </form>
       ) : mode === 'bulk' ? (
         <form onSubmit={handleBulkSubmit} className="space-y-3">
@@ -382,13 +349,9 @@ export function GuestAddForm({
             rows={5}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-          >
+          <Button type="submit" size="sm" disabled={loading} className="w-full">
             {loading ? 'Agregando…' : 'Agregar lista de invitados'}
-          </button>
+          </Button>
         </form>
       ) : (
         <div className="space-y-3">
@@ -401,7 +364,7 @@ export function GuestAddForm({
             <input type="file" accept=".csv,text/csv" onChange={(e) => void handleCsvFileSelected(e)} className="hidden" />
           </label>
 
-          {csvHeaderError && <p className="text-xs text-red-500">{csvHeaderError}</p>}
+          <FieldError message={csvHeaderError} />
 
           {csvRows.length > 0 && (
             <div className="border border-gray-200 rounded-md p-3 space-y-2">
@@ -428,14 +391,9 @@ export function GuestAddForm({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={handleCsvImport}
-            disabled={loading || csvRows.length === 0}
-            className="w-full bg-primary text-white rounded-md py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-          >
+          <Button type="button" size="sm" onClick={handleCsvImport} disabled={loading || csvRows.length === 0} className="w-full">
             {loading ? 'Importando…' : `Importar ${csvRows.length || ''} invitado${csvRows.length === 1 ? '' : 's'}`}
-          </button>
+          </Button>
         </div>
       )}
 

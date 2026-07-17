@@ -13,6 +13,8 @@ import { PhotoViewer } from './PhotoViewer'
 import { StoriesBar } from './StoriesBar'
 import { WallSectionMessageCard } from './WallSectionMessageCard'
 import { WallTypeChipSelector } from './WallTypeChipSelector'
+import { FieldError } from './FieldError'
+import { FormError } from './FormError'
 import { WALL_TYPE_CONFIG } from '../utils/wallMessageTypes'
 import { mergeWallFeed } from '../utils/wallFeed'
 import { captureException } from '../lib/sentry'
@@ -235,11 +237,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
       {/* Sanción activa — Firestore rules es la barrera real (ver
           firestore.rules), este aviso solo evita que el usuario se tope con
           un error de permisos genérico al intentar publicar. */}
-      {user && commentBlockedMessage && (
-        <div className="text-xs text-red-500 bg-red-500/10 rounded-lg px-3 py-2 mb-4">
-          {commentBlockedMessage}
-        </div>
-      )}
+      {user && <FormError message={commentBlockedMessage} className="mb-4" />}
 
       {/* Post form */}
       {canPost && !commentBlockedMessage && (
@@ -249,9 +247,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
           style={{ borderColor: 'var(--invite-border)' }}
         >
           {!attachedFile && <WallTypeChipSelector value={type} onChange={setType} />}
-          {photoBlockedMessage && (
-            <p className="text-xs text-red-500">{photoBlockedMessage}</p>
-          )}
+          <FieldError message={photoBlockedMessage} />
           <div className="flex items-start gap-2">
             <Avatar name={authorName} photoURL={authorPhoto} size={28} />
             <div className="flex-1 min-w-0">
@@ -299,15 +295,13 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
               {posting ? 'Publicando…' : 'Publicar'}
             </button>
           </div>
-          {postError && <p className="text-xs text-red-500">{postError}</p>}
+          <FieldError message={postError} />
         </form>
       )}
 
       {loading && <p className="text-center text-sm py-4 text-[var(--invite-text-muted)]">Cargando mensajes…</p>}
       {wallError && (
-        <p className="text-xs text-red-500 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2 mb-3">
-          {wallError}
-        </p>
+        <FormError message={wallError} className="mb-3" />
       )}
       {!loading && !wallError && feed.length === 0 && (
         <p className="text-center text-sm py-6 text-[var(--invite-text-muted)]">Sé el primero en escribir algo</p>

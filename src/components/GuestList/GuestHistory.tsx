@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getGuestCheckins } from '../../firebase/reports'
 import type { CheckinLog } from '../../types'
 import { IconClock } from '../Icons'
+import { FieldError } from '../FieldError'
 
 function formatCheckinEntryLabel(c: CheckinLog): string {
   if (c.type === 'check_out') return c.exitKind === 'final' ? 'Salida definitiva' : 'Salida temporal'
@@ -21,7 +22,7 @@ export function GuestHistory({ eventId, guestId }: { eventId: string; guestId: s
   }, [eventId, guestId])
 
   if (loading) return <p className="text-xs text-gray-400 dark:text-gray-500">Cargando historial…</p>
-  if (error) return <p className="text-xs text-red-500">No se pudo cargar el historial.</p>
+  if (error) return <FieldError message="No se pudo cargar el historial." />
   if (!entries || entries.length === 0) return <p className="text-xs text-gray-400 dark:text-gray-500">Sin movimientos registrados.</p>
 
   return (

@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { optimizedImageUrl } from '../utils/cloudinary'
+import { FieldError } from './FieldError'
 
 interface Props {
   id: string
@@ -62,7 +63,7 @@ export function CoverImagePicker({
           {coverUploading ? 'Subiendo…' : '+ Subir imagen de portada'}
         </button>
       )}
-      {coverError && <p className="text-xs text-red-500 mt-1.5">{coverError}</p>}
+      <FieldError message={coverError} />
     </div>
   )
 }

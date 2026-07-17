@@ -85,7 +85,7 @@ export function EventTicketCard({
         >
           {day}
         </span>
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--invite-text-muted,#6b7280)]">{month}</span>
+        <span className="text-2xs font-semibold uppercase tracking-wide text-[var(--invite-text-muted,#6b7280)]">{month}</span>
       </div>
 
       {/* Cuerpo del boleto */}
@@ -113,7 +113,7 @@ export function EventTicketCard({
             <div className="flex items-center gap-1.5 shrink-0">
               {highlight && (
                 <span
-                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide"
+                  className="flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide"
                   style={{ background: 'rgba(232,184,75,.15)', color: '#E8B84B', border: '1px solid rgba(232,184,75,.4)' }}
                 >
                   <IconStar className="w-2.5 h-2.5" /> Próximo

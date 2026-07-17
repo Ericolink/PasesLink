@@ -71,7 +71,7 @@ export function MyInvitations() {
 
       {!loading && invitations.length === 0 && (
         <EmptyState
-          icon={<IconCalendar className="w-12 h-12" />}
+          icon={IconCalendar}
           title="Sin eventos próximos"
           description="Cuando te registres a un evento, tu pase QR aparecerá aquí."
         />
@@ -100,7 +100,7 @@ export function MyInvitations() {
                   <p className="flex-1 min-w-0 text-xs text-[var(--invite-text-muted,#6b7280)] truncate">Como: {inv.guestName}</p>
                   <div className="shrink-0 flex flex-col items-center">
                     <QRCodeCanvas value={inv.qrToken} size={52} marginSize={QR_QUIET_ZONE_MODULES} className="rounded" />
-                    <p className="text-[10px] text-[var(--invite-accent,#FF1464)] text-center mt-1 font-medium">Ver pase</p>
+                    <p className="text-2xs text-[var(--invite-accent,#FF1464)] text-center mt-1 font-medium">Ver pase</p>
                   </div>
                 </div>
               }

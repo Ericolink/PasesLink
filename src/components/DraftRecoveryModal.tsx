@@ -1,4 +1,6 @@
 import { IconClock } from './Icons'
+import { Button } from './Button'
+import { Modal } from './Modal'
 
 function minutesAgoLabel(savedAt: number): string {
   const minutes = Math.max(0, Math.round((Date.now() - savedAt) / 60000))
@@ -6,6 +8,13 @@ function minutesAgoLabel(savedAt: number): string {
   return `hace ${minutes} minuto${minutes === 1 ? '' : 's'}`
 }
 
+// Sin botón de cerrar a propósito: es una decisión forzada (continuar el
+// borrador o descartarlo), no un modal que se pueda "cancelar" sin elegir.
+// Por eso Escape no dispara ninguna de las dos acciones (no-op) — solo se usa
+// useModalA11y (vía Modal) por el focus trap y la devolución de foco al
+// cerrar, no por el cierre con teclado. Por el mismo motivo, tampoco cierra
+// al hacer click en el backdrop (default de <Modal>, pero acá `onClose` es
+// un no-op así que el click afuera tampoco hace nada).
 export function DraftRecoveryModal({
   savedAt,
   onContinue,
@@ -16,8 +25,8 @@ export function DraftRecoveryModal({
   onStartOver: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0">
-      <div className="bg-white dark:bg-gray-800 rounded-t-xl sm:rounded-xl shadow-xl sm:max-w-sm w-full p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 animate-bounce-in">
+    <Modal open onClose={() => {}} label="Tienes un borrador sin guardar">
+      <div className="p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
         <div className="flex items-center gap-2 mb-2 text-gray-700 dark:text-gray-300">
           <IconClock className="w-5 h-5" />
           <h2 className="text-base font-semibold">Tienes un borrador sin guardar</h2>
@@ -26,20 +35,14 @@ export function DraftRecoveryModal({
           ¿Continuar con el evento guardado {minutesAgoLabel(savedAt)}?
         </p>
         <div className="flex flex-col gap-2">
-          <button
-            onClick={onContinue}
-            className="bg-primary text-white rounded-md py-3 text-sm font-medium hover:bg-primary-dark transition-colors"
-          >
+          <Button variant="primary" onClick={onContinue}>
             Continuar con el borrador
-          </button>
-          <button
-            onClick={onStartOver}
-            className="border border-gray-300 dark:border-gray-600 rounded-md py-3 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
+          </Button>
+          <Button variant="secondary" onClick={onStartOver}>
             Descartar y empezar de nuevo
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

@@ -120,7 +120,7 @@ export function StoriesBar({ eventId, photos, myToken, canReply, onReact, onRepl
         <p className="text-xs font-semibold uppercase tracking-wide mb-3 text-[var(--invite-text-muted)]">
           Historias
         </p>
-        <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {groups.map((group) => {
             const isUnseen = (seenMap[group.authorToken] || 0) < group.latestAt
             const cover = group.photos[group.photos.length - 1]
@@ -149,7 +149,7 @@ export function StoriesBar({ eventId, photos, myToken, canReply, onReact, onRepl
                     />
                   </div>
                 </div>
-                <span className="text-[10px] text-[var(--invite-text-muted)] max-w-[64px] truncate">
+                <span className="text-2xs text-[var(--invite-text-muted)] max-w-[64px] truncate">
                   {group.authorName.split(' ')[0]}
                 </span>
               </button>

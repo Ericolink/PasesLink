@@ -10,7 +10,7 @@ export function TermsContent() {
   return (
     <>
       <h1 className="text-2xl font-semibold text-gray-900 mb-1">Términos y condiciones</h1>
-      <p className="text-sm text-gray-400 mb-8">Última actualización: {formatLegalDocDate(LEGAL_DOCS.terms.version)}</p>
+      <p className="text-sm text-gray-500 mb-8">Última actualización: {formatLegalDocDate(LEGAL_DOCS.terms.version)}</p>
 
       <div className="space-y-6 text-sm text-gray-700">
         <section>

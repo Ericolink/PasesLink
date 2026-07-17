@@ -4,6 +4,8 @@ import type { CompanionData, EventData, GuestData } from '../types'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { CustomFieldsEditRow } from './CustomFieldsEditor'
 import { labelClass, inputClass } from '../pages/EventJoin'
+import { Modal } from './Modal'
+import { FieldError } from './FieldError'
 
 export function GuestEditModal({
   eventId,
@@ -73,11 +75,16 @@ export function GuestEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-[var(--invite-surface)] rounded-2xl shadow-2xl w-full max-w-sm p-6 text-left max-h-[90vh] overflow-y-auto">
+    <Modal
+      open
+      onClose={onClose}
+      label="Editar mis datos"
+      surfaceClassName="bg-[var(--invite-surface)]"
+      className="p-6 text-left overflow-y-auto"
+    >
         {saved ? (
           <>
-            <h2 className="text-base font-semibold mb-2 text-[var(--invite-text)]">¡Listo!</h2>
+            <h2 id="guest-edit-title" className="text-base font-semibold mb-2 text-[var(--invite-text)]">¡Listo!</h2>
             <p className="text-sm text-[var(--invite-text-muted)] mb-5">Tu información se actualizó correctamente.</p>
             <button
               onClick={onClose}
@@ -88,7 +95,7 @@ export function GuestEditModal({
           </>
         ) : (
           <form onSubmit={handleSave} className="space-y-3">
-            <h2 className="text-base font-semibold mb-1 text-[var(--invite-text)]">Editar mis datos</h2>
+            <h2 id="guest-edit-title" className="text-base font-semibold mb-1 text-[var(--invite-text)]">Editar mis datos</h2>
             {loadingContact ? (
               <p className="text-sm text-[var(--invite-text-muted)]">Cargando…</p>
             ) : (
@@ -158,7 +165,7 @@ export function GuestEditModal({
                 )}
               </>
             )}
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            <FieldError message={error} />
             <div className="flex flex-col gap-2 pt-1">
               <button
                 type="submit"
@@ -179,7 +186,6 @@ export function GuestEditModal({
             </div>
           </form>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }

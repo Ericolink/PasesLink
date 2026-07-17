@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
-import { createPortal } from 'react-dom'
 import confetti from 'canvas-confetti'
-import { useModalA11y } from '../hooks/useModalA11y'
+import { Button } from './Button'
+import { Modal } from './Modal'
+import { DialogFooter } from './DialogFooter'
 import { Logo } from './Logo'
 import {
   IconBarChart2,
@@ -73,7 +74,6 @@ interface Props {
 }
 
 export function WelcomeModal({ open, variant, firstName, onClose }: Props) {
-  const dialogRef = useModalA11y<HTMLDivElement>(open, onClose)
   const isWelcome = variant === 'welcome'
   const items = isWelcome ? WELCOME_ITEMS : NOVEDADES_ITEMS
 
@@ -83,27 +83,9 @@ export function WelcomeModal({ open, variant, firstName, onClose }: Props) {
     }
   }, [open, isWelcome])
 
-  if (!open) return null
-
-  // Portal a document.body: montado como está, dentro del árbol de Dashboard,
-  // el overlay quedaba anidado bajo <main> mientras el <Footer> vive fuera de
-  // ese árbol como hermano posterior — en algunos navegadores (Safari/iOS
-  // combinando position:fixed + backdrop-filter) eso hace que el overlay se
-  // pinte por debajo del footer en vez de cubrir toda la pantalla. Un portal
-  // lo saca de ese árbol y lo monta como último hijo de <body>, sin depender
-  // de qué ancestro tenga o no un stacking context problemático.
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[env(safe-area-inset-bottom)] sm:pb-0 bg-black/50 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={isWelcome ? 'Bienvenido a PaseLink' : 'Novedades de PaseLink'}
-        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm max-h-[90vh] overflow-y-auto animate-bounce-in"
-      >
+  return (
+    <Modal open={open} onClose={onClose} label={isWelcome ? 'Bienvenido a PaseLink' : 'Novedades de PaseLink'}>
+      <div className="overflow-y-auto">
         <div className="flex flex-col items-center px-6 pt-7 pb-2 text-center">
           <Logo className="h-8 mb-4" />
           {isWelcome ? (
@@ -140,17 +122,13 @@ export function WelcomeModal({ open, variant, firstName, onClose }: Props) {
             </li>
           ))}
         </ul>
-
-        <div className="p-6 pt-2 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6">
-          <button
-            onClick={onClose}
-            className="w-full rounded-xl py-3 text-sm font-medium text-white bg-primary hover:bg-primary-dark transition-colors"
-          >
-            {isWelcome ? 'Empezar' : 'Entendido'}
-          </button>
-        </div>
       </div>
-    </div>,
-    document.body,
+
+      <DialogFooter>
+        <Button variant="primary" onClick={onClose} className="w-full">
+          {isWelcome ? 'Empezar' : 'Entendido'}
+        </Button>
+      </DialogFooter>
+    </Modal>
   )
 }

@@ -4,6 +4,7 @@ import { EmptyState } from '../Empty/EmptyState'
 import { IconDownload, IconUsers } from '../Icons'
 import { Pagination } from './Pagination'
 import { ResponsiveTable } from './ResponsiveTable'
+import { SkeletonBlock } from '../Skeleton'
 
 type SortKey = 'email' | 'createdAt' | 'eventCount'
 
@@ -67,7 +68,7 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
   if (!loading && users.length === 0) {
     return (
       <EmptyState
-        icon={<IconUsers className="w-8 h-8" />}
+        icon={IconUsers}
         title="Aún no hay clientes"
         description="Cuando alguien se registre en PaseLink, aparecerá aquí."
       />
@@ -96,9 +97,9 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
       <ResponsiveTable
         mobile={<>
           {loading && Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="p-4 animate-pulse space-y-2">
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+            <div key={i} className="p-4 space-y-2">
+              <SkeletonBlock className="h-3 w-2/3" />
+              <SkeletonBlock className="h-3 w-1/3" />
             </div>
           ))}
           {!loading && pageItems.map((u) => (
@@ -135,9 +136,9 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {loading && Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="animate-pulse">
+                <tr key={i}>
                   {Array.from({ length: 4 }).map((_, j) => (
-                    <td key={j} className="px-4 py-3"><div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full max-w-[100px]" /></td>
+                    <td key={j} className="px-4 py-3"><SkeletonBlock className="h-3 w-full max-w-[100px]" /></td>
                   ))}
                 </tr>
               ))}
@@ -177,7 +178,7 @@ function SortableHeader({ label, active, dir, onClick }: { label: string; active
     <th className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors">
         {label}
-        {active && <span className="text-[10px]">{dir === 'asc' ? '▲' : '▼'}</span>}
+        {active && <span className="text-2xs">{dir === 'asc' ? '▲' : '▼'}</span>}
       </button>
     </th>
   )

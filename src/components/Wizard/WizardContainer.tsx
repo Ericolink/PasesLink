@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { IconArrowLeft } from '../Icons'
+import { Button } from '../Button'
 
 interface WizardContainerProps {
   currentStep: number
@@ -31,7 +32,13 @@ export function WizardContainer({
 }: WizardContainerProps) {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 animate-fade-in">
-      {/* Encabezado con progreso */}
+      {/* Encabezado con progreso — a propósito no usa el patrón "← Volver"
+          de ScreenHeader/ErrorFallbackCTA (hallazgo H3 de la auditoría): acá
+          "Cancelar" no navega directo, dispara una confirmación
+          (setShowCancelConfirm en EventCreate.tsx) porque puede tirar un
+          borrador en progreso — es una acción más parecida a "descartar"
+          que a "volver", y merece su propio lenguaje en vez de prometer una
+          navegación simple que no es. */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <button
@@ -86,12 +93,7 @@ export function WizardContainer({
             Atrás
           </button>
 
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={!canProceed || isSubmitting}
-            className="px-7 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5 hover:shadow-md"
-          >
+          <Button type="button" variant="primary" onClick={onNext} disabled={!canProceed || isSubmitting} className="px-7 font-semibold">
             {isSubmitting
               ? 'Creando…'
               : nextLabel
@@ -99,7 +101,7 @@ export function WizardContainer({
               : currentStep === totalSteps
               ? 'Crear evento'
               : 'Siguiente →'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

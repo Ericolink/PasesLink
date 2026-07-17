@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LEGAL_DOCS, type LegalDocId } from '../legal/documents'
 import { LegalDocumentSheet } from './LegalDocumentSheet'
+import { Checkbox } from './Checkbox'
 
 interface Props {
   id: string
@@ -19,13 +20,12 @@ export function LegalConsentCheckbox({ id, checked, onChange }: Props) {
   return (
     <>
       <label htmlFor={id} className="flex items-start gap-2.5 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-        <input
+        <Checkbox
           id={id}
-          type="checkbox"
           required
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0"
+          className="mt-0.5 shrink-0"
         />
         <span>
           He leído y acepto los{' '}

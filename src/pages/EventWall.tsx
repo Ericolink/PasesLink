@@ -22,11 +22,14 @@ import { WALL_NAME_MAX } from '../utils/validation'
 import { mergeWallFeed } from '../utils/wallFeed'
 import { captureException } from '../lib/sentry'
 import {
+  IconArrowLeft,
   IconCamera,
   IconX,
 } from '../components/Icons'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { Button } from '../components/Button'
+import { FieldError } from '../components/FieldError'
 import { Avatar } from '../components/Avatar'
 import { AuthorName } from '../components/AuthorName'
 import { PhotoFeedCard } from '../components/PhotoFeedCard'
@@ -307,9 +310,9 @@ export function EventWall() {
             autoFocus
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <button type="submit" className="w-full bg-primary text-white rounded-lg py-2.5 text-sm font-semibold">
+          <Button type="submit" className="w-full font-semibold">
             Entrar al muro
-          </button>
+          </Button>
         </form>
       </div>
     )
@@ -329,7 +332,7 @@ export function EventWall() {
       )}
       {isOwner && (
         <Link to={`/events/${id}`} className="text-sm text-gray-500 hover:text-primary transition-colors inline-flex items-center gap-1 mb-3">
-          ← Volver a detalles
+          <IconArrowLeft className="w-3.5 h-3.5" /> Volver a detalles
         </Link>
       )}
       <div className="flex items-center justify-between mb-4">
@@ -384,7 +387,7 @@ export function EventWall() {
       {!isMinor && !commentBlockedMessage && canPostWall && (
         <form onSubmit={handleSubmit} className="invite-wall-form bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-5 space-y-3">
           {!attachedFile && <WallTypeChipSelector value={type} onChange={setType} />}
-          {photoBlockedMessage && <p className="text-xs text-red-500">{photoBlockedMessage}</p>}
+          <FieldError message={photoBlockedMessage} />
           <div className="flex items-start gap-2">
             <Avatar name={postLabel} photoURL={postPhotoURL} size={28} />
             <div className="flex-1 min-w-0">
@@ -427,19 +430,15 @@ export function EventWall() {
               Como: <AuthorName name={postLabel} role={isOwner ? 'owner' : 'guest'} />
             </span>
             <span className="text-xs text-gray-400">{text.length}/{maxLength}</span>
-            <button
-              type="submit"
-              disabled={posting || (!text.trim() && !attachedFile)}
-              className="bg-primary text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-40"
-            >
+            <Button type="submit" size="sm" disabled={posting || (!text.trim() && !attachedFile)}>
               {posting ? 'Publicando…' : 'Publicar'}
-            </button>
+            </Button>
           </div>
-          {postError && <p className="text-xs text-red-500">{postError}</p>}
+          <FieldError message={postError} />
         </form>
       )}
 
-      {loading && <p className="text-center text-gray-400 text-sm">Cargando mensajes…</p>}
+      {loading && <p className="text-center text-gray-500 text-sm">Cargando mensajes…</p>}
 
       {wallError && (
         <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2 mb-4">
@@ -448,7 +447,7 @@ export function EventWall() {
       )}
 
       {!loading && !wallError && feed.length === 0 && (
-        <p className="text-center text-gray-400 text-sm py-8">Sé el primero en escribir algo</p>
+        <p className="text-center text-gray-500 text-sm py-8">Sé el primero en escribir algo</p>
       )}
 
       <div className="space-y-3">

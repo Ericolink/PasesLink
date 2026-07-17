@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { subscribeToEventWithInitial } from '../firebase/events'
@@ -27,6 +27,8 @@ import { InAppBrowserBanner } from '../components/InAppBrowserBanner'
 import { InlineNotice } from '../components/InlineNotice'
 import { NoticeStack } from '../components/NoticeStack'
 import { useInAppBrowserNotice } from '../hooks/useInAppBrowserNotice'
+import { Modal } from '../components/Modal'
+import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { SkeletonBlock } from '../components/Skeleton'
 import { PerforatedDivider } from '../components/PerforatedDivider'
 import { PassInfoCell } from '../components/PassInfoCell'
@@ -226,14 +228,7 @@ function GuestPassInner() {
     )
   }
   if (error || !event || !guest || !eventId || !qrToken) {
-    return (
-      <div className="text-center mt-16 px-4">
-        <p className="text-gray-500">Pase no encontrado.</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
-          ← Volver al Dashboard
-        </Link>
-      </div>
-    )
+    return <ErrorFallbackCTA message="Pase no encontrado." />
   }
 
   const isOrg = perms.isOwner || perms.isCoOrg
@@ -361,7 +356,7 @@ function GuestPassInner() {
 
               {guest.paymentNote && (
                 <div className="w-full rounded-md border px-3 py-2 text-left" style={{ borderColor: 'var(--invite-border)' }}>
-                  <p className="text-[10px] uppercase tracking-wide font-semibold text-[var(--invite-text-muted)]">Número de referencia</p>
+                  <p className="text-2xs uppercase tracking-wide font-semibold text-[var(--invite-text-muted)]">Número de referencia</p>
                   <p className="text-sm font-mono font-medium text-[var(--invite-text)] break-all">{guest.paymentNote}</p>
                 </div>
               )}
@@ -748,32 +743,34 @@ function GuestPassInner() {
                   </div>
                   {rsvpError && <p className="text-sm text-red-500 mt-3">{rsvpError}</p>}
 
-                  {showDeclineModal && (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[env(safe-area-inset-bottom)] sm:pb-0 bg-black/50 backdrop-blur-sm">
-                      <div className="bg-[var(--invite-surface)] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 text-left">
-                        <h2 className="text-base font-semibold mb-2 text-[var(--invite-text)]">¿Seguro que no podrás asistir?</h2>
-                        <p className="text-sm text-[var(--invite-text-muted)] mb-5">
-                          Si cambias de opinión, contáctale al organizador.
-                        </p>
-                        <div className="flex flex-col gap-2">
-                          <button
-                            onClick={() => setShowDeclineModal(false)}
-                            className="w-full border rounded-md px-4 py-3 text-sm font-medium hover:opacity-80 transition-opacity"
-                            style={{ borderColor: 'var(--invite-border)' }}
-                          >
-                            Volver
-                          </button>
-                          <button
-                            onClick={() => { setShowDeclineModal(false); void handleRsvp('no') }}
-                            disabled={rsvpSaving}
-                            className="w-full text-white rounded-md px-4 py-3 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
-                          >
-                            Sí, no asistiré
-                          </button>
-                        </div>
-                      </div>
+                  <Modal
+                    open={showDeclineModal}
+                    onClose={() => setShowDeclineModal(false)}
+                    label="¿Seguro que no podrás asistir?"
+                    surfaceClassName="bg-[var(--invite-surface)]"
+                    className="p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 text-left"
+                  >
+                    <h2 className="text-base font-semibold mb-2 text-[var(--invite-text)]">¿Seguro que no podrás asistir?</h2>
+                    <p className="text-sm text-[var(--invite-text-muted)] mb-5">
+                      Si cambias de opinión, contáctale al organizador.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => setShowDeclineModal(false)}
+                        className="w-full border rounded-md px-4 py-3 text-sm font-medium hover:opacity-80 transition-opacity"
+                        style={{ borderColor: 'var(--invite-border)' }}
+                      >
+                        Volver
+                      </button>
+                      <button
+                        onClick={() => { setShowDeclineModal(false); void handleRsvp('no') }}
+                        disabled={rsvpSaving}
+                        className="w-full text-white rounded-md px-4 py-3 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
+                      >
+                        Sí, no asistiré
+                      </button>
                     </div>
-                  )}
+                  </Modal>
                 </div>
               )}
 

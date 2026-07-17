@@ -6,6 +6,7 @@ import { EmptyState } from '../Empty/EmptyState'
 import { IconCalendar, IconDownload, IconEye, IconBarChart2, IconTrash } from '../Icons'
 import { Pagination } from './Pagination'
 import { ResponsiveTable } from './ResponsiveTable'
+import { SkeletonBlock } from '../Skeleton'
 
 const STATUS_LABELS: Record<EventStatus, string> = {
   active: 'Activo',
@@ -115,7 +116,7 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
   if (!loading && events.length === 0) {
     return (
       <EmptyState
-        icon={<IconCalendar className="w-8 h-8" />}
+        icon={IconCalendar}
         title="Aún no hay eventos"
         description="Cuando los organizadores creen eventos, aparecerán aquí."
       />
@@ -176,9 +177,9 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
       <ResponsiveTable
         mobile={<>
         {loading && Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="p-4 animate-pulse space-y-2">
-            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
-            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+          <div key={i} className="p-4 space-y-2">
+            <SkeletonBlock className="h-3 w-2/3" />
+            <SkeletonBlock className="h-3 w-1/3" />
           </div>
         ))}
         {!loading && pageItems.map((event) => (
@@ -327,7 +328,7 @@ function SortableHeader({ label, active, dir, onClick }: { label: string; active
     <th className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors">
         {label}
-        {active && <span className="text-[10px]">{dir === 'asc' ? '▲' : '▼'}</span>}
+        {active && <span className="text-2xs">{dir === 'asc' ? '▲' : '▼'}</span>}
       </button>
     </th>
   )
@@ -335,10 +336,10 @@ function SortableHeader({ label, active, dir, onClick }: { label: string; active
 
 function SkeletonRow() {
   return (
-    <tr className="animate-pulse">
+    <tr>
       {Array.from({ length: 8 }).map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full max-w-[80px]" />
+          <SkeletonBlock className="h-3 w-full max-w-[80px]" />
         </td>
       ))}
     </tr>

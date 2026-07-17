@@ -1,4 +1,6 @@
 import { EntryModeSelector } from '../EntryModeSelector'
+import { Checkbox } from '../../Checkbox'
+import { FieldError } from '../../FieldError'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/paymentMethods'
 import { sanitizeDecimalInput } from '../../../utils/validationRules'
 import { GUEST_MAX_COMPANIONS } from '../../../utils/validation'
@@ -132,12 +134,7 @@ export function StepInvitationMethod({
       {/* Cobro de entrada */}
       <div className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
         <label className="flex items-center gap-2.5 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={requiresPayment}
-            onChange={(e) => onRequiresPaymentChange(e.target.checked)}
-            className="w-4 h-4 text-primary focus:ring-primary rounded"
-          />
+          <Checkbox checked={requiresPayment} onChange={(e) => onRequiresPaymentChange(e.target.checked)} />
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
             ¿Deseas cobrar entrada a los invitados?
           </span>
@@ -172,9 +169,7 @@ export function StepInvitationMethod({
                   </label>
                 ))}
               </div>
-              {paymentMethods.length === 0 && (
-                <p className="text-xs text-red-500 mt-1">Elegí al menos un método.</p>
-              )}
+              {paymentMethods.length === 0 && <FieldError message="Elegí al menos un método." />}
               {paymentMethods.includes('transfer') && (
                 <p className="text-xs text-gray-400 mt-1">
                   Transferencia: el invitado puede subir su comprobante cuando quiera, sin límite de tiempo — vos confirmás el pago manualmente desde la lista de invitados o el escáner.
@@ -197,9 +192,7 @@ export function StepInvitationMethod({
                   placeholder="Ej: 5000"
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
-                {!(parseFloat(ticketPrice) > 0) && (
-                  <p className="text-xs text-red-500 mt-1">Ingresá un precio mayor a 0.</p>
-                )}
+                {!(parseFloat(ticketPrice) > 0) && <FieldError message="Ingresá un precio mayor a 0." />}
               </div>
               <div>
                 <label htmlFor="event-currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

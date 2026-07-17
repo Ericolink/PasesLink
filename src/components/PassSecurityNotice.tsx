@@ -7,7 +7,7 @@ import { IconShield } from './Icons'
 export function PassSecurityNotice() {
   return (
     <p
-      className="mt-4 pt-3 border-t flex items-center justify-center gap-1.5 text-[11px] leading-snug text-[var(--invite-text-muted)]"
+      className="mt-4 pt-3 border-t flex items-center justify-center gap-1.5 text-2xs leading-snug text-[var(--invite-text-muted)]"
       style={{ borderColor: 'var(--invite-border)' }}
     >
       <IconShield className="w-3.5 h-3.5 shrink-0" />

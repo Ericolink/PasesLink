@@ -28,6 +28,7 @@ import { ThemeOrnament } from '../components/ThemeOrnament'
 import { EventCountdown } from '../components/EventCountdown'
 import { formatTime12h } from '../utils/time'
 import { IconBan } from '../components/Icons'
+import { FieldError } from '../components/FieldError'
 import type { EventData, PaymentMethod } from '../types'
 import { buildPassUrl } from '../utils/qrUrl'
 import { customFieldInputProps } from '../utils/customFieldInput'
@@ -394,7 +395,7 @@ export function EventJoin() {
                 </p>
               )
             )}
-            {regError && <p className="text-xs text-red-500">{regError}</p>}
+            <FieldError message={regError} />
             <button
               type="submit"
               disabled={state === 'submitting' || (needsMethodChoice && !paymentMethod)}

@@ -1,6 +1,7 @@
 import type { AdminAuditLogEntry } from '../../firebase/admin'
 import { EmptyState } from '../Empty/EmptyState'
 import { IconClock, IconTrash, IconRotateCcw } from '../Icons'
+import { SkeletonBlock } from '../Skeleton'
 
 const ACTION_LABELS: Record<AdminAuditLogEntry['action'], string> = {
   event_status_change: 'cambió el estado de',
@@ -23,7 +24,7 @@ export function AdminActivityLog({ entries, loading }: { entries: AdminAuditLogE
   if (!loading && entries.length === 0) {
     return (
       <EmptyState
-        icon={<IconClock className="w-8 h-8" />}
+        icon={IconClock}
         title="Sin actividad todavía"
         description="Los cambios de estado y eliminaciones de eventos hechos desde este panel quedarán registrados aquí."
       />
@@ -33,9 +34,9 @@ export function AdminActivityLog({ entries, loading }: { entries: AdminAuditLogE
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
       {loading && Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="p-4 animate-pulse">
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-2" />
-          <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+        <div key={i} className="p-4">
+          <SkeletonBlock className="h-3 w-2/3 mb-2" />
+          <SkeletonBlock className="h-2.5 w-1/3" />
         </div>
       ))}
       {!loading && entries.map((entry) => (

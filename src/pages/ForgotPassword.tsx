@@ -2,23 +2,27 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { resetPassword } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
+import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { IconCheckCircle } from '../components/Icons'
+import { Button } from '../components/Button'
+import { TextField } from '../components/TextField'
+import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
 export function ForgotPassword() {
   const [email, setEmail] = useState('')
-  const [error, setError] = useState('')
+  const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
+    setErrorInfo(null)
     setLoading(true)
     try {
       await resetPassword(email)
       setSent(true)
-    } catch {
-      setError('No pudimos enviar el correo. Verifica que el email sea correcto.')
+    } catch (err) {
+      setErrorInfo(getAuthErrorInfo(err, 'No pudimos enviar el correo. Verifica que el email sea correcto.'))
     } finally {
       setLoading(false)
     }
@@ -41,26 +45,20 @@ export function ForgotPassword() {
             Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                required
-                inputMode="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-            >
+            <TextField
+              label="Email"
+              type="email"
+              size="lg"
+              required
+              inputMode="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            {errorInfo && <AuthErrorMessage info={errorInfo} />}
+            <Button type="submit" disabled={loading} className="w-full">
               {loading ? 'Enviando…' : 'Enviar enlace'}
-            </button>
+            </Button>
           </form>
         </>
       )}

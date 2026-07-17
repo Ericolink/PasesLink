@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { IconAlertTriangle } from './Icons'
 import { captureException } from '../lib/sentry'
+import { Button } from './Button'
 
 interface Props {
   children: ReactNode
@@ -65,18 +66,12 @@ export class ErrorBoundary extends Component<Props, State> {
           )}
 
           <div className="flex gap-2 mt-4">
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors"
-            >
+            <Button size="sm" onClick={() => window.location.reload()}>
               Recargar
-            </button>
-            <button
-              onClick={() => { window.location.href = '/' }}
-              className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => { window.location.href = '/' }}>
               Ir a inicio
-            </button>
+            </Button>
           </div>
         </div>
       )

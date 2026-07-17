@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react'
+import { useScrollLock } from './useScrollLock'
 
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
 
 // Accesibilidad compartida para los modales del proyecto: focus trap (Tab
-// cíclico dentro del modal), Escape cierra, y devolución de foco al elemento
-// que lo tenía antes de abrir. Deliberadamente NO fuerza un foco inicial
+// cíclico dentro del modal), Escape cierra, devolución de foco al elemento
+// que lo tenía antes de abrir, y bloqueo de scroll del fondo (useScrollLock)
+// mientras está abierto — así ningún modal nuevo puede "olvidarse" de sumar
+// el scroll-lock por separado. Deliberadamente NO fuerza un foco inicial
 // propio si el modal ya enfocó algo por su cuenta (ej. `autoFocus` en un
 // input, o un ref específico como el botón de confirmar en ConfirmDialog) —
 // solo entra como respaldo si nada dentro del modal tiene foco todavía, así
@@ -16,6 +19,8 @@ const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:
 export function useModalA11y<T extends HTMLElement>(open: boolean, onClose: () => void) {
   const dialogRef = useRef<T>(null)
   const previousActiveElement = useRef<HTMLElement | null>(null)
+
+  useScrollLock(open)
 
   useEffect(() => {
     if (!open) return

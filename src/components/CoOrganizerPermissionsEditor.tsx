@@ -1,4 +1,5 @@
 import type { CoOrganizerPermissions } from '../types/coOrganizerPermissions'
+import { Checkbox } from './Checkbox'
 
 type PermissionKey = keyof CoOrganizerPermissions
 
@@ -63,7 +64,7 @@ export function CoOrganizerPermissionsEditor({
     <div className="space-y-3">
       {GROUPS.map((group) => (
         <div key={group.title}>
-          <h4 className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">
+          <h4 className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">
             {group.title}
           </h4>
           <div className="space-y-1">
@@ -72,12 +73,7 @@ export function CoOrganizerPermissionsEditor({
                 key={item.key}
                 className="flex items-center gap-2.5 py-1 cursor-pointer select-none"
               >
-                <input
-                  type="checkbox"
-                  checked={value[item.key]}
-                  onChange={() => toggle(item.key)}
-                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
-                />
+                <Checkbox checked={value[item.key]} onChange={() => toggle(item.key)} />
                 <span className="text-sm text-gray-700 dark:text-gray-300">{item.label}</span>
               </label>
             ))}

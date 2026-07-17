@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { getCheckins } from '../firebase/reports'
 import { partySize } from '../firebase/guests'
 import { useEvent } from '../hooks/useEvent'
@@ -13,8 +13,10 @@ import { PAYMENT_STATUS_LABELS, RSVP_LABELS } from '../types'
 import { IconCheck, IconCornerUpLeft } from '../components/Icons'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { LoadingInline } from '../components/LoadingInline'
+import { SkeletonBlock } from '../components/Skeleton'
 import { ScreenHeader } from '../components/ScreenHeader'
-import { StatCard } from '../components/StatCard'
+import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
+import { MetricTile } from '../components/MetricTile'
 import { EventAnalytics } from '../components/EventAnalytics'
 
 export function Reports() {
@@ -76,26 +78,26 @@ export function Reports() {
   }, [eventId, refreshToken])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  if (loading) return <p className="text-center text-gray-500 mt-16">Cargando…</p>
-  if (!event) {
+  if (loading) {
     return (
-      <div className="text-center mt-16 px-4">
-        <p className="text-gray-500">Evento no encontrado.</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
-          ← Volver al Dashboard
-        </Link>
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <SkeletonBlock className="h-6 w-1/3 mb-2" />
+        <SkeletonBlock className="h-4 w-1/4 mb-6" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <SkeletonBlock className="h-20 rounded-xl" />
+          <SkeletonBlock className="h-20 rounded-xl" />
+          <SkeletonBlock className="h-20 rounded-xl" />
+          <SkeletonBlock className="h-20 rounded-xl" />
+        </div>
+        <SkeletonBlock className="h-40 rounded-lg" />
       </div>
     )
   }
+  if (!event) {
+    return <ErrorFallbackCTA message="Evento no encontrado." />
+  }
   if (user && !perms.viewReports) {
-    return (
-      <div className="text-center mt-16 px-4">
-        <p className="text-gray-500">No tienes acceso a este evento.</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
-          ← Volver al Dashboard
-        </Link>
-      </div>
-    )
+    return <ErrorFallbackCTA message="No tienes acceso a este evento." />
   }
 
   const checkIns = checkins.filter((c) => c.type === 'check_in')
@@ -139,18 +141,17 @@ export function Reports() {
 
   const content = (
     <>
-      <ScreenHeader title="Reportes" backTo={`/events/${event.id}`} templateId={event.templateId} />
-      <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-6">{event.name}</p>
+      <ScreenHeader title="Reportes" subtitle={event.name} backTo={`/events/${event.id}`} templateId={event.templateId} />
 
       {/* ── ESTADÍSTICAS PRINCIPALES ── (extraído de EventDetail.tsx, misma
           fórmula de cada valor, solo que ahora vive acá) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-        <StatCard
+        <MetricTile
           label="Registrados"
           value={event.guestCount}
           sub={`${totalPeople} personas en total`}
         />
-        <StatCard
+        <MetricTile
           label="Escaneados"
           value={event.checkedInCount}
           // % sobre personas totales (totalPeople, ya suma partySize de cada
@@ -161,20 +162,20 @@ export function Reports() {
           sub={totalPeople > 0
             ? `${Math.round(attendancePercent(event.checkedInCount, totalPeople))}% del total`
             : undefined}
-          valueClass="text-green-600 dark:text-green-400"
+          accent="success"
         />
         {event.requiresPayment && (
-          <StatCard
+          <MetricTile
             label="Pagados"
             value={event.paidCount}
             sub={totalPeople > 0
               ? `${Math.round(attendancePercent(event.paidCount, totalPeople))}% del total`
               : undefined}
-            valueClass="text-emerald-600 dark:text-emerald-400"
+            accent="success"
           />
         )}
-        <StatCard label="Dentro ahora" value={event.occupancyCount} valueClass="text-primary" />
-        <StatCard label="Pendientes" value={Math.max(0, totalPeople - event.checkedInCount)} />
+        <MetricTile label="Dentro ahora" value={event.occupancyCount} accent="primary" />
+        <MetricTile label="Pendientes" value={Math.max(0, totalPeople - event.checkedInCount)} />
       </div>
 
       {/* Cupo recomendado (informativo, nunca bloquea nuevos registros) */}
@@ -195,14 +196,14 @@ export function Reports() {
 
       {/* ── CONFIRMACIONES Y PAGOS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Asistirán" value={guestsEffectivelyLoading ? '—' : rsvpYes} valueClass="text-primary" />
-        <StatCard label="No asistirán" value={guestsEffectivelyLoading ? '—' : rsvpNo} />
-        <StatCard label="Sin responder" value={guestsEffectivelyLoading ? '—' : rsvpPending} />
+        <MetricTile label="Asistirán" value={guestsEffectivelyLoading ? '—' : rsvpYes} accent="primary" />
+        <MetricTile label="No asistirán" value={guestsEffectivelyLoading ? '—' : rsvpNo} />
+        <MetricTile label="Sin responder" value={guestsEffectivelyLoading ? '—' : rsvpPending} />
         {event.requiresPayment && (
-          <StatCard
+          <MetricTile
             label={`Recaudado (${event.currency})`}
             value={totalCollected}
-            valueClass="text-green-600 dark:text-green-400"
+            accent="success"
           />
         )}
       </div>

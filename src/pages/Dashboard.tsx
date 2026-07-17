@@ -11,6 +11,7 @@ import { PassInfoCell } from '../components/PassInfoCell'
 import { WelcomeModal } from '../components/WelcomeModal'
 import { IconCalendar } from '../components/Icons'
 import { LoadingInline } from '../components/LoadingInline'
+import { EmptyState } from '../components/Empty/EmptyState'
 import { formatDate, formatTime12h, isEventPast } from '../utils/time'
 import { consumeWelcomePending, hasSeenNovedades, markNovedadesSeen } from '../utils/onboarding'
 
@@ -165,12 +166,12 @@ export function Dashboard() {
                     className="w-full rounded-t transition-all"
                     style={{
                       height: count > 0 ? `${Math.max(16, (count / maxMonthCount) * 52)}px` : '3px',
-                      background: count > 0 ? 'linear-gradient(180deg,#FF1464,#D40E52)' : 'rgba(74,50,92,.6)',
+                      background: count > 0 ? 'linear-gradient(180deg,var(--color-primary),var(--color-primary-dark))' : 'rgba(74,50,92,.6)',
                       boxShadow: count > 0 ? '0 0 6px rgba(255,20,100,.4)' : 'none',
                     }}
                   />
                 </div>
-                <span className="text-[10px] text-gray-500">{monthLabels[i]}</span>
+                <span className="text-2xs text-gray-500">{monthLabels[i]}</span>
               </div>
             ))}
           </div>
@@ -179,32 +180,14 @@ export function Dashboard() {
 
       {/* Empty state */}
       {!loading && events.length === 0 && (
-        <div
-          className="text-center rounded-2xl py-16 animate-fade-in-up"
-          // Caja intencionalmente oscura en los dos modos (no seguía el
-          // toggle claro/oscuro) — con opacidad .5 el texto blanco de abajo
-          // quedaba con contraste insuficiente (~3:1) sobre el fondo claro
-          // de la página en modo claro. Más opaca para que se lea bien sin
-          // importar el tema, igual que .dark .bg-gray-50/800 de index.css.
-          style={{ background: 'rgba(30,20,40,.9)', border: '1px dashed rgba(74,50,92,.9)' }}
-        >
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: 'rgba(255,20,100,.1)', border: '1px solid rgba(255,20,100,.2)' }}
-          >
-            <IconCalendar className="w-6 h-6 text-primary" />
-          </div>
-          <h2 className="text-lg font-semibold text-white mb-1">Todavía no tienes eventos</h2>
-          <p className="text-gray-500 mb-6 max-w-sm mx-auto text-sm">
-            Crea tu primer evento, agrega invitados y genera sus pases con QR en pocos minutos.
-          </p>
-          <Link
-            to="/events/new"
-            className="inline-block bg-primary text-white rounded-lg px-5 py-2.5 text-sm font-semibold hover:-translate-y-0.5 transition-all"
-          >
-            Crea tu primer evento
-          </Link>
-        </div>
+        <EmptyState
+          tone="hero"
+          icon={IconCalendar}
+          title="Todavía no tienes eventos"
+          description="Crea tu primer evento, agrega invitados y genera sus pases con QR en pocos minutos."
+          ctaText="Crea tu primer evento"
+          to="/events/new"
+        />
       )}
 
       {/* Active events */}

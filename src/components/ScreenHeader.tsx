@@ -7,6 +7,11 @@ import { IconArrowLeft } from './Icons'
 type ScreenHeaderProps = {
   /** Título de la sección — siempre visible, nunca depende de recordar dónde tocaste. */
   title: string
+  /** Línea secundaria opcional debajo del título (ver AdminDashboard) — antes
+      cada caller que la necesitaba reproducía un párrafo suelto con margen
+      negativo para "pegarse" al mb-4 del header, una costura frágil ante
+      cualquier cambio futuro a ese margen. */
+  subtitle?: string
   /**
    * Ruta fija de retorno. Es intencional que no sea `navigate(-1)`: el
    * historial del navegador puede venir de cualquier lado (un enlace externo,
@@ -31,7 +36,7 @@ type ScreenHeaderProps = {
 // Reemplaza los "← Volver a X" copiados a mano en cada pantalla. Un solo
 // componente para título + volver + acción contextual (fase 3 del
 // rediseño de navegación).
-export function ScreenHeader({ title, backTo, action, templateId }: ScreenHeaderProps) {
+export function ScreenHeader({ title, subtitle, backTo, action, templateId }: ScreenHeaderProps) {
   return (
     // static en mobile (no sm:): con Navbar ya fijo arriba (h-14, sticky
     // top-0), este header también sticky sumaba un segundo bloque fijo
@@ -48,7 +53,10 @@ export function ScreenHeader({ title, backTo, action, templateId }: ScreenHeader
           <IconArrowLeft className="w-5 h-5" />
         </Link>
       )}
-      <h1 className="dash-header-title text-base font-semibold text-gray-900 dark:text-white truncate">{title}</h1>
+      <div className="min-w-0">
+        <h1 className="dash-header-title text-base font-semibold text-gray-900 dark:text-white truncate">{title}</h1>
+        {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{subtitle}</p>}
+      </div>
       {templateId && <ThemeOrnament templateId={templateId} className="dash-header-ornament w-7 h-4 shrink-0" />}
       {action && <div className="ml-auto shrink-0">{action}</div>}
     </header>

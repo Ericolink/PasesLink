@@ -5,6 +5,7 @@ import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { PasswordInput } from '../components/PasswordInput'
 import { IconCheckCircle, IconXCircle } from '../components/Icons'
+import { Button } from '../components/Button'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 
@@ -87,7 +88,7 @@ export function ResetPassword() {
                 value={password}
                 onChange={setPassword}
               />
-              <p className="text-xs text-gray-400 mt-1">{PASSWORD_HINT}</p>
+              <p className="text-xs text-gray-500 mt-1">{PASSWORD_HINT}</p>
             </div>
             <div>
               <label htmlFor="reset-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
@@ -101,13 +102,9 @@ export function ResetPassword() {
               />
             </div>
             {errorInfo && <AuthErrorMessage info={errorInfo} />}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-            >
+            <Button type="submit" disabled={loading} className="w-full">
               {loading ? 'Guardando…' : 'Restablecer contraseña'}
-            </button>
+            </Button>
           </form>
         </>
       )}
@@ -116,12 +113,9 @@ export function ResetPassword() {
         <div className="text-center py-4">
           <IconCheckCircle className="w-10 h-10 mx-auto mb-3 text-green-600" />
           <p className="text-sm text-gray-700 mb-4">Tu contraseña fue actualizada correctamente.</p>
-          <button
-            onClick={() => navigate('/login')}
-            className="bg-primary text-white rounded-md px-4 py-3 font-medium hover:bg-primary-dark transition-colors"
-          >
+          <Button onClick={() => navigate('/login')}>
             Ir a iniciar sesión
-          </button>
+          </Button>
         </div>
       )}
     </AuthLayout>

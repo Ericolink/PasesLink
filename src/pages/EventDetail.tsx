@@ -17,6 +17,8 @@ import { GuestList } from '../components/GuestList'
 import { GuestSearchSheet } from '../components/GuestSearchSheet'
 import { EditEventForm } from '../components/EditEventForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { Button } from '../components/Button'
+import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { CoOrganizerPermissionsEditor } from '../components/CoOrganizerPermissionsEditor'
 import { SkeletonBlock } from '../components/Skeleton'
 import { ReminderSection } from '../components/ReminderSection'
@@ -181,46 +183,22 @@ export function EventDetail() {
         <SkeletonBlock className="w-full h-40 rounded-xl mb-4" />
         <SkeletonBlock className="h-6 w-1/2 mb-2" />
         <SkeletonBlock className="h-4 w-1/3 mb-6" />
-        <div className="grid grid-cols-3 gap-3">
-          <SkeletonBlock className="h-16 rounded-lg" />
-          <SkeletonBlock className="h-16 rounded-lg" />
-          <SkeletonBlock className="h-16 rounded-lg" />
-        </div>
+        <SkeletonBlock className="h-20 rounded-xl mb-3" />
+        <SkeletonBlock className="h-16 rounded-xl" />
       </div>
     )
   }
   if (error) {
-    return (
-      <div className="text-center mt-16 px-4">
-        <p className="text-red-500">{error}</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
-          ← Volver al Dashboard
-        </Link>
-      </div>
-    )
+    return <ErrorFallbackCTA message={error} tone="error" />
   }
   if (!event) {
-    return (
-      <div className="text-center mt-16 px-4">
-        <p className="text-gray-500">Evento no encontrado.</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
-          ← Volver al Dashboard
-        </Link>
-      </div>
-    )
+    return <ErrorFallbackCTA message="Evento no encontrado." />
   }
 
   const coOrgsMap = event.coOrganizersMap || {}
 
   if (user && !perms.hasAccess) {
-    return (
-      <div className="text-center mt-16 px-4">
-        <p className="text-gray-500">No tienes acceso a este evento.</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors">
-          ← Volver al Dashboard
-        </Link>
-      </div>
-    )
+    return <ErrorFallbackCTA message="No tienes acceso a este evento." />
   }
 
   async function handleStatusChange(status: 'cancelled' | 'archived' | 'active') {
@@ -330,9 +308,9 @@ export function EventDetail() {
           {/* Nombre + botón editar */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight break-words">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight break-words">
                 {event.name}
-              </h1>
+              </h2>
               <ThemeOrnament templateId={event.templateId} className="w-10 h-4 mt-1 text-[var(--invite-accent)]" />
             </div>
             {(perms.editEvent || perms.manageCoOrganizers) && (
@@ -363,7 +341,7 @@ export function EventDetail() {
                   >
                     <IconUserPlus className="w-4 h-4" />
                     {Object.entries(coOrgsMap).length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                      <span className="absolute -top-1 -right-1 bg-primary text-white text-2xs leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
                         {Object.entries(coOrgsMap).length}
                       </span>
                     )}
@@ -457,13 +435,9 @@ export function EventDetail() {
               placeholder="email@ejemplo.com"
               className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
             />
-            <button
-              type="submit"
-              disabled={coOrgLoading || !coOrgEmail.trim()}
-              className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-            >
+            <Button type="submit" size="sm" disabled={coOrgLoading || !coOrgEmail.trim()}>
               {coOrgLoading ? '…' : 'Agregar'}
-            </button>
+            </Button>
           </form>
           {coOrgError && <p className="text-xs text-red-500 mt-1.5">{coOrgError}</p>}
         </div>
@@ -640,7 +614,7 @@ export function EventDetail() {
                 {search || 'Buscar invitados'}
               </span>
               {activeFilterCount > 0 && (
-                <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-primary text-white text-[11px] font-semibold">
+                <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-primary text-white text-2xs font-semibold">
                   {activeFilterCount}
                 </span>
               )}
@@ -730,13 +704,9 @@ export function EventDetail() {
                   {actionError}
                 </p>
               )}
-              <button
-                onClick={() => setConfirmDelete(true)}
-                disabled={deleting}
-                className="text-sm border border-red-300 dark:border-red-700/60 text-red-600 dark:text-red-400 rounded-lg px-4 py-2 font-medium hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 transition-colors"
-              >
+              <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)} disabled={deleting}>
                 {deleting ? 'Eliminando…' : 'Eliminar evento definitivamente'}
-              </button>
+              </Button>
             </div>
           </div>
         </details>

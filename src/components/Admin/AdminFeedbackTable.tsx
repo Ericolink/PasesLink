@@ -5,6 +5,8 @@ import { EmptyState } from '../Empty/EmptyState'
 import { FeedbackCategoryIcon } from '../FeedbackCategoryIcon'
 import { IconEye, IconInbox, IconStar, IconTrash } from '../Icons'
 import { Pagination } from './Pagination'
+import { ResponsiveTable } from './ResponsiveTable'
+import { SkeletonBlock } from '../Skeleton'
 
 const STATUS_PILL_CLASSES: Record<FeedbackStatus, string> = {
   new: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
@@ -81,7 +83,7 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
   if (!loading && items.length === 0) {
     return (
       <EmptyState
-        icon={<IconInbox className="w-8 h-8" />}
+        icon={IconInbox}
         title="El buzón está vacío"
         description="Cuando alguien envíe una sugerencia, error o comentario, aparecerá aquí."
       />
@@ -134,89 +136,152 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
         </select>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
-              <th className="px-4 py-2 font-medium w-8"></th>
-              <th className="px-4 py-2 font-medium">Asunto</th>
-              <th className="px-4 py-2 font-medium">Remitente</th>
-              <SortableHeader label="Estado" active={sortKey === 'status'} dir={sortDir} onClick={() => toggleSort('status')} />
-              <SortableHeader label="Prioridad" active={sortKey === 'priority'} dir={sortDir} onClick={() => toggleSort('priority')} />
-              <SortableHeader label="Fecha" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
-              <th className="px-4 py-2 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {loading && Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
-            {!loading && pageItems.map((item) => (
-              <tr
-                key={item.id}
-                onClick={() => onOpen(item)}
-                className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 ${!item.read ? 'font-semibold' : ''}`}
-              >
-                <td className="px-4 py-2">
-                  {!item.read && <span className="block w-2 h-2 rounded-full bg-primary" title="No leído" />}
-                </td>
-                <td className="px-4 py-2 max-w-[280px]">
-                  <div className="flex items-center gap-2">
-                    <FeedbackCategoryIcon category={item.category} className="w-4 h-4 shrink-0 text-gray-400" />
-                    <span className="truncate text-gray-900 dark:text-white">{item.subject}</span>
-                  </div>
-                  <div className="text-xs font-normal text-gray-400 dark:text-gray-500 truncate">{item.message}</div>
-                </td>
-                <td className="px-4 py-2 font-normal text-gray-600 dark:text-gray-300">
-                  {item.userEmail || item.userDisplayName || (item.userId ? 'Usuario registrado' : 'Anónimo')}
-                </td>
-                <td className="px-4 py-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${STATUS_PILL_CLASSES[item.status]}`}>
-                    {FEEDBACK_STATUS_LABELS[item.status]}
-                  </span>
-                </td>
-                <td className="px-4 py-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${PRIORITY_PILL_CLASSES[item.priority]}`}>
-                    {FEEDBACK_PRIORITY_LABELS[item.priority]}
-                  </span>
-                </td>
-                <td className="px-4 py-2 font-normal text-gray-600 dark:text-gray-300">
+      <ResponsiveTable
+        mobile={<>
+          {loading && Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="p-4 space-y-2">
+              <SkeletonBlock className="h-3 w-2/3" />
+              <SkeletonBlock className="h-3 w-1/3" />
+            </div>
+          ))}
+          {!loading && pageItems.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => onOpen(item)}
+              className="p-4 space-y-1.5 cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/40"
+            >
+              <div className="flex items-start gap-2">
+                {!item.read && <span className="mt-1.5 block w-2 h-2 rounded-full bg-primary shrink-0" title="No leído" />}
+                <FeedbackCategoryIcon category={item.category} className="w-4 h-4 shrink-0 text-gray-400 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className={`text-gray-900 dark:text-white break-words ${!item.read ? 'font-semibold' : 'font-medium'}`}>{item.subject}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{item.message}</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {item.userEmail || item.userDisplayName || (item.userId ? 'Usuario registrado' : 'Anónimo')}
+              </p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${STATUS_PILL_CLASSES[item.status]}`}>
+                  {FEEDBACK_STATUS_LABELS[item.status]}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${PRIORITY_PILL_CLASSES[item.priority]}`}>
+                  {FEEDBACK_PRIORITY_LABELS[item.priority]}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-gray-400 dark:text-gray-500">
                   {new Date(item.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </td>
-                <td className="px-4 py-2">
-                  <div className="flex items-center gap-2 justify-end">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onToggleFavorite(item) }}
-                      title={item.favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
-                      aria-label={item.favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
-                      className={item.favorite ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500'}
-                    >
-                      <IconStar className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onOpen(item) }}
-                      title="Ver mensaje completo"
-                      aria-label={`Ver mensaje de ${item.subject}`}
-                      className="text-gray-400 hover:text-primary"
-                    >
-                      <IconEye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onRequestDelete(item) }}
-                      title="Eliminar"
-                      aria-label={`Eliminar ${item.subject}`}
-                      className="text-gray-400 hover:text-red-600"
-                    >
-                      <IconTrash className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
+                </span>
+                <div className="flex items-center gap-1 -my-2 -mx-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onToggleFavorite(item) }}
+                    title={item.favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                    aria-label={item.favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                    className={`min-w-11 min-h-11 inline-flex items-center justify-center ${item.favorite ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500'}`}
+                  >
+                    <IconStar className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRequestDelete(item) }}
+                    title="Eliminar"
+                    aria-label={`Eliminar ${item.subject}`}
+                    className="min-w-11 min-h-11 inline-flex items-center justify-center text-gray-400 hover:text-red-600"
+                  >
+                    <IconTrash className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {!loading && pageItems.length === 0 && (
+            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay mensajes que coincidan con la búsqueda.</p>
+          )}
+        </>}
+        table={<>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                <th className="px-4 py-2 font-medium w-8"></th>
+                <th className="px-4 py-2 font-medium">Asunto</th>
+                <th className="px-4 py-2 font-medium">Remitente</th>
+                <SortableHeader label="Estado" active={sortKey === 'status'} dir={sortDir} onClick={() => toggleSort('status')} />
+                <SortableHeader label="Prioridad" active={sortKey === 'priority'} dir={sortDir} onClick={() => toggleSort('priority')} />
+                <SortableHeader label="Fecha" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
+                <th className="px-4 py-2 font-medium"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {!loading && pageItems.length === 0 && (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay mensajes que coincidan con la búsqueda.</p>
-        )}
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {loading && Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
+              {!loading && pageItems.map((item) => (
+                <tr
+                  key={item.id}
+                  onClick={() => onOpen(item)}
+                  className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 ${!item.read ? 'font-semibold' : ''}`}
+                >
+                  <td className="px-4 py-2">
+                    {!item.read && <span className="block w-2 h-2 rounded-full bg-primary" title="No leído" />}
+                  </td>
+                  <td className="px-4 py-2 max-w-[280px]">
+                    <div className="flex items-center gap-2">
+                      <FeedbackCategoryIcon category={item.category} className="w-4 h-4 shrink-0 text-gray-400" />
+                      <span className="truncate text-gray-900 dark:text-white">{item.subject}</span>
+                    </div>
+                    <div className="text-xs font-normal text-gray-400 dark:text-gray-500 truncate">{item.message}</div>
+                  </td>
+                  <td className="px-4 py-2 font-normal text-gray-600 dark:text-gray-300">
+                    {item.userEmail || item.userDisplayName || (item.userId ? 'Usuario registrado' : 'Anónimo')}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${STATUS_PILL_CLASSES[item.status]}`}>
+                      {FEEDBACK_STATUS_LABELS[item.status]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${PRIORITY_PILL_CLASSES[item.priority]}`}>
+                      {FEEDBACK_PRIORITY_LABELS[item.priority]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 font-normal text-gray-600 dark:text-gray-300">
+                    {new Date(item.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td className="px-4 py-2">
+                    <div className="flex items-center gap-2 justify-end">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onToggleFavorite(item) }}
+                        title={item.favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                        aria-label={item.favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                        className={item.favorite ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500'}
+                      >
+                        <IconStar className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onOpen(item) }}
+                        title="Ver mensaje completo"
+                        aria-label={`Ver mensaje de ${item.subject}`}
+                        className="text-gray-400 hover:text-primary"
+                      >
+                        <IconEye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onRequestDelete(item) }}
+                        title="Eliminar"
+                        aria-label={`Eliminar ${item.subject}`}
+                        className="text-gray-400 hover:text-red-600"
+                      >
+                        <IconTrash className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && pageItems.length === 0 && (
+            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay mensajes que coincidan con la búsqueda.</p>
+          )}
+        </>}
+      />
 
       <Pagination page={currentPage} pageCount={pageCount} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
     </div>
@@ -228,7 +293,7 @@ function SortableHeader({ label, active, dir, onClick }: { label: string; active
     <th className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors">
         {label}
-        {active && <span className="text-[10px]">{dir === 'asc' ? '▲' : '▼'}</span>}
+        {active && <span className="text-2xs">{dir === 'asc' ? '▲' : '▼'}</span>}
       </button>
     </th>
   )
@@ -236,10 +301,10 @@ function SortableHeader({ label, active, dir, onClick }: { label: string; active
 
 function SkeletonRow() {
   return (
-    <tr className="animate-pulse">
+    <tr>
       {Array.from({ length: 7 }).map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full max-w-[80px]" />
+          <SkeletonBlock className="h-3 w-full max-w-[80px]" />
         </td>
       ))}
     </tr>

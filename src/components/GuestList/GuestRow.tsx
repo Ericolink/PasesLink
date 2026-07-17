@@ -28,7 +28,7 @@ function rubberBand(delta: number, max: number): number {
 const INDICATOR_CLASS: Record<string, string> = {
   action: 'bg-amber-500',
   ok: 'bg-green-500',
-  off: 'bg-gray-300 dark:bg-gray-600',
+  off: 'bg-gray-300 dark:bg-gray-700',
   wait: 'border-[1.5px] border-violet-400 dark:border-violet-500 bg-transparent',
 }
 

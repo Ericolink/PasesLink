@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
-import { useModalA11y } from '../../hooks/useModalA11y'
+import { Modal } from '../Modal'
 import { guestPresence, partySize } from '../../firebase/guests'
 import type { CustomField, GuestData, PaymentMethod } from '../../types'
 import {
@@ -120,43 +119,38 @@ export function GuestDetailSheet({
 }) {
   const [editing, setEditing] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const dialogRef = useModalA11y<HTMLDivElement>(!!guest, () => { setEditing(false); setHistoryOpen(false); onClose() })
+
+  function handleClose() {
+    setEditing(false)
+    setHistoryOpen(false)
+    onClose()
+  }
 
   if (!guest) return null
 
   const presence = guestPresence(guest)
   const amount = ticketPrice * partySize(guest)
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[env(safe-area-inset-bottom)] sm:pb-0 bg-black/50 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) { setEditing(false); setHistoryOpen(false); onClose() } }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Detalle de ${guestDisplayName(guest)}`}
-        className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[85dvh] flex flex-col animate-bounce-in"
-      >
-        <div className="flex items-center gap-3 px-5 pt-5 pb-4 shrink-0 border-b border-gray-100 dark:border-gray-700">
-          <GuestAvatar guest={guest} size={46} />
-          <div className="min-w-0 flex-1">
-            <p className="text-base font-semibold text-gray-900 dark:text-white truncate">
-              {guest.isGroup ? `${guest.name} · ${partySize(guest)} integrantes` : guestDisplayName(guest)}
-            </p>
-            {guest.phone && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{guest.phone}</p>}
-          </div>
-          <button
-            onClick={() => { setEditing(false); setHistoryOpen(false); onClose() }}
-            aria-label="Cerrar"
-            className="-m-2 min-w-11 min-h-11 inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-          >
-            <IconX className="w-5 h-5" />
-          </button>
+  return (
+    <Modal open={!!guest} onClose={handleClose} label={`Detalle de ${guestDisplayName(guest)}`} maxWidth="sm:max-w-md">
+      <div className="flex items-center gap-3 px-5 pt-5 pb-4 shrink-0 border-b border-gray-100 dark:border-gray-700">
+        <GuestAvatar guest={guest} size={46} />
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-semibold text-gray-900 dark:text-white truncate">
+            {guest.isGroup ? `${guest.name} · ${partySize(guest)} integrantes` : guestDisplayName(guest)}
+          </p>
+          {guest.phone && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{guest.phone}</p>}
         </div>
+        <button
+          onClick={handleClose}
+          aria-label="Cerrar"
+          className="-m-2 min-w-11 min-h-11 inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+        >
+          <IconX className="w-5 h-5" />
+        </button>
+      </div>
 
-        <div className="px-5 py-4 overflow-y-auto space-y-5">
+      <div className="px-5 py-4 overflow-y-auto space-y-5">
           {editing ? (
             <GuestEditForm eventId={eventId} guest={guest} customFields={customFields} maxCompanions={maxCompanions} onDone={() => setEditing(false)} />
           ) : (
@@ -302,8 +296,6 @@ export function GuestDetailSheet({
             </>
           )}
         </div>
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   )
 }

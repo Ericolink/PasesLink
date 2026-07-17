@@ -4,6 +4,7 @@ import { WALL_TEXT_MAX } from '../utils/validation'
 import { WALL_TYPE_CONFIG } from '../utils/wallMessageTypes'
 import { Avatar } from './Avatar'
 import { AuthorName } from './AuthorName'
+import { FieldError } from './FieldError'
 import { IconPin, IconX } from './Icons'
 import { ReactionPicker } from './ReactionPicker'
 import { RepliesList } from './RepliesList'
@@ -193,7 +194,7 @@ export const WallMessageCard = memo(function WallMessageCard({
           </button>
         </div>
       )}
-      {replyError && <p className="text-xs text-red-500 mt-1 ml-9">{replyError}</p>}
+      <FieldError message={replyError} className="mt-1 ml-9" />
     </div>
   )
 })

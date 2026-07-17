@@ -29,7 +29,7 @@ import { deleteEvent, setEventStatus } from '../firebase/events'
 import { attendancePercent } from '../utils/attendance'
 import type { EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { AdminStatCard, AdminStatCardSkeleton } from '../components/Admin/AdminStatCard'
+import { MetricTile } from '../components/MetricTile'
 import { AdminActivityChart } from '../components/Admin/AdminActivityChart'
 import { AdminEventsTable } from '../components/Admin/AdminEventsTable'
 import { AdminUsersTable } from '../components/Admin/AdminUsersTable'
@@ -39,6 +39,7 @@ import { AdminFeedbackDetail } from '../components/Admin/AdminFeedbackDetail'
 import { AdminReportsTab } from '../components/Admin/AdminReportsTab'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { ScrollableTabs } from '../components/ScrollableTabs'
+import { TabButton } from '../components/TabButton'
 import {
   IconBarChart,
   IconBarChart2,
@@ -348,8 +349,7 @@ export function AdminDashboard() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
-      <ScreenHeader title="Panel de administración" backTo="/profile" />
-      <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-6">Visión general de eventos y clientes de PaseLink</p>
+      <ScreenHeader title="Panel de administración" subtitle="Visión general de eventos y clientes de PaseLink" backTo="/profile" />
 
       {actionError && (
         <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 mb-4">{actionError}</p>
@@ -360,16 +360,16 @@ export function AdminDashboard() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         {statsLoading ? (
-          Array.from({ length: 7 }).map((_, i) => <AdminStatCardSkeleton key={i} />)
+          Array.from({ length: 7 }).map((_, i) => <MetricTile.Skeleton key={i} />)
         ) : (
           <>
-            <AdminStatCard label="Eventos activos" value={stats.activeEvents} icon={IconCalendar} accent="primary" />
-            <AdminStatCard label="Eventos totales" value={stats.totalEvents} icon={IconBarChart2} />
-            <AdminStatCard label="Clientes totales" value={stats.totalUsers} icon={IconUsers} />
-            <AdminStatCard label="Nuevos (7 días)" value={stats.newUsers7d} icon={IconUserPlus} accent="green" />
-            <AdminStatCard label="Invitados totales" value={stats.totalGuests} icon={IconTicket} />
-            <AdminStatCard label="Check-ins totales" value={stats.totalCheckins} icon={IconCheckCircle} />
-            <AdminStatCard label="Tasa de check-in" value={stats.checkinRate !== null ? `${stats.checkinRate}%` : '—'} icon={IconBarChart} accent="amber" />
+            <MetricTile label="Eventos activos" value={stats.activeEvents} icon={IconCalendar} align="start" accent="primary" />
+            <MetricTile label="Eventos totales" value={stats.totalEvents} icon={IconBarChart2} align="start" />
+            <MetricTile label="Clientes totales" value={stats.totalUsers} icon={IconUsers} align="start" />
+            <MetricTile label="Nuevos (7 días)" value={stats.newUsers7d} icon={IconUserPlus} align="start" accent="success" />
+            <MetricTile label="Invitados totales" value={stats.totalGuests} icon={IconTicket} align="start" />
+            <MetricTile label="Check-ins totales" value={stats.totalCheckins} icon={IconCheckCircle} align="start" />
+            <MetricTile label="Tasa de check-in" value={stats.checkinRate !== null ? `${stats.checkinRate}%` : '—'} icon={IconBarChart} align="start" accent="warning" />
           </>
         )}
       </div>
@@ -488,37 +488,4 @@ function ActivityTab() {
   }, [])
 
   return <AdminActivityLog entries={entries} loading={loading} />
-}
-
-function TabButton({
-  label,
-  count,
-  unreadCount,
-  active,
-  onClick,
-}: {
-  label: string
-  count?: number
-  unreadCount?: number
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`shrink-0 whitespace-nowrap min-h-11 px-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-        active
-          ? 'border-primary text-primary'
-          : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-      }`}
-    >
-      {label}
-      {count !== undefined && <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">{count}</span>}
-      {!!unreadCount && (
-        <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-white text-[10px] font-bold leading-none">
-          {unreadCount > 99 ? '99+' : unreadCount}
-        </span>
-      )}
-    </button>
-  )
 }

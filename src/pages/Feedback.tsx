@@ -10,6 +10,7 @@ import { FEEDBACK_EMAIL_MAX, FEEDBACK_MESSAGE_MAX, FEEDBACK_MESSAGE_MIN, FEEDBAC
 import { IconCheckCircle } from '../components/Icons'
 import { FeedbackCategoryIcon } from '../components/FeedbackCategoryIcon'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Button } from '../components/Button'
 
 // Orden pensado para la grilla del formulario, no el orden de FeedbackCategory
 // en src/types/index.ts (ahí van agrupados con sus labels).
@@ -90,12 +91,9 @@ export function Feedback() {
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           Lo recibimos y el equipo de PaseLink lo va a revisar pronto.
         </p>
-        <button
-          onClick={resetForm}
-          className="bg-primary text-white rounded-lg px-5 py-2.5 font-medium hover:bg-primary-dark transition-colors"
-        >
+        <Button onClick={resetForm}>
           Enviar otro comentario
-        </button>
+        </Button>
         </div>
       </div>
     )
@@ -211,13 +209,9 @@ export function Feedback() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-primary text-white rounded-lg py-2.5 font-medium hover:bg-primary-dark transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-        >
+        <Button type="submit" disabled={submitting} className="w-full">
           {submitting ? 'Enviando…' : 'Enviar comentario'}
-        </button>
+        </Button>
       </form>
     </div>
   )

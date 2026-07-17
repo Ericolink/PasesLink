@@ -51,7 +51,7 @@ export function BottomTabBar() {
           <Link
             key={to}
             to={to}
-            className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors"
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-2xs font-medium transition-colors"
             style={{ color: active ? 'var(--color-primary)' : 'var(--color-gray-500)' }}
             aria-current={active ? 'page' : undefined}
           >

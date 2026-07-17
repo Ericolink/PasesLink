@@ -46,7 +46,7 @@ export const TemplateIconButton = memo(function TemplateIconButton({ template, i
         <Icon className="w-7 h-7" />
       </span>
       <span
-        className="text-[11px] font-medium leading-tight text-gray-700 dark:text-gray-300"
+        className="text-2xs font-medium leading-tight text-gray-700 dark:text-gray-300"
         style={isSelected ? { color: accent } : undefined}
       >
         {template.label}

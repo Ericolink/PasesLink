@@ -82,7 +82,7 @@ export function Landing() {
             style={{
               background: 'rgba(255,20,100,.12)',
               border: '1px solid rgba(255,20,100,.35)',
-              color: '#FF1464',
+              color: 'var(--color-primary)',
             }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
@@ -94,12 +94,12 @@ export function Landing() {
             Gestiona tus invitados{' '}
             <span
               className="relative inline-block"
-              style={{ color: '#E8B84B', textShadow: '0 0 24px rgba(232,184,75,.45)' }}
+              style={{ color: 'var(--color-gold)', textShadow: '0 0 24px rgba(232,184,75,.45)' }}
             >
               sin complicaciones
               <span
                 className="absolute -bottom-1 left-0 w-full h-0.5 rounded-full"
-                style={{ background: 'linear-gradient(90deg, #FF1464, #E8B84B)' }}
+                style={{ background: 'linear-gradient(90deg, var(--color-primary), var(--color-gold))' }}
               />
             </span>
           </h1>
@@ -206,8 +206,8 @@ export function Landing() {
                   className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-sm relative z-10"
                   style={{
                     background: 'rgba(255,20,100,.15)',
-                    border: '2px solid #FF1464',
-                    color: '#FF1464',
+                    border: '2px solid var(--color-primary)',
+                    color: 'var(--color-primary)',
                     boxShadow: '0 0 16px rgba(255,20,100,.35)',
                   }}
                 >
@@ -229,7 +229,7 @@ export function Landing() {
         >
           <span
             className="absolute top-4 right-4 text-xs font-bold px-2 py-0.5 rounded-full"
-            style={{ background: '#FF1464', color: '#fff' }}
+            style={{ background: 'var(--color-primary)', color: '#fff' }}
           >
             LANZAMIENTO
           </span>
@@ -253,7 +253,7 @@ export function Landing() {
           <Link
             to="/register"
             className="inline-block rounded-lg px-8 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5"
-            style={{ background: '#FF1464', color: '#fff', boxShadow: '0 0 14px rgba(255,20,100,.45)' }}
+            style={{ background: 'var(--color-primary)', color: '#fff', boxShadow: '0 0 14px rgba(255,20,100,.45)' }}
           >
             Crear mi evento gratis
           </Link>

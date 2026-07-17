@@ -4,6 +4,7 @@ import { REPORT_CONTENT_TYPE_LABELS, REPORT_STATUS_LABELS } from '../../types'
 import { EmptyState } from '../Empty/EmptyState'
 import { IconEye, IconFlag } from '../Icons'
 import { ResponsiveTable } from './ResponsiveTable'
+import { SkeletonBlock } from '../Skeleton'
 
 const STATUS_PILL_CLASSES: Record<ReportStatus, string> = {
   pending: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
@@ -61,7 +62,7 @@ export function AdminReportsTable({
   if (!loading && items.length === 0) {
     return (
       <EmptyState
-        icon={<IconFlag className="w-8 h-8" />}
+        icon={IconFlag}
         title="No hay reportes"
         description="Cuando alguien reporte un comentario o foto del muro, aparecerá aquí."
       />
@@ -106,9 +107,9 @@ export function AdminReportsTable({
       <ResponsiveTable
         mobile={<>
           {loading && Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="p-4 animate-pulse space-y-2">
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+            <div key={i} className="p-4 space-y-2">
+              <SkeletonBlock className="h-3 w-2/3" />
+              <SkeletonBlock className="h-3 w-1/3" />
             </div>
           ))}
           {!loading && filtered.map((item) => (
@@ -152,7 +153,7 @@ export function AdminReportsTable({
                     className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors"
                   >
                     Fecha
-                    <span className="text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>
+                    <span className="text-2xs">{sortDir === 'asc' ? '▲' : '▼'}</span>
                   </button>
                 </th>
                 <th className="px-4 py-2 font-medium"></th>
@@ -221,10 +222,10 @@ export function AdminReportsTable({
 
 function SkeletonRow() {
   return (
-    <tr className="animate-pulse">
+    <tr>
       {Array.from({ length: 5 }).map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full max-w-[80px]" />
+          <SkeletonBlock className="h-3 w-full max-w-[80px]" />
         </td>
       ))}
     </tr>

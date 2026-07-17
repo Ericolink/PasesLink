@@ -30,14 +30,14 @@ export function AdminActivityChart({ events }: { events: EventData[] }) {
       <div className="flex items-end gap-2 h-20">
         {months.map(({ key, label }, i) => (
           <div key={key} className="flex-1 flex flex-col items-center gap-1">
-            <span className="h-3 text-[10px] text-gray-500 dark:text-gray-400">{counts[i] > 0 ? counts[i] : ''}</span>
+            <span className="h-3 text-2xs text-gray-500 dark:text-gray-400">{counts[i] > 0 ? counts[i] : ''}</span>
             <div className="w-full flex items-end" style={{ height: '60px' }}>
               <div
                 className="w-full rounded-t bg-primary/70 transition-colors"
                 style={{ height: counts[i] > 0 ? `${Math.max(8, (counts[i] / maxCount) * 100)}%` : '2px' }}
               />
             </div>
-            <span className="text-[10px] text-gray-400 dark:text-gray-500">{label}</span>
+            <span className="text-2xs text-gray-400 dark:text-gray-500">{label}</span>
           </div>
         ))}
       </div>

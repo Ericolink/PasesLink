@@ -21,7 +21,7 @@ export function NotFound() {
         Ir a Inicio
       </Link>
       <div className="mt-10 text-sm space-y-2 border-t border-gray-200 dark:border-gray-800 pt-8">
-        <p className="text-gray-400">¿Quizás buscabas?</p>
+        <p className="text-gray-500">¿Quizás buscabas?</p>
         <div className="flex flex-col gap-1.5 mt-2">
           <Link to="/events/new" className="inline-flex items-center justify-center gap-1.5 text-primary hover:underline text-sm">
             <IconCalendar className="w-3.5 h-3.5" />

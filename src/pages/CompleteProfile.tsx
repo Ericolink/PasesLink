@@ -9,6 +9,7 @@ import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { LegalConsentCheckbox } from '../components/LegalConsentCheckbox'
+import { Button } from '../components/Button'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
 export function CompleteProfile() {
@@ -117,10 +118,9 @@ export function CompleteProfile() {
           </div>
           <LegalConsentCheckbox id="complete-profile-legal-consent" checked={legalAccepted} onChange={setLegalAccepted} />
           {errorInfo && <AuthErrorMessage info={errorInfo} />}
-          <button type="submit" disabled={loading || !legalAccepted}
-            className="w-full bg-primary text-white rounded-md py-3 font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
+          <Button type="submit" disabled={loading || !legalAccepted} className="w-full">
             {loading ? 'Guardando…' : 'Guardar y entrar'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

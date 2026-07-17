@@ -118,7 +118,7 @@ export function AdminReportsTab({ initialReportId }: Props) {
     }
   }
 
-  if (loadError) return <p className="text-center text-red-500 mt-8">{loadError}</p>
+  if (loadError) return <p className="text-center text-error mt-8">{loadError}</p>
 
   return (
     <div>

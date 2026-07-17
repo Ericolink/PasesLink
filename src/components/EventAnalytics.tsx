@@ -94,20 +94,20 @@ export const EventAnalytics = memo(function EventAnalytics({ guests, loading = f
             const isPeak = h === peakHour && count > 0
             return (
               <div key={h} className="flex-1 min-w-[28px] flex flex-col items-center gap-0.5">
-                <span className="h-3 text-[10px] text-gray-500 dark:text-gray-400">{count > 0 ? count : ''}</span>
+                <span className="h-3 text-2xs text-gray-500 dark:text-gray-400">{count > 0 ? count : ''}</span>
                 <div className="w-full flex items-end" style={{ height: '80px' }}>
                   <div
                     className={`w-full rounded-t transition-all ${isPeak ? 'bg-primary' : 'bg-primary/40'}`}
                     style={{ height: `${Math.max(heightPct, count > 0 ? 4 : 0)}%` }}
                   />
                 </div>
-                <span className="text-[10px] text-gray-400">{h}</span>
+                <span className="text-2xs text-gray-400">{h}</span>
               </div>
             )
           })}
         </div>
       </div>
-      <p className="text-[10px] text-gray-400 text-center mt-1">Hora del día (check-ins)</p>
+      <p className="text-2xs text-gray-400 text-center mt-1">Hora del día (check-ins)</p>
     </div>
   )
 })

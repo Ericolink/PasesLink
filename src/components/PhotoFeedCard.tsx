@@ -4,6 +4,7 @@ import type { ReactionType, TemplateId } from '../types'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { WALL_TEXT_MAX } from '../utils/validation'
 import { Avatar } from './Avatar'
+import { FieldError } from './FieldError'
 import { IconPin, IconX } from './Icons'
 import { ProgressiveImage } from './ProgressiveImage'
 import { ReactionPicker } from './ReactionPicker'
@@ -101,12 +102,12 @@ export const PhotoFeedCard = memo(function PhotoFeedCard({
           <div className="flex items-center gap-2 min-w-0">
             <span className="min-w-0 truncate text-xs font-semibold text-[var(--invite-text)]">{photo.authorName}</span>
             {photo.pinned && (
-              <span className="shrink-0 text-[10px] uppercase tracking-wide font-bold rounded-full px-2 py-0.5 bg-[var(--invite-accent)] text-white">
+              <span className="shrink-0 text-2xs uppercase tracking-wide font-bold rounded-full px-2 py-0.5 bg-[var(--invite-accent)] text-white">
                 Destacado
               </span>
             )}
           </div>
-          <span className="text-[11px] text-[var(--invite-text-muted)]">Compartió una foto</span>
+          <span className="text-2xs text-[var(--invite-text-muted)]">Compartió una foto</span>
         </div>
         {isOrg && onPin && (
           <button
@@ -197,7 +198,7 @@ export const PhotoFeedCard = memo(function PhotoFeedCard({
             </button>
           </div>
         )}
-        {replyError && <p className="text-xs text-red-500 mt-1 ml-9">{replyError}</p>}
+        <FieldError message={replyError} className="mt-1 ml-9" />
       </div>
     </div>
   )

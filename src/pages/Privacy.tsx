@@ -9,7 +9,7 @@ export function PrivacyContent() {
   return (
     <>
       <h1 className="text-2xl font-semibold text-gray-900 mb-1">Política de privacidad</h1>
-      <p className="text-sm text-gray-400 mb-8">Última actualización: {formatLegalDocDate(LEGAL_DOCS.privacy.version)}</p>
+      <p className="text-sm text-gray-500 mb-8">Última actualización: {formatLegalDocDate(LEGAL_DOCS.privacy.version)}</p>
 
       <div className="space-y-6 text-sm text-gray-700">
         <section>

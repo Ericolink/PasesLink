@@ -9,7 +9,7 @@ import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useIsLandscape } from '../hooks/useIsLandscape'
 import { useLiveRef } from '../hooks/useLiveRef'
-import { IconRotateCcw } from '../components/Icons'
+import { IconArrowLeft, IconRotateCcw } from '../components/Icons'
 import { checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
 import type { PaymentMethod } from '../types'
 import { walkIn, walkOut } from '../firebase/capacity'
@@ -17,6 +17,8 @@ import { ScanResultModal } from '../components/ScanResultModal'
 import { ExitConfirmDialog, type PendingExit } from '../components/ExitConfirmDialog'
 import { CameraPermissionHandler, ManualCodeEntryDialog } from '../components/Scanner'
 import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
+import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
+import { SkeletonBlock } from '../components/Skeleton'
 import { buildPassUrl, extractQrToken, isArriveQr } from '../utils/qrUrl'
 import { isNetworkError } from '../utils/network'
 import { captureException } from '../lib/sentry'
@@ -476,37 +478,27 @@ export function Scanner() {
   }
 
   if (eventLoading) {
-    return <p className="text-center text-gray-500 mt-16">Cargando…</p>
+    // !bg-white/10 (con !important): SkeletonBlock por defecto usa
+    // bg-gray-200 dark:bg-gray-700, pensado para fondos claros/dark-mode
+    // estándar — esta pantalla vive siempre en fondo oscuro fijo
+    // (bg-gray-900 dentro de .theme-reset), sin importar el tema de la
+    // app, así que necesita su propio color de skeleton visible en ambos.
+    return (
+      <div className="theme-reset max-w-md mx-auto px-4 py-6 min-h-[calc(100vh-3.5rem)] bg-gray-900 text-white -mt-px">
+        <SkeletonBlock className="!bg-white/10 h-6 w-1/2 mb-4" />
+        <SkeletonBlock className="!bg-white/10 h-64 rounded-2xl mb-4" />
+        <SkeletonBlock className="!bg-white/10 h-11 rounded-xl" />
+      </div>
+    )
   }
   if (eventError) {
-    return (
-      <div className="text-center mt-16 px-4">
-        <p className="text-red-500">{eventError}</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
-          ← Volver al Dashboard
-        </Link>
-      </div>
-    )
+    return <ErrorFallbackCTA message={eventError} tone="error" />
   }
   if (!event) {
-    return (
-      <div className="text-center mt-16 px-4">
-        <p className="text-gray-500">Evento no encontrado.</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
-          ← Volver al Dashboard
-        </Link>
-      </div>
-    )
+    return <ErrorFallbackCTA message="Evento no encontrado." />
   }
   if (!perms.scanQr) {
-    return (
-      <div className="text-center mt-16 px-4">
-        <p className="text-gray-500">No tienes acceso a este evento.</p>
-        <Link to="/dashboard" className="inline-block mt-4 bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity">
-          ← Volver al Dashboard
-        </Link>
-      </div>
-    )
+    return <ErrorFallbackCTA message="No tienes acceso a este evento." />
   }
 
   return (
@@ -519,15 +511,16 @@ export function Scanner() {
         #qr-reader__scan_region { line-height: 0; }
       `}</style>
 
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-white">Escanear pases</h1>
+      <div className="flex items-center gap-3 mb-4">
         <Link
           to={`/events/${eventId}`}
           onClick={() => { void stopScanning() }}
-          className="text-sm text-primary font-medium"
+          aria-label="Volver"
+          className="shrink-0 -ml-2 min-w-11 min-h-11 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
         >
-          Salir
+          <IconArrowLeft className="w-5 h-5" />
         </Link>
+        <h1 className="text-xl font-semibold text-white truncate">Escanear pases</h1>
       </div>
 
       {event && <p className="text-sm text-gray-400 mb-4">{event.name}</p>}

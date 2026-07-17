@@ -54,7 +54,7 @@ export const WallSectionMessageCard = memo(function WallSectionMessageCard({
               {cfg.label}
             </span>
             {message.pinned && (
-              <span className="invite-pin-label hidden shrink-0 text-[10px] uppercase tracking-wide font-bold rounded-full px-2 py-0.5 bg-[var(--invite-accent)] text-white">
+              <span className="invite-pin-label hidden shrink-0 text-2xs uppercase tracking-wide font-bold rounded-full px-2 py-0.5 bg-[var(--invite-accent)] text-white">
                 Destacado
               </span>
             )}

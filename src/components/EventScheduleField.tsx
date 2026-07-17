@@ -29,7 +29,7 @@ interface Props {
 // cajas independientes.
 const inputClass =
   'w-full bg-transparent border-0 p-0 text-sm font-medium text-gray-900 dark:text-white focus:outline-none [color-scheme:light] dark:[color-scheme:dark]'
-const labelClass = 'block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5'
+const labelClass = 'block text-2xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5'
 // focus-within (no focus: en el input) porque el anillo de foco vive en la
 // fila completa, no en el control nativo — visible con teclado (Tab) y con
 // mouse por igual, sin el outline default del navegador duplicado adentro.

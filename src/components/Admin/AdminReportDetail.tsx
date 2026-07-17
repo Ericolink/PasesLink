@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useModalA11y } from '../../hooks/useModalA11y'
+import { Modal } from '../Modal'
 import { getReportCountForContent, getReportsAboutUser, saveReportNotes } from '../../firebase/moderation'
 import { applySanction, getUserSanctionHistory, getUserSanctionSummary, PERMANENT_SANCTION_MS, revokeSanction } from '../../firebase/sanctions'
 import type {
@@ -13,6 +13,7 @@ import type {
 import { REPORT_CONTENT_TYPE_LABELS, REPORT_STATUS_LABELS, SANCTION_TYPE_LABELS } from '../../types'
 import { optimizedImageUrl } from '../../utils/cloudinary'
 import { IconBan, IconFlag, IconShield, IconTrash, IconX } from '../Icons'
+import { FieldError } from '../FieldError'
 
 const STATUS_ORDER: ReportStatus[] = ['pending', 'in_review', 'resolved', 'rejected']
 const SANCTION_TYPES: SanctionType[] = ['warning', 'comment_restriction', 'photo_restriction', 'suspension', 'ban']
@@ -51,8 +52,6 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
   const [applyingSanction, setApplyingSanction] = useState(false)
   const [sanctionError, setSanctionError] = useState('')
   const [sanctionMessage, setSanctionMessage] = useState('')
-
-  const dialogRef = useModalA11y<HTMLDivElement>(!!report, onClose)
 
   // Sincroniza los borradores/contexto solo cuando cambia EL reporte mostrado
   // (por id), no en cada render — mismo criterio que AdminFeedbackDetail.tsx.
@@ -162,31 +161,27 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
   const activeRestrictions = sanctionSummary ? collectActiveRestrictions(sanctionSummary) : []
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-black/50 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    <Modal
+      open={!!report}
+      onClose={onClose}
+      label={`Reporte de ${REPORT_CONTENT_TYPE_LABELS[report.contentType]}`}
+      variant="dialog"
+      maxWidth="max-w-2xl"
     >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Reporte de ${REPORT_CONTENT_TYPE_LABELS[report.contentType]}`}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-bounce-in"
-      >
-        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              <IconFlag className="w-4 h-4" />
-              {REPORT_CONTENT_TYPE_LABELS[report.contentType]} reportado en "{report.eventName}"
-            </div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white break-words">{report.reason}</h2>
+      <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700 shrink-0">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+            <IconFlag className="w-4 h-4" />
+            {REPORT_CONTENT_TYPE_LABELS[report.contentType]} reportado en "{report.eventName}"
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-            <IconX className="w-5 h-5" />
-          </button>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white break-words">{report.reason}</h2>
         </div>
+        <button onClick={onClose} aria-label="Cerrar" className="min-w-11 min-h-11 -m-2 inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <IconX className="w-5 h-5" />
+        </button>
+      </div>
 
-        <div className="px-6 py-4 space-y-4">
+      <div className="px-6 py-4 space-y-4 overflow-y-auto">
           <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-4 gap-y-1">
             <span>Reportado por: {report.anonymous ? 'Anónimo' : (report.reporterName || report.reporterEmail || 'Usuario')}</span>
             <span>{new Date(report.createdAt).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}</span>
@@ -330,7 +325,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
                 />
               </div>
 
-              {sanctionError && <p className="text-xs text-red-500">{sanctionError}</p>}
+              <FieldError message={sanctionError} />
               {sanctionMessage && <p className="text-xs text-green-600 dark:text-green-400">{sanctionMessage}</p>}
 
               <button
@@ -398,8 +393,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 

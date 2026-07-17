@@ -13,6 +13,9 @@ import { TemplatePicker } from './TemplatePicker'
 import { CoverImagePicker } from './CoverImagePicker'
 import { DraftRecoveryModal } from './DraftRecoveryModal'
 import { ConfirmDialog } from './ConfirmDialog'
+import { Button } from './Button'
+import { Checkbox } from './Checkbox'
+import { FieldError } from './FieldError'
 import { EventScheduleField } from './EventScheduleField'
 import { getTemplate } from '../templates/registry'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
@@ -411,14 +414,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={EVENT_NAME_MAX}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
 
         <div>
           <label htmlFor="edit-event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
           <input id="edit-event-location" type="text" required value={location} onChange={(e) => setLocation(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
 
         <div>
@@ -441,7 +444,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <div>
           <label htmlFor="edit-event-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
           <textarea id="edit-event-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
         <div>
           <label htmlFor="edit-event-dress-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -449,7 +452,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           </label>
           <input id="edit-event-dress-code" type="text" value={dressCode} onChange={(e) => setDressCode(e.target.value)}
             maxLength={100} placeholder="Ej: Formal, Casual, Todo de blanco…"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
         <div>
           <label htmlFor="edit-event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -457,8 +460,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           </label>
           <input id="edit-event-maps-url" type="url" value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)}
             placeholder="https://maps.google.com/maps?q=..."
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-          <p className="text-xs text-gray-400 mt-1">
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          <p className="text-xs text-gray-500 mt-1">
             Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto).
           </p>
         </div>
@@ -492,14 +495,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
               <label htmlFor="edit-event-accent-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
               <div className="flex items-center gap-2">
                 <input id="edit-event-accent-color" type="color" value={accentColor || getTemplate(templateId).vars.accent} onChange={(e) => setAccentColor(e.target.value)}
-                  className="h-9 w-12 border border-gray-300 rounded-md cursor-pointer" />
+                  className="h-9 w-12 border border-gray-300 rounded-lg cursor-pointer" />
                 <span className="text-sm text-gray-500">{accentColor || `${getTemplate(templateId).vars.accent} (de la plantilla)`}</span>
               </div>
             </div>
             <div>
               <label htmlFor="edit-event-welcome-message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mensaje de bienvenida</label>
               <input id="edit-event-welcome-message" type="text" value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)}
-                placeholder="¡Te esperamos!" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                placeholder="¡Te esperamos!" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
           </div>
         </div>
@@ -538,22 +541,22 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <div>
           <label htmlFor="edit-event-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Límite de invitados</label>
           <input id="edit-event-capacity" type="number" required min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)}
-            placeholder="Ej: 200" className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            placeholder="Ej: 200" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <p className="text-xs text-gray-400 mt-1">
             Total de personas recomendado (invitados + acompañantes) — informativo, no bloquea nuevos registros si
             se supera.
           </p>
-          {capacityError && <p className="text-xs text-red-500 mt-1">{capacityError}</p>}
+          <FieldError message={capacityError} />
         </div>
         <div>
           <label htmlFor="edit-event-max-companions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Acompañantes por invitado</label>
           <input id="edit-event-max-companions" type="number" min="0" max={GUEST_MAX_COMPANIONS} value={maxCompanions} onChange={(e) => setMaxCompanions(e.target.value)}
-            className="w-24 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+            className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <p className="text-xs text-gray-400 mt-1">
             Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten
             acompañantes. No aplica a "Familia o grupo", que tiene su propio límite de integrantes.
           </p>
-          {maxCompanionsError && <p className="text-xs text-red-500 mt-1">{maxCompanionsError}</p>}
+          <FieldError message={maxCompanionsError} />
         </div>
       </EditSection>
 
@@ -563,12 +566,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         defaultOpen={event.requiresPayment}
       >
         <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={requiresPayment}
-            onChange={(e) => setRequiresPayment(e.target.checked)}
-            className="w-4 h-4 text-primary focus:ring-primary rounded"
-          />
+          <Checkbox checked={requiresPayment} onChange={(e) => setRequiresPayment(e.target.checked)} />
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             Cobrar entrada a los invitados
           </span>
@@ -592,7 +590,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                   </label>
                 ))}
               </div>
-              {paymentMethods.length === 0 && <p className="text-xs text-red-500 mt-1">Elegí al menos un método.</p>}
+              {paymentMethods.length === 0 && <FieldError message="Elegí al menos un método." />}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
@@ -605,7 +603,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                   value={ticketPrice}
                   onChange={(e) => setTicketPrice(sanitizeDecimalInput(e.target.value))}
                   placeholder="Ej: 5000"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div>
@@ -616,7 +614,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   placeholder="$"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             </div>
@@ -629,7 +627,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                   onChange={(e) => setPaymentInstructions(e.target.value)}
                   rows={3}
                   placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             )}
@@ -641,7 +639,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                 value={organizerContactPhone}
                 onChange={(e) => setOrganizerContactPhone(e.target.value)}
                 placeholder="Ej: +52 55 1234 5678"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <p className="text-xs text-gray-400 mt-1">
                 Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución.
@@ -663,14 +661,12 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       )}
 
       <div className="flex gap-2 pt-1">
-        <button type="submit" disabled={saving || coverUploading}
-          className="bg-primary text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50">
+        <Button type="submit" size="sm" disabled={saving || coverUploading}>
           {saving ? 'Guardando…' : 'Guardar cambios'}
-        </button>
-        <button type="button" onClick={onDone}
-          className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors">
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={onDone}>
           Cancelar
-        </button>
+        </Button>
       </div>
     </form>
     </>

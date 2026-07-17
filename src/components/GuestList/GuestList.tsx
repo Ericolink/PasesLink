@@ -11,6 +11,8 @@ import {
 import type { CustomField, GuestData, PaymentMethod } from '../../types'
 import { IconChevronDown, IconInbox } from '../Icons'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { EmptyState } from '../Empty/EmptyState'
+import { FormError } from '../FormError'
 import { buildPassUrl } from '../../utils/qrUrl'
 import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
@@ -185,13 +187,18 @@ export const GuestList = memo(function GuestList({
   }, [eventId, paymentMethods])
 
   if (guests.length === 0) {
-    return (
-      <div className="text-center py-8 animate-fade-in">
-        <IconInbox className="w-8 h-8 mb-2 mx-auto text-gray-300" />
-        <p className="text-sm text-gray-500">
-          {hasActiveFilters ? 'Ningún invitado coincide con esa búsqueda o filtro.' : 'Todavía no agregaste invitados.'}
-        </p>
-      </div>
+    return hasActiveFilters ? (
+      <EmptyState
+        icon={IconInbox}
+        title="Sin resultados"
+        description="Ningún invitado coincide con esa búsqueda o filtro."
+      />
+    ) : (
+      <EmptyState
+        icon={IconInbox}
+        title="Todavía no hay invitados"
+        description="Agrega tu primer invitado para empezar a armar la lista."
+      />
     )
   }
 
@@ -329,9 +336,7 @@ export const GuestList = memo(function GuestList({
 
   return (
     <div className="space-y-3 pb-16">
-      {actionError && (
-        <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-md px-3 py-2">{actionError}</p>
-      )}
+      <FormError message={actionError} />
 
       {/* Sin esto, un coanfitrión sin deleteGuests ni confirmPayments podía
           activar el modo selección igual y terminar viendo una barra

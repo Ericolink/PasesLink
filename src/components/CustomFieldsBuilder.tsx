@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CustomField, CustomFieldType } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
+import { Checkbox } from './Checkbox'
 
 const TYPE_LABELS: Record<CustomFieldType, string> = {
   text: 'Texto',
@@ -62,11 +63,9 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
             ))}
           </select>
           <label className="flex items-center gap-1.5 text-xs text-gray-500 shrink-0 cursor-pointer">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={field.required}
               onChange={(e) => updateField(field.id, { required: e.target.checked })}
-              className="accent-primary w-4 h-4"
             />
             Obligatorio
           </label>
