@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { addCoOrganizer, leaveCoOrganizer, removeCoOrganizer, updateCoOrganizerPermissions } from '../firebase/events'
 import { getUserByEmail } from '../firebase/userProfile'
 import type { CoOrganizerPermissions } from '../types/coOrganizerPermissions'
+import { EVENT_CO_ORGANIZERS_MAX } from '../utils/validation'
 
 // Extraído de EventDetail.tsx (Subfase 3.3): agregar/quitar co-organizadores
 // por email. `ownerId` se pasa aparte (no como objeto `event` completo) para
@@ -20,6 +21,10 @@ export function useCoOrganizers(
   async function handleAddCoOrg(e: React.FormEvent) {
     e.preventDefault()
     if (!eventId || !coOrgEmail.trim()) return
+    if (Object.keys(coOrgsMap).length >= EVENT_CO_ORGANIZERS_MAX) {
+      setCoOrgError(`Este evento ya alcanzó el máximo de ${EVENT_CO_ORGANIZERS_MAX} co-organizadores.`)
+      return
+    }
     setCoOrgLoading(true)
     setCoOrgError('')
     try {

@@ -1,8 +1,8 @@
 import { useId } from 'react'
 import type { TimelineEntry } from '../types'
 import { IconX } from './Icons'
+import { EVENT_TIMELINE_MAX_ENTRIES as TIMELINE_MAX_ENTRIES } from '../utils/validation'
 
-const TIMELINE_MAX_ENTRIES = 20
 const LABEL_MAX = 80
 
 interface Props {

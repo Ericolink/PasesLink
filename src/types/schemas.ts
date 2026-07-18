@@ -90,6 +90,7 @@ export const EventSchema = z.object({
   checkedInCount: z.number(),
   occupancyCount: z.number(),
   paidCount: z.number(),
+  checkinsByHour: z.record(z.string(), z.number()),
   coOrganizersMap: z.record(z.string(), z.string()),
   coOrganizerPermissions: z.record(z.string(), CoOrganizerPermissionsSchema).optional(),
   createdAt: z.number(),

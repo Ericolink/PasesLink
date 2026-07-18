@@ -70,6 +70,18 @@ service cloud.firestore {
       return isOwnerData(evData) || (isCoOrganizerData(evData) && coOrgPermData(evData, key, def));
     }
 
+    // Para usar canDoData/companionsWithinLimitData FUERA de
+    // `match /events/{eventId}` (ej. dentro de `match /guests/{guestId}`,
+    // donde no hay un `resource.data` de evento gratis) sin repetir el path
+    // completo del get() en cada call site. Nota: Firestore Rules no permite
+    // `let` a nivel de match block (solo dentro de funciones), así que esto
+    // sigue siendo un get() por cada llamada — pero UNO solo (cacheado por
+    // path), en vez de los 3 get()s encadenados que dispara canDo() vía
+    // isOwner+isCoOrganizer+coOrgPerm.
+    function eventDataFor(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)).data;
+    }
+
     // Admin = tener un documento propio en /admins/{uid}. Se eligió esta
     // colección en vez de customClaims (Fase 4D) porque asignar customClaims
     // requiere el Admin SDK, que en este proyecto solo está disponible vía
@@ -107,6 +119,22 @@ service cloud.firestore {
       let d = request.resource.data;
       return !('maxCompanions' in d)
         || (d.maxCompanions is number && d.maxCompanions >= 0 && d.maxCompanions <= 20);
+    }
+
+    // Techo de cantidad para 3 arrays/mapas del evento que antes no tenían
+    // ningún límite server-side (solo disciplina del organizador): definían
+    // un riesgo de documento gigante sin barrera real, ya que un cliente que
+    // hable directo contra Firestore podía ignorar por completo los límites
+    // de UI (TimelineEditor/CustomFieldsBuilder/useCoOrganizers). Debe
+    // coincidir con EVENT_CUSTOM_FIELDS_MAX_COUNT/EVENT_TIMELINE_MAX_ENTRIES/
+    // EVENT_CO_ORGANIZERS_MAX en src/utils/validation.ts. Se evalúa sobre el
+    // documento resultante completo (no un delta), así que una escritura que
+    // no toca estos campos sigue pasando trivialmente (quedan como estaban).
+    function eventContentCapsOk() {
+      let d = request.resource.data;
+      return d.get('customFields', []).size() <= 30
+        && d.get('timeline', []).size() <= 20
+        && d.get('coOrganizersMap', {}).size() <= 20;
     }
 
     // Valida el delta de un contador de "gente adentro" (checkedInCount /
@@ -191,6 +219,24 @@ service cloud.firestore {
         // limpiamente una lista vacía.
         && (oldReplies.size() == 0 || newReplies[0:oldReplies.size()] == oldReplies)
         && isValidWallReply(newReplies[oldReplies.size()], eventId);
+    }
+
+    // Evita que UNA sola escritura reemplace `reactions` agregando/quitando
+    // más de una clave a la vez — el cliente real (reactToContent, ver
+    // src/firebase/interactions.ts) siempre toca una sola clave por
+    // escritura vía FieldPath. Las reacciones son anónimas (identificadas
+    // por un token de dispositivo en localStorage, no por request.auth.uid
+    // — ni siquiera para un usuario con sesión, ver EventWall.tsx), así que
+    // no hay forma de verificar del lado servidor que la key corresponda a
+    // una identidad real; este chequeo no cierra ESE gap (documentado, sin
+    // solución posible sin cambiar el modelo de reacciones a algo atado a
+    // auth). Lo que sí evita es el vector más barato para inflar el mapa
+    // hasta el tope de tamaño (ver 5000 más abajo): antes, UN solo request
+    // directo contra Firestore podía saltar de 10 reacciones a 5000 de
+    // golpe; ahora un abuso necesita 5000 requests separados, mucho más
+    // lento y detectable por los límites de tasa de Firestore/App Check.
+    function isSingleReactionKeyChange(oldReactions, newReactions) {
+      return newReactions.diff(oldReactions).affectedKeys().size() == 1;
     }
 
     // Auto-registro público de invitados (registerWalkInGuest, eventos
@@ -339,6 +385,19 @@ service cloud.firestore {
     function companionsWithinLimit(eventId, d, allowGrandfathered) {
       return d.get('isGroup', false) == true
         || companionsCountOf(d) <= eventMaxCompanions(eventId)
+        || (allowGrandfathered && companionsCountOf(d) <= companionsCountBefore());
+    }
+
+    // Variante de companionsWithinLimit que recibe `evData` ya cargado en vez
+    // de volver a pedir el documento del evento — mismo motivo que
+    // isOwnerData/canDoData más arriba. Usada en guests/{guestId} (ver
+    // `allow update`), donde SÍ hace falta un `get()` al evento (a diferencia
+    // de `events/{eventId}`, que ya tiene su propio documento como
+    // resource.data) pero solo UNA vez para toda la regla, no una vez por
+    // cada rama que lo necesite.
+    function companionsWithinLimitData(evData, d, allowGrandfathered) {
+      return d.get('isGroup', false) == true
+        || companionsCountOf(d) <= evData.get('maxCompanions', 9)
         || (allowGrandfathered && companionsCountOf(d) <= companionsCountBefore());
     }
 
@@ -584,8 +643,8 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if true;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId
-        && isValidEventPricing() && isValidMaxCompanions();
-      allow update: if isOwnerData(resource.data) || isAdmin()
+        && isValidEventPricing() && isValidMaxCompanions() && eventContentCapsOk();
+      allow update: if (isOwnerData(resource.data) || isAdmin()) && eventContentCapsOk()
         // Check-in/checkout individual o contador walk-in (Opciones A y C): solo
         // quien tiene el permiso `scanQr` (dueño siempre lo tiene vía canDo),
         // y solo tocando los dos contadores de presencia. checkedInCount
@@ -597,8 +656,13 @@ service cloud.firestore {
         // isOwnerOrCoOrg (cualquier coanfitrión, tuviera o no scanQr) — un
         // coanfitrión con SOLO otro permiso (ej. viewGuestList) podía escribir
         // estos contadores directo a Firestore sin pasar por checkInGuest.
+        // 'checkinsByHour' (auditoría F4): checkInGuest suma 1 al bucket de
+        // la hora actual en la MISMA escritura — no se valida su delta con
+        // counterDeltaOk (es un mapa de a lo sumo 24 claves, sin riesgo de
+        // tamaño, y solo alimenta un gráfico informativo en Reports, no
+        // ninguna decisión de capacidad/pago).
         || (canDoData(resource.data, 'scanQr', true)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount', 'checkinsByHour'])
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount))
         // Un co-organizador (no dueño, así que no cae en la primera rama de
@@ -655,7 +719,7 @@ service cloud.firestore {
         // de `guests/{guestId}` de más abajo — antes esta rama del evento no
         // miraba ningún permiso puntual.
         || (canDoData(resource.data, 'scanQr', true) && canDoData(resource.data, 'confirmPayments', true)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount', 'paidCount'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount', 'paidCount', 'checkinsByHour'])
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount)
             && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
@@ -692,7 +756,8 @@ service cloud.firestore {
             && coOrgPermData(resource.data, 'manageCoOrganizers', false)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coOrganizersMap', 'coOrganizerPermissions', 'updatedAt'])
             && request.resource.data.get('coOrganizersMap', {}).get(request.auth.uid, null) == resource.data.coOrganizersMap.get(request.auth.uid, null)
-            && request.resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}) == resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}));
+            && request.resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}) == resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {})
+            && request.resource.data.get('coOrganizersMap', {}).size() <= 20);
       allow delete: if isOwnerData(resource.data) || isAdmin();
 
       match /guests/{guestId} {
@@ -711,19 +776,27 @@ service cloud.firestore {
         // y uno con SOLO confirmPayments pueda aprobar pagos, sin heredar
         // acceso al resto del invitado. companionsWithinLimit (grandfathered)
         // es la única rama de `update` que valida el tope de acompañantes —
-        // es la única que puede tocar `companions` desde el organizador; el
-        // resto de ramas de abajo no la necesitan (no tocan ese campo) y
-        // agregarla ahí multiplicaría get()s por cada rama sin necesidad (ver
-        // el incidente de "maximum of 1000 expressions" documentado en
-        // canDoData más arriba).
-        allow update: if (canDo(eventId, 'editGuests', true) && companionsWithinLimit(eventId, request.resource.data, true)) || isAdmin() ||
+        // es la única que puede tocar `companions` desde el organizador.
+        //
+        // canDoData/companionsWithinLimitData (vía eventDataFor, ver esa
+        // función más arriba) en vez de canDo(eventId,...): cada canDo()
+        // internamente hace su propio isOwner+isCoOrganizer+coOrgPerm, 3
+        // get()s encadenados por llamada. Antes de este cambio, checkInGuest/
+        // confirmPaymentAndCheckIn (transacciones que escriben a la vez
+        // guests/{guestId} Y events/{eventId}) llegaron a rechazarse con
+        // "maximum of 1000 expressions to evaluate" al sumar el costo de
+        // evaluar ESTA regla (hasta 6 llamadas a canDo()) más el de
+        // events/{eventId} en la misma transacción — mismo incidente ya
+        // documentado y resuelto ahí (ver isOwnerData/canDoData más arriba),
+        // ahora resuelto acá con el mismo patrón.
+        allow update: if (canDoData(eventDataFor(eventId), 'editGuests', true) && companionsWithinLimitData(eventDataFor(eventId), request.resource.data, true)) || isAdmin() ||
           (
-            canDo(eventId, 'scanQr', true) &&
+            canDoData(eventDataFor(eventId), 'scanQr', true) &&
             request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail', 'checkedOutAt', 'checkedOutByEmail', 'exitType'])
           ) ||
           (
-            canDo(eventId, 'confirmPayments', true) &&
+            canDoData(eventDataFor(eventId), 'confirmPayments', true) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentMethod'])
           ) ||
           // Botón "Sí, ya pagó" del escáner (confirmPaymentAndCheckIn): marca
@@ -732,7 +805,7 @@ service cloud.firestore {
           // a diferencia de las dos ramas de arriba) y toca la unión exacta
           // de los dos grupos de campos.
           (
-            canDo(eventId, 'scanQr', true) && canDo(eventId, 'confirmPayments', true) &&
+            canDoData(eventDataFor(eventId), 'scanQr', true) && canDoData(eventDataFor(eventId), 'confirmPayments', true) &&
             request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail', 'checkedOutAt', 'checkedOutByEmail', 'exitType', 'paymentStatus', 'paymentMethod'])
           ) ||
@@ -861,18 +934,20 @@ service cloud.firestore {
         // sancionar) — mismo límite que el resto de las protecciones
         // anti-abuso de este archivo para tráfico anónimo.
         allow create: if isValidWallMessage(eventId) && (request.auth == null || !commentsBlocked(eventId));
-        // TODO Fase 3+: esta rama no verifica que la key agregada/quitada en
-        // `reactions` sea el propio token del dispositivo que hace la
-        // petición — solo limita qué campo se toca y el tamaño máximo del
-        // mapa. Un cliente que hable directo con Firestore (evitando
-        // src/firebase/wall.ts) puede reaccionar repetidamente simulando
-        // tokens distintos. Solución robusta: mover la reacción a una
-        // subcolección wall/{id}/reactions/{token} con un doc por reactor.
-        // Mismo gap, sin resolver todavía, en la rama de reacciones de
-        // `photos` de más abajo (reutiliza este mismo patrón).
+        // TODO Fase 3+: esta rama sigue sin verificar que la key agregada
+        // corresponda a una identidad real (ver isSingleReactionKeyChange
+        // más arriba — las reacciones son anónimas, no hay nada del lado
+        // servidor con qué comparar). Sí evita, desde ahora, que UN solo
+        // request inyecte muchas claves de golpe (isSingleReactionKeyChange)
+        // y que el mapa supere el tope de tamaño (reactions.size()). Un
+        // cierre completo del gap de identidad requeriría mover la reacción
+        // a una subcolección wall/{id}/reactions/{token} con un doc por
+        // reactor. Mismo criterio, sin resolver todavía, en la rama de
+        // reacciones de `photos` de más abajo (reutiliza este mismo patrón).
         allow update: if canDo(eventId, 'moderateWall', true) || isAdmin()
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
-              && request.resource.data.reactions.size() <= 5000)
+              && request.resource.data.reactions.size() <= 5000
+              && isSingleReactionKeyChange(resource.data.get('reactions', {}), request.resource.data.reactions))
           // Responder: mismo criterio de autorización que crear un mensaje
           // (ver isValidWallReplyAppend) — el anfitrión y cualquier invitado
           // no sancionado usan esta misma rama, no hay una ruta aparte.
@@ -923,14 +998,16 @@ service cloud.firestore {
         // Reacciones y respuestas (fotos Y las "historias", que son las
         // mismas fotos vistas agrupadas por autor — ver StoriesBar.tsx)
         // reutilizan exactamente las mismas dos ramas que ya validaban esto
-        // para `wall`: mismo campo `reactions` con el mismo tope, mismo
-        // isValidWallReplyAppend para `replies`. Ver ese TODO Fase 3+ más
-        // arriba — el mismo gap de spoofing de token aplica acá.
+        // para `wall`: mismo campo `reactions` con el mismo tope y el mismo
+        // isSingleReactionKeyChange, mismo isValidWallReplyAppend para
+        // `replies`. Ver ese TODO Fase 3+ más arriba — el mismo gap de
+        // identidad (no de tamaño) aplica acá.
         allow update: if ((canDo(eventId, 'moderateWall', true) || isAdmin())
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
               && request.resource.data.pinned is bool)
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
-              && request.resource.data.reactions.size() <= 5000)
+              && request.resource.data.reactions.size() <= 5000
+              && isSingleReactionKeyChange(resource.data.get('reactions', {}), request.resource.data.reactions))
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replies'])
               && isValidWallReplyAppend(eventId));
         allow delete: if canDo(eventId, 'moderateWall', true) || isAdmin();

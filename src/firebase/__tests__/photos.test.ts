@@ -147,6 +147,27 @@ describe('photos.ts — reactToPhoto', () => {
     const photo = await getPhotoDoc(testEnv)
     expect(photo?.reactions).toEqual({})
   })
+
+  // Auditoría de escalabilidad (F12): antes, una escritura directa a
+  // Firestore podía reemplazar `reactions` agregando cualquier cantidad de
+  // claves de golpe. Ver isSingleReactionKeyChange en firestore.rules
+  // (misma función que ya prueba wall.test.ts — acá se confirma que
+  // también aplica a `photos`, que reutiliza la misma rama de regla).
+  it('rejects a direct write that injects multiple new reaction keys in a single request', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedPhoto(testEnv, { reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } } })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await expect(
+      setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'photos', PHOTO_ID), {
+        reactions: {
+          'device-token-1': { type: 'like', name: 'Invitado' },
+          'fake-token-2': { type: 'love', name: 'Bot' },
+          'fake-token-3': { type: 'love', name: 'Bot' },
+        },
+      }, { merge: true }),
+    ).rejects.toThrow()
+  })
 })
 
 describe('photos.ts — replyToPhoto', () => {

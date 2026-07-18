@@ -866,6 +866,15 @@ export function guestPresence(guest: Pick<GuestData, 'status' | 'checkedOutAt' |
   return guest.exitType === 'final' ? 'final_out' : 'temp_out'
 }
 
+// Bucket de EventData.checkinsByHour ("20:00" = 20:00-20:59), calculado con
+// la hora del CLIENTE en el momento del escaneo (no serverTimestamp(): ese
+// valor es un sentinel dentro de la transacción, no se puede leer como fecha
+// hasta después del commit). Coarse a propósito — es solo para el gráfico
+// "Llegadas por hora" de Reports, no para nada que dependa de precisión.
+function checkinHourLabel(): string {
+  return `${new Date().getHours().toString().padStart(2, '0')}:00`
+}
+
 export type CheckInResult =
   | { status: 'success'; guest: GuestData; reentry: boolean }
   | { status: 'already_checked_in'; guest: GuestData }
@@ -930,6 +939,7 @@ export async function checkInGuest(
     transaction.update(eventRef, {
       occupancyCount: increment(partySize(guest)),
       ...(isReentry ? {} : { checkedInCount: increment(partySize(guest)) }),
+      [`checkinsByHour.${checkinHourLabel()}`]: increment(1),
     })
 
     const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
@@ -1009,6 +1019,7 @@ export async function confirmPaymentAndCheckIn(
       occupancyCount: increment(partySize(guest)),
       ...(isReentry ? {} : { checkedInCount: increment(partySize(guest)) }),
       ...(wasPaid ? {} : { paidCount: increment(partySize(guest)) }),
+      [`checkinsByHour.${checkinHourLabel()}`]: increment(1),
     })
 
     const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))

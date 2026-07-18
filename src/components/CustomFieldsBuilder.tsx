@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { CustomField, CustomFieldType } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Checkbox } from './Checkbox'
+import { EVENT_CUSTOM_FIELDS_MAX_COUNT } from '../utils/validation'
 
 const TYPE_LABELS: Record<CustomFieldType, string> = {
   text: 'Texto',
@@ -23,6 +24,7 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null)
 
   function addField() {
+    if (fields.length >= EVENT_CUSTOM_FIELDS_MAX_COUNT) return
     const newField: CustomField = {
       id: crypto.randomUUID(),
       label: '',
@@ -79,13 +81,15 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
           </button>
         </div>
       ))}
-      <button
-        type="button"
-        onClick={addField}
-        className="text-sm text-primary font-medium hover:underline"
-      >
-        + Agregar campo
-      </button>
+      {fields.length < EVENT_CUSTOM_FIELDS_MAX_COUNT && (
+        <button
+          type="button"
+          onClick={addField}
+          className="text-sm text-primary font-medium hover:underline"
+        >
+          + Agregar campo
+        </button>
+      )}
 
       <ConfirmDialog
         open={pendingRemoveId !== null}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getCheckins } from '../firebase/reports'
 import { partySize } from '../firebase/guests'
@@ -19,6 +19,8 @@ import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { MetricTile } from '../components/MetricTile'
 import { EventAnalytics } from '../components/EventAnalytics'
 
+const CHECKIN_TIMELINE_PAGE_SIZE = 50
+
 export function Reports() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
@@ -28,6 +30,12 @@ export function Reports() {
   const [checkins, setCheckins] = useState<CheckinLog[]>([])
   const [checkinsLoading, setCheckinsLoading] = useState(true)
   const [checkinsError, setCheckinsError] = useState(false)
+  // "Línea de tiempo" renderiza solo los últimos N check-ins (getCheckins ya
+  // trae el historial completo en memoria — ver comentario ahí sobre por qué
+  // no se puede truncar la LECTURA sin romper "Llegadas por hora" — esto solo
+  // limita cuántos nodos DOM se montan de una vez, mismo patrón que
+  // GUEST_LIST_PAGE_SIZE en GuestList.tsx).
+  const [visibleCheckinCount, setVisibleCheckinCount] = useState(CHECKIN_TIMELINE_PAGE_SIZE)
   // Incrementarlo vuelve a disparar el efecto de abajo sin depender de
   // eventId — es el botón "Actualizar" de la línea de tiempo/llegadas por hora.
   const [refreshToken, setRefreshToken] = useState(0)
@@ -52,22 +60,14 @@ export function Reports() {
   // calculados sobre un subconjunto parcial.
   const guestsEffectivelyLoading = guestsLoading || guestsTruncated
 
-  // "Llegadas por hora": recorre `checkins` (el historial cargado por
-  // getCheckins, ver más abajo) una sola vez por cada carga/actualización en
-  // vez de en cada render — sin esto, cada snapshot de `event`/`guests` que
-  // llega mientras la puerta está activa disparaba este recorrido de nuevo
-  // aunque `checkins` no hubiera cambiado.
-  const { hourEntries, maxHourCount } = useMemo(() => {
-    const checkIns = checkins.filter((c) => c.type === 'check_in')
-    const hourCounts = new Map<string, number>()
-    for (const c of checkIns) {
-      const hour = new Date(c.timestamp).getHours()
-      const label = `${hour.toString().padStart(2, '0')}:00`
-      hourCounts.set(label, (hourCounts.get(label) || 0) + 1)
-    }
-    const entries = Array.from(hourCounts.entries()).sort(([a], [b]) => a.localeCompare(b))
-    return { hourEntries: entries, maxHourCount: Math.max(1, ...entries.map(([, count]) => count)) }
-  }, [checkins])
+  // "Llegadas por hora": antes recorría TODO `checkins` (el historial
+  // completo cargado por getCheckins) en cada carga/actualización — ver
+  // auditoría de escalabilidad, hallazgo F4. Ahora lee el contador ya
+  // agregado server-side (event.checkinsByHour, mantenido con increment()
+  // en checkInGuest/confirmPaymentAndCheckIn) — O(1) sin importar el
+  // tamaño del evento, no necesita useMemo (a lo sumo 24 claves).
+  const hourEntries = Object.entries(event?.checkinsByHour ?? {}).sort(([a], [b]) => a.localeCompare(b))
+  const maxHourCount = Math.max(1, ...hourEntries.map(([, count]) => count))
 
   // Carga puntual (no en vivo, ver getCheckins) — se repite al cambiar de
   // evento y cada vez que se pide "Actualizar". Las tarjetas de "Escaneados"/
@@ -83,6 +83,7 @@ export function Reports() {
       .then((data) => {
         if (cancelled) return
         setCheckins(data)
+        setVisibleCheckinCount(CHECKIN_TIMELINE_PAGE_SIZE)
       })
       .catch((err) => {
         console.error('Error loading checkins:', err)
@@ -320,12 +321,24 @@ export function Reports() {
         ) : checkins.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">Aún no hay check-ins registrados.</p>
         ) : (
-          <ul className="text-sm space-y-1.5">
+          <>
+            {/* checkins viene ordenado ascendente (más viejo primero, ver
+                getCheckins) — se muestran los últimos N (más recientes) y
+                este botón revela más hacia atrás en el tiempo. */}
+            {checkins.length > visibleCheckinCount && (
+              <button
+                onClick={() => setVisibleCheckinCount((c) => c + CHECKIN_TIMELINE_PAGE_SIZE)}
+                className="w-full text-sm text-primary font-medium py-2 hover:underline"
+              >
+                Cargar check-ins anteriores ({checkins.length - visibleCheckinCount} restantes)
+              </button>
+            )}
+            <ul className="text-sm space-y-1.5">
             {/* min-w-0 + break-words en el texto: nombres/emails largos
                 pasan a una segunda línea en vez de superponerse con la
                 hora — la hora vive en su propio span shrink-0, así que
                 nunca se comprime ni queda tapada. */}
-            {checkins.map((c) => (
+            {checkins.slice(Math.max(0, checkins.length - visibleCheckinCount)).map((c) => (
               <li key={c.id} className="flex items-start justify-between gap-2 text-gray-700 dark:text-gray-300">
                 <span className="inline-flex items-start gap-1.5 min-w-0 flex-1">
                   {c.type === 'check_out' ? (
@@ -345,7 +358,8 @@ export function Reports() {
                 <span className="text-gray-400 dark:text-gray-500 shrink-0">{new Date(c.timestamp).toLocaleTimeString()}</span>
               </li>
             ))}
-          </ul>
+            </ul>
+          </>
         )}
       </div>
     </>

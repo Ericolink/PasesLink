@@ -13,7 +13,7 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore'
-import type { Unsubscribe } from 'firebase/firestore'
+import type { QueryDocumentSnapshot, Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
 import { compareEventsByRelevance } from '../utils/time'
@@ -91,6 +91,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     checkedInCount: 0,
     occupancyCount: 0,
     paidCount: 0,
+    checkinsByHour: {},
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -319,14 +320,24 @@ export async function updateCoOrganizerPermissions(
   })
 }
 
+// Cantidad de batch.commit() en vuelo a la vez al borrar un evento (ver
+// deleteEvent). 6 conserva la mayor parte del beneficio de paralelizar
+// (mucho más rápido que uno por uno) sin disparar decenas/cientos de
+// commits simultáneos en un evento con muchos miles de documentos — ver
+// comentario dentro de deleteEvent.
+const DELETE_BATCH_CONCURRENCY = 6
+
 // Antes: 4 subcolecciones leídas y borradas UNA A LA VEZ (cada `await` en el
 // loop esperaba a la anterior sin necesidad — no hay ninguna dependencia
 // entre guests/guestContacts/checkins/waitlist). Con un evento de varios
 // cientos de invitados/check-ins, eso significa varios round-trips
 // secuenciales sumados antes de poder borrar el documento del evento. Ahora
-// las 4 lecturas van en paralelo, y todos los chunks de borrado (de las 4
-// colecciones juntas) también — cada `batch.commit()` es independiente del
-// resto, no hay razón para esperarlos de a uno.
+// las 4 lecturas van en paralelo, y los chunks de borrado (de las 4
+// colecciones juntas) se procesan con un pool acotado (ver
+// DELETE_BATCH_CONCURRENCY): un evento de decenas de miles de documentos
+// puede repartirse en decenas de batches de 450, y lanzarlos TODOS de una
+// (Promise.all directo sobre cada commit) satura la conexión del cliente sin
+// necesidad — el pool mantiene varios commits en vuelo sin ese pico.
 export async function deleteEvent(eventId: string) {
   // 'waitlist' listada acá hasta hace poco: la funcionalidad de espera de
   // cupo se eliminó (ver src/firebase/waitlist.ts, borrado) y
@@ -343,18 +354,26 @@ export async function deleteEvent(eventId: string) {
     subcollections.map((sub) => getDocs(collection(db, 'events', eventId, sub))),
   )
 
-  const commits: Promise<void>[] = []
+  const docChunks: QueryDocumentSnapshot[][] = []
   for (const snapshot of snapshots) {
     const docs = snapshot.docs
     for (let i = 0; i < docs.length; i += 450) {
-      const batch = writeBatch(db)
-      for (const d of docs.slice(i, i + 450)) {
-        batch.delete(d.ref)
-      }
-      commits.push(batch.commit())
+      docChunks.push(docs.slice(i, i + 450))
     }
   }
-  await Promise.all(commits)
+
+  let nextChunk = 0
+  async function commitWorker() {
+    while (nextChunk < docChunks.length) {
+      const chunk = docChunks[nextChunk++]
+      const batch = writeBatch(db)
+      for (const d of chunk) batch.delete(d.ref)
+      await batch.commit()
+    }
+  }
+  const workerCount = Math.min(DELETE_BATCH_CONCURRENCY, docChunks.length)
+  await Promise.all(Array.from({ length: workerCount }, commitWorker))
+
   await deleteDoc(doc(db, 'events', eventId))
 }
 
@@ -422,6 +441,9 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     // scripts/backfill-paid-count.mjs para recalcularlo a partir de guests
     // ya pagados si hace falta reflejarlo de inmediato.
     paidCount: (data.paidCount as number) || 0,
+    // Eventos con check-ins de antes de este campo caen a {} — ver
+    // scripts/backfill-checkins-by-hour.mjs.
+    checkinsByHour: (data.checkinsByHour as Record<string, number>) || {},
     coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},
     coOrganizerPermissions: data.coOrganizerPermissions as EventData['coOrganizerPermissions'],
     createdAt: toMillis(data.createdAt),

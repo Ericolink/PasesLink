@@ -51,6 +51,21 @@ export const GUEST_LEGACY_MAX_COMPANIONS = 9
 // confiada al organizador autenticado, por eso el límite es más alto.
 export const GUEST_GROUP_MAX_MEMBERS = 50
 
+// Campos personalizados que el ORGANIZADOR define para su evento (distinto
+// de GUEST_CUSTOM_FIELD_VALUE_MAX/GUEST_CUSTOM_FIELD_MAX_COUNT arriba, que
+// son los valores que cada invitado llena) — no tiene sentido definir más
+// campos que los que un invitado puede llenar, así que reutiliza el mismo
+// techo. Debe coincidir con eventContentCapsOk() en firestore.rules.
+export const EVENT_CUSTOM_FIELDS_MAX_COUNT = GUEST_CUSTOM_FIELD_MAX_COUNT
+// Momentos del programa del evento (EventData.timeline, ver
+// TimelineEditor.tsx). Debe coincidir con eventContentCapsOk() en
+// firestore.rules.
+export const EVENT_TIMELINE_MAX_ENTRIES = 20
+// Co-organizadores por evento (EventData.coOrganizersMap/
+// coOrganizerPermissions, ver useCoOrganizers.ts). Debe coincidir con
+// eventContentCapsOk() en firestore.rules.
+export const EVENT_CO_ORGANIZERS_MAX = 20
+
 // Buzón de feedback (src/pages/Feedback.tsx, src/firebase/feedback.ts). Deben
 // coincidir con isValidFeedbackCreate() en firestore.rules — esa es la última
 // barrera real ante un cliente que evite por completo esta capa.

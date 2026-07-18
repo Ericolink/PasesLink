@@ -12,7 +12,7 @@ vi.mock('../config', () => ({
   },
 }))
 
-import { deleteWallMessage, postWallMessage, replyToWallMessage } from '../wall'
+import { deleteWallMessage, postWallMessage, reactToWallMessage, replyToWallMessage } from '../wall'
 
 const OWNER_UID = 'owner-uid'
 const COORG_UID = 'coorg-uid'
@@ -238,5 +238,50 @@ describe('wall.ts — reject direct writes bypassing postWallMessage entirely', 
         createdAt: Date.now(),
       }),
     )
+  })
+})
+
+// Auditoría de escalabilidad (F12): antes, una escritura directa a
+// Firestore podía reemplazar `reactions` agregando cualquier cantidad de
+// claves de golpe (un script podía inflar el mapa hasta el tope de tamaño
+// en un solo request en vez de necesitar miles de reacciones reales). Ver
+// isSingleReactionKeyChange en firestore.rules.
+describe('wall.ts — reaction map integrity', () => {
+  let testEnv: RulesTestEnvironment
+
+  beforeAll(async () => {
+    testEnv = await createTestEnv()
+  })
+
+  afterEach(async () => {
+    await testEnv.clearFirestore()
+  })
+
+  afterAll(async () => {
+    await testEnv.cleanup()
+  })
+
+  it('lets an unauthenticated guest react through the real reactToWallMessage function', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedWallMessage(testEnv, 'msg-1')
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await expect(reactToWallMessage(EVENT_ID, 'msg-1', 'device-token-1', 'Invitado', 'love')).resolves.toBeUndefined()
+  })
+
+  it('rejects a direct write that injects multiple new reaction keys in a single request', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedWallMessage(testEnv, 'msg-1', { reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } } })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await expect(
+      setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'wall', 'msg-1'), {
+        reactions: {
+          'device-token-1': { type: 'like', name: 'Invitado' },
+          'fake-token-2': { type: 'love', name: 'Bot' },
+          'fake-token-3': { type: 'love', name: 'Bot' },
+        },
+      }, { merge: true }),
+    ).rejects.toThrow()
   })
 })

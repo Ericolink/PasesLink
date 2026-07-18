@@ -50,6 +50,20 @@ describe('guests.ts', () => {
     expect(guest?.checkedInBy).toBe(OWNER_UID)
   })
 
+  // Auditoría de escalabilidad (F4): "Llegadas por hora" en Reports.tsx ya
+  // no recorre toda la subcolección `checkins` — lee este contador agregado.
+  it('increments checkinsByHour for the current hour bucket on check-in', async () => {
+    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
+    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
+
+    const expectedHourLabel = `${new Date().getHours().toString().padStart(2, '0')}:00`
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.checkinsByHour).toEqual({ [expectedHourLabel]: 1 })
+  })
+
   it('should sum companions into checkedInCount on check-in (and not get blocked by the security rule)', async () => {
     await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
     await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
@@ -724,6 +738,10 @@ describe('guests.ts', () => {
       expect(event?.paidCount).toBe(2)
       expect(event?.checkedInCount).toBe(2)
       expect(event?.occupancyCount).toBe(2)
+      // checkinsByHour cuenta el ESCANEO (1), no partySize — mismo criterio
+      // que el resto de "Llegadas por hora" (auditoría F4).
+      const expectedHourLabel = `${new Date().getHours().toString().padStart(2, '0')}:00`
+      expect(event?.checkinsByHour).toEqual({ [expectedHourLabel]: 1 })
     })
 
     it('should not double-count paidCount if the payment was already approved from another screen (race)', async () => {

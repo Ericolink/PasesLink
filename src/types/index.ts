@@ -153,6 +153,20 @@ export interface EventData {
   // scripts/backfill-paid-count.mjs una vez si hace falta reflejar pagos ya
   // aprobados antes de este cambio.
   paidCount: number
+  // Cantidad de check-ins (escaneos QR exitosos, primera entrada o
+  // reingreso — no walk-ins, que no pasan por checkInGuest/
+  // confirmPaymentAndCheckIn) agrupados por hora del día ("20:00" =
+  // 20:00-20:59), mantenido con increment() en la misma transacción que
+  // escribe checkedInCount/occupancyCount (ver checkInGuest/
+  // confirmPaymentAndCheckIn en src/firebase/guests.ts). Reemplaza el
+  // cálculo que antes recorría TODA la subcolección `checkins` en el
+  // cliente cada vez que se abría Reports (ver auditoría de escalabilidad,
+  // hallazgo F4) — "Llegadas por hora" ahora lee este campo directo, O(1).
+  // Eventos con check-ins de antes de este campo no lo tienen poblado
+  // retroactivamente — correr scripts/backfill-checkins-by-hour.mjs una vez
+  // si hace falta reflejar check-ins ya escaneados antes de este cambio
+  // (mismo criterio que paidCount arriba).
+  checkinsByHour?: Record<string, number>
   coOrganizersMap?: Record<string, string>  // { [uid]: email }
   // Permisos granulares por co-organizador (ver src/types/coOrganizerPermissions.ts).
   // Opcional y aditivo: un co-organizador sin entrada acá (evento/co-org de

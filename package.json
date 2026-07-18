@@ -13,7 +13,8 @@
     "test:firebase": "firebase emulators:exec --only firestore --project demo-paselink-test \"vitest run --config vitest.firebase.config.ts\"",
     "backup:firestore": "node scripts/backup-firestore.mjs",
     "restore:firestore": "node scripts/restore-firestore.mjs",
-    "backfill:paid-count": "node scripts/backfill-paid-count.mjs"
+    "backfill:paid-count": "node scripts/backfill-paid-count.mjs",
+    "backfill:checkins-by-hour": "node scripts/backfill-checkins-by-hour.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
