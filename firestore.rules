@@ -312,12 +312,19 @@ service cloud.firestore {
     }
 
     // Tope de acompañantes configurado por el organizador para este evento
-    // (EventData.maxCompanions, default 0 — ver isValidMaxCompanions). NO
+    // (EventData.maxCompanions). El default 9 aplica SOLO al campo ausente
+    // (evento anterior a v1.35.0): esos eventos siempre permitieron grupos de
+    // hasta 10 personas en el autoregistro, y el default 0 anterior les quitó
+    // los acompañantes en silencio. Un evento nuevo siempre escribe el campo
+    // (0 si el organizador no lo toca), así que el 0 explícito sigue
+    // significando "sin acompañantes". Debe coincidir con
+    // GUEST_LEGACY_MAX_COMPANIONS en src/utils/validation.ts
+    // (resolveMaxCompanions aplica el mismo default del lado cliente). NO
     // aplica a invitados `isGroup: true` ("familia o grupo"), que sigue
     // gobernado por su propio tope GUEST_GROUP_MAX_MEMBERS (solo en el
     // cliente, es una herramienta de alta masiva ya confiada al organizador).
     function eventMaxCompanions(eventId) {
-      return get(/databases/$(database)/documents/events/$(eventId)).data.get('maxCompanions', 0);
+      return get(/databases/$(database)/documents/events/$(eventId)).data.get('maxCompanions', 9);
     }
 
     // `d` es el documento NUEVO (request.resource.data) que se está

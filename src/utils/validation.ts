@@ -33,6 +33,16 @@ export const GUEST_CUSTOM_FIELD_MAX_COUNT = 30
 // No aplica a invitados `isGroup: true` ("familia o grupo"), que sigue
 // gobernado por GUEST_GROUP_MAX_MEMBERS más abajo.
 export const GUEST_MAX_COMPANIONS = 20
+// Default EFECTIVO cuando el evento no tiene maxCompanions guardado (creado
+// antes de v1.35.0, cuando el campo no existía): 9 acompañantes = grupo de 10
+// personas, el mismo tope global (GUEST_MAX_PARTY_SIZE = 10, ya eliminada) que
+// esos eventos siempre tuvieron en el autoregistro. Antes se trataba "ausente"
+// como 0 y todos los eventos preexistentes pasaron en silencio de "hasta 10
+// personas" a "sin acompañantes". Solo aplica al campo AUSENTE — un evento
+// nuevo siempre lo escribe (0 si el organizador no lo toca), así que un 0
+// explícito sigue significando "sin acompañantes". Debe coincidir con el
+// default de eventMaxCompanions en firestore.rules.
+export const GUEST_LEGACY_MAX_COMPANIONS = 9
 // Tope de "cantidad de integrantes" al crear/editar una familia o grupo desde
 // el panel del organizador (GuestAddForm/GuestList) — a diferencia de
 // GUEST_MAX_COMPANIONS (acompañantes de un invitado individual, gobernados

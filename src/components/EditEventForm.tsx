@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { updateEventDetails } from '../firebase/events'
+import { resolveMaxCompanions } from '../firebase/guests'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useFormDraft } from '../hooks/useFormDraft'
 import { useLiveRef } from '../hooks/useLiveRef'
@@ -118,7 +119,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   // o links de autoregistro rompería esos links (ver firestore.rules y EventJoin).
   const entryMode = event.entryMode || 'list'
   const [capacity, setCapacity] = useState(event.capacity ? String(event.capacity) : '')
-  const [maxCompanions, setMaxCompanions] = useState(String(event.maxCompanions ?? 0))
+  // resolveMaxCompanions y no event.maxCompanions ?? 0: en un evento anterior
+  // al campo, el valor EFECTIVO es el default legacy (9) — mostrar 0 acá haría
+  // que guardar sin tocar este campo se lo quite en silencio.
+  const [maxCompanions, setMaxCompanions] = useState(String(resolveMaxCompanions(event)))
   const [customFields, setCustomFields] = useState<CustomField[]>(event.customFields || [])
   const [requiresPayment, setRequiresPayment] = useState(event.requiresPayment || false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(event.paymentMethods?.length ? event.paymentMethods : ['transfer'])
@@ -156,7 +160,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     setWelcomeMessage(fields.welcomeMessage)
     setMapsUrl(fields.mapsUrl)
     setCapacity(fields.capacity)
-    setMaxCompanions(fields.maxCompanions ?? String(event.maxCompanions ?? 0))
+    setMaxCompanions(fields.maxCompanions ?? String(resolveMaxCompanions(event)))
     setCustomFields(fields.customFields)
     setRequiresPayment(fields.requiresPayment)
     setPaymentMethods(fields.paymentMethods?.length ? fields.paymentMethods : ['transfer'])
@@ -243,8 +247,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if ((event.capacity || 0) !== parsedCapacity) {
       changes.push({ label: 'Límite de invitados', detail: `${event.capacity || 0} → ${parsedCapacity}` })
     }
-    if ((event.maxCompanions ?? 0) !== parsedMaxCompanions) {
-      changes.push({ label: 'Acompañantes por invitado', detail: `${event.maxCompanions ?? 0} → ${parsedMaxCompanions}` })
+    if (resolveMaxCompanions(event) !== parsedMaxCompanions) {
+      changes.push({ label: 'Acompañantes por invitado', detail: `${resolveMaxCompanions(event)} → ${parsedMaxCompanions}` })
     }
     if (JSON.stringify(event.customFields || []) !== JSON.stringify(customFields)) {
       changes.push({ label: 'Campos de registro', detail: `${(event.customFields || []).length} → ${customFields.length} campo(s)` })

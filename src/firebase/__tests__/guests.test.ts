@@ -13,7 +13,7 @@ vi.mock('../config', () => ({
 }))
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, setGuestPaymentStatus, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, resolveMaxCompanions, setGuestPaymentStatus, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -682,14 +682,22 @@ describe('guests.ts', () => {
       expect(guest?.companions).toHaveLength(2)
     })
 
-    it('should treat an event without maxCompanions configured as limit 0 (legacy default)', async () => {
-      // Sin `maxCompanions` en absoluto (evento de antes de este campo) —
-      // debe comportarse igual que maxCompanions: 0, no como "sin límite".
+    it('should treat an event without maxCompanions configured as the legacy limit of 9 (party of 10)', async () => {
+      // Sin `maxCompanions` en absoluto (evento de antes de este campo): cae
+      // al default legacy de 9 acompañantes (GUEST_LEGACY_MAX_COMPANIONS, el
+      // grupo de 10 que esos eventos siempre permitieron) — ni a 0 (les
+      // quitaba los acompañantes en silencio) ni a "sin límite".
       await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
+      // Mismo tercer argumento que pasan los llamadores reales (EventDetail →
+      // GuestAddForm): el límite ya resuelto para un evento sin el campo. Que
+      // el alta de 9 acompañantes llegue a Firestore verifica además que el
+      // default de eventMaxCompanions en las reglas coincida con el cliente.
+      const resolvedLimit = resolveMaxCompanions({})
+      await addGuest(EVENT_ID, { name: 'Ana', companions: Array.from({ length: 9 }, () => ({})) }, resolvedLimit)
       await expect(
-        addGuest(EVENT_ID, { name: 'Ana', companions: [{}] }, 0),
+        addGuest(EVENT_ID, { name: 'Beto', companions: Array.from({ length: 10 }, () => ({})) }, resolvedLimit),
       ).rejects.toThrow()
     })
   })

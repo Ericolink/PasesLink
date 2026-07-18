@@ -139,11 +139,40 @@ describe('capacity.ts', () => {
     expect(event?.peopleCount).toBe(3)
   })
 
-  it('should default to no companions (party size 1) when the event has no maxCompanions configured (legacy)', async () => {
+  it('should fall back to the legacy limit (party of 10) when the event has no maxCompanions configured', async () => {
+    // Evento anterior al campo maxCompanions: siempre permitió grupos de
+    // hasta 10 en el autoregistro (la vieja GUEST_MAX_PARTY_SIZE) — el
+    // default legacy (GUEST_LEGACY_MAX_COMPANIONS = 9 acompañantes) preserva
+    // ese comportamiento en vez de dejarlos sin acompañantes en silencio.
     await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0 })
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
     const result = await registerWalkInGuest(EVENT_ID, 'Invitado Sin Límite Configurado', undefined, undefined, undefined, 4)
+
+    expect(result.status).toBe('success')
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.peopleCount).toBe(4)
+  })
+
+  it('should clamp the party size to 10 on a legacy event without maxCompanions', async () => {
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 50, guestCount: 0, peopleCount: 0 })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Grupo Legacy', undefined, undefined, undefined, 15)
+
+    expect(result.status).toBe('success')
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.peopleCount).toBe(10)
+  })
+
+  it('should still allow no companions when maxCompanions is explicitly 0', async () => {
+    // El default legacy aplica SOLO al campo ausente — un 0 explícito (el
+    // valor con el que se crea todo evento nuevo si el organizador no lo
+    // toca) sigue significando "sin acompañantes".
+    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0, maxCompanions: 0 })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Sin Acompañantes', undefined, undefined, undefined, 4)
 
     expect(result.status).toBe('success')
     const event = await getEventDoc(testEnv, EVENT_ID)

@@ -10,6 +10,7 @@ import { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { deleteEvent, setEventStatus } from '../firebase/events'
+import { resolveMaxCompanions } from '../firebase/guests'
 import { LEGACY_COORG_DEFAULTS } from '../types/coOrganizerPermissions'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
@@ -530,7 +531,7 @@ export function EventDetail() {
             teléfono, por ejemplo). */}
         {perms.addGuests && (
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
-            <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} maxCompanions={event.maxCompanions ?? 0} />
+            <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} maxCompanions={resolveMaxCompanions(event)} />
           </div>
         )}
 
@@ -629,7 +630,7 @@ export function EventDetail() {
             ticketPrice={event.ticketPrice}
             currency={event.currency}
             customFields={event.customFields}
-            maxCompanions={event.maxCompanions ?? 0}
+            maxCompanions={resolveMaxCompanions(event)}
             hasActiveFilters={Boolean(search.trim()) || statusFilter !== 'all'}
             hasSearchText={Boolean(search.trim())}
             canEditGuests={perms.editGuests}

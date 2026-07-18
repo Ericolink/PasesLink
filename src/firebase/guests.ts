@@ -25,6 +25,7 @@ import {
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_EMAIL_MAX,
   GUEST_FULL_NAME_MAX,
+  GUEST_LEGACY_MAX_COMPANIONS,
   GUEST_MAX_COMPANIONS,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
@@ -35,13 +36,16 @@ import {
 
 // Única fuente de verdad para "cuántos acompañantes puede sumar UN invitado
 // individual" en este evento (ver EventData.maxCompanions) — clampea a
-// [0, GUEST_MAX_COMPANIONS] y trata "ausente" (evento de antes de este
-// campo) igual que "0 explícito", nunca como "sin límite". NO aplica a
-// invitados `isGroup: true` ("familia o grupo"), que sigue gobernado por su
-// propio tope GUEST_GROUP_MAX_MEMBERS — quien llama a esta función decide
-// si corresponde chequearla para el invitado puntual que está creando/editando.
+// [0, GUEST_MAX_COMPANIONS]. "Ausente" (evento de antes de este campo) cae al
+// default legacy, NO a 0: esos eventos siempre permitieron grupos de hasta 10
+// en el autoregistro y tratarlos como "sin acompañantes" les cambió el
+// comportamiento en silencio (ver GUEST_LEGACY_MAX_COMPANIONS). Un 0
+// EXPLÍCITO sí significa "sin acompañantes". NO aplica a invitados
+// `isGroup: true` ("familia o grupo"), que sigue gobernado por su propio tope
+// GUEST_GROUP_MAX_MEMBERS — quien llama a esta función decide si corresponde
+// chequearla para el invitado puntual que está creando/editando.
 export function resolveMaxCompanions(event: Pick<EventData, 'maxCompanions'>): number {
-  return Math.min(Math.max(event.maxCompanions ?? 0, 0), GUEST_MAX_COMPANIONS)
+  return Math.min(Math.max(event.maxCompanions ?? GUEST_LEGACY_MAX_COMPANIONS, 0), GUEST_MAX_COMPANIONS)
 }
 
 export interface NewGuestInput {
