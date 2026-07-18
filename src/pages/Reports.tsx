@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getCheckins } from '../firebase/reports'
 import { partySize } from '../firebase/guests'
@@ -52,6 +52,23 @@ export function Reports() {
   // calculados sobre un subconjunto parcial.
   const guestsEffectivelyLoading = guestsLoading || guestsTruncated
 
+  // "Llegadas por hora": recorre `checkins` (el historial cargado por
+  // getCheckins, ver más abajo) una sola vez por cada carga/actualización en
+  // vez de en cada render — sin esto, cada snapshot de `event`/`guests` que
+  // llega mientras la puerta está activa disparaba este recorrido de nuevo
+  // aunque `checkins` no hubiera cambiado.
+  const { hourEntries, maxHourCount } = useMemo(() => {
+    const checkIns = checkins.filter((c) => c.type === 'check_in')
+    const hourCounts = new Map<string, number>()
+    for (const c of checkIns) {
+      const hour = new Date(c.timestamp).getHours()
+      const label = `${hour.toString().padStart(2, '0')}:00`
+      hourCounts.set(label, (hourCounts.get(label) || 0) + 1)
+    }
+    const entries = Array.from(hourCounts.entries()).sort(([a], [b]) => a.localeCompare(b))
+    return { hourEntries: entries, maxHourCount: Math.max(1, ...entries.map(([, count]) => count)) }
+  }, [checkins])
+
   // Carga puntual (no en vivo, ver getCheckins) — se repite al cambiar de
   // evento y cada vez que se pide "Actualizar". Las tarjetas de "Escaneados"/
   // "Dentro ahora" de arriba siguen en tiempo real (vienen de
@@ -99,16 +116,6 @@ export function Reports() {
   if (user && !perms.viewReports) {
     return <ErrorFallbackCTA message="No tienes acceso a este evento." />
   }
-
-  const checkIns = checkins.filter((c) => c.type === 'check_in')
-  const hourCounts = new Map<string, number>()
-  for (const c of checkIns) {
-    const hour = new Date(c.timestamp).getHours()
-    const label = `${hour.toString().padStart(2, '0')}:00`
-    hourCounts.set(label, (hourCounts.get(label) || 0) + 1)
-  }
-  const hourEntries = Array.from(hourCounts.entries()).sort(([a], [b]) => a.localeCompare(b))
-  const maxHourCount = Math.max(1, ...hourEntries.map(([, count]) => count))
 
   function exportCsv() {
     // Columna de pago solo si el evento cobra entrada — en un evento

@@ -9,7 +9,9 @@ import {
   query,
   limit,
   serverTimestamp,
+  Timestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
@@ -91,6 +93,26 @@ export async function fetchPhotos(eventId: string): Promise<PhotoData[]> {
   )
   const snap = await getDocs(q)
   return snap.docs.map((d) => mapPhoto(d.id, d.data()))
+}
+
+// Carga histórica a pedido (NO en vivo): mismo patrón que getOlderWallMessages
+// en wall.ts — el álbum solo mantiene en vivo la ventana reciente
+// (MAX_PHOTOS_DISPLAYED); el resto se pagina por cursor con este helper,
+// usado por el botón "Cargar fotos anteriores" en EventWall.tsx.
+export async function getOlderPhotos(
+  eventId: string,
+  beforeCreatedAt: number,
+  pageSize: number = MAX_PHOTOS_DISPLAYED,
+): Promise<{ photos: PhotoData[]; hasMore: boolean }> {
+  const q = query(
+    collection(db, 'events', eventId, 'photos'),
+    orderBy('createdAt', 'desc'),
+    where('createdAt', '<', Timestamp.fromMillis(beforeCreatedAt)),
+    limit(pageSize + 1),
+  )
+  const snap = await getDocs(q)
+  const photos = snap.docs.slice(0, pageSize).map((d) => mapPhoto(d.id, d.data()))
+  return { photos, hasMore: snap.docs.length > pageSize }
 }
 
 export function subscribeToPhotos(

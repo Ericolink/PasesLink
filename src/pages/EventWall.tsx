@@ -9,7 +9,7 @@ import {
   replyToWallMessage,
   subscribeToWall,
 } from '../firebase/wall'
-import { deletePhoto, pinPhoto, reactToPhoto, replyToPhoto, subscribeToPhotos } from '../firebase/photos'
+import { deletePhoto, getOlderPhotos, pinPhoto, reactToPhoto, replyToPhoto, subscribeToPhotos } from '../firebase/photos'
 import type { PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
@@ -80,6 +80,10 @@ export function EventWall() {
   const [loadingOlder, setLoadingOlder]   = useState(false)
   const [hasMoreOlder, setHasMoreOlder]   = useState(true)
   const [olderError, setOlderError]       = useState('')
+  const [olderPhotos, setOlderPhotos]     = useState<PhotoData[]>([])
+  const [loadingOlderPhotos, setLoadingOlderPhotos] = useState(false)
+  const [hasMoreOlderPhotos, setHasMoreOlderPhotos] = useState(true)
+  const [olderPhotosError, setOlderPhotosError]     = useState('')
   const [guestName, setGuestName]   = useState(() => localStorage.getItem(GUEST_NAME_KEY) || '')
   const [nameConfirmed, setNameConfirmed] = useState(() => !!localStorage.getItem(GUEST_NAME_KEY) || !!localStorage.getItem('firebase:authUser'))
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
@@ -170,6 +174,24 @@ export function EventWall() {
     }
   }
 
+  async function handleLoadOlderPhotos() {
+    if (!id || loadingOlderPhotos) return
+    setLoadingOlderPhotos(true)
+    setOlderPhotosError('')
+    try {
+      const allLoaded = [...photos, ...olderPhotos]
+      const oldest = allLoaded.length > 0 ? Math.min(...allLoaded.map((p) => p.createdAt)) : Date.now()
+      const { photos: older, hasMore } = await getOlderPhotos(id, oldest)
+      setOlderPhotos((prev) => [...prev, ...older])
+      setHasMoreOlderPhotos(hasMore)
+    } catch (err) {
+      console.error('Error loading older photos:', err)
+      setOlderPhotosError('No se pudieron cargar fotos anteriores. Intenta de nuevo.')
+    } finally {
+      setLoadingOlderPhotos(false)
+    }
+  }
+
   function confirmName(e: React.FormEvent) {
     e.preventDefault()
     if (!guestName.trim()) return
@@ -244,7 +266,18 @@ export function EventWall() {
     })
   }, [messages, olderMessages])
 
-  const feed = useMemo(() => mergeWallFeed(sorted, photos), [sorted, photos])
+  // Fotos en vivo (ventana reciente) + históricas cargadas a pedido, mismo
+  // criterio anti-duplicado que `sorted` arriba (una foto destacada vieja
+  // podría en teoría llegar por ambas vías si se pagina justo cuando cambia
+  // la ventana en vivo).
+  const allPhotos = useMemo(() => {
+    const byId = new Map<string, PhotoData>()
+    for (const p of photos) byId.set(p.id, p)
+    for (const p of olderPhotos) byId.set(p.id, p)
+    return Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt)
+  }, [photos, olderPhotos])
+
+  const feed = useMemo(() => mergeWallFeed(sorted, allPhotos), [sorted, allPhotos])
 
   const handleDeletePhoto = useCallback(async (photoId: string) => {
     if (!id) return
@@ -289,8 +322,8 @@ export function EventWall() {
   // onOpen (creado de nuevo por cada foto en cada render del feed) también
   // habría anulado el memo de PhotoFeedCard.
   const openPhoto = useCallback((photo: PhotoData) => {
-    setGalleryIndex(photos.findIndex((p) => p.id === photo.id))
-  }, [photos])
+    setGalleryIndex(allPhotos.findIndex((p) => p.id === photo.id))
+  }, [allPhotos])
 
   if (!nameConfirmed && !isOwner && !user) {
     const nameGateContent = (
@@ -353,7 +386,7 @@ export function EventWall() {
       {id && (
         <StoriesBar
           eventId={id}
-          photos={photos}
+          photos={allPhotos}
           myToken={getDeviceToken()}
           canReply={!isMinor && !commentBlockedMessage}
           onReact={handleReactPhoto}
@@ -504,9 +537,22 @@ export function EventWall() {
         </div>
       )}
 
+      {!loading && !wallError && allPhotos.length > 0 && hasMoreOlderPhotos && (
+        <div className="text-center mt-2">
+          {olderPhotosError && <p className="text-xs text-red-500 mb-2">{olderPhotosError}</p>}
+          <button
+            onClick={handleLoadOlderPhotos}
+            disabled={loadingOlderPhotos}
+            className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary font-medium disabled:opacity-50"
+          >
+            {loadingOlderPhotos ? 'Cargando…' : 'Cargar fotos anteriores'}
+          </button>
+        </div>
+      )}
+
       {galleryIndex !== null && (
         <PhotoViewer
-          photos={photos}
+          photos={allPhotos}
           index={galleryIndex}
           onIndexChange={setGalleryIndex}
           onClose={() => setGalleryIndex(null)}
