@@ -5,6 +5,7 @@ import {
   getAggregateFromServer,
   getCountFromServer,
   getDoc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -50,50 +51,38 @@ export async function checkIsAdmin(uid: string): Promise<boolean> {
   return snap.exists()
 }
 
-// TODO Fase 6+: sin `limit()` a propósito todavía. Los totales de
-// AdminDashboard.tsx ya NO dependen de esta descarga completa (ver
-// getEventStats/getUserStats, agregaciones server-side más abajo) — pero la
+// Auditoría de escalabilidad (F10): antes eran listeners EN VIVO sin
+// `limit()` (subscribeToAllEvents/subscribeToAllUsers) — cualquier escritura
+// a CUALQUIER evento/usuario de TODA la plataforma (no solo los que el admin
+// mira) reenviaba la colección completa a cada admin con el panel abierto.
+// Los totales de las tarjetas de resumen ya no dependían de esto (ver
+// getEventStats/getUserStats, agregaciones server-side más abajo), pero la
 // tabla de eventos (búsqueda por nombre/ubicación/email del dueño, cruce con
-// usersById) sigue necesitando el conjunto completo, así que este listener
-// se queda sin límite por ahora. Paginar la tabla en sí requeriría rehacer
-// esa búsqueda como query server-side en vez de un filtro en memoria —
-// esfuerzo mayor, pendiente como su propia fase.
-export function subscribeToAllEvents(
-  callback: (events: EventData[]) => void,
-  onError?: (error: Error) => void,
-): Unsubscribe {
+// usersById) sigue necesitando el conjunto completo en memoria para filtrar
+// — reescribir esa búsqueda como query server-side (ej. un índice de
+// búsqueda tipo Algolia) es un esfuerzo mayor, pendiente como su propia
+// fase. Lo que SÍ se resuelve acá: ya no es un listener — es una lectura
+// puntual, refrescada a pedido desde AdminDashboard.tsx (mismo patrón que
+// getAllGuests en guests.ts) y automáticamente después de cada acción que
+// cambia un evento (archivar/cancelar/borrar) desde este mismo panel.
+export async function getAllEvents(): Promise<EventData[]> {
   const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'))
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      callback(snapshot.docs.map((d) => mapEvent(d.id, d.data())))
-    },
-    withListenerReporting('admin.allEvents', onError),
-  )
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => mapEvent(d.id, d.data()))
 }
 
-export function subscribeToAllUsers(
-  callback: (users: AdminUser[]) => void,
-  onError?: (error: Error) => void,
-): Unsubscribe {
+export async function getAllUsers(): Promise<AdminUser[]> {
   const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'))
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      callback(
-        snapshot.docs.map((d) => {
-          const data = d.data()
-          return {
-            id: d.id,
-            email: (data.email as string) || null,
-            displayName: (data.displayName as string) || null,
-            createdAt: toMillis(data.createdAt),
-          }
-        }),
-      )
-    },
-    withListenerReporting('admin.allUsers', onError),
-  )
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return {
+      id: d.id,
+      email: (data.email as string) || null,
+      displayName: (data.displayName as string) || null,
+      createdAt: toMillis(data.createdAt),
+    }
+  })
 }
 
 export interface AdminEventStats {

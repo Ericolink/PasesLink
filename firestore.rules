@@ -150,6 +150,24 @@ service cloud.firestore {
         || (newVal > oldVal && newVal <= oldVal + 50);
     }
 
+    // rsvpYesCount/rsvpNoCount/rsvpPendingCount (auditoría F22): a diferencia
+    // del resto de los contadores del evento, ESTE lo escribe directamente
+    // el invitado sin cuenta desde su propio pase (setGuestRsvp/
+    // resetGuestRsvp en src/firebase/guests.ts) — no hay canDo()/scanQr que
+    // exigir acá. La barrera real es esta función: exige que la SUMA de los
+    // 3 se mantenga igual (un RSVP solo MUEVE un invitado de un balde a
+    // otro, nunca crea ni destruye uno) y acota cada delta individual con el
+    // mismo margen que counterDeltaOk — cierra la puerta a que un cliente
+    // hablando directo con Firestore infle cualquiera de los 3 sin una resta
+    // compensatoria en otro.
+    function rsvpCountsOk(oldEv, newEv) {
+      return (newEv.get('rsvpYesCount', 0) + newEv.get('rsvpNoCount', 0) + newEv.get('rsvpPendingCount', 0))
+          == (oldEv.get('rsvpYesCount', 0) + oldEv.get('rsvpNoCount', 0) + oldEv.get('rsvpPendingCount', 0))
+        && counterDeltaOk(newEv.get('rsvpYesCount', 0), oldEv.get('rsvpYesCount', 0))
+        && counterDeltaOk(newEv.get('rsvpNoCount', 0), oldEv.get('rsvpNoCount', 0))
+        && counterDeltaOk(newEv.get('rsvpPendingCount', 0), oldEv.get('rsvpPendingCount', 0));
+    }
+
     // Cualquier cliente puede crear mensajes del muro sin autenticarse —
     // estos límites son la última barrera real si alguien evita por completo
     // la capa de aplicación (src/firebase/wall.ts) y escribe directo contra
@@ -645,6 +663,40 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId
         && isValidEventPricing() && isValidMaxCompanions() && eventContentCapsOk();
       allow update: if (isOwnerData(resource.data) || isAdmin()) && eventContentCapsOk()
+        // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
+        // invitación en 1 (guestCount), sumando entre 1 y 21 personas
+        // (peopleCount): el invitado más los acompañantes que el organizador le
+        // permita traer — el 21 es 1 + GUEST_MAX_COMPANIONS (techo de
+        // EventData.maxCompanions, ver src/utils/validation.ts e
+        // isValidMaxCompanions arriba; antes decía 10, copiado de una constante
+        // GUEST_MAX_PARTY_SIZE que ya no existe, y rechazaba registros legítimos
+        // en eventos con maxCompanions entre 10 y 20). eventGuestCountBefore/
+        // eventPeopleCountBefore y no resource.data.guestCount/peopleCount a
+        // secas: ver el comentario de esas funciones (eventos legacy sin esos
+        // campos denegaban el registro entero).
+        // rsvpYesCount (auditoría F22): registerWalkInGuest crea al invitado
+        // con rsvpStatus 'yes' siempre (se registra a sí mismo, ya confirma
+        // que asiste, ver capacity.ts) — mismo criterio que guestCount de
+        // abajo, sube exactamente en 1.
+        //
+        // Ubicada como SEGUNDA rama (justo después del dueño, antes de las
+        // gateadas por canDoData) a propósito: isValidPublicGuestRegistration
+        // (para un usuario logueado) ya hace su propio get() al perfil del
+        // usuario para verificar guestPhotoURL — es el flujo más caro de todo
+        // este bloque, y encima lo dispara alguien SIN ningún permiso de
+        // coanfitrión. Dejarlo al final de la cadena de ||, como estaba antes,
+        // obligaba a evaluar TODAS las ramas de canDoData (cada una con su
+        // propio costo) antes de llegar a esta — la transacción completa
+        // (guests/{guestId} create + events/{eventId} update) llegó a
+        // rechazarse con "maximum of 1000 expressions to evaluate" para el
+        // caso de un usuario logueado autoregistrándose. Subirla acá evita esa
+        // cadena entera para el caso más común de este bloque.
+        || (resource.data.entryMode in ['open', 'hybrid']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'rsvpYesCount'])
+            && request.resource.data.guestCount == eventGuestCountBefore(resource.data) + 1
+            && request.resource.data.peopleCount >= eventPeopleCountBefore(resource.data) + 1
+            && request.resource.data.peopleCount <= eventPeopleCountBefore(resource.data) + 21
+            && request.resource.data.get('rsvpYesCount', 0) == resource.data.get('rsvpYesCount', 0) + 1)
         // Check-in/checkout individual o contador walk-in (Opciones A y C): solo
         // quien tiene el permiso `scanQr` (dueño siempre lo tiene vía canDo),
         // y solo tocando los dos contadores de presencia. checkedInCount
@@ -684,11 +736,19 @@ service cloud.firestore {
         // exigir uno solo porque addGuest/deleteGuest/confirmPayment/
         // updateGuest son operaciones distintas que comparten este mismo
         // rango de campos.
+        // rsvpYesCount/rsvpNoCount/rsvpPendingCount (auditoría F22): addGuest/
+        // addGuestsBulk/addGuestsFromRows (permiso addGuests) suman al invitado
+        // nuevo a rsvpPendingCount en la MISMA escritura que guestCount/
+        // peopleCount — no es una rama aparte, así que estos 3 campos tienen
+        // que estar en este mismo hasOnly.
         || ((canDoData(resource.data, 'addGuests', true) || canDoData(resource.data, 'deleteGuests', true) || canDoData(resource.data, 'confirmPayments', true) || canDoData(resource.data, 'editGuests', true))
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'paidCount'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'paidCount', 'rsvpYesCount', 'rsvpNoCount', 'rsvpPendingCount'])
             && counterDeltaOk(request.resource.data.guestCount, resource.data.guestCount)
             && counterDeltaOk(request.resource.data.peopleCount, resource.data.peopleCount)
-            && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
+            && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount)
+            && counterDeltaOk(request.resource.data.get('rsvpYesCount', 0), resource.data.get('rsvpYesCount', 0))
+            && counterDeltaOk(request.resource.data.get('rsvpNoCount', 0), resource.data.get('rsvpNoCount', 0))
+            && counterDeltaOk(request.resource.data.get('rsvpPendingCount', 0), resource.data.get('rsvpPendingCount', 0)))
         // deleteGuest borra un invitado que puede estar en cualquier
         // combinación de estados (adentro o no, pagado o no) — decrementa
         // guestCount/peopleCount siempre, y ADEMÁS checkedInCount/
@@ -704,12 +764,15 @@ service cloud.firestore {
         // criterio ya usado por counterDeltaOk: es margen de la OPERACIÓN,
         // no un permiso extra por cada campo que decida tocar).
         || (canDoData(resource.data, 'deleteGuests', true)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'checkedInCount', 'occupancyCount', 'paidCount'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'checkedInCount', 'occupancyCount', 'paidCount', 'rsvpYesCount', 'rsvpNoCount', 'rsvpPendingCount'])
             && counterDeltaOk(request.resource.data.guestCount, resource.data.guestCount)
             && counterDeltaOk(request.resource.data.peopleCount, resource.data.peopleCount)
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount)
-            && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
+            && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount)
+            && counterDeltaOk(request.resource.data.get('rsvpYesCount', 0), resource.data.get('rsvpYesCount', 0))
+            && counterDeltaOk(request.resource.data.get('rsvpNoCount', 0), resource.data.get('rsvpNoCount', 0))
+            && counterDeltaOk(request.resource.data.get('rsvpPendingCount', 0), resource.data.get('rsvpPendingCount', 0)))
         // Botón "Sí, ya pagó" del escáner (confirmPaymentAndCheckIn): check-in
         // + aprobación de pago en una sola escritura, así que toca los 3
         // contadores (checkedInCount/occupancyCount de la rama de arriba +
@@ -723,22 +786,6 @@ service cloud.firestore {
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount)
             && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
-        // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
-        // invitación en 1 (guestCount), sumando entre 1 y 21 personas
-        // (peopleCount): el invitado más los acompañantes que el organizador le
-        // permita traer — el 21 es 1 + GUEST_MAX_COMPANIONS (techo de
-        // EventData.maxCompanions, ver src/utils/validation.ts e
-        // isValidMaxCompanions arriba; antes decía 10, copiado de una constante
-        // GUEST_MAX_PARTY_SIZE que ya no existe, y rechazaba registros legítimos
-        // en eventos con maxCompanions entre 10 y 20). eventGuestCountBefore/
-        // eventPeopleCountBefore y no resource.data.guestCount/peopleCount a
-        // secas: ver el comentario de esas funciones (eventos legacy sin esos
-        // campos denegaban el registro entero).
-        || (resource.data.entryMode in ['open', 'hybrid']
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount'])
-            && request.resource.data.guestCount == eventGuestCountBefore(resource.data) + 1
-            && request.resource.data.peopleCount >= eventPeopleCountBefore(resource.data) + 1
-            && request.resource.data.peopleCount <= eventPeopleCountBefore(resource.data) + 21)
         // "Salir del evento": un co-organizador puede quitarse a sí mismo sin
         // pasar por el dueño. Solo puede tocar sus propias 2 entradas
         // (coOrganizersMap/coOrganizerPermissions) y hacerlas desaparecer —
@@ -757,7 +804,12 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coOrganizersMap', 'coOrganizerPermissions', 'updatedAt'])
             && request.resource.data.get('coOrganizersMap', {}).get(request.auth.uid, null) == resource.data.coOrganizersMap.get(request.auth.uid, null)
             && request.resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}) == resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {})
-            && request.resource.data.get('coOrganizersMap', {}).size() <= 20);
+            && request.resource.data.get('coOrganizersMap', {}).size() <= 20)
+        // RSVP (setGuestRsvp/resetGuestRsvp, auditoría F22) — ver
+        // rsvpCountsOk más arriba. Sin gate de canDo/scanQr a propósito: lo
+        // dispara el invitado sin cuenta desde su propio pase.
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpYesCount', 'rsvpNoCount', 'rsvpPendingCount'])
+            && rsvpCountsOk(resource.data, request.resource.data));
       allow delete: if isOwnerData(resource.data) || isAdmin();
 
       match /guests/{guestId} {

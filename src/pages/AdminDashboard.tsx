@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
+  getAllEvents,
+  getAllUsers,
   getEventStats,
   getUserStats,
   subscribeToAdminAuditLog,
-  subscribeToAllEvents,
-  subscribeToAllUsers,
   logAdminAction,
   type AdminAuditLogEntry,
   type AdminEventStats,
@@ -94,23 +94,37 @@ export function AdminDashboard() {
   const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
+  // Incrementarlo vuelve a pedir events/users (botón "Actualizar" de abajo,
+  // y automáticamente tras archivar/cancelar/borrar un evento desde este
+  // panel — ver handleStatusChange/confirmDeleteEvent/confirmBulkAction).
+  const [refreshToken, setRefreshToken] = useState(0)
 
+  // Auditoría F10: antes eran listeners en vivo (subscribeToAllEvents/
+  // subscribeToAllUsers) — cualquier escritura a CUALQUIER evento/usuario de
+  // toda la plataforma reenviaba la colección completa a cada admin con el
+  // panel abierto. Ahora son lecturas puntuales (getAllEvents/getAllUsers),
+  // refrescadas a pedido — ver refreshToken arriba.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    function handleLoadError(err: Error) {
-      console.error('Error loading admin data:', err)
-      setLoadError('No se pudieron cargar los datos del panel. Verifica tu conexión o tus permisos.')
-      setLoading(false)
-    }
-    const unsubEvents = subscribeToAllEvents((data) => {
-      setEvents(data)
-      setLoading(false)
-    }, handleLoadError)
-    const unsubUsers = subscribeToAllUsers(setUsers, handleLoadError)
-    return () => {
-      unsubEvents()
-      unsubUsers()
-    }
-  }, [])
+    let cancelled = false
+    setLoading(true)
+    setLoadError('')
+    Promise.all([getAllEvents(), getAllUsers()])
+      .then(([eventsData, usersData]) => {
+        if (cancelled) return
+        setEvents(eventsData)
+        setUsers(usersData)
+      })
+      .catch((err) => {
+        console.error('Error loading admin data:', err)
+        if (!cancelled) setLoadError('No se pudieron cargar los datos del panel. Verifica tu conexión o tus permisos.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [refreshToken])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Tarjetas de resumen: agregaciones server-side, una sola vez al montar
   // (no en vivo — Firestore no ofrece un listener para agregaciones, mismo
@@ -208,6 +222,10 @@ export function AdminDashboard() {
     } catch (err) {
       console.error('Error updating event status:', err)
       setActionError('No se pudo actualizar el estado del evento. Intenta de nuevo.')
+    } finally {
+      // events ya no es un listener en vivo (auditoría F10) — hay que
+      // volver a pedirlo para reflejar el cambio, éxito o no.
+      setRefreshToken((n) => n + 1)
     }
   }
 
@@ -231,6 +249,7 @@ export function AdminDashboard() {
     } finally {
       setActionBusy(false)
       setDeletingEvent(null)
+      setRefreshToken((n) => n + 1)
     }
   }
 
@@ -258,6 +277,7 @@ export function AdminDashboard() {
     }
     setActionBusy(false)
     setBulkAction(null)
+    setRefreshToken((n) => n + 1)
     if (failed === 0) setActionMessage(`${ok} evento${ok === 1 ? '' : 's'} actualizado${ok === 1 ? '' : 's'} correctamente.`)
     else setActionError(`${ok} evento(s) actualizados, ${failed} fallaron. Intenta de nuevo con los restantes.`)
   }
@@ -387,6 +407,22 @@ export function AdminDashboard() {
         <TabButton label="Reportes" active={tab === 'reports'} onClick={() => setTab('reports')} />
         <TabButton label="Actividad" active={tab === 'activity'} onClick={() => setTab('activity')} />
       </ScrollableTabs>
+
+      {/* events/users ya no son listeners en vivo (auditoría F10) — este
+          botón los refresca sin salir de la pantalla. Se actualizan solos
+          después de archivar/cancelar/borrar un evento desde este mismo
+          panel (ver setRefreshToken en esos handlers). */}
+      {(tab === 'events' || tab === 'users') && (
+        <div className="flex justify-end mb-2">
+          <button
+            onClick={() => setRefreshToken((n) => n + 1)}
+            disabled={loading}
+            className="text-sm text-primary font-medium disabled:opacity-50"
+          >
+            {loading ? 'Actualizando…' : 'Actualizar'}
+          </button>
+        </div>
+      )}
 
       {tab === 'events' && (
         <AdminEventsTable

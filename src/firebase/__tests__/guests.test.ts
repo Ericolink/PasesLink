@@ -13,7 +13,7 @@ vi.mock('../config', () => ({
 }))
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, resolveMaxCompanions, setGuestPaymentStatus, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, getAllGuests, resetGuestRsvp, resolveMaxCompanions, setGuestPaymentStatus, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -332,6 +332,7 @@ describe('guests.ts', () => {
       checkedOutAt: null,
       exitType: null,
       paymentStatus: 'paid',
+      rsvpStatus: 'pending',
     })
 
     const event = await getEventDoc(testEnv, EVENT_ID)
@@ -390,6 +391,9 @@ describe('guests.ts', () => {
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.guestCount).toBe(1)
     expect(event?.peopleCount).toBe(4)
+    // Auditoría F22: buildNewGuestPayload siempre arranca en rsvpStatus
+    // 'pending' — addGuest debe sumarlo a rsvpPendingCount, no a otro balde.
+    expect(event?.rsvpPendingCount).toBe(1)
   })
 
   it('should let a co-organizer with addGuests but WITHOUT editGuests add a guest with a phone number', async () => {
@@ -498,6 +502,7 @@ describe('guests.ts', () => {
       checkedOutAt: null,
       exitType: null,
       paymentStatus: 'unpaid',
+      rsvpStatus: 'pending',
     })
 
     const event = await getEventDoc(testEnv, EVENT_ID)
@@ -518,6 +523,7 @@ describe('guests.ts', () => {
       checkedOutAt: Date.now(),
       exitType: 'final',
       paymentStatus: 'unpaid',
+      rsvpStatus: 'pending',
     })
 
     const event = await getEventDoc(testEnv, EVENT_ID)
@@ -550,6 +556,7 @@ describe('guests.ts', () => {
       checkedOutAt: null,
       exitType: null,
       paymentStatus: 'paid',
+      rsvpStatus: 'pending',
     })
 
     const event = await getEventDoc(testEnv, EVENT_ID)
@@ -584,6 +591,7 @@ describe('guests.ts', () => {
         checkedOutAt: null,
         exitType: null,
         paymentStatus: 'unpaid',
+        rsvpStatus: 'pending',
       }),
     ).rejects.toThrow()
   })
@@ -1250,6 +1258,128 @@ describe('guests.ts', () => {
       const all = await collectGuestEmissions(EVENT_ID, null, 1)
 
       expect(all).toHaveLength(5)
+    })
+  })
+
+  // Auditoría de escalabilidad (F22): rsvpYesCount/rsvpNoCount/
+  // rsvpPendingCount reemplazan el recorrido de `guests` que antes hacía
+  // Reports.tsx para el desglose de RSVP.
+  describe('rsvpYesCount/rsvpNoCount/rsvpPendingCount (auditoría F22)', () => {
+    it('moves the guest from rsvpPendingCount to rsvpYesCount on setGuestRsvp', async () => {
+      await seedEvent(testEnv, EVENT_ID, { rsvpYesCount: 0, rsvpPendingCount: 1 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, rsvpStatus: 'pending' })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await setGuestRsvp(EVENT_ID, QR_TOKEN, 'yes')
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.rsvpYesCount).toBe(1)
+      expect(event?.rsvpPendingCount).toBe(0)
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.rsvpStatus).toBe('yes')
+    })
+
+    it('moves the guest again on a second RSVP change (yes -> no), without double-counting', async () => {
+      await seedEvent(testEnv, EVENT_ID, { rsvpYesCount: 1, rsvpNoCount: 0, rsvpPendingCount: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, rsvpStatus: 'yes' })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await setGuestRsvp(EVENT_ID, QR_TOKEN, 'no')
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.rsvpYesCount).toBe(0)
+      expect(event?.rsvpNoCount).toBe(1)
+    })
+
+    it('does not touch the event counters when the RSVP does not actually change', async () => {
+      await seedEvent(testEnv, EVENT_ID, { rsvpYesCount: 1, rsvpPendingCount: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, rsvpStatus: 'yes' })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await setGuestRsvp(EVENT_ID, QR_TOKEN, 'yes')
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.rsvpYesCount).toBe(1)
+    })
+
+    it('moves the guest back to rsvpPendingCount on resetGuestRsvp', async () => {
+      await seedEvent(testEnv, EVENT_ID, { rsvpNoCount: 1, rsvpPendingCount: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, rsvpStatus: 'no' })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await resetGuestRsvp(EVENT_ID, GUEST_ID)
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.rsvpNoCount).toBe(0)
+      expect(event?.rsvpPendingCount).toBe(1)
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.rsvpStatus).toBe('pending')
+    })
+
+    it('decrements rsvpYesCount (not rsvpPendingCount) when deleting a guest who had confirmed', async () => {
+      await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 1, rsvpYesCount: 1, rsvpPendingCount: 0 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await deleteGuest(EVENT_ID, {
+        id: GUEST_ID,
+        status: 'invited',
+        companions: [],
+        checkedOutAt: null,
+        exitType: null,
+        paymentStatus: 'unpaid',
+        rsvpStatus: 'yes',
+      })
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.rsvpYesCount).toBe(0)
+      expect(event?.rsvpPendingCount).toBe(0)
+    })
+
+    // Un cliente hablando directo con Firestore no puede inflar rsvpYesCount
+    // sin una resta compensatoria en otro balde — ver rsvpCountsOk en
+    // firestore.rules (exige que la SUMA de los 3 se mantenga igual).
+    it('rejects a direct write that inflates rsvpYesCount without a matching decrease elsewhere', async () => {
+      await seedEvent(testEnv, EVENT_ID, { rsvpYesCount: 0, rsvpNoCount: 0, rsvpPendingCount: 0 })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await expect(
+        updateDoc(doc(dbHolder.db, 'events', EVENT_ID), { rsvpYesCount: 1000 }),
+      ).rejects.toThrow()
+    })
+  })
+
+  // Auditoría de escalabilidad (F3): Reports.tsx reemplazó el listener sin
+  // límite (subscribeToGuests con showAllGuests) por esta lectura puntual.
+  describe('getAllGuests (auditoría F3)', () => {
+    it('returns every guest ordered by createdAt, with no limit', async () => {
+      await seedEvent(testEnv, EVENT_ID, { guestCount: 3 })
+      await seedGuest(testEnv, EVENT_ID, 'guest-a', { createdAt: 300, name: 'C' })
+      await seedGuest(testEnv, EVENT_ID, 'guest-b', { createdAt: 100, name: 'A' })
+      await seedGuest(testEnv, EVENT_ID, 'guest-c', { createdAt: 200, name: 'B' })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const guests = await getAllGuests(EVENT_ID)
+
+      expect(guests.map((g) => g.name)).toEqual(['A', 'B', 'C'])
+    })
+
+    it('rejects a caller without viewGuestList permission', async () => {
+      const COORG_UID = 'coorg-noview-uid'
+      await seedEvent(testEnv, EVENT_ID, {
+        guestCount: 0,
+        coOrganizersMap: { [COORG_UID]: true },
+        coOrganizerPermissions: {
+          [COORG_UID]: {
+            addGuests: false, editGuests: false, deleteGuests: false, shareInviteLink: false,
+            confirmPayments: false, scanQr: false, viewGuestList: false, postWall: false,
+            moderateWall: false, editEvent: false, manageCoOrganizers: false, viewReports: false,
+            exportLists: false, downloadEventInfo: false,
+          },
+        },
+      })
+      dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await expect(getAllGuests(EVENT_ID)).rejects.toThrow()
     })
   })
 })

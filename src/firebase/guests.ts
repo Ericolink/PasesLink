@@ -116,6 +116,16 @@ function contactRef(eventId: string, guestId: string) {
   return doc(db, 'events', eventId, 'guestContacts', guestId)
 }
 
+// Nombre del contador desnormalizado de EventData que corresponde a cada
+// rsvpStatus (auditoría F22) — un solo lugar que traduce el valor al campo,
+// para no repetir el mismo if/else en cada función que mueve un invitado de
+// un balde RSVP a otro.
+function rsvpCountField(status: RsvpStatus): 'rsvpYesCount' | 'rsvpNoCount' | 'rsvpPendingCount' {
+  if (status === 'yes') return 'rsvpYesCount'
+  if (status === 'no') return 'rsvpNoCount'
+  return 'rsvpPendingCount'
+}
+
 // Registro nunca se bloquea por cupo (capacity es puramente informativo, ver
 // EventData.capacity) — el invitado siempre se crea.
 //
@@ -152,6 +162,8 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
     batch.update(doc(db, 'events', eventId), {
       guestCount: increment(1),
       peopleCount: increment(partySize(payload)),
+      // buildNewGuestPayload siempre arranca en 'pending' (ver ahí).
+      rsvpPendingCount: increment(1),
     })
     await batch.commit()
     return { id: guestRef.id }
@@ -192,6 +204,7 @@ export async function addGuestsBulk(eventId: string, names: string[]) {
       batch.update(doc(db, 'events', eventId), {
         guestCount: increment(slice.length),
         peopleCount: increment(slice.length),
+        rsvpPendingCount: increment(slice.length),
       })
       await batch.commit()
     }
@@ -236,6 +249,7 @@ export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[
       batch.update(doc(db, 'events', eventId), {
         guestCount: increment(slice.length),
         peopleCount: increment(slice.length),
+        rsvpPendingCount: increment(slice.length),
       })
       await batch.commit()
     }
@@ -395,7 +409,7 @@ export async function updateGuestSelf(
 // esa ocupación quedaba "fantasma" para siempre).
 export async function deleteGuest(
   eventId: string,
-  guest: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus'>,
+  guest: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'>,
 ) {
   const size = partySize(guest)
   const batch = writeBatch(db)
@@ -404,6 +418,7 @@ export async function deleteGuest(
   const updates: Record<string, unknown> = {
     guestCount: increment(-1),
     peopleCount: increment(-size),
+    [rsvpCountField(guest.rsvpStatus)]: increment(-1),
   }
   if (guest.status === 'checked_in') {
     updates.checkedInCount = increment(-size)
@@ -466,7 +481,7 @@ export interface BulkResult {
 // (igual que el deleteGuest individual ya hacía).
 export async function bulkDeleteGuests(
   eventId: string,
-  guests: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus'>[],
+  guests: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'>[],
 ): Promise<BulkResult> {
   const chunks = chunkByPartySize(guests, partySize)
   let ok = 0
@@ -479,6 +494,11 @@ export async function bulkDeleteGuests(
       let checkedInCountDelta = 0
       let occupancyCountDelta = 0
       let paidCountDelta = 0
+      const rsvpDeltas: Record<'rsvpYesCount' | 'rsvpNoCount' | 'rsvpPendingCount', number> = {
+        rsvpYesCount: 0,
+        rsvpNoCount: 0,
+        rsvpPendingCount: 0,
+      }
       for (const guest of chunk) {
         const size = partySize(guest)
         batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
@@ -490,6 +510,7 @@ export async function bulkDeleteGuests(
           if (guestPresence(guest) === 'inside') occupancyCountDelta -= size
         }
         if (guest.paymentStatus === 'paid') paidCountDelta -= size
+        rsvpDeltas[rsvpCountField(guest.rsvpStatus)] -= 1
       }
       const updates: Record<string, unknown> = {
         guestCount: increment(guestCountDelta),
@@ -498,6 +519,9 @@ export async function bulkDeleteGuests(
       if (checkedInCountDelta !== 0) updates.checkedInCount = increment(checkedInCountDelta)
       if (occupancyCountDelta !== 0) updates.occupancyCount = increment(occupancyCountDelta)
       if (paidCountDelta !== 0) updates.paidCount = increment(paidCountDelta)
+      for (const [field, delta] of Object.entries(rsvpDeltas)) {
+        if (delta !== 0) updates[field] = increment(delta)
+      }
       batch.update(doc(db, 'events', eventId), updates)
       await batch.commit()
       ok += chunk.length
@@ -578,19 +602,19 @@ export async function bulkSetGuestPaymentStatus(
 // descarga la colección completa en tiempo real. NO se le agregó un
 // `limit()` simple en Subfase 3.2 a propósito: `guests` (el array completo)
 // alimenta hoy varias cosas que necesitan el TOTAL, no una página — la
-// exportación CSV/PDF/Excel de EventDetail, las estadísticas derivadas
-// (rsvpYes/No/etc.) y la búsqueda/filtro de GuestList. Un `limit()` a secas
-// habría hecho que esas tres cosas dejaran de reflejar invitados reales en
-// cualquier evento por encima del límite — una regresión funcional real, no
-// un cambio "transparente". Fase 6 (auditoría de rendimiento): en vez de un
-// límite fijo silencioso, `limitCount` deja la ventana en vivo ACOTADA por
-// default (Fase 6, ver GUEST_WINDOW_DEFAULT) pero explícitamente
-// ampliable a `null` (sin límite) — quien llama decide cuándo pasar a "traer
-// todos" (EventDetail.tsx lo hace al escribir en el buscador o exportar,
-// Reports.tsx lo pide siempre porque su tabla y estadísticas ya muestran el
-// evento completo). `totalPeople`/`totalCollected` ya no dependen de esto —
-// EventDetail.tsx/Reports.tsx los toman de event.peopleCount/paidCount
-// (contadores desnormalizados, siempre exactos, sin leer ningún invitado).
+// exportación CSV/PDF/Excel de EventDetail y la búsqueda/filtro de
+// GuestList. Un `limit()` a secas habría hecho que esas cosas dejaran de
+// reflejar invitados reales en cualquier evento por encima del límite — una
+// regresión funcional real, no un cambio "transparente". Fase 6 (auditoría
+// de rendimiento): en vez de un límite fijo silencioso, `limitCount` deja la
+// ventana en vivo ACOTADA por default (ver GUEST_WINDOW_DEFAULT) pero
+// explícitamente ampliable a `null` (sin límite) — EventDetail.tsx lo hace
+// al escribir en el buscador o exportar. Reports.tsx (auditoría de
+// escalabilidad, hallazgo F3) ya NO usa este listener en absoluto — ver
+// getAllGuests más abajo, una lectura puntual en vez de un listener sin
+// límite reabierto en cada snapshot mientras la pantalla de reportes está
+// abierta. `totalPeople`/`totalCollected`/rsvpYes/No/Pending tampoco
+// dependen de esto — se toman de los contadores desnormalizados del evento.
 export const GUEST_WINDOW_DEFAULT = 300
 
 // guestContacts no tiene un campo de fecha para ordenar/acotar igual que
@@ -680,6 +704,21 @@ export function subscribeToGuests(
   }
 }
 
+// Carga puntual (no en vivo) de TODOS los invitados — a diferencia de
+// subscribeToGuests, no arma ningún listener ni fusiona guestContacts
+// (Reports.tsx, el único llamador, no muestra ni exporta phone/email; esos
+// campos quedan en '' por el fallback de mapGuest, sin costo de lectura
+// extra a esa colección). Reemplaza el patrón anterior de Reports.tsx
+// (showAllGuests()/useEvent: un listener SIN LÍMITE reabierto en cada
+// snapshot mientras la pantalla está abierta, ver auditoría de
+// escalabilidad hallazgo F3) por una sola lectura, refrescada a pedido con
+// el mismo botón "Actualizar" que ya usa getCheckins.
+export async function getAllGuests(eventId: string): Promise<GuestData[]> {
+  const q = query(collection(db, 'events', eventId, 'guests'), orderBy('createdAt', 'asc'))
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => mapGuest(d.id, d.data()))
+}
+
 export async function findGuestByToken(
   eventId: string,
   qrToken: string,
@@ -695,14 +734,48 @@ export async function findGuestByToken(
   return mapGuest(d.id, d.data())
 }
 
+// Transacción (no updateDoc suelto) porque además de escribir rsvpStatus en
+// el invitado, mueve el contador del evento del balde VIEJO al NUEVO
+// (rsvpYesCount/rsvpNoCount/rsvpPendingCount, ver rsvpCountField) — necesita
+// leer el rsvpStatus actual de forma atómica con esa escritura para no
+// perder un delta si dos cambios de RSVP casi simultáneos leyeran el mismo
+// valor viejo (auditoría F22).
 export async function setGuestRsvp(eventId: string, qrToken: string, rsvpStatus: RsvpStatus) {
-  const guest = await findGuestByToken(eventId, qrToken)
-  if (!guest) return
-  await updateDoc(doc(db, 'events', eventId, 'guests', guest.id), { rsvpStatus })
+  const guestRef = await findGuestRefByToken(eventId, qrToken)
+  if (!guestRef) return
+  const eventRef = doc(db, 'events', eventId)
+  await runTransaction(db, async (transaction) => {
+    const guestSnap = await transaction.get(guestRef)
+    if (!guestSnap.exists()) return
+    const oldRsvp = (guestSnap.data().rsvpStatus as RsvpStatus) || 'pending'
+    transaction.update(guestRef, { rsvpStatus })
+    if (oldRsvp !== rsvpStatus) {
+      transaction.update(eventRef, {
+        [rsvpCountField(oldRsvp)]: increment(-1),
+        [rsvpCountField(rsvpStatus)]: increment(1),
+      })
+    }
+  })
 }
 
+// Mismo motivo de transacción que setGuestRsvp — necesita el rsvpStatus
+// VIEJO del invitado para saber qué contador del evento decrementar antes de
+// resetearlo a 'pending'.
 export async function resetGuestRsvp(eventId: string, guestId: string) {
-  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { rsvpStatus: 'pending', lockToken: null, lockTokens: [] })
+  const guestRef = doc(db, 'events', eventId, 'guests', guestId)
+  const eventRef = doc(db, 'events', eventId)
+  await runTransaction(db, async (transaction) => {
+    const guestSnap = await transaction.get(guestRef)
+    if (!guestSnap.exists()) return
+    const oldRsvp = (guestSnap.data().rsvpStatus as RsvpStatus) || 'pending'
+    transaction.update(guestRef, { rsvpStatus: 'pending', lockToken: null, lockTokens: [] })
+    if (oldRsvp !== 'pending') {
+      transaction.update(eventRef, {
+        [rsvpCountField(oldRsvp)]: increment(-1),
+        rsvpPendingCount: increment(1),
+      })
+    }
+  })
 }
 
 // A diferencia de resetGuestRsvp, NO toca el RSVP — solo libera el pase para

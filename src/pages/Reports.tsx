@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getCheckins } from '../firebase/reports'
-import { partySize } from '../firebase/guests'
-import { useEvent } from '../hooks/useEvent'
+import { getAllGuests, partySize } from '../firebase/guests'
+import { useEventOnly } from '../hooks/useEventOnly'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useEventPermissions } from '../hooks/useEventPermissions'
-import { useGuestStats } from '../hooks/useGuestStats'
 import { attendancePercent } from '../utils/attendance'
-import type { CheckinLog } from '../types'
+import type { CheckinLog, GuestData } from '../types'
 import { PAYMENT_STATUS_LABELS, RSVP_LABELS } from '../types'
 import { IconCheck, IconCornerUpLeft } from '../components/Icons'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
@@ -20,11 +19,14 @@ import { MetricTile } from '../components/MetricTile'
 import { EventAnalytics } from '../components/EventAnalytics'
 
 const CHECKIN_TIMELINE_PAGE_SIZE = 50
+const GUEST_DETAIL_PAGE_SIZE = 50
 
 export function Reports() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
-  const { event, guests, loading, guestsLoading, guestsTruncated, showAllGuests } = useEvent(eventId)
+  // useEventOnly (no useEvent): esta pantalla ya no necesita una suscripción
+  // en vivo a `guests` — ver getAllGuests más abajo (auditoría F3).
+  const { event, loading } = useEventOnly(eventId)
   useDocumentTitle(event ? `Reportes · ${event.name}` : 'Reportes')
   useDashboardTheme(event?.templateId, event?.accentColor)
   const [checkins, setCheckins] = useState<CheckinLog[]>([])
@@ -36,29 +38,24 @@ export function Reports() {
   // limita cuántos nodos DOM se montan de una vez, mismo patrón que
   // GUEST_LIST_PAGE_SIZE en GuestList.tsx).
   const [visibleCheckinCount, setVisibleCheckinCount] = useState(CHECKIN_TIMELINE_PAGE_SIZE)
-  // Incrementarlo vuelve a disparar el efecto de abajo sin depender de
-  // eventId — es el botón "Actualizar" de la línea de tiempo/llegadas por hora.
+  const [guests, setGuests] = useState<GuestData[]>([])
+  const [guestsLoading, setGuestsLoading] = useState(true)
+  const [guestsError, setGuestsError] = useState(false)
+  const [visibleGuestCount, setVisibleGuestCount] = useState(GUEST_DETAIL_PAGE_SIZE)
+  // Incrementarlo vuelve a disparar los efectos de abajo sin depender de
+  // eventId — es el botón "Actualizar", refresca checkins Y guests juntos
+  // (ambos son lecturas puntuales, no en vivo).
   const [refreshToken, setRefreshToken] = useState(0)
 
-  // Fase 6: a diferencia de EventDetail (que puede convivir con una ventana
-  // acotada, ver useEvent/GUEST_WINDOW_DEFAULT), esta pantalla siempre
-  // muestra el detalle y las estadísticas de TODOS los invitados — no tiene
-  // sentido acotar acá, así que pide el conjunto completo apenas monta.
-  useEffect(() => { showAllGuests() }, [showAllGuests])
-
-  // rsvpYes/No/Pending siguen necesitando el detalle por invitado (no hay
-  // contador desnormalizado para eso en el evento) — totalPeople/
-  // totalCollected sí lo tienen (event.peopleCount/paidCount) y ya no
-  // dependen de `guests`, ver más abajo.
-  const { rsvpYes, rsvpNo, rsvpPending } = useGuestStats(guests, event?.ticketPrice ?? 0)
+  // rsvpYes/No/Pending: contadores desnormalizados (auditoría F22, ver
+  // EventData.rsvpYesCount/rsvpNoCount/rsvpPendingCount) — igual que
+  // totalPeople/totalCollected abajo, ya no dependen de recorrer `guests`.
+  const rsvpYes = event?.rsvpYesCount ?? 0
+  const rsvpNo = event?.rsvpNoCount ?? 0
+  const rsvpPending = event?.rsvpPendingCount ?? 0
   const totalPeople = event?.peopleCount ?? 0
   const totalCollected = (event?.ticketPrice ?? 0) * (event?.paidCount ?? 0)
   const perms = useEventPermissions(event, user)
-  // Mientras `guests` todavía no cubre a todos (showAllGuests recién
-  // disparado, esperando el snapshot completo), tratar la sección de
-  // invitados/RSVP como "cargando" en vez de mostrar rsvpYes/No/Pending
-  // calculados sobre un subconjunto parcial.
-  const guestsEffectivelyLoading = guestsLoading || guestsTruncated
 
   // "Llegadas por hora": antes recorría TODO `checkins` (el historial
   // completo cargado por getCheckins) en cada carga/actualización — ver
@@ -72,7 +69,7 @@ export function Reports() {
   // Carga puntual (no en vivo, ver getCheckins) — se repite al cambiar de
   // evento y cada vez que se pide "Actualizar". Las tarjetas de "Escaneados"/
   // "Dentro ahora" de arriba siguen en tiempo real (vienen de
-  // event.checkedInCount/occupancyCount vía useEvent, no de esta lista).
+  // event.checkedInCount/occupancyCount vía useEventOnly, no de esta lista).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!eventId) return
@@ -91,6 +88,33 @@ export function Reports() {
       })
       .finally(() => {
         if (!cancelled) setCheckinsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [eventId, refreshToken])
+
+  // Carga puntual de TODOS los invitados (auditoría F3: antes era un
+  // listener SIN LÍMITE reabierto en cada snapshot mientras esta pantalla
+  // estaba abierta — ver getAllGuests/GUEST_WINDOW_DEFAULT en guests.ts).
+  // Alimenta "Analytics de llegadas" (EventAnalytics) y "Detalle por
+  // invitado" — ninguna de las dos necesita estar en vivo, se refrescan con
+  // el mismo botón "Actualizar" que ya usa checkins.
+  useEffect(() => {
+    if (!eventId) return
+    let cancelled = false
+    setGuestsLoading(true)
+    setGuestsError(false)
+    getAllGuests(eventId)
+      .then((data) => {
+        if (cancelled) return
+        setGuests(data)
+        setVisibleGuestCount(GUEST_DETAIL_PAGE_SIZE)
+      })
+      .catch((err) => {
+        console.error('Error loading guests:', err)
+        if (!cancelled) setGuestsError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setGuestsLoading(false)
       })
     return () => { cancelled = true }
   }, [eventId, refreshToken])
@@ -204,9 +228,9 @@ export function Reports() {
 
       {/* ── CONFIRMACIONES Y PAGOS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <MetricTile label="Asistirán" value={guestsEffectivelyLoading ? '—' : rsvpYes} accent="primary" />
-        <MetricTile label="No asistirán" value={guestsEffectivelyLoading ? '—' : rsvpNo} />
-        <MetricTile label="Sin responder" value={guestsEffectivelyLoading ? '—' : rsvpPending} />
+        <MetricTile label="Asistirán" value={rsvpYes} accent="primary" />
+        <MetricTile label="No asistirán" value={rsvpNo} />
+        <MetricTile label="Sin responder" value={rsvpPending} />
         {event.requiresPayment && (
           <MetricTile
             label={`Recaudado (${event.currency})`}
@@ -218,7 +242,7 @@ export function Reports() {
 
       {/* ── ACTIVIDAD DE LLEGADA ── (extraído de EventDetail.tsx, mismo
           componente reutilizado, sin cambios en su lógica interna) */}
-      <EventAnalytics guests={guests} loading={guestsEffectivelyLoading} />
+      <EventAnalytics guests={guests} loading={guestsLoading} />
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
         <h2 className="font-medium text-gray-900 dark:text-white mb-3">Llegadas por hora</h2>
@@ -252,66 +276,87 @@ export function Reports() {
           {perms.exportLists && (
             <button
               onClick={exportCsv}
-              disabled={guestsEffectivelyLoading}
+              disabled={guestsLoading}
               className="text-sm text-primary font-medium disabled:opacity-40"
             >
               Exportar CSV
             </button>
           )}
         </div>
-        {guestsEffectivelyLoading && <LoadingInline label="Cargando asistentes…" />}
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
-          {/* flex-wrap + el span de estado en w-full: cuando el nombre es
-              largo y no entran los 3 en una fila, el estado pasa solo a su
-              propia línea en vez de superponerse o forzar scroll horizontal
-              — en pantallas con más ancho (sm+), si entran los tres en una
-              fila, se acomodan igual que antes (w-auto). */}
-          {!guestsEffectivelyLoading && guests.map((guest) => (
-            <div key={guest.id} className="flex flex-wrap items-start justify-between gap-x-2 gap-y-0.5 py-2 text-sm">
-              <span className="text-gray-900 dark:text-white min-w-0 flex-1 break-words">
-                {guest.isGroup ? (
-                  <>
-                    {guest.name}
-                    <span className="text-gray-400 dark:text-gray-500"> · {partySize(guest)} integrantes</span>
-                  </>
-                ) : (
-                  <>
-                    {guest.name} {guest.lastName}
-                    {guest.companions.length > 0 && <span className="text-gray-400 dark:text-gray-500"> +{guest.companions.length}</span>}
-                  </>
-                )}
-              </span>
-              <span className="text-gray-400 dark:text-gray-500 text-xs shrink-0">{RSVP_LABELS[guest.rsvpStatus]}</span>
-              <span className="text-gray-500 dark:text-gray-400 text-xs w-full sm:w-auto sm:text-right shrink-0">
-                {guest.status === 'checked_in' && guest.checkedInAt ? (
-                  <>
-                    Entró {new Date(guest.checkedInAt).toLocaleTimeString()}
-                    {guest.checkedOutAt && (
-                      <> · {guest.exitType === 'final' ? 'Salió (definitivo)' : 'Salió (temporal)'} {new Date(guest.checkedOutAt).toLocaleTimeString()}</>
+        {guestsError ? (
+          <p className="text-sm text-red-500">No se pudo cargar la lista de invitados. Intenta actualizar de nuevo.</p>
+        ) : guestsLoading ? (
+          <LoadingInline label="Cargando asistentes…" />
+        ) : (
+          <>
+            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+              {/* flex-wrap + el span de estado en w-full: cuando el nombre es
+                  largo y no entran los 3 en una fila, el estado pasa solo a su
+                  propia línea en vez de superponerse o forzar scroll horizontal
+                  — en pantallas con más ancho (sm+), si entran los tres en una
+                  fila, se acomodan igual que antes (w-auto). */}
+              {/* Paginado en bloques de GUEST_DETAIL_PAGE_SIZE (auditoría F7,
+                  mismo patrón que GuestList.tsx) — `guests` ya está completo
+                  en memoria (getAllGuests trajo todo), esto solo limita
+                  cuántos nodos DOM se montan de una vez. */}
+              {guests.slice(0, visibleGuestCount).map((guest) => (
+                <div key={guest.id} className="flex flex-wrap items-start justify-between gap-x-2 gap-y-0.5 py-2 text-sm">
+                  <span className="text-gray-900 dark:text-white min-w-0 flex-1 break-words">
+                    {guest.isGroup ? (
+                      <>
+                        {guest.name}
+                        <span className="text-gray-400 dark:text-gray-500"> · {partySize(guest)} integrantes</span>
+                      </>
+                    ) : (
+                      <>
+                        {guest.name} {guest.lastName}
+                        {guest.companions.length > 0 && <span className="text-gray-400 dark:text-gray-500"> +{guest.companions.length}</span>}
+                      </>
                     )}
-                  </>
-                ) : (
-                  'Pendiente'
-                )}
-              </span>
+                  </span>
+                  <span className="text-gray-400 dark:text-gray-500 text-xs shrink-0">{RSVP_LABELS[guest.rsvpStatus]}</span>
+                  <span className="text-gray-500 dark:text-gray-400 text-xs w-full sm:w-auto sm:text-right shrink-0">
+                    {guest.status === 'checked_in' && guest.checkedInAt ? (
+                      <>
+                        Entró {new Date(guest.checkedInAt).toLocaleTimeString()}
+                        {guest.checkedOutAt && (
+                          <> · {guest.exitType === 'final' ? 'Salió (definitivo)' : 'Salió (temporal)'} {new Date(guest.checkedOutAt).toLocaleTimeString()}</>
+                        )}
+                      </>
+                    ) : (
+                      'Pendiente'
+                    )}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+            {guests.length > visibleGuestCount && (
+              <button
+                onClick={() => setVisibleGuestCount((c) => c + GUEST_DETAIL_PAGE_SIZE)}
+                className="w-full text-sm text-primary font-medium py-2.5 hover:underline"
+              >
+                Cargar más invitados ({guests.length - visibleGuestCount} restantes)
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-medium text-gray-900 dark:text-white">Línea de tiempo</h2>
-          {/* "Llegadas por hora" y esta lista se cargan una vez al abrir (no
-              en vivo, ver getCheckins) — este botón las refresca sin salir
-              de la pantalla. Los conteos de arriba (Escaneados/Dentro ahora)
-              siguen en tiempo real, no dependen de este botón. */}
+          {/* Esta lista, "Detalle por invitado" y "Analytics de llegadas" se
+              cargan una vez al abrir (no en vivo, ver getCheckins/
+              getAllGuests) — este botón las refresca sin salir de la
+              pantalla. Los conteos de arriba (Escaneados/Dentro ahora/
+              Llegadas por hora) siguen en tiempo real, no dependen de este
+              botón. */}
           <button
             onClick={() => setRefreshToken((n) => n + 1)}
-            disabled={checkinsLoading}
+            disabled={checkinsLoading || guestsLoading}
             className="text-sm text-primary font-medium disabled:opacity-50"
           >
-            {checkinsLoading ? 'Actualizando…' : 'Actualizar'}
+            {checkinsLoading || guestsLoading ? 'Actualizando…' : 'Actualizar'}
           </button>
         </div>
         {checkinsError ? (

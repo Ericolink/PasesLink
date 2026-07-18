@@ -128,13 +128,11 @@ export interface EventData {
   // puedan calcular "% de asistencia" correctamente: dividir
   // checkedInCount (personas) entre guestCount (invitaciones) da porcentajes
   // incorrectos en cuanto un invitado tiene acompañantes o es una familia de
-  // varios integrantes. EventDetail, que sí carga `guests`, sigue usando
-  // totalPeople (useGuestStats) en vez de este campo — ambos deben coincidir.
+  // varios integrantes.
   peopleCount: number
   // Asistencia acumulada (cuánta gente hizo check-in alguna vez) — nunca se
   // decrementa por una salida individual. Para "cuánta gente hay adentro
-  // ahora mismo" usar `occupancyCount` (o `useGuestStats.peopleInside` para
-  // el subconjunto de invitados con pase, sin walk-ins anónimos).
+  // ahora mismo" usar `occupancyCount`.
   checkedInCount: number
   // Ocupación en vivo: sube con cualquier ingreso (check-in, reingreso o
   // walk-in anónimo) y baja con cualquier salida (temporal, definitiva o
@@ -167,6 +165,21 @@ export interface EventData {
   // si hace falta reflejar check-ins ya escaneados antes de este cambio
   // (mismo criterio que paidCount arriba).
   checkinsByHour?: Record<string, number>
+  // Cantidad de invitaciones/documentos `guests` (no personas — mismo
+  // criterio que guestCount, no peopleCount) por cada valor de rsvpStatus.
+  // Mantenidos con increment() en addGuest/addGuestsBulk/addGuestsFromRows
+  // (siempre suman a rsvpPendingCount, ver buildNewGuestPayload),
+  // registerWalkInGuest (siempre a rsvpYesCount), setGuestRsvp/
+  // resetGuestRsvp (mueven de un balde a otro) y deleteGuest/
+  // bulkDeleteGuests (restan del balde que tenía el invitado borrado) — ver
+  // auditoría de escalabilidad, hallazgo F22. Reemplazan el cálculo que
+  // antes recorría TODO el array `guests` en Reports.tsx en cada render.
+  // Eventos con invitados de antes de este campo no lo tienen poblado
+  // retroactivamente — correr scripts/backfill-rsvp-counts.mjs una vez si
+  // hace falta (mismo criterio que paidCount/checkinsByHour arriba).
+  rsvpYesCount?: number
+  rsvpNoCount?: number
+  rsvpPendingCount?: number
   coOrganizersMap?: Record<string, string>  // { [uid]: email }
   // Permisos granulares por co-organizador (ver src/types/coOrganizerPermissions.ts).
   // Opcional y aditivo: un co-organizador sin entrada acá (evento/co-org de

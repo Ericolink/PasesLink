@@ -92,6 +92,9 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     occupancyCount: 0,
     paidCount: 0,
     checkinsByHour: {},
+    rsvpYesCount: 0,
+    rsvpNoCount: 0,
+    rsvpPendingCount: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -444,6 +447,11 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     // Eventos con check-ins de antes de este campo caen a {} — ver
     // scripts/backfill-checkins-by-hour.mjs.
     checkinsByHour: (data.checkinsByHour as Record<string, number>) || {},
+    // Eventos con invitados de antes de estos campos caen a 0 — ver
+    // scripts/backfill-rsvp-counts.mjs.
+    rsvpYesCount: (data.rsvpYesCount as number) || 0,
+    rsvpNoCount: (data.rsvpNoCount as number) || 0,
+    rsvpPendingCount: (data.rsvpPendingCount as number) || 0,
     coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},
     coOrganizerPermissions: data.coOrganizerPermissions as EventData['coOrganizerPermissions'],
     createdAt: toMillis(data.createdAt),

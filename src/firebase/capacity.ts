@@ -173,6 +173,12 @@ export async function registerWalkInGuest(
     tx.update(eventRef, {
       guestCount: currentGuestCount + 1,
       peopleCount: currentPeopleCount + clampedPartySize,
+      // El invitado se crea con rsvpStatus: 'yes' más abajo (se registra a sí
+      // mismo, ya está confirmando que asiste) — increment() sí es seguro
+      // acá (a diferencia de guestCount/peopleCount arriba): es un campo
+      // nuevo, nunca tuvo la ambigüedad de "ausente vs 0" que forzó el
+      // cálculo absoluto de esos dos.
+      rsvpYesCount: increment(1),
     })
 
     return { status: 'success', qrToken }

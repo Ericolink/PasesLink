@@ -119,10 +119,11 @@ export async function submitFeedback(input: SubmitFeedbackInput): Promise<void> 
   localStorage.setItem(ANON_COOLDOWN_KEY, String(Date.now()))
 }
 
-// Sin `limit()` a propósito, mismo criterio que subscribeToAllEvents en
-// firebase/admin.ts: panel de un solo admin, bajo volumen esperado. Si el
-// volumen crece, separar en vivo (ventana reciente) + carga histórica a
-// pedido, como ya hace wall.ts.
+// Sin `limit()` a propósito: panel de un solo admin, bajo volumen esperado.
+// Si el volumen crece, separar en vivo (ventana reciente) + carga histórica
+// a pedido, como ya hace wall.ts (o pasar a lectura puntual + refresco
+// manual, como ya se hizo con events/users en firebase/admin.ts — auditoría
+// de escalabilidad, hallazgo F10).
 export function subscribeToAllFeedback(
   callback: (items: Feedback[]) => void,
   onError?: (error: Error) => void,
