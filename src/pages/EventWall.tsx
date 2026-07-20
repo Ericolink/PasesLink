@@ -227,24 +227,18 @@ export function EventWall() {
     await pinWallMessage(id, msg.id, msg.pinned)
   }, [id])
 
-  // Optimista: refleja la reacción en `messages` antes de que Firestore
-  // confirme (el listener en vivo la va a pisar con el eco del server en
-  // cuanto llegue, pero el usuario la ve al instante). Si la escritura
-  // falla, se revierte a mano.
+  // El estado optimista de "mi reacción" (y su revert si la escritura falla)
+  // ahora vive en ReactionPicker (ver utils/reactions.ts) — este handler solo
+  // dispara la escritura real y re-lanza el error para que ese revert pueda
+  // ocurrir; ya no muta `messages` a mano (auditoría F2/F11, `reactions` dejó
+  // de ser el campo que representa esto).
   const handleReact = useCallback(async (msg: WallMessage, type: ReactionType | null) => {
     if (!id) return
-    const token = getDeviceToken()
-    const prevReactions = msg.reactions
-    const nextReactions = { ...prevReactions }
-    if (type) nextReactions[token] = { type, name: postLabel || 'Invitado', reactedAt: Date.now(), ...(postPhotoURL ? { photoURL: postPhotoURL } : {}) }
-    else delete nextReactions[token]
-    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: nextReactions } : m)))
-
     try {
-      await reactToWallMessage(id, msg.id, token, postLabel || 'Invitado', type, postPhotoURL)
+      await reactToWallMessage(id, msg.id, getDeviceToken(), postLabel || 'Invitado', type, postPhotoURL)
     } catch (err) {
       console.error('Error reacting to wall message:', err)
-      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: prevReactions } : m)))
+      throw err
     }
   }, [id, postLabel, postPhotoURL])
 
@@ -289,27 +283,21 @@ export function EventWall() {
     await pinPhoto(id, photo.id, photo.pinned)
   }, [id])
 
-  // Mismo patrón optimista que handleReact/handleReply (arriba), pero sobre
-  // `photos` — reutiliza reactToPhoto/replyToPhoto (src/firebase/photos.ts),
-  // que a su vez comparten motor con los mensajes (ver
-  // src/firebase/interactions.ts). Una reacción/respuesta hecha desde una
-  // historia (PhotoViewer modo story, vía StoriesBar) actualiza el mismo
-  // estado `photos` que la card del feed, así que ambas vistas quedan en
-  // sync sin lógica extra.
+  // Ídem handleReact — el revert optimista de "mi reacción" vive en
+  // ReactionPicker, este handler solo dispara la escritura real. Reutiliza
+  // reactToPhoto/replyToPhoto (src/firebase/photos.ts), que a su vez
+  // comparten motor con los mensajes (ver src/firebase/interactions.ts). Una
+  // reacción/respuesta hecha desde una historia (PhotoViewer modo story, vía
+  // StoriesBar) actualiza el mismo estado `photos` que la card del feed
+  // (para `replies`, que sigue viviendo en `photos` — ver handleReplyPhoto),
+  // así que ambas vistas quedan en sync sin lógica extra.
   const handleReactPhoto = useCallback(async (photo: PhotoData, type: ReactionType | null) => {
     if (!id) return
-    const token = getDeviceToken()
-    const prevReactions = photo.reactions
-    const nextReactions = { ...prevReactions }
-    if (type) nextReactions[token] = { type, name: postLabel || 'Invitado', reactedAt: Date.now(), ...(postPhotoURL ? { photoURL: postPhotoURL } : {}) }
-    else delete nextReactions[token]
-    setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: nextReactions } : p)))
-
     try {
-      await reactToPhoto(id, photo.id, token, postLabel || 'Invitado', type, postPhotoURL)
+      await reactToPhoto(id, photo.id, getDeviceToken(), postLabel || 'Invitado', type, postPhotoURL)
     } catch (err) {
       console.error('Error reacting to photo:', err)
-      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: prevReactions } : p)))
+      throw err
     }
   }, [id, postLabel, postPhotoURL])
 
@@ -514,7 +502,6 @@ export function EventWall() {
               templateId={event?.templateId}
               eventId={id || ''}
               eventName={event?.name || ''}
-              myToken={deviceToken}
               onPin={handlePin}
               onRequestDelete={setDeletingMessageId}
               onReact={handleReact}

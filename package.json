@@ -15,7 +15,8 @@
     "restore:firestore": "node scripts/restore-firestore.mjs",
     "backfill:paid-count": "node scripts/backfill-paid-count.mjs",
     "backfill:checkins-by-hour": "node scripts/backfill-checkins-by-hour.mjs",
-    "backfill:rsvp-counts": "node scripts/backfill-rsvp-counts.mjs"
+    "backfill:rsvp-counts": "node scripts/backfill-rsvp-counts.mjs",
+    "backfill:reactions-subcollection": "node scripts/backfill-reactions-subcollection.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

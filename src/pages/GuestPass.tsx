@@ -2,20 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
-import { subscribeToEventWithInitial } from '../firebase/events'
-import { canSubmitPaymentProof, checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp, submitPaymentProof } from '../firebase/guests'
+import { getEvent } from '../firebase/events'
+import { checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { saveUserInvitation } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { resolveEventPermissions } from '../types/coOrganizerPermissions'
-import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
-import { InvitationCard } from '../components/InvitationCard'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
@@ -33,6 +31,9 @@ import { SkeletonBlock } from '../components/Skeleton'
 import { PerforatedDivider } from '../components/PerforatedDivider'
 import { PassInfoCell } from '../components/PassInfoCell'
 import { GuestPassTicket } from '../components/GuestPassTicket'
+import { OrganizerPassView, type CheckInState } from '../components/OrganizerPassView'
+import { PaymentProofForm } from '../components/PaymentProofForm'
+import { usePaymentProof } from '../hooks/usePaymentProof'
 import { formatDate, formatTime12h } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadPassImage } from '../utils/downloadPass'
@@ -86,42 +87,63 @@ function GuestPassInner() {
   const [showDeclineModal, setShowDeclineModal] = useState(false)
   const [showSignupPrompt, setShowSignupPrompt] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
-  const [checkInState, setCheckInState] = useState<'idle' | 'loading' | 'done' | 'already' | 'payment_required' | 'blocked' | 'not_found'>('idle')
+  const [checkInState, setCheckInState] = useState<CheckInState>('idle')
   const [paymentSaving, setPaymentSaving] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
-  const [proofNote, setProofNote] = useState('')
-  const [proofFormOpen, setProofFormOpen] = useState(false)
-  const [proofSubmitting, setProofSubmitting] = useState(false)
-  const [proofError, setProofError] = useState<string | null>(null)
+  const proof = usePaymentProof(eventId, guest?.id, setGuest)
   const perms = useEventPermissions(event, user)
   const qrWrapperRef = useRef<HTMLDivElement>(null)
   const ticketRef = useRef<HTMLDivElement>(null)
-  // Guarda la promesa del PRIMER snapshot del listener de evento (efecto de
-  // abajo, "Suscripción en vivo"), keyeada por eventId. El bootstrap de acá
-  // abajo depende también de user/authLoading (que pueden cambiar de
-  // identidad sin que cambie eventId — ver useAuth.ts), así que no puede
-  // compartir el mismo useEffect que el listener en vivo sin forzarlo a
-  // resuscribirse en cada uno de esos cambios. Este ref deja al listener
-  // vivir en su propio efecto (estable, solo depende de eventId) mientras el
-  // bootstrap reusa su primer snapshot en vez de pagar un getEvent() aparte.
+  // Guarda la promesa de la lectura del evento (efecto de abajo), keyeada por
+  // eventId. El bootstrap de acá abajo depende también de user/authLoading
+  // (que pueden cambiar de identidad sin que cambie eventId — ver
+  // useAuth.ts), así que no puede compartir el mismo useEffect que la carga
+  // del evento sin forzarla a repetirse en cada uno de esos cambios. Este ref
+  // deja esa carga vivir en su propio efecto (estable, solo depende de
+  // eventId) mientras el bootstrap reusa la misma promesa en vez de pagar un
+  // getEvent() aparte.
   const eventInitialRef = useRef<{ eventId: string; initial: Promise<EventData | null> } | null>(null)
 
-  // Suscripción en vivo al evento — estable, solo depende de eventId (no de
-  // qrToken/user/authLoading, que cambian con más frecuencia). Un pase ya
-  // emitido y abierto debe reflejar los cambios que el organizador guarde
-  // después (horario, portada, instrucciones de pago, plantilla, etc.).
-  // Expone además la promesa de su PRIMER snapshot vía el ref de arriba, que
-  // el bootstrap de abajo reusa en vez de pagar un getEvent() aparte —
-  // declarado ANTES que el efecto de bootstrap para que React lo ejecute
-  // primero en el mismo commit y el ref ya esté poblado cuando el bootstrap
-  // lo lea.
+  // Antes: listener en vivo (subscribeToEventWithInitial) sobre
+  // events/{eventId} durante todo el tiempo que el pase queda abierto. Un
+  // evento grande puede tener miles de pases abiertos en simultáneo mientras
+  // el escáner hace check-in en la puerta — cada check-in escribe contadores
+  // en ESTE MISMO documento, y Firestore reenvía el documento completo a
+  // cada listener activo en cada escritura (factura como una lectura por
+  // listener por escritura). Es el escenario de mayor costo de toda la
+  // auditoría de escalabilidad (hallazgo F1).
+  // GuestPass no muestra ningún contador en vivo del evento (verificado: no
+  // referencia checkedInCount/occupancyCount/paidCount/peopleCount en este
+  // archivo) — el listener solo servía para reflejar ediciones del
+  // organizador (horario, portada, instrucciones de pago, plantilla) hechas
+  // mientras el pase está abierto, algo infrecuente y no urgente. Se
+  // reemplaza por una lectura puntual al montar + refresco cuando la pestaña
+  // vuelve a estar visible (el usuario vuelve a mirar el pase después de
+  // minutos/horas afuera) — conserva ese caso de uso sin pagar el fan-out de
+  // cada check-in. Si en el futuro se necesita reflejar ediciones del
+  // organizador de forma verdaderamente instantánea, ver la migración de F1
+  // (separar contadores volátiles a un documento aparte) para poder volver a
+  // un listener en vivo sin reintroducir este costo.
   useEffect(() => {
     if (!eventId) return
-    const { unsubscribe, initial } = subscribeToEventWithInitial(eventId, (ev) => {
-      if (ev) setEvent(ev)
+    const id = eventId
+    let cancelled = false
+    const initial = getEvent(id)
+    eventInitialRef.current = { eventId: id, initial }
+    initial.then((ev) => {
+      if (!cancelled && ev) setEvent(ev)
     })
-    eventInitialRef.current = { eventId, initial }
-    return unsubscribe
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return
+      getEvent(id).then((ev) => {
+        if (!cancelled && ev) setEvent(ev)
+      })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [eventId])
 
   useEffect(() => {
@@ -295,179 +317,24 @@ function GuestPassInner() {
     }
   }
 
-  // Acción del invitado: "Ya pagué / Comprobante enviado" — pasa a esperar
-  // que el organizador lo apruebe o lo rechace (ver submitPaymentProof en
-  // firebase/guests.ts). Sin límite de tiempo.
-  async function handleSubmitProof() {
-    if (!eventId || !guest) return
-    if (!proofNote.trim()) {
-      setProofError('Ingresá el número de referencia de tu transferencia.')
-      return
-    }
-    setProofSubmitting(true)
-    setProofError(null)
-    try {
-      await submitPaymentProof(eventId, guest.id, proofNote)
-      setGuest((g) => g ? { ...g, paymentStatus: 'pending_confirmation', paymentNote: proofNote.trim() } : g)
-      setProofFormOpen(false)
-    } catch (err) {
-      console.error('Error submitting payment proof:', err)
-      setProofError('No se pudo enviar. Intenta de nuevo.')
-    } finally {
-      setProofSubmitting(false)
-    }
-  }
-
-  // Vista del organizador: solo check-in, sin lock ni RSVP
+  // Vista del organizador: solo check-in, sin lock ni RSVP — extraída a
+  // OrganizerPassView.tsx (auditoría de escalabilidad, hallazgo F13): es una
+  // pantalla completa detrás de una sola condición, sin compartir estado con
+  // el resto de este componente (RSVP, comprobante de pago propio, descarga).
   if (isOrg) {
     return (
-      <InvitationThemeRoot
-        templateId={event.templateId}
-        accentOverride={event.accentColor}
-        className="max-w-sm mx-auto px-4 py-12 text-center"
-      >
-        <InvitationCard>
-          <p className="text-xs uppercase tracking-wide mb-4 text-[var(--invite-text-muted)]">Modo organizador</p>
-          <h1 className="text-xl font-semibold">{guest.name}</h1>
-          {guest.isGroup ? (
-            <p className="text-sm mt-1 text-[var(--invite-text-muted)]">{partySize(guest)} integrantes</p>
-          ) : (
-            guest.companions.length > 0 && (
-              <p className="text-sm mt-1 text-[var(--invite-text-muted)]">+ {guest.companions.length} acompañante(s)</p>
-            )
-          )}
-          <p className="text-sm mt-1 text-[var(--invite-text-muted)]">{event.name}</p>
-
-          {event.requiresPayment && (
-            <div className="mt-4 flex flex-col items-center gap-2">
-              {guest.paymentStatus === 'paid' && <ThemeSeal templateId={event.templateId} />}
-              <span
-                className={`inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full font-medium ${
-                  guest.paymentStatus === 'paid' ? 'invite-badge-positive bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]' : 'bg-amber-100 text-amber-700'
-                }`}
-              >
-                <IconTicket className={`w-4 h-4 ${guest.paymentStatus === 'paid' ? 'text-green-500' : ''}`} />
-                {guest.paymentStatus === 'paid'
-                  ? `Pago confirmado${guest.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[guest.paymentMethod]})` : ''}`
-                  : guest.paymentStatus === 'pending_confirmation'
-                    ? 'Comprobante enviado — a revisar'
-                    : `Debe ${event.currency}${(event.ticketPrice * (1 + guest.companions.length)).toLocaleString('es')}${guest.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[guest.paymentMethod]})` : ''}`}
-              </span>
-
-              {guest.paymentNote && (
-                <div className="w-full rounded-md border px-3 py-2 text-left" style={{ borderColor: 'var(--invite-border)' }}>
-                  <p className="text-2xs uppercase tracking-wide font-semibold text-[var(--invite-text-muted)]">Número de referencia</p>
-                  <p className="text-sm font-mono font-medium text-[var(--invite-text)] break-all">{guest.paymentNote}</p>
-                </div>
-              )}
-
-              {paymentError && <p className="text-xs text-red-600">{paymentError}</p>}
-
-              {perms.confirmPayments && (
-                guest.paymentStatus === 'paid' ? (
-                  <button
-                    onClick={() => handleMarkUnpaid()}
-                    disabled={paymentSaving}
-                    className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
-                  >
-                    Marcar como no pagado
-                  </button>
-                ) : guest.paymentStatus === 'pending_confirmation' ? (
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleMarkPaid(guest.paymentMethod || undefined)}
-                      disabled={paymentSaving}
-                      className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
-                    >
-                      Aprobar pago
-                    </button>
-                    <button
-                      onClick={() => handleMarkUnpaid()}
-                      disabled={paymentSaving}
-                      className="text-sm font-medium disabled:opacity-50 text-red-600"
-                    >
-                      Rechazar comprobante
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleMarkPaid(guest.paymentMethod || event.paymentMethods[0])}
-                    disabled={paymentSaving}
-                    className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
-                  >
-                    Confirmar pago
-                  </button>
-                )
-              )}
-            </div>
-          )}
-
-          {checkInState !== 'done' && (
-            <div className="flex justify-center my-6">
-              <div
-                className="invite-qr-frame p-4 border rounded-lg max-w-[250px] max-h-[250px] overflow-hidden flex items-center justify-center"
-                style={{ borderColor: 'var(--invite-border)' }}
-              >
-                <QRCodeCanvas value={passUrl} size={200} marginSize={QR_QUIET_ZONE_MODULES} />
-              </div>
-            </div>
-          )}
-
-          <div className="mt-8">
-            {checkInState === 'done' && (
-              <div className="flex flex-col items-center gap-3">
-                <ThemeSeal templateId={event.templateId} />
-                <span className="invite-badge-icon">
-                  <IconCheckCircle className="w-16 h-16 text-green-500" />
-                </span>
-                <p className="text-lg font-semibold text-[var(--invite-text)]">¡Entrada registrada!</p>
-                {event.welcomeMessage && (
-                  <p className="text-sm italic text-[var(--invite-text-muted)]">{event.welcomeMessage}</p>
-                )}
-              </div>
-            )}
-            {checkInState === 'already' && (
-              <div className="flex flex-col items-center gap-3">
-                <IconAlertTriangle className="w-14 h-14 text-amber-400" />
-                <p className="text-base font-semibold text-amber-600">Ya registrado</p>
-                <p className="text-sm text-[var(--invite-text-muted)]">Este invitado ya hizo check-in anteriormente.</p>
-              </div>
-            )}
-            {checkInState === 'payment_required' && (
-              <p className="text-sm text-amber-600 mb-3">
-                {guest.paymentStatus === 'pending_confirmation'
-                  ? 'Tiene un comprobante esperando revisión. Aprobalo arriba para poder registrar el ingreso.'
-                  : 'Cobra la entrada y marcá el pago antes de registrar el ingreso.'}
-              </p>
-            )}
-            {checkInState === 'blocked' && (
-              <div className="flex flex-col items-center gap-3 mb-3">
-                <IconAlertTriangle className="w-14 h-14 text-red-500" />
-                <p className="text-base font-semibold text-red-600">No se pudo registrar el ingreso</p>
-                <p className="text-sm text-[var(--invite-text-muted)]">
-                  Este invitado se retiró definitivamente del evento. Un organizador puede habilitar su reingreso desde la lista de invitados.
-                </p>
-              </div>
-            )}
-            {checkInState === 'not_found' && (
-              <div className="flex flex-col items-center gap-3 mb-3">
-                <IconAlertTriangle className="w-14 h-14 text-red-500" />
-                <p className="text-base font-semibold text-red-600">No se pudo registrar el ingreso</p>
-                <p className="text-sm text-[var(--invite-text-muted)]">Este pase ya no corresponde a ningún invitado del evento.</p>
-              </div>
-            )}
-            {perms.scanQr && (checkInState === 'idle' || checkInState === 'loading' || checkInState === 'payment_required') && (
-              <button
-                onClick={handleCheckIn}
-                disabled={checkInState === 'loading' || (event.requiresPayment && guest.paymentStatus !== 'paid')}
-                className="w-full text-white rounded-xl py-4 text-lg font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 bg-[var(--invite-accent)]"
-              >
-                {checkInState === 'loading' ? 'Registrando…' : 'Registrar entrada'}
-              </button>
-            )}
-          </div>
-        </InvitationCard>
-      </InvitationThemeRoot>
+      <OrganizerPassView
+        event={event}
+        guest={guest}
+        perms={perms}
+        passUrl={passUrl}
+        checkInState={checkInState}
+        paymentSaving={paymentSaving}
+        paymentError={paymentError}
+        onCheckIn={handleCheckIn}
+        onMarkPaid={handleMarkPaid}
+        onMarkUnpaid={handleMarkUnpaid}
+      />
     )
   }
 
@@ -823,61 +690,12 @@ function GuestPassInner() {
                 <p className="text-sm text-[var(--invite-text-muted)]">Pagás en efectivo, presencialmente, el día del evento.</p>
               )}
 
-              {/* "Ya pagué" — solo transferencia, y solo mientras tenga algo
-                  que confirmar (ver canSubmitPaymentProof). Independiente del
-                  botón de WhatsApp de abajo: este marca el estado en la app
-                  (pausa el cronómetro), WhatsApp sigue siendo el canal para
-                  mandar la imagen real del comprobante. */}
-              {canSubmitPaymentProof(guest) && (
-                <div className="mt-3">
-                  {!proofFormOpen ? (
-                    <button
-                      onClick={() => setProofFormOpen(true)}
-                      className="w-full border rounded-md px-4 py-3 text-sm font-semibold hover:opacity-80 transition-opacity text-[var(--invite-accent)]"
-                      style={{ borderColor: 'var(--invite-accent)' }}
-                    >
-                      Ya pagué / Comprobante enviado
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <label className="block text-xs font-medium text-[var(--invite-text-muted)]">
-                        Número de referencia de tu transferencia *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={proofNote}
-                        onChange={(e) => setProofNote(e.target.value)}
-                        maxLength={300}
-                        placeholder="Ej: op. 123456789"
-                        className="w-full rounded-md border px-3 py-2 text-sm bg-[var(--invite-surface)] text-[var(--invite-text)]"
-                        style={{ borderColor: 'var(--invite-border)' }}
-                      />
-                      <p className="text-xs text-[var(--invite-text-muted)]">
-                        Lo va a ver el organizador para poder cotejarlo con su resumen bancario.
-                      </p>
-                      {proofError && <p className="text-xs text-red-600">{proofError}</p>}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleSubmitProof}
-                          disabled={proofSubmitting || !proofNote.trim()}
-                          className="flex-1 text-white rounded-md px-4 py-3 text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
-                        >
-                          {proofSubmitting ? 'Enviando…' : 'Confirmar'}
-                        </button>
-                        <button
-                          onClick={() => setProofFormOpen(false)}
-                          disabled={proofSubmitting}
-                          className="border rounded-md px-4 py-3 text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
-                          style={{ borderColor: 'var(--invite-border)' }}
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* "Ya pagué" — extraído a PaymentProofForm.tsx (auditoría de
+                  escalabilidad, hallazgo F13). Independiente del botón de
+                  WhatsApp de abajo: este marca el estado en la app (pausa el
+                  cronómetro), WhatsApp sigue siendo el canal para mandar la
+                  imagen real del comprobante. */}
+              <PaymentProofForm guest={guest} proof={proof} />
 
               {event.organizerContactPhone && (
                 <a

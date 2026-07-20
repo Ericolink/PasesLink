@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Html5Qrcode } from 'html5-qrcode'
 import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEventOnly } from '../hooks/useEventOnly'
@@ -9,11 +8,14 @@ import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useIsLandscape } from '../hooks/useIsLandscape'
 import { useLiveRef } from '../hooks/useLiveRef'
+import { useWalkInCounter } from '../hooks/useWalkInCounter'
+import { useQrScanner } from '../hooks/useQrScanner'
 import { IconArrowLeft, IconRotateCcw } from '../components/Icons'
 import { checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
 import type { PaymentMethod } from '../types'
-import { walkIn, walkOut } from '../firebase/capacity'
+import { walkIn } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
+import { WalkInCounter } from '../components/WalkInCounter'
 import { ExitConfirmDialog, type PendingExit } from '../components/ExitConfirmDialog'
 import { CameraPermissionHandler, ManualCodeEntryDialog } from '../components/Scanner'
 import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
@@ -43,7 +45,6 @@ export type ScanFeedback = {
 type ScanMode = 'entrada' | 'salida'
 
 const AUTO_CLOSE_MS = 3500
-const SCAN_COOLDOWN_MS = 2500
 const NETWORK_RETRY_MS = 2000
 
 // Resultados que requieren una decisión del guardia (cupo lleno, QR duplicado,
@@ -68,9 +69,6 @@ export function Scanner() {
   const perms = useEventPermissions(event, user)
   const isLandscape = useIsLandscape()
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
-  const [scanning, setScanning] = useState(false)
-  const [cameraError, setCameraError] = useState<string | null>(null)
-  const [walkInMsg, setWalkInMsg] = useState<'success' | 'full' | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
   const [manualValue, setManualValue] = useState('')
   const [scanMode, setScanMode] = useState<ScanMode>('entrada')
@@ -79,38 +77,20 @@ export function Scanner() {
   const [confirmingPayment, setConfirmingPayment] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
 
-  const scannerRef = useRef<Html5Qrcode | null>(null)
-  const startingRef = useRef(false)
-  const cooldownRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hasAutoStartedRef = useRef(false)
-  // El callback de frame de html5-qrcode se registra UNA sola vez en
-  // startScanning() (auto-arranque, ver más abajo) — si processQr leyera
+  // El callback de frame de html5-qrcode (dentro de useQrScanner) se
+  // registra UNA sola vez al auto-arrancar — si processQr leyera
   // event/scanMode/pendingExit/feedback directo del estado, quedaría
   // "congelado" en el valor que tenían en ese primer render y nunca vería,
   // por ejemplo, que el guardia cambió a modo "Salida". feedbackRef cumple
   // además otro rol: mientras el diálogo "¿Ya pagó?" está abierto (type
   // 'payment_required'), un frame de cámara de fondo no debe pisarlo con
-  // otro invitado — el cooldown de SCAN_COOLDOWN_MS es mucho más corto que
-  // lo que tarda el guardia en decidir Sí/No.
+  // otro invitado — el cooldown entre lecturas (ver useQrScanner) es mucho
+  // más corto que lo que tarda el guardia en decidir Sí/No.
   const eventRef = useLiveRef(event)
   const scanModeRef = useLiveRef(scanMode)
   const pendingExitRef = useLiveRef(pendingExit)
   const feedbackRef = useLiveRef(feedback)
-
-  useEffect(() => {
-    return () => { void stopScanning() }
-  }, [])
-
-  // Auto-start camera when the event is loaded and the viewer has access.
-  // hasAutoStartedRef prevents re-firing when event state updates.
-  useEffect(() => {
-    if (!event || !user || hasAutoStartedRef.current) return
-    if (!perms.scanQr) return
-    hasAutoStartedRef.current = true
-    void startScanning()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event, user, perms.scanQr])
 
   function showFeedback(value: ScanFeedback) {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
@@ -120,36 +100,11 @@ export function Scanner() {
       : null
   }
 
-  async function startScanning() {
-    // Evita inicializar dos instancias de Html5Qrcode en paralelo si el
-    // usuario pulsa "Reintentar"/"Activar cámara" varias veces antes de que
-    // la primera llamada a scanner.start() resuelva (sea éxito o error).
-    if (startingRef.current) return
-    startingRef.current = true
-    setCameraError(null)
-    const scanner = new Html5Qrcode('qr-reader', { verbose: false })
-    scannerRef.current = scanner
-    try {
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10 },
-        async (decodedText) => {
-          if (cooldownRef.current) return
-          cooldownRef.current = true
-          await processQr(decodedText)
-          setTimeout(() => { cooldownRef.current = false }, SCAN_COOLDOWN_MS)
-        },
-        () => {},              // ignorar errores de frame (normales durante el escaneo)
-      )
-      setScanning(true)
-    } catch {
-      setCameraError('camera_unavailable')
-      try { scanner.clear() } catch { /* ignore */ }
-      scannerRef.current = null
-    } finally {
-      startingRef.current = false
-    }
-  }
+  const { walkInMsg, handleWalkIn, handleWalkOut } = useWalkInCounter(eventId, (detail) => showFeedback({ type: 'error', detail }))
+  const { scanning, cameraError, startScanning, stopScanning } = useQrScanner({
+    canAutoStart: !!(event && user && perms.scanQr),
+    onDecode: processQr,
+  })
 
   function handleManualSubmit() {
     const value = manualValue.trim()
@@ -161,17 +116,6 @@ export function Scanner() {
     // poder reusar el mismo extractQrToken() que usa el flujo de cámara.
     const looksLikeUrl = /^https?:\/\//i.test(value)
     void processQr(looksLikeUrl ? value : buildPassUrl(eventId, value))
-  }
-
-  async function stopScanning() {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop()
-        scannerRef.current.clear()
-      } catch { /* already stopped */ }
-      scannerRef.current = null
-    }
-    setScanning(false)
   }
 
   async function processQr(decodedText: string, attempt = 1) {
@@ -452,31 +396,6 @@ export function Scanner() {
     })
   }
 
-  async function handleWalkIn() {
-    if (!eventId) return
-    try {
-      const result = await walkIn(eventId)
-      setWalkInMsg(result)
-      if (result === 'success') confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } })
-      setTimeout(() => setWalkInMsg(null), 2000)
-    } catch (err) {
-      console.error('Error registrando walk-in:', err)
-      captureException(err, { tags: { component: 'scanner', action: 'walk_in' } })
-      showFeedback({ type: 'error', detail: 'No se pudo registrar el ingreso. Intenta de nuevo.' })
-    }
-  }
-
-  async function handleWalkOut() {
-    if (!eventId) return
-    try {
-      await walkOut(eventId)
-    } catch (err) {
-      console.error('Error registrando walk-out:', err)
-      captureException(err, { tags: { component: 'scanner', action: 'walk_out' } })
-      showFeedback({ type: 'error', detail: 'No se pudo registrar la salida. Intenta de nuevo.' })
-    }
-  }
-
   if (eventLoading) {
     // !bg-white/10 (con !important): SkeletonBlock por defecto usa
     // bg-gray-200 dark:bg-gray-700, pensado para fondos claros/dark-mode
@@ -545,7 +464,7 @@ export function Scanner() {
 
             {cameraError ? (
               <CameraPermissionHandler
-                onRetry={() => { setCameraError(null); void startScanning() }}
+                onRetry={() => void startScanning()}
                 onManual={() => setManualOpen((v) => !v)}
               />
             ) : (
@@ -634,25 +553,7 @@ export function Scanner() {
           </button>
         </div>
 
-        {/* Contador walk-in para eventos open/hybrid */}
-        {event && event.entryMode !== 'list' && (
-          <div className="bg-gray-800 rounded-lg p-4">
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-3">Contador walk-in</p>
-            <div className="flex items-center gap-3">
-              <button onClick={handleWalkOut} aria-label="Registrar salida" className="min-h-12 flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded-md py-3 text-lg font-bold transition-colors">−</button>
-              <div className="text-center min-w-[60px]">
-                <span className="text-2xl font-bold text-white">{event.checkedInCount}</span>
-                {event.capacity && <p className="text-xs text-gray-400">/ {event.capacity}</p>}
-              </div>
-              <button onClick={handleWalkIn} aria-label="Registrar entrada" className="min-h-12 flex-1 bg-primary hover:bg-primary-dark text-white rounded-md py-3 text-lg font-bold transition-colors">+</button>
-            </div>
-            {walkInMsg && (
-              <p className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>
-                {walkInMsg === 'full' ? '¡Cupo máximo alcanzado!' : 'Ingreso registrado'}
-              </p>
-            )}
-          </div>
-        )}
+        <WalkInCounter event={event} walkInMsg={walkInMsg} onWalkIn={handleWalkIn} onWalkOut={handleWalkOut} />
       </div>
 
       {feedback && (

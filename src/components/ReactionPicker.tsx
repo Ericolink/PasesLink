@@ -1,19 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconThumbsUp } from './Icons'
 import { ReactionListSheet } from './ReactionListSheet'
-import { REACTIONS, REACTION_BY_TYPE } from '../utils/reactions'
-import type { ReactionType, WallReaction } from '../types'
+import { REACTIONS, REACTION_BY_TYPE, getMyReaction, setMyReaction } from '../utils/reactions'
+import type { InteractiveCollection } from '../firebase/interactions'
+import type { ReactionType } from '../types'
 
 const HOVER_OPEN_DELAY_MS = 400
 const LONG_PRESS_DELAY_MS = 400
 
 interface Props {
-  reactions: Record<string, WallReaction>
-  myToken: string
-  onReact: (type: ReactionType | null) => void
+  eventId: string
+  collectionName: InteractiveCollection
+  docId: string
+  // Denormalizados (auditoría F2/F11) en vez del mapa `reactions` completo,
+  // que se dejó de escribir — ver interactions.ts. El costo de render de
+  // este componente (resumen + tooltip) ya no depende de cuántas
+  // reacciones tenga el mensaje/foto.
+  reactionCount: number
+  reactionCountsByType: Partial<Record<ReactionType, number>>
+  onReact: (type: ReactionType | null) => void | Promise<void>
 }
 
-export function ReactionPicker({ reactions, myToken, onReact }: Props) {
+export function ReactionPicker({ eventId, collectionName, docId, reactionCount, reactionCountsByType, onReact }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [listOpen, setListOpen] = useState(false)
   // Única pista visual de que "mantener presionado" hace algo distinto a tocar
@@ -25,26 +33,20 @@ export function ReactionPicker({ reactions, myToken, onReact }: Props) {
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const mine = reactions[myToken]?.type ?? null
+  // "Mi reacción" ya no viene del mapa `reactions` del mensaje/foto (ver
+  // utils/reactions.ts) — se guarda por dispositivo en localStorage, igual
+  // que el propio device token. Sin useEffect para re-leerla si cambia
+  // `docId`: cada card vive detrás de un `key={item.id}` en el feed (ver
+  // EventWall.tsx/WallSection.tsx), así que un docId distinto siempre
+  // implica un montaje nuevo de este componente — el inicializador de
+  // useState ya corre de nuevo solo.
+  const [mine, setMine] = useState<ReactionType | null>(() => getMyReaction(docId))
 
-  const { total, top } = useMemo(() => {
-    const counts = new Map<ReactionType, number>()
-    for (const r of Object.values(reactions)) counts.set(r.type, (counts.get(r.type) || 0) + 1)
-    const top = REACTIONS.filter((r) => counts.has(r.type)).sort(
-      (a, b) => (counts.get(b.type) || 0) - (counts.get(a.type) || 0),
-    )
-    return { total: Object.values(reactions).length, top }
-  }, [reactions])
-
-  const namesByType = useMemo(() => {
-    const map = new Map<ReactionType, string[]>()
-    for (const r of Object.values(reactions)) {
-      const list = map.get(r.type) || []
-      list.push(r.name)
-      map.set(r.type, list)
-    }
-    return map
-  }, [reactions])
+  const top = useMemo(
+    () => REACTIONS.filter((r) => (reactionCountsByType[r.type] || 0) > 0)
+      .sort((a, b) => (reactionCountsByType[b.type] || 0) - (reactionCountsByType[a.type] || 0)),
+    [reactionCountsByType],
+  )
 
   useEffect(() => {
     if (!pickerOpen) return
@@ -74,20 +76,42 @@ export function ReactionPicker({ reactions, myToken, onReact }: Props) {
     timerRef.current = setTimeout(() => setPickerOpen(true), delay)
   }
 
+  // Optimista: refleja el cambio en `mine` (y en localStorage) antes de que
+  // Firestore confirme, y revierte si la escritura falla — mismo criterio
+  // que ya usaban EventWall.tsx/WallSection.tsx sobre el mapa `reactions`
+  // (ahora ese revert vive acá, junto con el estado que representa).
+  async function react(type: ReactionType | null) {
+    const prev = mine
+    setMine(type)
+    setMyReaction(docId, type)
+    try {
+      await onReact(type)
+    } catch {
+      setMine(prev)
+      setMyReaction(docId, prev)
+    }
+  }
+
   function choose(type: ReactionType) {
-    onReact(mine === type ? null : type)
+    void react(mine === type ? null : type)
     setPickerOpen(false)
   }
 
   function handleMainClick() {
     if (pickerOpen) return
-    onReact(mine ? null : 'like')
+    void react(mine ? null : 'like')
   }
 
   const mineConfig = mine ? REACTION_BY_TYPE.get(mine) : undefined
 
+  // Antes listaba los NOMBRES de quién reaccionó (requería el mapa
+  // `reactions` completo en memoria). Con reactionCountsByType denormalizado
+  // ya no hay nombres disponibles sin una lectura aparte — el tooltip pasa a
+  // mostrar el desglose por tipo (ej. "👍 12 · ❤️ 5"); la lista de nombres
+  // completa sigue disponible al tocar el contador (ReactionListSheet, con
+  // fetch a la subcolección).
   const summaryTitle = top
-    .map((r) => `${r.emoji} ${(namesByType.get(r.type) || []).join(', ')}`)
+    .map((r) => `${r.emoji} ${reactionCountsByType[r.type] || 0}`)
     .join('  •  ')
 
   return (
@@ -139,20 +163,29 @@ export function ReactionPicker({ reactions, myToken, onReact }: Props) {
         <span>{mineConfig ? mineConfig.label : 'Me gusta'}</span>
       </button>
 
-      {total > 0 && (
+      {reactionCount > 0 && (
         <button
           type="button"
           className="reaction-summary"
           title={summaryTitle}
-          aria-label={`Ver quién reaccionó (${total})`}
+          aria-label={`Ver quién reaccionó (${reactionCount})`}
           onClick={() => setListOpen(true)}
         >
           <span aria-hidden="true">{top.slice(0, 3).map((r) => r.emoji).join('')}</span>
-          {total}
+          {reactionCount}
         </button>
       )}
 
-      {listOpen && <ReactionListSheet reactions={reactions} onClose={() => setListOpen(false)} />}
+      {listOpen && (
+        <ReactionListSheet
+          eventId={eventId}
+          collectionName={collectionName}
+          docId={docId}
+          total={reactionCount}
+          countsByType={reactionCountsByType}
+          onClose={() => setListOpen(false)}
+        />
+      )}
     </div>
   )
 }

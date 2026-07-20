@@ -3,11 +3,11 @@ import { GUEST_MAX_COMPANIONS } from './validation'
 export const PASSWORD_MIN_LENGTH = 8
 // Al menos una mayúscula, una minúscula y un número — el largo mínimo se
 // valida aparte (PASSWORD_MIN_LENGTH) porque este patrón no exige longitud.
-export const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/
 export const PASSWORD_HINT = `Mínimo ${PASSWORD_MIN_LENGTH} caracteres, con mayúscula, minúscula y número.`
 
-export const EVENT_CAPACITY_MIN = 1
-export const CAPACITY_ERROR_MESSAGE = 'El límite de invitados debe ser un número mayor a 0.'
+const EVENT_CAPACITY_MIN = 1
+const CAPACITY_ERROR_MESSAGE = 'El límite de invitados debe ser un número mayor a 0.'
 
 export const EVENT_NAME_MAX = 100
 
@@ -44,7 +44,7 @@ export function parseCapacity(rawValue: string): { value: number; error: string 
   return { value, error: null }
 }
 
-export const MAX_COMPANIONS_ERROR_MESSAGE = `Los acompañantes por invitado deben ser un número entre 0 y ${GUEST_MAX_COMPANIONS}.`
+const MAX_COMPANIONS_ERROR_MESSAGE = `Los acompañantes por invitado deben ser un número entre 0 y ${GUEST_MAX_COMPANIONS}.`
 
 /** Parsea el input crudo del campo "acompañantes por invitado" (0-GUEST_MAX_COMPANIONS). Vacío = 0. */
 export function parseMaxCompanions(rawValue: string): { value: number; error: string | null } {

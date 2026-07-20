@@ -89,5 +89,3 @@ export function EventShareCardTemplate({
     </div>
   )
 }
-
-export { CARD_WIDTH, CARD_HEIGHT }

@@ -5,14 +5,14 @@ import { getTemplate } from '../templates/registry'
 // (src/templates/registry.ts) a cualquier formato de exportación
 // (PDF, Excel y lo que venga después) — evita que cada exportador reimplemente
 // su propia conversión hex→RGB o su propio criterio de "esta plantilla es serif".
-export type Rgb = [number, number, number]
+type Rgb = [number, number, number]
 
-export function hexToRgb(hex: string): Rgb {
+function hexToRgb(hex: string): Rgb {
   const n = parseInt(hex.replace('#', ''), 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-export function lighten([r, g, b]: Rgb, amount: number): Rgb {
+function lighten([r, g, b]: Rgb, amount: number): Rgb {
   return [r + (255 - r) * amount, g + (255 - g) * amount, b + (255 - b) * amount].map(Math.round) as Rgb
 }
 
@@ -22,7 +22,7 @@ export function lighten([r, g, b]: Rgb, amount: number): Rgb {
 // (fuentes instaladas en la máquina del anfitrión) pueden usar las fuentes
 // decorativas reales (Cormorant/Cinzel/Rye/EB Garamond/etc.), así que esto es
 // la aproximación más cercana sin empotrar archivos de fuente externos.
-export const SERIF_TEMPLATES = new Set(['wedding', 'graduation', 'formal'])
+const SERIF_TEMPLATES = new Set(['wedding', 'graduation', 'formal'])
 
 export interface ExportPalette {
   isSerif: boolean

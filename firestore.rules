@@ -168,6 +168,57 @@ service cloud.firestore {
         && counterDeltaOk(newEv.get('rsvpPendingCount', 0), oldEv.get('rsvpPendingCount', 0));
     }
 
+    // reactionCount/reactionCountsByType (auditoría F2/F11, migración de
+    // `reactions{}` embebido a subcolección): a diferencia de
+    // counterDeltaOk (margen de 50, pensado para altas en lote como
+    // addGuestsBulk), UNA reacción real (reactToContent, src/firebase/
+    // interactions.ts) solo puede mover el total en como mucho 1 de una vez
+    // (reaccionar, quitar reacción, o cambiar de tipo — que no mueve el
+    // total, solo resta 1 de un tipo y suma 1 en otro) — un margen más
+    // grande dejaría que un cliente hablando directo contra Firestore
+    // infle el conteo sin pasar por la subcolección, justo lo que esta
+    // migración busca evitar.
+    function reactionCounterDeltaOk(newVal, oldVal) {
+      return newVal == oldVal
+        || (newVal < oldVal && newVal >= oldVal - 1)
+        || (newVal > oldVal && newVal <= oldVal + 1);
+    }
+
+    // Tipos cerrados (ver ReactionType en src/types/index.ts) — se validan
+    // por nombre fijo, no iterando el mapa, mismo criterio que rsvpCountsOk
+    // con sus 3 campos fijos.
+    function reactionCountsByTypeOk(oldEv, newEv) {
+      let oldCounts = oldEv.get('reactionCountsByType', {});
+      let newCounts = newEv.get('reactionCountsByType', {});
+      return newCounts.diff(oldCounts).affectedKeys().size() <= 2
+        && reactionCounterDeltaOk(newCounts.get('like', 0), oldCounts.get('like', 0))
+        && reactionCounterDeltaOk(newCounts.get('love', 0), oldCounts.get('love', 0))
+        && reactionCounterDeltaOk(newCounts.get('haha', 0), oldCounts.get('haha', 0))
+        && reactionCounterDeltaOk(newCounts.get('wow', 0), oldCounts.get('wow', 0))
+        && reactionCounterDeltaOk(newCounts.get('sad', 0), oldCounts.get('sad', 0))
+        && reactionCounterDeltaOk(newCounts.get('angry', 0), oldCounts.get('angry', 0));
+    }
+
+    function reactionCountOk(oldEv, newEv) {
+      return reactionCounterDeltaOk(newEv.get('reactionCount', 0), oldEv.get('reactionCount', 0));
+    }
+
+    // Doc espejo de una reacción en events/{eventId}/{wall|photos}/{id}/
+    // reactions/{token} — mismas validaciones de contenido que ya existían
+    // para el valor dentro del mapa `reactions` (nunca se habían escrito
+    // acá, porque el mapa completo no se valida campo por campo, solo su
+    // tamaño). El mismo límite de identidad ya documentado (reacciones
+    // anónimas, sin request.auth.uid detrás) sigue aplicando: cualquiera que
+    // conozca un token puede crear/actualizar/borrar ESE documento — ni
+    // mejor ni peor que hoy, donde cualquiera que conozca un token puede
+    // escribir esa misma clave del mapa.
+    function isValidReactionDoc() {
+      let d = request.resource.data;
+      return d.type in ['like', 'love', 'haha', 'wow', 'sad', 'angry']
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && (!('photoURL' in d) || (d.photoURL is string && d.photoURL.size() <= 500));
+    }
+
     // Cualquier cliente puede crear mensajes del muro sin autenticarse —
     // estos límites son la última barrera real si alguien evita por completo
     // la capa de aplicación (src/firebase/wall.ts) y escribe directo contra
@@ -239,24 +290,6 @@ service cloud.firestore {
         && isValidWallReply(newReplies[oldReplies.size()], eventId);
     }
 
-    // Evita que UNA sola escritura reemplace `reactions` agregando/quitando
-    // más de una clave a la vez — el cliente real (reactToContent, ver
-    // src/firebase/interactions.ts) siempre toca una sola clave por
-    // escritura vía FieldPath. Las reacciones son anónimas (identificadas
-    // por un token de dispositivo en localStorage, no por request.auth.uid
-    // — ni siquiera para un usuario con sesión, ver EventWall.tsx), así que
-    // no hay forma de verificar del lado servidor que la key corresponda a
-    // una identidad real; este chequeo no cierra ESE gap (documentado, sin
-    // solución posible sin cambiar el modelo de reacciones a algo atado a
-    // auth). Lo que sí evita es el vector más barato para inflar el mapa
-    // hasta el tope de tamaño (ver 5000 más abajo): antes, UN solo request
-    // directo contra Firestore podía saltar de 10 reacciones a 5000 de
-    // golpe; ahora un abuso necesita 5000 requests separados, mucho más
-    // lento y detectable por los límites de tasa de Firestore/App Check.
-    function isSingleReactionKeyChange(oldReactions, newReactions) {
-      return newReactions.diff(oldReactions).affectedKeys().size() == 1;
-    }
-
     // Auto-registro público de invitados (registerWalkInGuest, eventos
     // open/hybrid). Solo se valida esta rama pública — el alta hecha por el
     // organizador (addGuest/addGuestsBulk) no pasa por isOpenEvent y queda
@@ -281,8 +314,15 @@ service cloud.firestore {
     // Rules trata como error, no como null). Queda como defensa en
     // profundidad: nadie, ni hablando directo contra Firestore, puede
     // fabricarse un cronómetro que ya no existe en la app.
-    function isValidPublicGuestRegistration(eventId) {
-      let d = request.resource.data;
+    // Recibe `evData` ya cargado en vez de `eventId` (mismo motivo que
+    // canDoData/companionsWithinLimitData más arriba, auditoría F17): el
+    // caller de más abajo (canSelfRegisterGuest) hace UN solo get() al
+    // evento y lo reusa acá y para el chequeo de entryMode — antes,
+    // isOpenEvent(eventId) + companionsWithinLimit(eventId,...) (llamada
+    // indirectamente desde acá) pedían el mismo documento dos veces en la
+    // rama de auto-registro público, el flujo más expuesto a ráfagas de
+    // tráfico sin autenticar de toda la app.
+    function isValidPublicGuestRegistrationData(evData, d) {
       return d.name is string && d.name.size() > 0 && d.name.size() <= 121
         && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30))
         && (!('paymentNote' in d) || (d.paymentNote is string && d.paymentNote.size() <= 300))
@@ -292,7 +332,7 @@ service cloud.firestore {
         && d.paymentStatus == 'unpaid'
         && d.paymentMethod in [null, 'transfer', 'cash']
         && d.holdExpiresAt == null
-        && companionsWithinLimit(eventId, d, false)
+        && companionsWithinLimitData(evData, d, false)
         && (
           // guestUid/guestPhotoURL: src/firebase/capacity.ts los escribe SIEMPRE
           // en el auto-registro (null si no hay sesión). Sin esta validación, un
@@ -328,6 +368,16 @@ service cloud.firestore {
             )
           )
         );
+    }
+
+    // Un solo get() al evento para las dos condiciones de auto-registro
+    // público (antes eran dos: isOpenEvent(eventId) + el que dispara
+    // companionsWithinLimit dentro de isValidPublicGuestRegistration) — ver
+    // comentario de isValidPublicGuestRegistrationData arriba.
+    function canSelfRegisterGuest(eventId, d) {
+      let evData = eventDataFor(eventId);
+      return evData.entryMode in ['open', 'hybrid']
+        && isValidPublicGuestRegistrationData(evData, d);
     }
 
     // Contadores del EVENTO tolerantes a documentos legacy: eventos creados
@@ -817,7 +867,7 @@ service cloud.firestore {
         allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin();
         allow create: if (canDo(eventId, 'addGuests', true) && companionsWithinLimit(eventId, request.resource.data, false))
           || isAdmin()
-          || (isOpenEvent(eventId) && isValidPublicGuestRegistration(eventId));
+          || canSelfRegisterGuest(eventId, request.resource.data);
         allow list: if request.query.limit <= 1;
         allow get: if true;
         // Rama del organizador: updateGuest (nombre/apellido/companions/
@@ -986,20 +1036,17 @@ service cloud.firestore {
         // sancionar) — mismo límite que el resto de las protecciones
         // anti-abuso de este archivo para tráfico anónimo.
         allow create: if isValidWallMessage(eventId) && (request.auth == null || !commentsBlocked(eventId));
-        // TODO Fase 3+: esta rama sigue sin verificar que la key agregada
-        // corresponda a una identidad real (ver isSingleReactionKeyChange
-        // más arriba — las reacciones son anónimas, no hay nada del lado
-        // servidor con qué comparar). Sí evita, desde ahora, que UN solo
-        // request inyecte muchas claves de golpe (isSingleReactionKeyChange)
-        // y que el mapa supere el tope de tamaño (reactions.size()). Un
-        // cierre completo del gap de identidad requeriría mover la reacción
-        // a una subcolección wall/{id}/reactions/{token} con un doc por
-        // reactor. Mismo criterio, sin resolver todavía, en la rama de
-        // reacciones de `photos` de más abajo (reutiliza este mismo patrón).
         allow update: if canDo(eventId, 'moderateWall', true) || isAdmin()
-          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
-              && request.resource.data.reactions.size() <= 5000
-              && isSingleReactionKeyChange(resource.data.get('reactions', {}), request.resource.data.reactions))
+          // Auditoría F2/F11: reaccionar ya no toca este documento con la
+          // identidad del reactor — el doc espejo (ver match /reactions/
+          // {token} más abajo) es la fuente de verdad de CADA reacción, sin
+          // tope de tamaño posible. Acá solo se valida el movimiento de los
+          // contadores agregados, acotado a ±1 por escritura
+          // (reactionCountOk/reactionCountsByTypeOk) — nadie puede inflar el
+          // conteo sin pasar por una reacción real en la subcolección.
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactionCount', 'reactionCountsByType'])
+              && reactionCountOk(resource.data, request.resource.data)
+              && reactionCountsByTypeOk(resource.data, request.resource.data))
           // Responder: mismo criterio de autorización que crear un mensaje
           // (ver isValidWallReplyAppend) — el anfitrión y cualquier invitado
           // no sancionado usan esta misma rama, no hay una ruta aparte.
@@ -1019,6 +1066,16 @@ service cloud.firestore {
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted'])
               && request.resource.data.deleted == true);
         allow delete: if canDo(eventId, 'moderateWall', true) || isAdmin();
+
+        // Auditoría F2/F11: doc espejo de cada reacción, un documento por
+        // reactor — sin tope de tamaño posible, porque nunca crece un único
+        // documento (a diferencia del viejo mapa `reactions` embebido, ya
+        // retirado — ver reactToContent en interactions.ts).
+        match /reactions/{token} {
+          allow read: if true;
+          allow create, update: if isValidReactionDoc();
+          allow delete: if true;
+        }
       }
 
       // Álbum de fotos del evento. Visible para cualquiera que conozca el
@@ -1049,20 +1106,26 @@ service cloud.firestore {
         //
         // Reacciones y respuestas (fotos Y las "historias", que son las
         // mismas fotos vistas agrupadas por autor — ver StoriesBar.tsx)
-        // reutilizan exactamente las mismas dos ramas que ya validaban esto
-        // para `wall`: mismo campo `reactions` con el mismo tope y el mismo
-        // isSingleReactionKeyChange, mismo isValidWallReplyAppend para
-        // `replies`. Ver ese TODO Fase 3+ más arriba — el mismo gap de
-        // identidad (no de tamaño) aplica acá.
+        // reutilizan exactamente las mismas ramas que ya validaban esto para
+        // `wall` — ver comentario ahí (reactionCountOk/reactionCountsByTypeOk,
+        // isValidWallReplyAppend para `replies`).
         allow update: if ((canDo(eventId, 'moderateWall', true) || isAdmin())
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
               && request.resource.data.pinned is bool)
-          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
-              && request.resource.data.reactions.size() <= 5000
-              && isSingleReactionKeyChange(resource.data.get('reactions', {}), request.resource.data.reactions))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactionCount', 'reactionCountsByType'])
+              && reactionCountOk(resource.data, request.resource.data)
+              && reactionCountsByTypeOk(resource.data, request.resource.data))
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replies'])
               && isValidWallReplyAppend(eventId));
         allow delete: if canDo(eventId, 'moderateWall', true) || isAdmin();
+
+        // Auditoría F2/F11 — mismo doc espejo que wall/{messageId}/reactions,
+        // ver comentario ahí.
+        match /reactions/{token} {
+          allow read: if true;
+          allow create, update: if isValidReactionDoc();
+          allow delete: if true;
+        }
       }
     }
   }

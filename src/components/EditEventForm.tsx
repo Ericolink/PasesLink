@@ -47,6 +47,13 @@ interface EventEditDraftFields {
   timeline: TimelineEntry[]
 }
 
+// Auditoría de escalabilidad (F19): todos los campos del formulario en un
+// solo objeto de estado (en vez de 21 useState individuales) + una función
+// genérica updateField para tocarlos — mismo criterio en EventCreate.tsx.
+// `coverImage` queda AFUERA a propósito: lo dueña useCoverPhoto (recorte,
+// subida, error), no este formulario.
+type FormFields = Omit<EventEditDraftFields, 'coverImage'>
+
 interface ChangeEntry {
   label: string
   detail: string
@@ -103,34 +110,41 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     setCoverImage,
   } = useCoverPhoto(event.coverImage || '')
 
-  const [name, setName] = useState(event.name)
-  const [date, setDate] = useState(event.date)
-  const [startTime, setStartTime] = useState(event.startTime || '')
-  const [endTime, setEndTime] = useState(event.endTime || '')
-  const [location, setLocation] = useState(event.location)
-  const [description, setDescription] = useState(event.description || '')
-  const [dressCode, setDressCode] = useState(event.dressCode || '')
-  const [templateId, setTemplateId] = useState<TemplateId>(event.templateId || 'default')
-  // Vacío = "sin override manual", usa el acento propio de la plantilla.
-  const [accentColor, setAccentColor] = useState(event.accentColor || '')
-  const [welcomeMessage, setWelcomeMessage] = useState(event.welcomeMessage || '')
-  const [mapsUrl, setMapsUrl] = useState(event.mapsUrl || '')
+  const [form, setForm] = useState<FormFields>({
+    name: event.name,
+    date: event.date,
+    startTime: event.startTime || '',
+    endTime: event.endTime || '',
+    location: event.location,
+    description: event.description || '',
+    dressCode: event.dressCode || '',
+    templateId: event.templateId || 'default',
+    // Vacío = "sin override manual", usa el acento propio de la plantilla.
+    accentColor: event.accentColor || '',
+    welcomeMessage: event.welcomeMessage || '',
+    mapsUrl: event.mapsUrl || '',
+    capacity: event.capacity ? String(event.capacity) : '',
+    // resolveMaxCompanions y no event.maxCompanions ?? 0: en un evento anterior
+    // al campo, el valor EFECTIVO es el default legacy (9) — mostrar 0 acá haría
+    // que guardar sin tocar este campo se lo quite en silencio.
+    maxCompanions: String(resolveMaxCompanions(event)),
+    customFields: event.customFields || [],
+    requiresPayment: event.requiresPayment || false,
+    paymentMethods: event.paymentMethods?.length ? event.paymentMethods : ['transfer'],
+    ticketPrice: event.ticketPrice ? String(event.ticketPrice) : '',
+    currency: event.currency || '$',
+    paymentInstructions: event.paymentInstructions || '',
+    organizerContactPhone: event.organizerContactPhone || '',
+    timeline: event.timeline || [],
+  })
+
+  function updateField<K extends keyof FormFields>(field: K, value: FormFields[K]) {
+    setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
   // No es editable: cambiar el modo de ingreso después de compartir invitaciones
   // o links de autoregistro rompería esos links (ver firestore.rules y EventJoin).
   const entryMode = event.entryMode || 'list'
-  const [capacity, setCapacity] = useState(event.capacity ? String(event.capacity) : '')
-  // resolveMaxCompanions y no event.maxCompanions ?? 0: en un evento anterior
-  // al campo, el valor EFECTIVO es el default legacy (9) — mostrar 0 acá haría
-  // que guardar sin tocar este campo se lo quite en silencio.
-  const [maxCompanions, setMaxCompanions] = useState(String(resolveMaxCompanions(event)))
-  const [customFields, setCustomFields] = useState<CustomField[]>(event.customFields || [])
-  const [requiresPayment, setRequiresPayment] = useState(event.requiresPayment || false)
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(event.paymentMethods?.length ? event.paymentMethods : ['transfer'])
-  const [ticketPrice, setTicketPrice] = useState(event.ticketPrice ? String(event.ticketPrice) : '')
-  const [currency, setCurrency] = useState(event.currency || '$')
-  const [paymentInstructions, setPaymentInstructions] = useState(event.paymentInstructions || '')
-  const [organizerContactPhone, setOrganizerContactPhone] = useState(event.organizerContactPhone || '')
-  const [timeline, setTimeline] = useState<TimelineEntry[]>(event.timeline || [])
   const [saving, setSaving] = useState(false)
   const [networkRetry, setNetworkRetry] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -148,52 +162,43 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   const { pendingDraft, saveDraft, clearDraft, dismissPrompt } = useFormDraft<EventEditDraftFields>(draftKey, event.updatedAt)
 
   function applyDraft(fields: EventEditDraftFields) {
-    setName(fields.name)
-    setDate(fields.date)
-    setStartTime(fields.startTime)
-    setEndTime(fields.endTime)
-    setLocation(fields.location)
-    setDescription(fields.description)
-    setDressCode(fields.dressCode || '')
-    setTemplateId(fields.templateId)
-    setAccentColor(fields.accentColor)
-    setWelcomeMessage(fields.welcomeMessage)
-    setMapsUrl(fields.mapsUrl)
-    setCapacity(fields.capacity)
-    setMaxCompanions(fields.maxCompanions ?? String(resolveMaxCompanions(event)))
-    setCustomFields(fields.customFields)
-    setRequiresPayment(fields.requiresPayment)
-    setPaymentMethods(fields.paymentMethods?.length ? fields.paymentMethods : ['transfer'])
-    setTicketPrice(fields.ticketPrice)
-    setCurrency(fields.currency)
-    setPaymentInstructions(fields.paymentInstructions)
-    setOrganizerContactPhone(fields.organizerContactPhone || '')
-    setTimeline(fields.timeline || [])
-    if (fields.coverImage) setCoverImage(fields.coverImage)
+    const { coverImage: draftCoverImage, ...rest } = fields
+    // Fallbacks para campos que un borrador guardado por una versión más
+    // vieja de la app puede no tener en localStorage (ver mismos fallbacks
+    // en el useState inicial, arriba).
+    setForm({
+      ...rest,
+      dressCode: rest.dressCode || '',
+      maxCompanions: rest.maxCompanions ?? String(resolveMaxCompanions(event)),
+      paymentMethods: rest.paymentMethods?.length ? rest.paymentMethods : ['transfer'],
+      organizerContactPhone: rest.organizerContactPhone || '',
+      timeline: rest.timeline || [],
+    })
+    if (draftCoverImage) setCoverImage(draftCoverImage)
   }
 
   function togglePaymentMethod(method: PaymentMethod) {
-    setPaymentMethods((methods) =>
-      methods.includes(method) ? methods.filter((m) => m !== method) : [...methods, method],
-    )
+    setForm((prev) => ({
+      ...prev,
+      paymentMethods: prev.paymentMethods.includes(method)
+        ? prev.paymentMethods.filter((m) => m !== method)
+        : [...prev.paymentMethods, method],
+    }))
   }
 
   // Autoguardado del borrador c/5s mientras haya cambios sin guardar — protege
   // ediciones largas de un cierre accidental de pestaña o un fallo de red.
   //
-  // draftFieldsRef (useLiveRef) en vez de listar los 22 campos como
-  // dependencias del efecto: con los 22 en el array, cada tecla en
-  // CUALQUIER campo destruía y volvía a crear el setInterval — si el
-  // usuario tipeaba sin pausas de 5s, el intervalo nunca llegaba a
-  // dispararse (se comportaba como un debounce-tras-inactividad, no como
-  // "cada 5s" real). El intervalo ahora se crea UNA sola vez (mientras no
-  // haya un borrador pendiente) y en cada tick lee los valores más
-  // recientes a través del ref — mismo patrón que ya usa Scanner.tsx para
-  // que el callback de cámara no se resuscriba en cada cambio de estado.
-  const draftFields: EventEditDraftFields = {
-    name, date, startTime, endTime, location, description, dressCode, templateId, accentColor, welcomeMessage, mapsUrl,
-    capacity, maxCompanions, customFields, requiresPayment, paymentMethods, ticketPrice, currency, paymentInstructions, organizerContactPhone, coverImage, timeline,
-  }
+  // draftFieldsRef (useLiveRef) en vez de listar los campos como dependencias
+  // del efecto: con todos en el array, cada tecla en CUALQUIER campo
+  // destruía y volvía a crear el setInterval — si el usuario tipeaba sin
+  // pausas de 5s, el intervalo nunca llegaba a dispararse (se comportaba
+  // como un debounce-tras-inactividad, no como "cada 5s" real). El intervalo
+  // ahora se crea UNA sola vez (mientras no haya un borrador pendiente) y en
+  // cada tick lee los valores más recientes a través del ref — mismo patrón
+  // que ya usa Scanner.tsx para que el callback de cámara no se resuscriba
+  // en cada cambio de estado.
+  const draftFields: EventEditDraftFields = { ...form, coverImage }
   const draftFieldsRef = useLiveRef(draftFields)
   const saveDraftRef = useLiveRef(saveDraft)
 
@@ -211,20 +216,20 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   // ruido que ayuda). Nada se guarda todavía acá, solo se describe.
   function computeChanges(parsedCapacity: number, parsedMaxCompanions: number): ChangeEntry[] {
     const changes: ChangeEntry[] = []
-    const trimmedName = name.trim()
-    const trimmedLocation = location.trim()
-    const trimmedDescription = description.trim()
-    const trimmedDressCode = dressCode.trim()
-    const trimmedMapsUrl = mapsUrl.trim()
-    const trimmedWelcome = welcomeMessage.trim()
+    const trimmedName = form.name.trim()
+    const trimmedLocation = form.location.trim()
+    const trimmedDescription = form.description.trim()
+    const trimmedDressCode = form.dressCode.trim()
+    const trimmedMapsUrl = form.mapsUrl.trim()
+    const trimmedWelcome = form.welcomeMessage.trim()
 
     if (event.name !== trimmedName) changes.push({ label: 'Nombre', detail: `"${event.name}" → "${trimmedName}"` })
-    if (event.date !== date) changes.push({ label: 'Fecha', detail: `${event.date} → ${date}` })
-    if ((event.startTime || '') !== startTime) {
-      changes.push({ label: 'Hora de inicio', detail: `${event.startTime || 'sin definir'} → ${startTime || 'sin definir'}` })
+    if (event.date !== form.date) changes.push({ label: 'Fecha', detail: `${event.date} → ${form.date}` })
+    if ((event.startTime || '') !== form.startTime) {
+      changes.push({ label: 'Hora de inicio', detail: `${event.startTime || 'sin definir'} → ${form.startTime || 'sin definir'}` })
     }
-    if ((event.endTime || '') !== endTime) {
-      changes.push({ label: 'Hora de fin', detail: `${event.endTime || 'sin definir'} → ${endTime || 'sin definir'}` })
+    if ((event.endTime || '') !== form.endTime) {
+      changes.push({ label: 'Hora de fin', detail: `${event.endTime || 'sin definir'} → ${form.endTime || 'sin definir'}` })
     }
     if (event.location !== trimmedLocation) changes.push({ label: 'Lugar', detail: `"${event.location}" → "${trimmedLocation}"` })
     if ((event.description || '') !== trimmedDescription) changes.push({ label: 'Descripción', detail: 'Actualizada' })
@@ -234,11 +239,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if ((event.mapsUrl || '') !== trimmedMapsUrl) {
       changes.push({ label: 'Link de Google Maps', detail: trimmedMapsUrl ? 'Actualizado' : 'Quitado' })
     }
-    if ((event.templateId || 'default') !== templateId) {
-      changes.push({ label: 'Plantilla del pase', detail: `${getTemplate(event.templateId).label} → ${getTemplate(templateId).label}` })
+    if ((event.templateId || 'default') !== form.templateId) {
+      changes.push({ label: 'Plantilla del pase', detail: `${getTemplate(event.templateId).label} → ${getTemplate(form.templateId).label}` })
     }
-    if ((event.accentColor || '') !== accentColor) {
-      changes.push({ label: 'Color de acento', detail: accentColor ? 'Color personalizado' : 'Vuelve al color de la plantilla' })
+    if ((event.accentColor || '') !== form.accentColor) {
+      changes.push({ label: 'Color de acento', detail: form.accentColor ? 'Color personalizado' : 'Vuelve al color de la plantilla' })
     }
     if ((event.welcomeMessage || '') !== trimmedWelcome) changes.push({ label: 'Mensaje de bienvenida', detail: 'Actualizado' })
     if ((event.coverImage || '') !== coverImage) {
@@ -250,22 +255,22 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if (resolveMaxCompanions(event) !== parsedMaxCompanions) {
       changes.push({ label: 'Acompañantes por invitado', detail: `${resolveMaxCompanions(event)} → ${parsedMaxCompanions}` })
     }
-    if (JSON.stringify(event.customFields || []) !== JSON.stringify(customFields)) {
-      changes.push({ label: 'Campos de registro', detail: `${(event.customFields || []).length} → ${customFields.length} campo(s)` })
+    if (JSON.stringify(event.customFields || []) !== JSON.stringify(form.customFields)) {
+      changes.push({ label: 'Campos de registro', detail: `${(event.customFields || []).length} → ${form.customFields.length} campo(s)` })
     }
-    if (JSON.stringify(event.timeline || []) !== JSON.stringify(timeline)) {
-      changes.push({ label: 'Programa del evento', detail: `${(event.timeline || []).length} → ${timeline.length} actividad(es)` })
+    if (JSON.stringify(event.timeline || []) !== JSON.stringify(form.timeline)) {
+      changes.push({ label: 'Programa del evento', detail: `${(event.timeline || []).length} → ${form.timeline.length} actividad(es)` })
     }
-    if ((event.requiresPayment || false) !== requiresPayment) {
-      changes.push({ label: 'Cobro de entrada', detail: requiresPayment ? 'Activado' : 'Desactivado' })
+    if ((event.requiresPayment || false) !== form.requiresPayment) {
+      changes.push({ label: 'Cobro de entrada', detail: form.requiresPayment ? 'Activado' : 'Desactivado' })
     }
-    if (requiresPayment) {
-      const parsedPrice = parseFloat(ticketPrice) || 0
-      const trimmedCurrency = currency.trim()
-      const trimmedInstructions = paymentInstructions.trim()
-      const trimmedContact = organizerContactPhone.trim()
-      if (JSON.stringify(event.paymentMethods || []) !== JSON.stringify(paymentMethods)) {
-        changes.push({ label: 'Métodos de cobro', detail: paymentMethods.map((m) => PAYMENT_METHOD_LABELS[m]).join(' + ') || 'Ninguno' })
+    if (form.requiresPayment) {
+      const parsedPrice = parseFloat(form.ticketPrice) || 0
+      const trimmedCurrency = form.currency.trim()
+      const trimmedInstructions = form.paymentInstructions.trim()
+      const trimmedContact = form.organizerContactPhone.trim()
+      if (JSON.stringify(event.paymentMethods || []) !== JSON.stringify(form.paymentMethods)) {
+        changes.push({ label: 'Métodos de cobro', detail: form.paymentMethods.map((m) => PAYMENT_METHOD_LABELS[m]).join(' + ') || 'Ninguno' })
       }
       if ((event.ticketPrice || 0) !== parsedPrice) {
         changes.push({ label: 'Precio por persona', detail: `${event.currency}${event.ticketPrice || 0} → ${trimmedCurrency}${parsedPrice}` })
@@ -278,13 +283,13 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   }
 
   async function submitEvent() {
-    if (!name.trim() || !date || !location.trim()) return
-    const { value: parsedCapacity, error: capacityValidationError } = parseCapacity(capacity)
+    if (!form.name.trim() || !form.date || !form.location.trim()) return
+    const { value: parsedCapacity, error: capacityValidationError } = parseCapacity(form.capacity)
     if (capacityValidationError) {
       setCapacityError(capacityValidationError)
       return
     }
-    const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(maxCompanions)
+    const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(form.maxCompanions)
     if (maxCompanionsValidationError) {
       setMaxCompanionsError(maxCompanionsValidationError)
       return
@@ -296,29 +301,29 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     setSaving(true)
     try {
       await updateEventDetails(event.id, {
-        name: name.trim(),
-        date,
-        startTime,
-        endTime,
-        location: location.trim(),
-        description: description.trim(),
-        dressCode: dressCode.trim() || undefined,
+        name: form.name.trim(),
+        date: form.date,
+        startTime: form.startTime,
+        endTime: form.endTime,
+        location: form.location.trim(),
+        description: form.description.trim(),
+        dressCode: form.dressCode.trim() || undefined,
         coverImage,
-        accentColor,
-        templateId,
-        welcomeMessage: welcomeMessage.trim(),
-        mapsUrl: mapsUrl.trim() || undefined,
+        accentColor: form.accentColor,
+        templateId: form.templateId,
+        welcomeMessage: form.welcomeMessage.trim(),
+        mapsUrl: form.mapsUrl.trim() || undefined,
         entryMode,
         capacity: parsedCapacity,
         maxCompanions: parsedMaxCompanions,
-        customFields,
-        requiresPayment,
-        paymentMethods: requiresPayment ? paymentMethods : [],
-        ticketPrice: requiresPayment ? parseFloat(ticketPrice) || 0 : 0,
-        currency: requiresPayment ? currency.trim() : '',
-        paymentInstructions: requiresPayment ? paymentInstructions.trim() : '',
-        organizerContactPhone: requiresPayment ? organizerContactPhone.trim() : '',
-        timeline,
+        customFields: form.customFields,
+        requiresPayment: form.requiresPayment,
+        paymentMethods: form.requiresPayment ? form.paymentMethods : [],
+        ticketPrice: form.requiresPayment ? parseFloat(form.ticketPrice) || 0 : 0,
+        currency: form.requiresPayment ? form.currency.trim() : '',
+        paymentInstructions: form.requiresPayment ? form.paymentInstructions.trim() : '',
+        organizerContactPhone: form.requiresPayment ? form.organizerContactPhone.trim() : '',
+        timeline: form.timeline,
       })
       clearDraft()
       onDone()
@@ -339,21 +344,21 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   // sentido interrumpir con un diálogo vacío — cierra el editor directo.
   function handleReviewSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !date || !location.trim()) return
-    if (requiresPayment && paymentMethods.length === 0) {
+    if (!form.name.trim() || !form.date || !form.location.trim()) return
+    if (form.requiresPayment && form.paymentMethods.length === 0) {
       setSubmitError('Elegí al menos un método de cobro.')
       return
     }
-    if (requiresPayment && !(parseFloat(ticketPrice) > 0)) {
+    if (form.requiresPayment && !(parseFloat(form.ticketPrice) > 0)) {
       setSubmitError('Ingresá un precio mayor a 0 para el boleto.')
       return
     }
-    const { value: parsedCapacity, error: capacityValidationError } = parseCapacity(capacity)
+    const { value: parsedCapacity, error: capacityValidationError } = parseCapacity(form.capacity)
     if (capacityValidationError) {
       setCapacityError(capacityValidationError)
       return
     }
-    const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(maxCompanions)
+    const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(form.maxCompanions)
     if (maxCompanionsValidationError) {
       setMaxCompanionsError(maxCompanionsValidationError)
       return
@@ -415,8 +420,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             id="edit-event-name"
             type="text"
             required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={form.name}
+            onChange={(e) => updateField('name', e.target.value)}
             maxLength={EVENT_NAME_MAX}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
@@ -424,7 +429,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
         <div>
           <label htmlFor="edit-event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
-          <input id="edit-event-location" type="text" required value={location} onChange={(e) => setLocation(e.target.value)}
+          <input id="edit-event-location" type="text" required value={form.location} onChange={(e) => updateField('location', e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
 
@@ -434,12 +439,12 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             dateId="edit-event-date"
             startTimeId="edit-event-start-time"
             endTimeId="edit-event-end-time"
-            date={date}
-            onDateChange={setDate}
-            startTime={startTime}
-            onStartTimeChange={setStartTime}
-            endTime={endTime}
-            onEndTimeChange={setEndTime}
+            date={form.date}
+            onDateChange={(v) => updateField('date', v)}
+            startTime={form.startTime}
+            onStartTimeChange={(v) => updateField('startTime', v)}
+            endTime={form.endTime}
+            onEndTimeChange={(v) => updateField('endTime', v)}
           />
         </div>
       </EditSection>
@@ -447,14 +452,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       <EditSection title="Detalles" subtitle="Descripción, vestimenta y ubicación en el mapa">
         <div>
           <label htmlFor="edit-event-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
-          <textarea id="edit-event-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+          <textarea id="edit-event-description" value={form.description} onChange={(e) => updateField('description', e.target.value)} rows={2}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
         <div>
           <label htmlFor="edit-event-dress-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Vestimenta <span className="text-gray-400 font-normal">(opcional)</span>
           </label>
-          <input id="edit-event-dress-code" type="text" value={dressCode} onChange={(e) => setDressCode(e.target.value)}
+          <input id="edit-event-dress-code" type="text" value={form.dressCode} onChange={(e) => updateField('dressCode', e.target.value)}
             maxLength={100} placeholder="Ej: Formal, Casual, Todo de blanco…"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
@@ -462,7 +467,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <label htmlFor="edit-event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span>
           </label>
-          <input id="edit-event-maps-url" type="url" value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)}
+          <input id="edit-event-maps-url" type="url" value={form.mapsUrl} onChange={(e) => updateField('mapsUrl', e.target.value)}
             placeholder="https://maps.google.com/maps?q=..."
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <p className="text-xs text-gray-500 mt-1">
@@ -475,9 +480,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <div className="space-y-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Plantilla del pase</p>
           <TemplatePicker
-            selected={templateId}
-            onSelect={setTemplateId}
-            previewData={{ eventName: name, date, location, mapsUrl, coverImage, accentColor, welcomeMessage }}
+            selected={form.templateId}
+            onSelect={(v) => updateField('templateId', v)}
+            previewData={{ eventName: form.name, date: form.date, location: form.location, mapsUrl: form.mapsUrl, coverImage, accentColor: form.accentColor, welcomeMessage: form.welcomeMessage }}
           />
         </div>
 
@@ -498,14 +503,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             <div>
               <label htmlFor="edit-event-accent-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
               <div className="flex items-center gap-2">
-                <input id="edit-event-accent-color" type="color" value={accentColor || getTemplate(templateId).vars.accent} onChange={(e) => setAccentColor(e.target.value)}
+                <input id="edit-event-accent-color" type="color" value={form.accentColor || getTemplate(form.templateId).vars.accent} onChange={(e) => updateField('accentColor', e.target.value)}
                   className="h-9 w-12 border border-gray-300 rounded-lg cursor-pointer" />
-                <span className="text-sm text-gray-500">{accentColor || `${getTemplate(templateId).vars.accent} (de la plantilla)`}</span>
+                <span className="text-sm text-gray-500">{form.accentColor || `${getTemplate(form.templateId).vars.accent} (de la plantilla)`}</span>
               </div>
             </div>
             <div>
               <label htmlFor="edit-event-welcome-message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mensaje de bienvenida</label>
-              <input id="edit-event-welcome-message" type="text" value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)}
+              <input id="edit-event-welcome-message" type="text" value={form.welcomeMessage} onChange={(e) => updateField('welcomeMessage', e.target.value)}
                 placeholder="¡Te esperamos!" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
           </div>
@@ -514,15 +519,15 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
       <EditSection title="Campos de registro" subtitle="Qué datos pides además de nombre y teléfono">
         <p className="text-xs text-gray-400 -mt-1">Nombre y teléfono siempre se piden. Agrega campos extra opcionales.</p>
-        <CustomFieldsBuilder fields={customFields} onChange={setCustomFields} />
+        <CustomFieldsBuilder fields={form.customFields} onChange={(v) => updateField('customFields', v)} />
       </EditSection>
 
       <EditSection title="Programa del evento" subtitle="Orden del día visible en el pase del invitado">
         <p className="text-xs text-gray-400 -mt-1">Ej: 19:00 Recepción, 21:00 Cena…</p>
-        <TimelineEditor entries={timeline} onChange={setTimeline} />
+        <TimelineEditor entries={form.timeline} onChange={(v) => updateField('timeline', v)} />
       </EditSection>
 
-      <EditSection title="Modo de ingreso y cupo" subtitle={`Cupo actual: ${capacity || '0'} personas`}>
+      <EditSection title="Modo de ingreso y cupo" subtitle={`Cupo actual: ${form.capacity || '0'} personas`}>
         <p className="text-xs text-gray-400">
           El modo de ingreso no se puede cambiar después de crear el evento, para no romper invitaciones o links de
           autoregistro que ya hayas compartido.
@@ -544,7 +549,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         </div>
         <div>
           <label htmlFor="edit-event-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Límite de invitados</label>
-          <input id="edit-event-capacity" type="number" required min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)}
+          <input id="edit-event-capacity" type="number" required min="1" value={form.capacity} onChange={(e) => updateField('capacity', e.target.value)}
             placeholder="Ej: 200" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <p className="text-xs text-gray-400 mt-1">
             Total de personas recomendado (invitados + acompañantes) — informativo, no bloquea nuevos registros si
@@ -554,7 +559,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         </div>
         <div>
           <label htmlFor="edit-event-max-companions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Acompañantes por invitado</label>
-          <input id="edit-event-max-companions" type="number" min="0" max={GUEST_MAX_COMPANIONS} value={maxCompanions} onChange={(e) => setMaxCompanions(e.target.value)}
+          <input id="edit-event-max-companions" type="number" min="0" max={GUEST_MAX_COMPANIONS} value={form.maxCompanions} onChange={(e) => updateField('maxCompanions', e.target.value)}
             className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <p className="text-xs text-gray-400 mt-1">
             Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten
@@ -566,16 +571,16 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
       <EditSection
         title="Cobro de entrada"
-        subtitle={requiresPayment ? `Activo — ${currency}${ticketPrice || 0} por persona` : 'Desactivado'}
+        subtitle={form.requiresPayment ? `Activo — ${form.currency}${form.ticketPrice || 0} por persona` : 'Desactivado'}
         defaultOpen={event.requiresPayment}
       >
         <label className="flex items-center gap-2 cursor-pointer">
-          <Checkbox checked={requiresPayment} onChange={(e) => setRequiresPayment(e.target.checked)} />
+          <Checkbox checked={form.requiresPayment} onChange={(e) => updateField('requiresPayment', e.target.checked)} />
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             Cobrar entrada a los invitados
           </span>
         </label>
-        {requiresPayment && (
+        {form.requiresPayment && (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Métodos de cobro</label>
@@ -584,17 +589,17 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                   <label
                     key={m}
                     className={`flex-1 flex items-center justify-center gap-2 border rounded-lg px-3 py-2.5 text-sm font-medium cursor-pointer transition-colors ${
-                      paymentMethods.includes(m)
+                      form.paymentMethods.includes(m)
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
                     }`}
                   >
-                    <input type="checkbox" checked={paymentMethods.includes(m)} onChange={() => togglePaymentMethod(m)} className="sr-only" />
+                    <input type="checkbox" checked={form.paymentMethods.includes(m)} onChange={() => togglePaymentMethod(m)} className="sr-only" />
                     {PAYMENT_METHOD_LABELS[m]}
                   </label>
                 ))}
               </div>
-              {paymentMethods.length === 0 && <FieldError message="Elegí al menos un método." />}
+              {form.paymentMethods.length === 0 && <FieldError message="Elegí al menos un método." />}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
@@ -604,8 +609,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                   type="number"
                   min="0"
                   step="0.01"
-                  value={ticketPrice}
-                  onChange={(e) => setTicketPrice(sanitizeDecimalInput(e.target.value))}
+                  value={form.ticketPrice}
+                  onChange={(e) => updateField('ticketPrice', sanitizeDecimalInput(e.target.value))}
                   placeholder="Ej: 5000"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
@@ -615,20 +620,20 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                 <input
                   id="edit-event-currency"
                   type="text"
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
+                  value={form.currency}
+                  onChange={(e) => updateField('currency', e.target.value)}
                   placeholder="$"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             </div>
-            {paymentMethods.includes('transfer') && (
+            {form.paymentMethods.includes('transfer') && (
               <div>
                 <label htmlFor="edit-event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Datos para transferencia</label>
                 <textarea
                   id="edit-event-payment-instructions"
-                  value={paymentInstructions}
-                  onChange={(e) => setPaymentInstructions(e.target.value)}
+                  value={form.paymentInstructions}
+                  onChange={(e) => updateField('paymentInstructions', e.target.value)}
                   rows={3}
                   placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -640,8 +645,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
               <input
                 id="edit-event-organizer-contact"
                 type="tel"
-                value={organizerContactPhone}
-                onChange={(e) => setOrganizerContactPhone(e.target.value)}
+                value={form.organizerContactPhone}
+                onChange={(e) => updateField('organizerContactPhone', e.target.value)}
                 placeholder="Ej: +52 55 1234 5678"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />

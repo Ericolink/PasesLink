@@ -32,10 +32,14 @@ interface Props {
   // la interacción ya vive en PhotoFeedCard, no se duplica acá). Mismo
   // patrón que PhotoFeedCard: la identidad del autor vive en el closure de
   // onReact/onReply del padre, esta vista solo necesita `myToken` para que
-  // ReactionPicker sepa cuál es "mi" reacción.
+  // ReactionPicker sepa cuál es "mi" reacción. `eventId` solo lo necesita
+  // ReactionPicker (auditoría F2/F11, fetch on-demand a la subcolección de
+  // reacciones) — por eso es opcional junto con el resto del grupo de
+  // reacción, no un prop siempre requerido de este visor.
+  eventId?: string
   myToken?: string
   canReply?: boolean
-  onReact?: (photo: PhotoData, type: ReactionType | null) => void
+  onReact?: (photo: PhotoData, type: ReactionType | null) => void | Promise<void>
   onReply?: (photo: PhotoData, text: string) => void | Promise<void>
 }
 
@@ -45,7 +49,7 @@ interface Props {
 // imagen) — el contenedor siempre ocupa toda la pantalla, así que una foto
 // vertical y una horizontal se ven igual de "resueltas" en vez de que una
 // quede chica con bordes negros y la otra casi llene la pantalla.
-export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg, onDelete, onView, myToken, canReply, onReact, onReply }: Props) {
+export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg, onDelete, onView, eventId, myToken, canReply, onReact, onReply }: Props) {
   const [progress, setProgress] = useState(0)
   const [replyText, setReplyText] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
@@ -326,11 +330,14 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
               )}
             </>
           )}
-          {myToken && onReact && (
+          {eventId && myToken && onReact && (
             <div className="shrink-0">
               <ReactionPicker
-                reactions={photo.reactions}
-                myToken={myToken}
+                eventId={eventId}
+                collectionName="photos"
+                docId={photo.id}
+                reactionCount={photo.reactionCount}
+                reactionCountsByType={photo.reactionCountsByType}
                 onReact={(type) => onReact(photo, type)}
               />
             </div>

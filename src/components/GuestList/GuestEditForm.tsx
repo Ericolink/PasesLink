@@ -7,7 +7,7 @@ import { GUEST_GROUP_MAX_MEMBERS } from '../../utils/validation'
 import { Button } from '../Button'
 import { FieldError } from '../FieldError'
 
-export function EditGuestRow({
+function EditGuestRow({
   eventId,
   guest,
   customFields = [],
@@ -98,7 +98,7 @@ export function EditGuestRow({
 // (GuestAddForm). Cambiar la cantidad recorta o extiende `companions` con
 // entradas vacías; los datos de acompañantes ya cargados individualmente
 // (si los hubiera) se preservan mientras entren en el nuevo tamaño.
-export function EditGroupRow({
+function EditGroupRow({
   eventId,
   guest,
   customFields = [],

@@ -91,10 +91,10 @@ describe('photos.ts — pinPhoto', () => {
   })
 })
 
-// `seedPhoto` (arriba) nunca escribe `reactions`/`replies` — a propósito,
-// simula exactamente la forma de una foto subida ANTES de esta feature
-// (ver comentario en isValidWallReplyAppend, firestore.rules). Estos tests
-// verifican que reaccionar/responder funciona igual sobre esas fotos
+// `seedPhoto` (arriba) nunca escribe reactionCount/reactionCountsByType — a
+// propósito, simula exactamente la forma de una foto subida ANTES de esta
+// feature (ver comentario en isValidWallReplyAppend, firestore.rules). Estos
+// tests verifican que reaccionar/responder funciona igual sobre esas fotos
 // "legacy" sin backfill, no solo sobre fotos nuevas.
 describe('photos.ts — reactToPhoto', () => {
   let testEnv: RulesTestEnvironment
@@ -111,7 +111,17 @@ describe('photos.ts — reactToPhoto', () => {
     await testEnv.cleanup()
   })
 
-  it('lets an unauthenticated guest react to a legacy photo with no reactions field', async () => {
+  async function seedReaction(token: string, type: string) {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'events', EVENT_ID, 'photos', PHOTO_ID, 'reactions', token), {
+        type,
+        name: 'Invitado',
+        reactedAt: Date.now(),
+      })
+    })
+  }
+
+  it('lets an unauthenticated guest react to a legacy photo with no reaction fields, writing a mirror doc to the subcollection', async () => {
     await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
     await seedPhoto(testEnv)
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
@@ -119,53 +129,78 @@ describe('photos.ts — reactToPhoto', () => {
     await expect(reactToPhoto(EVENT_ID, PHOTO_ID, 'device-token-1', 'Invitado', 'love')).resolves.toBeUndefined()
 
     const photo = await getPhotoDoc(testEnv)
-    expect(photo?.reactions).toEqual({
-      'device-token-1': { type: 'love', name: 'Invitado', reactedAt: expect.any(Number) },
+    expect(photo?.reactionCount).toBe(1)
+    expect(photo?.reactionCountsByType).toEqual({ love: 1 })
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const reactionSnap = await getDoc(doc(context.firestore(), 'events', EVENT_ID, 'photos', PHOTO_ID, 'reactions', 'device-token-1'))
+      expect(reactionSnap.exists()).toBe(true)
+      expect(reactionSnap.data()?.type).toBe('love')
     })
   })
 
-  it('lets the same reactor change their reaction', async () => {
+  it('lets the same reactor change their reaction, moving the count between types', async () => {
     await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
-    await seedPhoto(testEnv, { reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } } })
+    await seedPhoto(testEnv, { reactionCount: 1, reactionCountsByType: { like: 1 } })
+    await seedReaction('device-token-1', 'like')
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
     await reactToPhoto(EVENT_ID, PHOTO_ID, 'device-token-1', 'Invitado', 'haha')
 
     const photo = await getPhotoDoc(testEnv)
-    expect(photo?.reactions).toEqual({
-      'device-token-1': { type: 'haha', name: 'Invitado', reactedAt: expect.any(Number) },
+    expect(photo?.reactionCount).toBe(1)
+    expect(photo?.reactionCountsByType).toEqual({ like: 0, haha: 1 })
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const reactionSnap = await getDoc(doc(context.firestore(), 'events', EVENT_ID, 'photos', PHOTO_ID, 'reactions', 'device-token-1'))
+      expect(reactionSnap.data()?.type).toBe('haha')
     })
   })
 
   it('removes a reaction when reactionType is null', async () => {
     await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
-    await seedPhoto(testEnv, { reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } } })
+    await seedPhoto(testEnv, { reactionCount: 1, reactionCountsByType: { like: 1 } })
+    await seedReaction('device-token-1', 'like')
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
     await reactToPhoto(EVENT_ID, PHOTO_ID, 'device-token-1', 'Invitado', null)
 
     const photo = await getPhotoDoc(testEnv)
-    expect(photo?.reactions).toEqual({})
+    expect(photo?.reactionCount).toBe(0)
+    expect(photo?.reactionCountsByType).toEqual({ like: 0 })
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const reactionSnap = await getDoc(doc(context.firestore(), 'events', EVENT_ID, 'photos', PHOTO_ID, 'reactions', 'device-token-1'))
+      expect(reactionSnap.exists()).toBe(false)
+    })
   })
 
-  // Auditoría de escalabilidad (F12): antes, una escritura directa a
-  // Firestore podía reemplazar `reactions` agregando cualquier cantidad de
-  // claves de golpe. Ver isSingleReactionKeyChange en firestore.rules
-  // (misma función que ya prueba wall.test.ts — acá se confirma que
-  // también aplica a `photos`, que reutiliza la misma rama de regla).
-  it('rejects a direct write that injects multiple new reaction keys in a single request', async () => {
+  // Auditoría F2/F11: el mapa `reactions{}` embebido (blanco del abuso de
+  // F12 — inyectar muchas claves de golpe) ya no forma parte del documento
+  // en absoluto — escribirlo directo queda rechazado sin excepción, no solo
+  // acotado como antes (ver isSingleReactionKeyChange, retirada de
+  // firestore.rules).
+  it('rejects a direct write to the legacy reactions field', async () => {
     await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
-    await seedPhoto(testEnv, { reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } } })
+    await seedPhoto(testEnv)
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
     await expect(
       setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'photos', PHOTO_ID), {
-        reactions: {
-          'device-token-1': { type: 'like', name: 'Invitado' },
-          'fake-token-2': { type: 'love', name: 'Bot' },
-          'fake-token-3': { type: 'love', name: 'Bot' },
-        },
+        reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } },
       }, { merge: true }),
+    ).rejects.toThrow()
+  })
+
+  // Auditoría F2/F11 — mismo mecanismo probado a fondo en wall.test.ts
+  // (motor compartido, ver interactions.ts).
+  it('rejects a direct write that jumps reactionCount by more than 1 in a single request', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedPhoto(testEnv)
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await expect(
+      setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'photos', PHOTO_ID), { reactionCount: 500 }, { merge: true }),
     ).rejects.toThrow()
   })
 })

@@ -3,9 +3,9 @@ import type { CoOrganizerPermissions } from './coOrganizerPermissions'
 // Por ahora solo existe 'premium' (gratis durante el lanzamiento). Se deja como
 // union (no un literal suelto) para poder reintroducir un tier de pago después
 // sin tocar el resto del código, que ya está escrito en términos de `Plan`.
-export type Plan = 'premium'
+type Plan = 'premium'
 
-export type PaymentStatus = 'pending' | 'paid' | 'free_trial'
+type PaymentStatus = 'pending' | 'paid' | 'free_trial'
 
 export type EventStatus = 'active' | 'cancelled' | 'archived'
 
@@ -198,15 +198,18 @@ export type WallMessageType = 'comment' | 'question' | 'music' | 'idea'
 // `reactions` sin asumir cuáles tipos hay).
 export type ReactionType = 'like' | 'love' | 'haha' | 'wow' | 'sad' | 'angry'
 
+// Forma de un documento en la subcolección .../reactions/{token} — auditoría
+// F2/F11: reemplazó al mapa `reactions` embebido en WallMessage/PhotoData
+// (podía superar el límite de 1MB/documento con contenido viral), un doc por
+// reactor en vez de una entrada de mapa. photoURL/reactedAt opcionales:
+// reacciones migradas desde el mapa viejo por el backfill pueden no
+// tenerlos si el mapa original tampoco los tenía (datos de antes de que esos
+// campos existieran) — ReactionListSheet cae a un fallback.
 export interface WallReaction {
   type: ReactionType
   // Denormalizado (igual que authorName en el mensaje) para poder mostrar
   // "quién reaccionó" sin una consulta extra por reacción.
   name: string
-  // Ambos opcionales y agregados después de que reactions ya tenía datos en
-  // producción — reacciones viejas no los tienen, y la UI (ReactionListSheet)
-  // cae a un fallback (iniciales / orden alfabético) en vez de asumir que
-  // existen.
   photoURL?: string
   reactedAt?: number
 }
@@ -220,10 +223,14 @@ export interface WallMessage {
   authorRole: 'owner' | 'guest'
   authorPhotoURL?: string
   createdAt: number
-  // Keyed por el device token del reactor — un solo campo reemplaza a los
-  // viejos likedBy/dislikedBy, un doc por reactor (no arrays paralelos), y
-  // permite agregar reacciones nuevas sin migrar nada.
-  reactions: Record<string, WallReaction>
+  // Denormalizados, mantenidos con increment() en la transacción de
+  // reactToContent (ver interactions.ts) — la fuente de verdad de cada
+  // reacción individual es la subcolección .../reactions/{token} (ver
+  // WallReaction), no un campo de este documento. `mapMessage` completa
+  // `0`/`{}` para docs de antes de esta migración que todavía no corrieron
+  // el backfill.
+  reactionCount: number
+  reactionCountsByType: Partial<Record<ReactionType, number>>
   replies: WallReply[]
   deleted: boolean
   pinned: boolean
@@ -239,14 +246,14 @@ export interface WallReply {
   createdAt: number
 }
 
-export type GuestStatus = 'invited' | 'checked_in'
+type GuestStatus = 'invited' | 'checked_in'
 
 // Solo tiene sentido mientras `checkedOutAt` está seteado (invitado
 // actualmente afuera): 'temporary' = puede volver a escanear su QR para
 // reingresar, 'final' = checkInGuest bloquea el reingreso (ver
 // firebase/guests.ts) salvo que el organizador lo revierta con
 // allowGuestReentry. Se limpia a `null` en cada nuevo check-in/reingreso.
-export type GuestExitType = 'temporary' | 'final' | null
+type GuestExitType = 'temporary' | 'final' | null
 
 export type RsvpStatus = 'pending' | 'yes' | 'no'
 
@@ -318,7 +325,7 @@ export interface GuestData {
   createdAt: number
 }
 
-export type CheckinType = 'check_in' | 'check_out'
+type CheckinType = 'check_in' | 'check_out'
 
 export interface CheckinLog {
   id: string
@@ -440,7 +447,7 @@ export type ReportedContentType = 'comment' | 'photo'
 
 export type ReportStatus = 'pending' | 'in_review' | 'resolved' | 'rejected'
 
-export type ReportActionType =
+type ReportActionType =
   | 'status_change'
   | 'note'
   | 'content_deleted'

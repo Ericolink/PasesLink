@@ -95,7 +95,7 @@ function matchColumn(headers: string[], aliases: readonly string[]): number {
   return headers.findIndex((h) => normalizedAliases.includes(normalizeHeader(h)))
 }
 
-export interface CsvRowError {
+interface CsvRowError {
   line: number
   message: string
 }

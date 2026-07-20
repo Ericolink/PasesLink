@@ -33,7 +33,7 @@ interface Props {
   // card muestra el conteo pero no permite interactuar.
   myToken?: string
   canReply?: boolean
-  onReact?: (photo: PhotoData, type: ReactionType | null) => void
+  onReact?: (photo: PhotoData, type: ReactionType | null) => void | Promise<void>
   onReply?: (photo: PhotoData, text: string) => void | Promise<void>
 }
 
@@ -146,8 +146,11 @@ export const PhotoFeedCard = memo(function PhotoFeedCard({
         <div className="flex items-center gap-3 flex-wrap ml-[1.625rem]">
           {myToken && onReact && (
             <ReactionPicker
-              reactions={photo.reactions}
-              myToken={myToken}
+              eventId={eventId}
+              collectionName="photos"
+              docId={photo.id}
+              reactionCount={photo.reactionCount}
+              reactionCountsByType={photo.reactionCountsByType}
               onReact={(type) => onReact(photo, type)}
             />
           )}

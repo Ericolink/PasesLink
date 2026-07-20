@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { BottomTabBar } from './BottomTabBar'
 
-export type AppShellMode = 'browse' | 'focus' | 'kiosk'
+type AppShellMode = 'browse' | 'focus' | 'kiosk'
 
 type AppShellProps = {
   /**

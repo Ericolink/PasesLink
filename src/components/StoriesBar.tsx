@@ -166,6 +166,7 @@ export function StoriesBar({ eventId, photos, myToken, canReply, onReact, onRepl
           onClose={() => setActiveIndex(null)}
           onView={markSeen}
           mode="story"
+          eventId={eventId}
           myToken={myToken}
           canReply={canReply}
           onReact={onReact}

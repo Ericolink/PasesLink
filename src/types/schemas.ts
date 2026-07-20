@@ -159,13 +159,6 @@ const WallReplySchema = z.object({
   createdAt: z.number(),
 })
 
-const WallReactionSchema = z.object({
-  type: z.enum(['like', 'love', 'haha', 'wow', 'sad', 'angry']),
-  name: z.string(),
-  photoURL: z.string().optional(),
-  reactedAt: z.number().optional(),
-})
-
 export const WallMessageSchema = z.object({
   id: z.string().min(1),
   text: z.string(),
@@ -175,7 +168,8 @@ export const WallMessageSchema = z.object({
   authorRole: z.enum(['owner', 'guest']),
   authorPhotoURL: z.string().optional(),
   createdAt: z.number(),
-  reactions: z.record(z.string(), WallReactionSchema),
+  reactionCount: z.number(),
+  reactionCountsByType: z.record(z.string(), z.number()),
   replies: z.array(WallReplySchema),
   deleted: z.boolean(),
   pinned: z.boolean(),

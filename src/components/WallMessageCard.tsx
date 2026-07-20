@@ -24,10 +24,9 @@ interface Props {
   templateId?: TemplateId
   eventId: string
   eventName: string
-  myToken: string
   onPin: (message: WallMessage) => void
   onRequestDelete: (messageId: string) => void
-  onReact: (message: WallMessage, type: ReactionType | null) => void
+  onReact: (message: WallMessage, type: ReactionType | null) => void | Promise<void>
   onReply: (message: WallMessage, text: string) => Promise<void>
 }
 
@@ -47,7 +46,6 @@ export const WallMessageCard = memo(function WallMessageCard({
   templateId,
   eventId,
   eventName,
-  myToken,
   onPin,
   onRequestDelete,
   onReact,
@@ -147,8 +145,11 @@ export const WallMessageCard = memo(function WallMessageCard({
           que el ícono siga alineado con el resto del bloque. */}
       <div className="flex items-center gap-1 ml-[1.625rem]">
         <ReactionPicker
-          reactions={message.reactions}
-          myToken={myToken}
+          eventId={eventId}
+          collectionName="wall"
+          docId={message.id}
+          reactionCount={message.reactionCount}
+          reactionCountsByType={message.reactionCountsByType}
           onReact={(type) => onReact(message, type)}
         />
         {canReply && !replying && (

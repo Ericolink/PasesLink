@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
-import { subscribeToEventWithInitial } from '../firebase/events'
+import { getEvent } from '../firebase/events'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
@@ -19,22 +19,39 @@ export function EventArrive() {
   const [state, setState] = useState<State>('loading')
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Un único listener cubre tanto la decisión de estado inicial
-  // (not_found/error/ready, resuelta con su primer snapshot) como las
-  // actualizaciones en vivo posteriores (horario, portada, mensaje de
-  // bienvenida) — evita el getDoc aparte que antes leía el mismo documento
-  // dos veces en cada visita.
+  // Antes: listener en vivo sobre events/{eventId} (mismo antipatrón que
+  // GuestPass.tsx — ver el comentario ahí para el detalle completo, hallazgo
+  // F1 de la auditoría de escalabilidad). Esta pantalla es un QR fijo de
+  // "ingreso libre" pensado para quedar abierto en un cartel/tablet en el
+  // venue durante todo el evento — exactamente el momento en que más
+  // check-ins (y por lo tanto más escrituras al documento del evento) están
+  // ocurriendo. No muestra ningún contador en vivo (verificado: no
+  // referencia checkedInCount/occupancyCount/peopleCount), solo campos que
+  // cambian con ediciones del organizador (horario, portada, mensaje de
+  // bienvenida). Se reemplaza por una lectura puntual al montar + refresco
+  // cuando la pestaña vuelve a estar visible.
   useEffect(() => {
     if (!id) return
-    const { unsubscribe, initial } = subscribeToEventWithInitial(id, (ev) => {
-      if (ev) setEvent(ev)
-    })
-    initial.then((ev) => {
+    const eventId = id
+    let cancelled = false
+    getEvent(eventId).then((ev) => {
+      if (cancelled) return
       if (!ev) { setState('not_found'); return }
       if (ev.entryMode === 'list') { setState('error'); return }
+      setEvent(ev)
       setState('ready')
     })
-    return unsubscribe
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return
+      getEvent(eventId).then((ev) => {
+        if (!cancelled && ev) setEvent(ev)
+      })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [id])
 
   useEffect(() => {

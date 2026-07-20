@@ -12,8 +12,7 @@ interface Props {
   templateId?: TemplateId
   eventId: string
   eventName: string
-  myToken: string
-  onReact: (message: WallMessage, type: ReactionType | null) => void
+  onReact: (message: WallMessage, type: ReactionType | null) => void | Promise<void>
 }
 
 // Extraído de lo que antes era JSX inline dentro de feed.map() en
@@ -27,7 +26,6 @@ export const WallSectionMessageCard = memo(function WallSectionMessageCard({
   templateId,
   eventId,
   eventName,
-  myToken,
   onReact,
 }: Props) {
   const cfg = WALL_TYPE_CONFIG[message.type]
@@ -76,8 +74,11 @@ export const WallSectionMessageCard = memo(function WallSectionMessageCard({
             en ~40px+ (antes el botón era solo el ícono de 14px,
             imposible de tocar con precisión en celular). */}
         <ReactionPicker
-          reactions={message.reactions}
-          myToken={myToken}
+          eventId={eventId}
+          collectionName="wall"
+          docId={message.id}
+          reactionCount={message.reactionCount}
+          reactionCountsByType={message.reactionCountsByType}
           onReact={(type) => onReact(message, type)}
         />
         <ReportButton

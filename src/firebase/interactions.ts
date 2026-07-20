@@ -6,7 +6,7 @@
 // funciones. Extraído de lo que antes vivía hardcodeado a `wall` en
 // wall.ts — mismo comportamiento, ahora parametrizado por colección para no
 // duplicarlo en photos.ts.
-import { arrayUnion, doc, deleteField, FieldPath, updateDoc } from 'firebase/firestore'
+import { arrayUnion, doc, increment, runTransaction, updateDoc } from 'firebase/firestore'
 import { db } from './config'
 import {
   requireMaxLength,
@@ -36,14 +36,17 @@ export function mapReply(data: Record<string, unknown>): WallReply {
   }
 }
 
-// Un solo campo (`reactions.<token>`) reemplaza el par likedBy/dislikedBy:
-// como es un map keyed por token, cada reactor tiene a lo sumo una entrada
-// (elegir otra reacción pisa la anterior, nunca hay que limpiar un array
-// aparte) y agregar un tipo de reacción nuevo no toca este archivo.
-// Se usa FieldPath en vez de la forma `{ [`reactions.${token}`]: ... }`
-// porque un token puede traer '.' (ej. viene de un nombre de invitado
-// escrito a mano) — con FieldPath ese token viaja como un único segmento
-// de ruta, nunca se interpreta como un map anidado.
+// Cada reactor es su propio documento en la subcolección
+// events/{eventId}/{wall|photos}/{id}/reactions/{token} — sin tope de tamaño
+// posible, a diferencia del mapa `reactions` embebido que este motor usaba
+// antes (auditoría F2/F11: podía superar el límite de 1MB/documento con
+// contenido viral — hasta ~3.4MB con 5000 reacciones con foto de perfil —
+// haciendo fallar nuevas reacciones en silencio). `reactionCount`/
+// `reactionCountsByType` en el documento padre (mantenidos con increment())
+// le dan a la UI el conteo sin leer la subcolección completa — ver
+// ReactionPicker/ReactionListSheet. Todo dentro de una transacción: lee el
+// estado previo del reactor (para saber si hay que mover un contador de un
+// tipo a otro) y escribe ambos lugares de forma atómica.
 export async function reactToContent(
   eventId: string,
   collectionName: InteractiveCollection,
@@ -54,16 +57,38 @@ export async function reactToContent(
   photoURL?: string,
 ) {
   if (photoURL) requireMaxLength(photoURL, WALL_PHOTO_URL_MAX, 'La URL de la foto')
-  const ref = doc(db, 'events', eventId, collectionName, docId)
-  const path = new FieldPath('reactions', token)
+  const parentRef = doc(db, 'events', eventId, collectionName, docId)
+  const reactionRef = doc(db, 'events', eventId, collectionName, docId, 'reactions', token)
   // reactedAt (client-side, no serverTimestamp): solo se usa para ordenar
   // "más recientes primero" en ReactionListSheet, no necesita precisión de
-  // servidor — y serverTimestamp() como valor de un map anidado vía FieldPath
-  // no vale la complejidad para ese uso.
-  const value: WallReaction | ReturnType<typeof deleteField> = reactionType
+  // servidor — y serverTimestamp() sobre un doc escrito dentro de una
+  // transacción no vale la complejidad para ese uso.
+  const value: WallReaction | null = reactionType
     ? { type: reactionType, name, reactedAt: Date.now(), ...(photoURL ? { photoURL } : {}) }
-    : deleteField()
-  await updateDoc(ref, path, value)
+    : null
+
+  await runTransaction(db, async (tx) => {
+    const prevSnap = await tx.get(reactionRef)
+    const prevType = prevSnap.exists() ? (prevSnap.data() as WallReaction).type : null
+
+    if (value) tx.set(reactionRef, value)
+    else tx.delete(reactionRef)
+
+    const fields: [string, unknown][] = []
+    if (prevType && reactionType && prevType !== reactionType) {
+      fields.push([`reactionCountsByType.${prevType}`, increment(-1)])
+      fields.push([`reactionCountsByType.${reactionType}`, increment(1)])
+    } else if (reactionType && !prevType) {
+      fields.push([`reactionCountsByType.${reactionType}`, increment(1)])
+      fields.push(['reactionCount', increment(1)])
+    } else if (!reactionType && prevType) {
+      fields.push([`reactionCountsByType.${prevType}`, increment(-1)])
+      fields.push(['reactionCount', increment(-1)])
+    }
+    if (fields.length > 0) {
+      tx.update(parentRef, fields[0][0], fields[0][1], ...fields.slice(1).flat())
+    }
+  })
 }
 
 // Devuelve la respuesta creada (no solo `void`) para que un llamador sin

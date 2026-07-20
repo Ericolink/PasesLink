@@ -36,12 +36,12 @@ export function guestDisplayName(guest: Pick<GuestData, 'name' | 'lastName' | 'i
 // una fila puede pasar de acá a `confirmed` sola cuando se aprueba su pago.
 export type GuestUrgency = 'attention' | 'confirmed_unpaid' | 'confirmed' | 'unanswered' | 'declined'
 
-export function needsAttention(guest: GuestData, requiresPayment: boolean): boolean {
+function needsAttention(guest: GuestData, requiresPayment: boolean): boolean {
   if (!requiresPayment) return false
   return guest.paymentStatus === 'pending_confirmation'
 }
 
-export function guestUrgency(guest: GuestData, requiresPayment: boolean): GuestUrgency {
+function guestUrgency(guest: GuestData, requiresPayment: boolean): GuestUrgency {
   if (needsAttention(guest, requiresPayment)) return 'attention'
   if (guest.rsvpStatus === 'no' || guestPresence(guest) === 'final_out') return 'declined'
   if (guest.rsvpStatus === 'pending') return 'unanswered'

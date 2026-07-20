@@ -17,7 +17,7 @@ import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
 import { mapReply, reactToContent, replyToContent } from './interactions'
-import type { ReactionType, WallReaction, WallReply } from '../types'
+import type { ReactionType, WallReply } from '../types'
 
 export interface PhotoData {
   id: string
@@ -36,9 +36,12 @@ export interface PhotoData {
   // Mismo modelo que WallMessage (ver types/index.ts) — reutilizado tal
   // cual para que una foto (y una "historia", que es la misma foto vista
   // agrupada, ver StoriesBar.tsx) tenga el mismo nivel de interacción que un
-  // mensaje del muro. Fotos subidas antes de este campo no lo tienen en
-  // Firestore — mapPhoto() lo completa acá con `{}`/`[]`.
-  reactions: Record<string, WallReaction>
+  // mensaje del muro. reactionCount/reactionCountsByType denormalizados
+  // (auditoría F2/F11); la reacción individual vive en la subcolección
+  // .../reactions/{token}, no en este documento. Fotos subidas antes de
+  // estos campos no los tienen en Firestore — mapPhoto() completa `0`/`{}`.
+  reactionCount: number
+  reactionCountsByType: Partial<Record<ReactionType, number>>
   replies: WallReply[]
 }
 
@@ -62,14 +65,15 @@ function mapPhoto(id: string, data: Record<string, unknown>): PhotoData {
     width: typeof data.width === 'number' ? data.width : undefined,
     height: typeof data.height === 'number' ? data.height : undefined,
     pinned: data.pinned === true,
-    reactions: (data.reactions as Record<string, WallReaction>) || {},
+    reactionCount: (data.reactionCount as number) || 0,
+    reactionCountsByType: (data.reactionCountsByType as Partial<Record<ReactionType, number>>) || {},
     replies: ((data.replies as Record<string, unknown>[]) || []).map(mapReply),
   }
 }
 
 export async function addPhoto(
   eventId: string,
-  photo: Omit<PhotoData, 'id' | 'createdAt' | 'pinned' | 'reactions' | 'replies'>,
+  photo: Omit<PhotoData, 'id' | 'createdAt' | 'pinned' | 'reactionCount' | 'reactionCountsByType' | 'replies'>,
 ): Promise<string> {
   const ref = await addDoc(collection(db, 'events', eventId, 'photos'), {
     url: photo.url,
@@ -78,7 +82,8 @@ export async function addPhoto(
     caption: photo.caption || '',
     width: photo.width ?? null,
     height: photo.height ?? null,
-    reactions: {},
+    reactionCount: 0,
+    reactionCountsByType: {},
     replies: [],
     createdAt: serverTimestamp(),
   })

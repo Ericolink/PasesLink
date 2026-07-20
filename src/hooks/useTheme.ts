@@ -4,4 +4,4 @@
 // vive en el Context. Ver ThemeContext.tsx para el porqué de usar Context
 // en vez de un useState standalone.
 export { useTheme } from '../contexts/ThemeContext'
-export type { ThemePreference, ResolvedTheme } from '../contexts/ThemeContext'
+export type { ThemePreference } from '../contexts/ThemeContext'

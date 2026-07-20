@@ -151,38 +151,28 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
   // como props — sin esto, cada uno se recreaba en cada render de
   // WallSection y anulaba el memo de cada card del feed en cada tecla
   // escrita en el compositor de posts (arriba, mismo componente).
+  // El estado optimista de "mi reacción" (y su revert si la escritura falla)
+  // vive en ReactionPicker (ver utils/reactions.ts) — este handler solo
+  // dispara la escritura real y re-lanza el error para que ese revert pueda
+  // ocurrir.
   const handleReact = useCallback(async (msg: WallMessage, type: ReactionType | null) => {
-    const token = getDeviceToken()
-    const prevReactions = msg.reactions
-    const nextReactions = { ...prevReactions }
-    if (type) nextReactions[token] = { type, name: authorName || 'Invitado', reactedAt: Date.now(), ...(authorPhoto ? { photoURL: authorPhoto } : {}) }
-    else delete nextReactions[token]
-    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: nextReactions } : m)))
-
     try {
-      await reactToWallMessage(eventId, msg.id, token, authorName || 'Invitado', type, authorPhoto)
+      await reactToWallMessage(eventId, msg.id, getDeviceToken(), authorName || 'Invitado', type, authorPhoto)
     } catch (err) {
       console.error('Error reacting to wall message:', err)
-      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reactions: prevReactions } : m)))
+      throw err
     }
   }, [eventId, authorName, authorPhoto])
 
-  // Mismo patrón optimista que handleReact, sobre `photos` — reutiliza
-  // reactToPhoto/replyToPhoto (src/firebase/photos.ts), que comparten motor
-  // con los mensajes (ver src/firebase/interactions.ts).
+  // Ídem handleReact, sobre `photos` — reutiliza reactToPhoto/replyToPhoto
+  // (src/firebase/photos.ts), que comparten motor con los mensajes (ver
+  // src/firebase/interactions.ts).
   const handleReactPhoto = useCallback(async (photo: PhotoData, type: ReactionType | null) => {
-    const token = getDeviceToken()
-    const prevReactions = photo.reactions
-    const nextReactions = { ...prevReactions }
-    if (type) nextReactions[token] = { type, name: authorName || 'Invitado', reactedAt: Date.now(), ...(authorPhoto ? { photoURL: authorPhoto } : {}) }
-    else delete nextReactions[token]
-    setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: nextReactions } : p)))
-
     try {
-      await reactToPhoto(eventId, photo.id, token, authorName || 'Invitado', type, authorPhoto)
+      await reactToPhoto(eventId, photo.id, getDeviceToken(), authorName || 'Invitado', type, authorPhoto)
     } catch (err) {
       console.error('Error reacting to photo:', err)
-      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, reactions: prevReactions } : p)))
+      throw err
     }
   }, [eventId, authorName, authorPhoto])
 
@@ -333,7 +323,6 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
               templateId={templateId}
               eventId={eventId}
               eventName={eventName}
-              myToken={deviceToken}
               onReact={handleReact}
             />
           )

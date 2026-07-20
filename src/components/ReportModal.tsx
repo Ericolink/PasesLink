@@ -51,17 +51,13 @@ export function ReportModal({
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
 
+  // Auditoría de escalabilidad (F15): ReportButton ahora desmonta este
+  // componente al cerrar (en vez de dejarlo montado y oculto) — ya no hace
+  // falta resetear el formulario a mano, una instancia nueva la próxima vez
+  // que se abra ya arranca de useState limpio.
   function handleClose() {
     if (submitting) return
     onClose()
-    // Reset diferido (no en el mismo tick del cierre) para que el usuario no
-    // vea el formulario "vaciarse" durante la animación de salida.
-    setTimeout(() => {
-      setReason('')
-      setAnonymous(true)
-      setError('')
-      setDone(false)
-    }, 200)
   }
 
   async function handleSubmit(e: React.FormEvent) {

@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { collection, doc, getDocs, setDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore'
 import { createTestEnv, seedEvent, type EmulatorFirestore } from './helpers'
 
 // Mismo mock que guests.test.ts/photos.test.ts: redirige el `db` singleton de
@@ -36,7 +36,8 @@ async function seedWallMessage(testEnv: RulesTestEnvironment, messageId: string,
       authorToken: 'guest-token',
       authorRole: 'guest',
       authorPhotoURL: null,
-      reactions: {},
+      reactionCount: 0,
+      reactionCountsByType: {},
       replies: [],
       deleted: false,
       pinned: false,
@@ -231,7 +232,6 @@ describe('wall.ts — reject direct writes bypassing postWallMessage entirely', 
         authorName: 'El organizador',
         authorToken: 'fake-token',
         authorRole: 'owner',
-        reactions: {},
         replies: [],
         deleted: false,
         pinned: false,
@@ -241,12 +241,13 @@ describe('wall.ts — reject direct writes bypassing postWallMessage entirely', 
   })
 })
 
-// Auditoría de escalabilidad (F12): antes, una escritura directa a
-// Firestore podía reemplazar `reactions` agregando cualquier cantidad de
-// claves de golpe (un script podía inflar el mapa hasta el tope de tamaño
-// en un solo request en vez de necesitar miles de reacciones reales). Ver
-// isSingleReactionKeyChange en firestore.rules.
-describe('wall.ts — reaction map integrity', () => {
+// Auditoría F2/F11: el mapa `reactions{}` embebido (que antes podía superar
+// el límite de 1MB/documento con contenido viral, y fue blanco del abuso de
+// F12 — inyectar muchas claves de golpe) ya no forma parte del documento en
+// absoluto. Este test confirma que escribirlo directo queda rechazado sin
+// excepción, no solo acotado como antes (ver isSingleReactionKeyChange,
+// retirada de firestore.rules).
+describe('wall.ts — legacy reactions field rejected (auditoría F2/F11)', () => {
   let testEnv: RulesTestEnvironment
 
   beforeAll(async () => {
@@ -261,27 +262,111 @@ describe('wall.ts — reaction map integrity', () => {
     await testEnv.cleanup()
   })
 
-  it('lets an unauthenticated guest react through the real reactToWallMessage function', async () => {
+  it('rejects a direct write to the legacy reactions field', async () => {
     await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
     await seedWallMessage(testEnv, 'msg-1')
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
-    await expect(reactToWallMessage(EVENT_ID, 'msg-1', 'device-token-1', 'Invitado', 'love')).resolves.toBeUndefined()
+    await expect(
+      setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'wall', 'msg-1'), {
+        reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } },
+      }, { merge: true }),
+    ).rejects.toThrow()
+  })
+})
+
+// Auditoría F2/F11: migración de `reactions{}` embebido (riesgo de superar
+// el límite de 1MB/documento con contenido viral) a una subcolección
+// wall/{messageId}/reactions/{token}, un doc por reactor. Paso 1: escribir
+// ahí Y mantener reactionCount/reactionCountsByType denormalizados,
+// conviviendo con el mapa viejo (que la UI todavía lee) — ver
+// reactToContent en interactions.ts.
+describe('wall.ts — reactions subcollection + contadores denormalizados (auditoría F2/F11)', () => {
+  let testEnv: RulesTestEnvironment
+
+  beforeAll(async () => {
+    testEnv = await createTestEnv()
   })
 
-  it('rejects a direct write that injects multiple new reaction keys in a single request', async () => {
+  afterEach(async () => {
+    await testEnv.clearFirestore()
+  })
+
+  afterAll(async () => {
+    await testEnv.cleanup()
+  })
+
+  it('writes a mirror doc to the reactions subcollection and increments reactionCount/reactionCountsByType', async () => {
     await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
-    await seedWallMessage(testEnv, 'msg-1', { reactions: { 'device-token-1': { type: 'like', name: 'Invitado' } } })
+    await seedWallMessage(testEnv, 'msg-1')
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await reactToWallMessage(EVENT_ID, 'msg-1', 'device-token-1', 'Invitado', 'love')
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const msgSnap = await getDoc(doc(context.firestore(), 'events', EVENT_ID, 'wall', 'msg-1'))
+      expect(msgSnap.data()?.reactionCount).toBe(1)
+      expect(msgSnap.data()?.reactionCountsByType).toEqual({ love: 1 })
+
+      const reactionSnap = await getDoc(doc(context.firestore(), 'events', EVENT_ID, 'wall', 'msg-1', 'reactions', 'device-token-1'))
+      expect(reactionSnap.exists()).toBe(true)
+      expect(reactionSnap.data()?.type).toBe('love')
+    })
+  })
+
+  it('moves the counter from the old type to the new type when a reactor switches, without changing the total', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedWallMessage(testEnv, 'msg-1')
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await reactToWallMessage(EVENT_ID, 'msg-1', 'device-token-1', 'Invitado', 'love')
+    await reactToWallMessage(EVENT_ID, 'msg-1', 'device-token-1', 'Invitado', 'like')
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const msgSnap = await getDoc(doc(context.firestore(), 'events', EVENT_ID, 'wall', 'msg-1'))
+      expect(msgSnap.data()?.reactionCount).toBe(1)
+      expect(msgSnap.data()?.reactionCountsByType).toEqual({ love: 0, like: 1 })
+    })
+  })
+
+  it('deletes the mirror doc and decrements the counters when the reaction is removed', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedWallMessage(testEnv, 'msg-1')
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await reactToWallMessage(EVENT_ID, 'msg-1', 'device-token-1', 'Invitado', 'love')
+    await reactToWallMessage(EVENT_ID, 'msg-1', 'device-token-1', 'Invitado', null)
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const msgSnap = await getDoc(doc(context.firestore(), 'events', EVENT_ID, 'wall', 'msg-1'))
+      expect(msgSnap.data()?.reactionCount).toBe(0)
+      expect(msgSnap.data()?.reactionCountsByType).toEqual({ love: 0 })
+
+      const reactionSnap = await getDoc(doc(context.firestore(), 'events', EVENT_ID, 'wall', 'msg-1', 'reactions', 'device-token-1'))
+      expect(reactionSnap.exists()).toBe(false)
+    })
+  })
+
+  it('rejects a direct write that jumps reactionCount by more than 1 in a single request', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedWallMessage(testEnv, 'msg-1', { reactionCount: 0, reactionCountsByType: {} })
     dbHolder.db = testEnv.unauthenticatedContext().firestore()
 
     await expect(
-      setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'wall', 'msg-1'), {
-        reactions: {
-          'device-token-1': { type: 'like', name: 'Invitado' },
-          'fake-token-2': { type: 'love', name: 'Bot' },
-          'fake-token-3': { type: 'love', name: 'Bot' },
-        },
-      }, { merge: true }),
+      setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'wall', 'msg-1'), { reactionCount: 500 }, { merge: true }),
     ).rejects.toThrow()
+  })
+
+  it('rejects a direct write to the reactions subcollection with an invalid reaction type', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    await seedWallMessage(testEnv, 'msg-1')
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await assertFails(
+      setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'wall', 'msg-1', 'reactions', 'device-token-1'), {
+        type: 'not-a-real-type',
+        name: 'Invitado',
+      }),
+    )
   })
 })

@@ -25,7 +25,7 @@ const firebaseConfig = {
   appId: cleanEnv(import.meta.env.VITE_FIREBASE_APP_ID),
 }
 
-export const app = initializeApp(firebaseConfig)
+const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 
 // getFirestore(app) por defecto deja que el SDK "autodetecte" si puede usar

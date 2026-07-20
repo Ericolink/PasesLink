@@ -10,7 +10,7 @@ const NOVEDADES_SEEN_PREFIX = 'paselink_novedades_seen_'
 
 // Subir este valor cuando haya novedades nuevas que anunciar — los usuarios
 // que ya vieron una versión anterior vuelven a ver el cuadro una vez.
-export const NOVEDADES_VERSION = '2026-07'
+const NOVEDADES_VERSION = '2026-07'
 
 function safeGet(key: string): string | null {
   try { return localStorage.getItem(key) } catch { return null }

@@ -25,10 +25,10 @@ import {
   WALL_TOKEN_MAX,
   WALL_TYPES,
 } from '../utils/validation'
-import type { ReactionType, WallMessage, WallMessageType, WallReaction } from '../types'
+import type { ReactionType, WallMessage, WallMessageType } from '../types'
 import { WallMessageSchema, warnIfInvalidShape } from '../types/schemas'
 
-export const DEFAULT_WALL_LIVE_LIMIT = 50
+const DEFAULT_WALL_LIVE_LIMIT = 50
 
 // El muro puede acumular cientos de mensajes en un evento largo. En vez de un
 // listener sin límite (descarga todo el historial y reenvía un delta a cada
@@ -37,12 +37,14 @@ export const DEFAULT_WALL_LIVE_LIMIT = 50
 // que pueden ser viejos y deben seguir visibles arriba). El historial más
 // antiguo se carga aparte, a pedido, con `getOlderWallMessages` — ver ahí.
 //
-// TODO Fase 3+: esta función sigue siendo 2 listeners en tiempo real
-// (`recent` + `pinned`) por cada llamador. GuestPass.tsx (vía WallSection) la
-// monta en una página 100% pública sin login — cada invitado con su pase
-// abierto paga esos 2 listeners. En un evento concurrido esto puede agotar
-// la cuota gratuita de Firestore rápido. Posible solución: polling/refresh
-// manual en el pase individual, o tiempo real solo para EventWall.
+// Sigue siendo 2 listeners en tiempo real (`recent` + `pinned`) por cada
+// llamador, pero desde que WallSection (embebido en GuestPass/EventJoin, las
+// páginas públicas de mayor tráfico) usa fetchWallMessages en vez de esto
+// (ver más abajo), el único llamador real es EventWall.tsx — la pantalla
+// dedicada de "muro", pensada como kiosco de un solo dispositivo en el venue
+// (auditoría de escalabilidad, hallazgo F8: evaluado y aceptado tal cual,
+// dado que los mensajes/reacciones son mucho menos frecuentes que los
+// check-ins que sí motivaron sacar el listener de GuestPass/EventArrive).
 export function subscribeToWall(
   eventId: string,
   callback: (messages: WallMessage[]) => void,
@@ -124,9 +126,9 @@ export function subscribeToLatestWallMessage(
 // Variante sin listener: una sola lectura (recent + pinned, mismo criterio
 // que subscribeToWall) en vez de una suscripción permanente. Pensada para
 // widgets embebidos en páginas públicas de alto tráfico (WallSection en
-// GuestPass/EventJoin) donde un listener en vivo por visitante es el patrón
-// de mayor riesgo de costo del proyecto (ver TODO más arriba). El llamador
-// decide cuándo volver a pedir datos (ej. al montar, o con un botón
+// GuestPass/EventJoin) donde un listener en vivo por visitante sería el
+// patrón de mayor riesgo de costo del proyecto (mismo antipatrón que F1). El
+// llamador decide cuándo volver a pedir datos (ej. al montar, o con un botón
 // "Actualizar"), en vez de recibir actualizaciones automáticas.
 export async function fetchWallMessages(
   eventId: string,
@@ -199,7 +201,8 @@ export async function postWallMessage(
     authorToken,
     authorRole,
     authorPhotoURL: authorPhotoURL || null,
-    reactions: {},
+    reactionCount: 0,
+    reactionCountsByType: {},
     replies: [],
     deleted: false,
     pinned: false,
@@ -260,7 +263,8 @@ function mapMessage(id: string, data: Record<string, unknown>): WallMessage {
     authorToken: data.authorToken as string,
     authorRole: (data.authorRole as 'owner' | 'guest') || 'guest',
     authorPhotoURL: (data.authorPhotoURL as string) || undefined,
-    reactions: (data.reactions as Record<string, WallReaction>) || {},
+    reactionCount: (data.reactionCount as number) || 0,
+    reactionCountsByType: (data.reactionCountsByType as Partial<Record<ReactionType, number>>) || {},
     replies: ((data.replies as Record<string, unknown>[]) || []).map(mapReply),
     deleted: (data.deleted as boolean) || false,
     pinned: (data.pinned as boolean) || false,

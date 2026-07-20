@@ -9,18 +9,17 @@ import { useEventExport } from '../hooks/useEventExport'
 import { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
-import { deleteEvent, setEventStatus } from '../firebase/events'
+import { useEventLifecycleActions } from '../hooks/useEventLifecycleActions'
 import { resolveMaxCompanions } from '../firebase/guests'
-import { LEGACY_COORG_DEFAULTS } from '../types/coOrganizerPermissions'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { GuestList } from '../components/GuestList'
 import { GuestSearchSheet } from '../components/GuestSearchSheet'
 import { EditEventForm } from '../components/EditEventForm'
+import { EventManagementPanel } from '../components/EventManagementPanel'
+import { CoOrganizerPanel } from '../components/CoOrganizerPanel'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { Button } from '../components/Button'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
-import { CoOrganizerPermissionsEditor } from '../components/CoOrganizerPermissionsEditor'
 import { SkeletonBlock } from '../components/Skeleton'
 import { ReminderSection } from '../components/ReminderSection'
 import { ThemeOrnament } from '../components/ThemeOrnament'
@@ -42,7 +41,6 @@ import {
   IconSearch,
   IconShare,
   IconUserPlus,
-  IconX,
 } from '../components/Icons'
 
 export function EventDetail() {
@@ -53,10 +51,7 @@ export function EventDetail() {
   const { event, guests, loading, error, guestsError, guestsTruncated, showAllGuests } = useEvent(eventId)
   useDocumentTitle(event?.name || 'Evento')
   useDashboardTheme(event?.templateId, event?.accentColor)
-  const [updatingStatus, setUpdatingStatus] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [confirmCancelEvent, setConfirmCancelEvent] = useState(false)
+  const eventActions = useEventLifecycleActions(eventId)
   const [actionError, setActionError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'scanned' | 'declined' | 'pending'>('all')
@@ -64,8 +59,6 @@ export function EventDetail() {
   const [guestSearchSheetOpen, setGuestSearchSheetOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(false)
   const [manageCoOrgOpen, setManageCoOrgOpen] = useState(false)
-  const [removingCoOrg, setRemovingCoOrg] = useState<{ uid: string; email: string } | null>(null)
-  const [expandedCoOrgUid, setExpandedCoOrgUid] = useState<string | null>(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [checkinToast, dismissCheckinToast] = useCheckinToast(eventId)
@@ -79,17 +72,8 @@ export function EventDetail() {
     handleExportExcel,
     handleCancelExport,
   } = useEventExport(event, guests)
-  const {
-    coOrgEmail,
-    setCoOrgEmail,
-    coOrgLoading,
-    coOrgError,
-    setCoOrgError,
-    handleAddCoOrg,
-    handleRemoveCoOrg,
-    handleLeaveEvent,
-    handleUpdatePermissions,
-  } = useCoOrganizers(eventId, event?.ownerId, event?.coOrganizersMap)
+  const coOrg = useCoOrganizers(eventId, event?.ownerId, event?.coOrganizersMap)
+  const { handleLeaveEvent } = coOrg
   const perms = useEventPermissions(event, user)
 
   // Permite que el CTA del modal de éxito de EventCreate (u otros enlaces)
@@ -200,34 +184,6 @@ export function EventDetail() {
 
   if (user && !perms.hasAccess) {
     return <ErrorFallbackCTA message="No tienes acceso a este evento." />
-  }
-
-  async function handleStatusChange(status: 'cancelled' | 'archived' | 'active') {
-    if (!eventId) return
-    setUpdatingStatus(true)
-    setActionError('')
-    try {
-      await setEventStatus(eventId, status)
-    } catch {
-      setActionError('No se pudo actualizar el estado del evento. Intenta de nuevo.')
-    } finally {
-      setUpdatingStatus(false)
-    }
-  }
-
-  async function handleDelete() {
-    if (!eventId) return
-    setDeleting(true)
-    setActionError('')
-    try {
-      await deleteEvent(eventId)
-      navigate('/dashboard')
-    } catch {
-      setConfirmDelete(false)
-      setActionError('No se pudo eliminar el evento por completo. Es posible que parte de los datos ya se haya borrado — revisa el evento e intenta de nuevo.')
-    } finally {
-      setDeleting(false)
-    }
   }
 
   async function handleLeave() {
@@ -386,63 +342,7 @@ export function EventDetail() {
       )}
 
       {/* Gestión de co-organizadores (inline, visible al hacer clic en el ícono junto al lápiz) */}
-      {perms.manageCoOrganizers && manageCoOrgOpen && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-5 animate-fade-in-up">
-          <h2 className="font-medium text-gray-900 dark:text-white mb-1">Coorganizadores</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            Cada persona puede tener sus propios permisos — toca su email para ajustarlos.
-          </p>
-          {Object.entries(coOrgsMap).length > 0 && (
-            <div className="space-y-2 mb-3">
-              {Object.entries(coOrgsMap).map(([uid, email]) => {
-                const uidPermissions = { ...LEGACY_COORG_DEFAULTS, ...event.coOrganizerPermissions?.[uid] }
-                const expanded = expandedCoOrgUid === uid
-                return (
-                  <div key={uid} className="bg-gray-50 dark:bg-gray-700/40 rounded-lg overflow-hidden">
-                    <div className="flex items-center justify-between px-3 py-2">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedCoOrgUid(expanded ? null : uid)}
-                        className="flex-1 text-left text-sm text-gray-700 dark:text-gray-300 hover:text-primary transition-colors"
-                      >
-                        {email}
-                      </button>
-                      <button
-                        onClick={() => setRemovingCoOrg({ uid, email })}
-                        aria-label={`Quitar a ${email} como co-organizador`}
-                        className="text-gray-400 hover:text-red-500 transition-colors shrink-0 ml-2"
-                      >
-                        <IconX className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {expanded && (
-                      <div className="px-3 pb-3 pt-1 border-t border-gray-200 dark:border-gray-600">
-                        <CoOrganizerPermissionsEditor
-                          value={uidPermissions}
-                          onChange={(next) => handleUpdatePermissions(uid, next)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          <form onSubmit={handleAddCoOrg} className="flex gap-2">
-            <input
-              type="email"
-              value={coOrgEmail}
-              onChange={(e) => { setCoOrgEmail(e.target.value); setCoOrgError('') }}
-              placeholder="email@ejemplo.com"
-              className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
-            />
-            <Button type="submit" size="sm" disabled={coOrgLoading || !coOrgEmail.trim()}>
-              {coOrgLoading ? '…' : 'Agregar'}
-            </Button>
-          </form>
-          {coOrgError && <p className="text-xs text-red-500 mt-1.5">{coOrgError}</p>}
-        </div>
-      )}
+      {perms.manageCoOrganizers && <CoOrganizerPanel event={event} open={manageCoOrgOpen} coOrg={coOrg} />}
 
       {/* Un co-organizador (no el dueño) puede dejar de serlo sin depender de él */}
       {perms.isCoOrg && !perms.isOwner && (
@@ -647,71 +547,7 @@ export function EventDetail() {
       )}
 
       {/* ── GESTIÓN DEL EVENTO (solo propietario, colapsable) ── */}
-      {perms.isOwner && (
-        <details className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mb-5">
-          <summary className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-            <span className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-              Gestión del evento
-            </span>
-            <span className="text-xs text-gray-400">
-              <span className="group-open:hidden">▾</span>
-              <span className="hidden group-open:inline">▴</span>
-            </span>
-          </summary>
-
-          <div className="bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
-
-            {/* Estado del evento */}
-            <div className="p-5">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Estado del evento</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Estado actual: <span className="font-semibold">{statusLabel(event.status)}</span>
-              </p>
-              <div className="flex gap-2 flex-wrap">
-                {event.status === 'active' ? (
-                  <button
-                    onClick={() => setConfirmCancelEvent(true)}
-                    disabled={updatingStatus}
-                    className="text-sm border border-red-200 text-red-600 dark:border-red-700/60 dark:text-red-400 rounded-lg px-4 py-2 font-medium hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
-                  >
-                    Cancelar evento
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleStatusChange('active')}
-                    disabled={updatingStatus}
-                    className="text-sm border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg px-4 py-2 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                  >
-                    Reactivar evento
-                  </button>
-                )}
-                <Link
-                  to="/events/new"
-                  className="text-sm border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg px-4 py-2 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Crear nuevo evento
-                </Link>
-              </div>
-            </div>
-
-            {/* Zona peligrosa */}
-            <div className="p-5 bg-red-50/40 dark:bg-red-900/10">
-              <h3 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">Zona peligrosa</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Borra el evento, sus invitados y el historial de check-ins de forma permanente. No se puede deshacer.
-              </p>
-              {actionError && (
-                <p className="text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-lg px-3 py-2 mb-3">
-                  {actionError}
-                </p>
-              )}
-              <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)} disabled={deleting}>
-                {deleting ? 'Eliminando…' : 'Eliminar evento definitivamente'}
-              </Button>
-            </div>
-          </div>
-        </details>
-      )}
+      {perms.isOwner && <EventManagementPanel event={event} actions={eventActions} />}
 
       <GuestSearchSheet
         open={guestSearchSheetOpen}
@@ -727,25 +563,6 @@ export function EventDetail() {
 
       {/* Diálogos de confirmación */}
       <ConfirmDialog
-        open={confirmDelete}
-        danger
-        title={`Eliminar "${event.name}"`}
-        message="Se borrarán todos los invitados y el historial de check-ins. Esta acción no se puede deshacer."
-        confirmLabel={deleting ? 'Eliminando…' : 'Sí, eliminar'}
-        cancelLabel="Cancelar"
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmDelete(false)}
-      />
-      <ConfirmDialog
-        open={!!removingCoOrg}
-        title="Quitar co-organizador"
-        message={`¿Quitar a ${removingCoOrg?.email} como co-organizador? Ya no podrá escanear pases ni ver este evento.`}
-        confirmLabel="Quitar"
-        danger
-        onConfirm={() => { if (removingCoOrg) handleRemoveCoOrg(removingCoOrg.uid); setRemovingCoOrg(null) }}
-        onCancel={() => setRemovingCoOrg(null)}
-      />
-      <ConfirmDialog
         open={confirmLeave}
         title="Salir del evento"
         message="Dejarás de ser co-organizador de este evento. El evento, sus invitados y el organizador principal no se ven afectados."
@@ -754,17 +571,6 @@ export function EventDetail() {
         onConfirm={handleLeave}
         onCancel={() => setConfirmLeave(false)}
       />
-      <ConfirmDialog
-        open={confirmCancelEvent}
-        danger
-        title={`Cancelar "${event.name}"`}
-        message="Los invitados y coanfitriones van a ver el evento marcado como cancelado. Podés reactivarlo después si fue un error."
-        confirmLabel={updatingStatus ? 'Cancelando…' : 'Sí, cancelar evento'}
-        cancelLabel="Volver"
-        onConfirm={() => { void handleStatusChange('cancelled'); setConfirmCancelEvent(false) }}
-        onCancel={() => setConfirmCancelEvent(false)}
-      />
-
     </>
   )
 
@@ -848,10 +654,4 @@ function PublicLink({ label, desc, path }: { label: string; desc: string; path: 
       </div>
     </div>
   )
-}
-
-function statusLabel(status: string) {
-  if (status === 'active') return 'Activo'
-  if (status === 'cancelled') return 'Cancelado'
-  return 'Archivado'
 }
