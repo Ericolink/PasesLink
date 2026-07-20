@@ -229,7 +229,10 @@ export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[
     name: requireMaxLength(requireNonEmpty(row.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre'),
     lastName: row.lastName?.trim() ? requireMaxLength(row.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido') : '',
     phone: row.phone?.trim() ? requireMaxLength(row.phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : '',
-    email: row.email?.trim() ? requireMaxLength(requireValidEmail(row.email.trim(), 'El email'), GUEST_EMAIL_MAX, 'El email') : '',
+    // Minúsculas: ver el mismo comentario en capacity.ts (registerWalkInGuest)
+    // — permite que reclaimInvitationsByEmail encuentre este contacto por
+    // igualdad exacta contra el email verificado de la cuenta.
+    email: row.email?.trim() ? requireMaxLength(requireValidEmail(row.email.trim().toLowerCase(), 'El email'), GUEST_EMAIL_MAX, 'El email') : '',
   }))
 
   await measureSpan('firestore.addGuestsFromRows', 'db.firestore', async () => {
@@ -364,7 +367,7 @@ export async function updateGuestSelf(
   const name = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
   const lastName = requireMaxLength((input.lastName || '').trim(), GUEST_NAME_PART_MAX, 'El apellido')
   const phone = requireMaxLength((input.phone || '').trim(), GUEST_PHONE_MAX, 'El teléfono')
-  const emailTrimmed = (input.email || '').trim()
+  const emailTrimmed = (input.email || '').trim().toLowerCase()
   const email = emailTrimmed
     ? requireMaxLength(requireValidEmail(emailTrimmed, 'El email'), GUEST_EMAIL_MAX, 'El email')
     : ''
@@ -917,6 +920,37 @@ export async function claimGuestPass(eventId: string, guestId: string, deviceTok
     transaction.update(guestRef, { lockTokens: next, lockToken: next[next.length - 1] })
     return next
   })
+}
+
+// Vincula este pase a la cuenta autenticada que lo está viendo — el único
+// campo que hace de un invitado "recuperable desde cualquier dispositivo"
+// (ver GuestPass.tsx, y el problema que resuelve: un navegador integrado de
+// Instagram/TikTok/Facebook que borra localStorage antes de que el invitado
+// vuelva a abrir el link desde su navegador real). "Primero en reclamarlo,
+// gana": no hace nada si el pase ya tiene DUEÑO (mismo uid o distinto) — un
+// pase ya vinculado nunca se puede reasignar desde acá; ver
+// reclaimInvitationsByEmail (src/firebase/invitationRecovery.ts) para el
+// camino de recuperación cuando el invitado ni siquiera tiene el link. La
+// prueba de "posesión del pase" acá es la misma que ya protege el resto de
+// acciones del invitado en firestore.rules: haber resuelto este (eventId,
+// guestId) en primer lugar (un id aleatorio de Firestore, no adivinable) —
+// no depende de lockToken (ver el comentario de esta rama en firestore.rules
+// sobre por qué reenviar un valor sin cambiarlo no prueba nada).
+export async function claimGuestOwnership(
+  eventId: string,
+  guestId: string,
+  uid: string,
+  currentGuestUid: string | null,
+): Promise<void> {
+  if (currentGuestUid === uid) return
+  try {
+    await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { guestUid: uid })
+  } catch (err) {
+    // Ya reclamado por otra cuenta — no debe interrumpir la carga del pase,
+    // que sigue funcionando igual sin este vínculo (users/{uid}/invitations,
+    // escrito aparte, no depende de esto).
+    console.warn('No se pudo vincular el pase a la cuenta:', err)
+  }
 }
 
 async function findGuestRefByToken(eventId: string, qrToken: string) {

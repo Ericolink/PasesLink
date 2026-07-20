@@ -133,6 +133,17 @@ export async function getGuestContactDoc(testEnv: RulesTestEnvironment, eventId:
   return result
 }
 
+export async function seedGuestContact(
+  testEnv: RulesTestEnvironment,
+  eventId: string,
+  guestId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'events', eventId, 'guestContacts', guestId), { ...overrides })
+  })
+}
+
 /** Encuentra el id de un guest por su qrToken (registerWalkInGuest solo devuelve el token, no el id). */
 export async function guestIdByToken(testEnv: RulesTestEnvironment, eventId: string, qrToken: string): Promise<string> {
   let result = ''

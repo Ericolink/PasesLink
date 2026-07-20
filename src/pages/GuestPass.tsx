@@ -3,7 +3,7 @@ import { useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
-import { checkInGuest, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
+import { checkInGuest, claimGuestOwnership, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { saveUserInvitation } from '../firebase/userProfile'
@@ -11,7 +11,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { resolveEventPermissions } from '../types/coOrganizerPermissions'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
-import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconWhatsApp } from '../components/Icons'
+import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconUserPlus, IconWhatsApp } from '../components/Icons'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
@@ -172,14 +172,34 @@ function GuestPassInner() {
           return
         }
 
-        // Vincula (o revincula) este pase a "Mis invitaciones" cada vez que su
-        // dueño lo abre logueado — cubre tanto al que se autoregistró sin
-        // cuenta y la creó después (EventJoin.tsx solo guarda esto si YA
-        // estaba logueado al registrarse, así que ese caso nunca queda
-        // guardado si no se repite acá) como a cualquier invitado de lista
-        // que recién ahora abre sesión. `saveUserInvitation` es un upsert
-        // (merge:true), así que repetirlo en cada vista es inofensivo.
+        // Reconoce este dispositivo/navegador para el pase (ver
+        // claimGuestPass) — ya no "compite" por un único lock: se suma a la
+        // lista de dispositivos reconocidos (con tope y rotación LRU), así
+        // que esta llamada nunca deja al invitado bloqueado. No relacionado
+        // con el bloque de vinculación de cuenta de abajo (claimGuestOwnership
+        // no depende de lockTokens) — vive acá simplemente porque ambos son
+        // parte del mismo bootstrap del pase.
+        const storageKey = `paselink_lock_${eventId}_${qrToken}`
+        const localToken = localStorage.getItem(storageKey) || crypto.randomUUID()
+        localStorage.setItem(storageKey, localToken)
+        const devices = await claimGuestPass(eventId, guestData.id, localToken)
+        setDeviceToken(localToken)
+        setMultiDevice(devices.length > 1)
+        setGuest({ ...guestData, lockToken: localToken, lockTokens: devices })
+
+        // Vincula (o revincula) este pase a la cuenta cada vez que su dueño
+        // lo abre logueado — cubre tanto al que se autoregistró sin cuenta y
+        // la creó después, como a cualquier invitado (de lista o autoregistro)
+        // que recién ahora abre sesión, con la que sea. Dos escrituras:
+        // - claimGuestOwnership marca ESTE pase (guests/{guestId}.guestUid)
+        //   como propiedad de la cuenta — la fuente de verdad real, la que
+        //   permite encontrarlo después desde cualquier dispositivo (ver
+        //   reclaimInvitationsByEmail). No-op si ya era de esta cuenta.
+        // - saveUserInvitation actualiza la caché de lectura rápida de "Mis
+        //   invitaciones" (users/{uid}/invitations). Es un upsert (merge:true),
+        //   así que repetirlo en cada vista es inofensivo.
         if (user) {
+          void claimGuestOwnership(eventId, guestData.id, user.uid, guestData.guestUid ?? null)
           void saveUserInvitation(user.uid, {
             eventId,
             eventName: eventData.name,
@@ -193,18 +213,6 @@ function GuestPassInner() {
             type: 'walkin',
           })
         }
-
-        // Reconoce este dispositivo/navegador para el pase (ver
-        // claimGuestPass) — ya no "compite" por un único lock: se suma a la
-        // lista de dispositivos reconocidos (con tope y rotación LRU), así
-        // que esta llamada nunca deja al invitado bloqueado.
-        const storageKey = `paselink_lock_${eventId}_${qrToken}`
-        const localToken = localStorage.getItem(storageKey) || crypto.randomUUID()
-        localStorage.setItem(storageKey, localToken)
-        const devices = await claimGuestPass(eventId, guestData.id, localToken)
-        setDeviceToken(localToken)
-        setMultiDevice(devices.length > 1)
-        setGuest({ ...guestData, lockToken: localToken, lockTokens: devices })
       })
       .catch((err) => {
         console.error('Error loading guest pass:', err)
@@ -473,6 +481,24 @@ function GuestPassInner() {
                 </InlineNotice>
               )}
             </>
+          )}
+
+          {/* Caso de "el organizador comparte nuevamente el link del pase":
+              a diferencia del popup de arriba (justRegistered/RSVP-confirm,
+              se ofrece una vez y se puede cerrar para siempre en esta
+              sesión), este aviso es chico y persistente — se muestra en
+              TODA visita sin sesión, porque ese es justo el momento en que
+              puede volver a perder el pase (navegador integrado, cambio de
+              dispositivo) si no lo guarda ahora. */}
+          {!user && guest.rsvpStatus !== 'no' && (
+            <button
+              type="button"
+              onClick={() => setShowSignupPrompt(true)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 mb-4 text-left text-sm rounded-lg border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-accent)] hover:bg-[var(--invite-accent-soft)] transition-colors"
+            >
+              <IconUserPlus className="w-4 h-4 shrink-0" />
+              <span className="flex-1">Inicia sesión o crea una cuenta para guardar esta invitación</span>
+            </button>
           )}
 
           {guest.rsvpStatus === 'no' && (

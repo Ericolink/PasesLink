@@ -139,7 +139,7 @@ export function EventJoin() {
       const result = await registerWalkInGuest(
         id,
         fullName,
-        undefined,
+        email,
         phone,
         customValues,
         partySize,

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getGuestContact } from '../firebase/guests'
-import { isGoogleProfileComplete, loginWithGoogle, registerWithEmail } from '../firebase/auth'
+import { isGoogleProfileComplete, loginWithEmail, loginWithGoogle, registerWithEmail } from '../firebase/auth'
 import { recordLegalAcceptance } from '../firebase/legalAcceptance'
 import { saveUserProfile } from '../firebase/userProfile'
+import { reclaimInvitationsByEmail } from '../firebase/invitationRecovery'
 import { AuthErrorMessage } from './AuthErrorMessage'
 import { LegalConsentCheckbox } from './LegalConsentCheckbox'
 import { PasswordInput } from './PasswordInput'
@@ -33,14 +34,19 @@ interface Props {
 // este componente: en cuanto la cuenta queda autenticada, el efecto principal
 // de GuestPass (que depende de `user`) llama a saveUserInvitation solo.
 export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Props) {
-  const [step, setStep] = useState<'offer' | 'form' | 'success'>('offer')
+  const [step, setStep] = useState<'offer' | 'form' | 'login' | 'success'>('offer')
   const [firstName, setFirstName] = useState(guest.name)
   const [lastName, setLastName] = useState(guest.isGroup ? '' : guest.lastName || '')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
   const [legalAccepted, setLegalAccepted] = useState(false)
-  const [loading, setLoading] = useState<'email' | 'google' | null>(null)
+  const [loading, setLoading] = useState<'email' | 'google' | 'login' | null>(null)
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
+  // Distinto del error genérico de arriba: no usa AuthErrorMessage (que
+  // enlaza a /login, navegando afuera del pase — ver el comentario de este
+  // componente sobre nunca salir de acá) sino que cambia de paso inline.
+  const [accountExistsHint, setAccountExistsHint] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -67,13 +73,42 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
       return
     }
     setErrorInfo(null)
+    setAccountExistsHint(false)
     setLoading('email')
     try {
       const newUser = await registerWithEmail(email, password, firstName, lastName)
       await recordLegalAcceptance(newUser.uid, 'guest_pass_email')
       setStep('success')
     } catch (err) {
+      // Ya existe una cuenta con este email: en vez de mandarlo a /login
+      // (rompería "nunca salir del pase"), se pasa acá mismo al paso de
+      // inicio de sesión con el email ya cargado.
+      if ((err as { code?: string } | undefined)?.code === 'auth/email-already-in-use') {
+        setAccountExistsHint(true)
+        setStep('login')
+        return
+      }
       setErrorInfo(getAuthErrorInfo(err, 'No pudimos crear la cuenta. Intenta de nuevo.'))
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleLoginSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setErrorInfo(null)
+    setLoading('login')
+    try {
+      const user = await loginWithEmail(email, loginPassword)
+      // Barrido best-effort: además de este pase (que se vincula solo, ver
+      // el efecto de GuestPass.tsx que depende de `user`), esta cuenta puede
+      // tener OTRAS invitaciones huérfanas bajo el mismo email verificado
+      // (registradas desde otro navegador que perdió el link) — se
+      // recuperan todas de una vez, no solo la de este pase puntual.
+      if (user.email && user.emailVerified) void reclaimInvitationsByEmail(user.uid, user.email)
+      setStep('success')
+    } catch (err) {
+      setErrorInfo(getAuthErrorInfo(err, 'No pudimos iniciar sesión. Revisa tu email y contraseña.'))
     } finally {
       setLoading(null)
     }
@@ -92,6 +127,9 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
         })
       }
       await recordLegalAcceptance(user.uid, 'guest_pass_google')
+      // Google siempre viene con el email verificado por Google mismo — el
+      // mismo barrido que en el login por email (ver ahí).
+      if (user.email) void reclaimInvitationsByEmail(user.uid, user.email)
       setStep('success')
     } catch (err) {
       if (isAuthCancellation(err)) return
@@ -143,6 +181,13 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
               Ahora no
             </Button>
           </div>
+          <button
+            type="button"
+            onClick={() => { setAccountExistsHint(false); setStep('login') }}
+            className="w-full text-center text-sm text-primary font-medium mt-1 py-2"
+          >
+            ¿Ya tienes cuenta? Inicia sesión
+          </button>
         </div>
       )}
 
@@ -224,6 +269,70 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
           {!legalAccepted && (
             <p className="text-xs text-gray-400 text-center mt-2">Acepta los términos para continuar</p>
           )}
+          <button
+            type="button"
+            onClick={() => { setErrorInfo(null); setAccountExistsHint(false); setStep('login') }}
+            className="w-full text-center text-sm text-primary font-medium mt-3 py-2"
+          >
+            ¿Ya tienes cuenta? Inicia sesión
+          </button>
+        </div>
+      )}
+
+      {step === 'login' && (
+        <div className="px-6 pt-7 pb-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-1.5">Inicia sesión</h2>
+          {accountExistsHint && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-5">
+              Ya existe una cuenta con este email — inicia sesión para guardar el pase ahí.
+            </p>
+          )}
+          <form onSubmit={handleLoginSubmit} className="space-y-3">
+            <div>
+              <label htmlFor="signup-prompt-login-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
+              <input
+                id="signup-prompt-login-email"
+                type="email"
+                required
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label htmlFor="signup-prompt-login-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña *</label>
+              <PasswordInput
+                id="signup-prompt-login-password"
+                required
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={setLoginPassword}
+              />
+            </div>
+            {errorInfo && <AuthErrorMessage info={errorInfo} />}
+            <Button type="submit" disabled={loading !== null} className="w-full">
+              {loading === 'login' ? 'Iniciando sesión…' : 'Iniciar sesión'}
+            </Button>
+          </form>
+
+          <div className="my-4 flex items-center gap-2">
+            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            <span className="text-xs text-gray-400">o</span>
+            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+          </div>
+          <Button variant="secondary" onClick={handleGoogle} disabled={loading !== null} className="w-full flex items-center justify-center gap-2">
+            <IconGoogle />
+            {loading === 'google' ? 'Conectando…' : 'Continuar con Google'}
+          </Button>
+          <button
+            type="button"
+            onClick={() => { setErrorInfo(null); setStep('form') }}
+            className="w-full text-center text-sm text-primary font-medium mt-3 py-2"
+          >
+            ¿No tienes cuenta? Créala
+          </button>
         </div>
       )}
 

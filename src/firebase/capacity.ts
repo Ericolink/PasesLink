@@ -99,7 +99,11 @@ export async function registerWalkInGuest(
   guestPhotoURL?: string,
 ): Promise<{ status: 'success' | 'error'; qrToken?: string }> {
   const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
-  const trimmedEmail = email?.trim() ? requireMaxLength(email.trim(), GUEST_EMAIL_MAX, 'El email') : ''
+  // Minúsculas: permite encontrar este contacto más tarde por igualdad
+  // exacta contra el email VERIFICADO de Firebase Auth (ver
+  // reclaimInvitationsByEmail / guestContactEmailMatches en firestore.rules),
+  // que Firestore no puede comparar sin distinguir mayúsculas en una query.
+  const trimmedEmail = email?.trim() ? requireMaxLength(email.trim().toLowerCase(), GUEST_EMAIL_MAX, 'El email') : ''
   const trimmedPhone = phone?.trim() ? requireMaxLength(phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
   const customEntries = Object.entries(customData || {})
   if (customEntries.length > GUEST_CUSTOM_FIELD_MAX_COUNT) {

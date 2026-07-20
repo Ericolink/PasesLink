@@ -518,6 +518,7 @@ service cloud.firestore {
         guestLockTokensOk(get(guestPath).data, request.resource.data.get('lockToken', null));
     }
 
+
     // Sin alta pública ni desde la app: la única forma de agregar/quitar un
     // admin es a mano desde la consola de Firebase (que opera con acceso de
     // propietario del proyecto y no pasa por estas reglas). `allow read`
@@ -968,6 +969,35 @@ service cloud.firestore {
             request.resource.data.lockTokens.size() > 0 &&
             request.resource.data.lockTokens.size() <= guestDeviceCap(resource.data) &&
             request.resource.data.lockToken == request.resource.data.lockTokens[request.resource.data.lockTokens.size() - 1]
+          ) ||
+          // Vincula este pase a la cuenta autenticada — ver claimGuestOwnership
+          // (src/firebase/guests.ts) y reclaimInvitationsByEmail
+          // (src/firebase/invitationRecovery.ts), los dos caminos que llegan
+          // acá: abrir el pase ya logueado, o encontrarlo desde otro
+          // dispositivo cruzando el email verificado de la cuenta contra
+          // guestContacts. "Primero en reclamarlo, gana": solo mientras el
+          // pase no tenga ya un dueño (resource.data.guestUid ausente o
+          // null) — una vez vinculado, ninguna otra cuenta puede pisarlo.
+          //
+          // No exige lockToken acá: a diferencia de las ramas de arriba,
+          // reasignar un campo al mismo valor que ya tenía no aparece en
+          // diff().affectedKeys() (Firestore compara VALORES, no cuáles
+          // claves mandó el cliente), así que "el cliente reenvía el
+          // lockToken ya reconocido" no es una prueba real de posesión —
+          // cualquiera podría omitirlo y heredar el valor ya guardado sin
+          // conocerlo. La barrera real de esta rama es la MISMA que ya
+          // protege leer/operar el resto del invitado en todo este archivo:
+          // resolver el (eventId, guestId) correcto, un id aleatorio de
+          // Firestore no adivinable. La ruta de descubrimiento NUEVA
+          // (encontrar un guestId que la cuenta nunca tuvo) es
+          // guestContacts (ver su `allow list` más abajo), que sí exige
+          // email_verified y coincidencia exacta — esa es la puerta que
+          // importa proteger, no esta escritura puntual.
+          (
+            request.auth != null &&
+            resource.data.get('guestUid', null) == null &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestUid']) &&
+            request.resource.data.guestUid == request.auth.uid
           );
       }
 
@@ -1127,6 +1157,51 @@ service cloud.firestore {
           allow delete: if true;
         }
       }
+    }
+
+    // Consulta collectionGroup para recuperación entre dispositivos (ver
+    // reclaimInvitationsByEmail en src/firebase/invitationRecovery.ts) — es
+    // la ÚNICA forma en que un cliente puede DESCUBRIR un guestId que nunca
+    // tuvo, cruzando su propio email VERIFICADO contra guestContacts de
+    // CUALQUIER evento. A diferencia de guests/{guestId} (público por id ya
+    // conocido), enumerar/buscar en guestContacts está vedado salvo esta
+    // excepción puntual.
+    //
+    // Declarado como match de colección aparte con `{path=**}` (en vez de
+    // agregar esta condición al `allow list` de events/{eventId}/guestContacts
+    // de arriba) porque Firestore evalúa la "demostrabilidad" de una consulta
+    // `list` de forma distinta para collection group queries: solo reconoce
+    // la consulta como segura de antemano (sin tener que leer cada documento)
+    // cuando la regla que la autoriza está declarada en un match de colección
+    // completo como este — verificado con el emulador, la misma condición
+    // dentro del match anidado por evento rechazaba la consulta entera con
+    // "No matching allow statements" pese a que el email coincidía.
+    //
+    // Firestore exige que la query en sí traiga un where('email','==', ese
+    // mismo valor) para poder demostrar, sin leer cada documento, que ningún
+    // resultado puede pertenecer a otra persona (así evalúa reglas de `list`
+    // — no filtra resultados después, deniega la consulta entera si no puede
+    // probarlo de antemano). email_verified exige haber confirmado la
+    // casilla (o haber iniciado sesión con Google, que ya lo verifica) — sin
+    // esto, cualquier cuenta podría enumerar nombres/teléfonos/emails de
+    // TODOS los invitados de TODOS los eventos con solo tipear cualquier
+    // email ajeno.
+    //
+    // `.lower()` va del lado de request.auth.token.email (un valor único por
+    // request, calculable de antemano) y NO del lado de resource.data.email
+    // (verificado con el emulador: aplicar .lower() al campo del documento
+    // ahí rompe la demostrabilidad y Firestore rechaza la consulta entera).
+    // Por eso el cliente debe consultar siempre con el email en minúsculas
+    // (ver reclaimInvitationsByEmail) — coincide con cómo capacity.ts/
+    // guests.ts normalizan `email` al escribir un guestContacts nuevo desde
+    // este cambio en adelante. Documentos históricos con el email guardado
+    // en otra capitalización no matchean por esta vía (limitación conocida,
+    // sin migración — ver esos archivos).
+    match /{path=**}/guestContacts/{guestId} {
+      allow list: if request.auth != null &&
+        request.auth.token.get('email_verified', false) == true &&
+        request.query.limit <= 25 &&
+        resource.data.email == request.auth.token.email.lower();
     }
   }
 }
