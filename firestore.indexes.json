@@ -23,6 +23,15 @@
         { "fieldPath": "guestId", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "checkedInCount", "order": "ASCENDING" },
+        { "fieldPath": "guestCount", "order": "ASCENDING" },
+        { "fieldPath": "peopleCount", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
