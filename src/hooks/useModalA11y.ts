@@ -19,6 +19,18 @@ const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:
 export function useModalA11y<T extends HTMLElement>(open: boolean, onClose: () => void) {
   const dialogRef = useRef<T>(null)
   const previousActiveElement = useRef<HTMLElement | null>(null)
+  // Callers casi siempre pasan `onClose` como arrow function inline, con
+  // identidad nueva en cada render (ver GuestSignupPrompt). Si ese valor
+  // entrara en las deps del efecto de abajo, cualquier re-render del padre
+  // (p. ej. cada tecla en un input controlado dentro del modal) reiniciaría
+  // el efecto: el cleanup devuelve el foco al elemento anterior y el setup
+  // vuelve a enfocar el primer elemento del diálogo, robándole el foco al
+  // input activo. Guardarlo en un ref evita que la IDENTIDAD de la función
+  // dispare el efecto, sin perder acceso a la versión más reciente.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useScrollLock(open)
 
@@ -33,7 +45,7 @@ export function useModalA11y<T extends HTMLElement>(open: boolean, onClose: () =
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key !== 'Tab' || !dialog) return
@@ -55,7 +67,7 @@ export function useModalA11y<T extends HTMLElement>(open: boolean, onClose: () =
       document.removeEventListener('keydown', handleKeyDown)
       previousActiveElement.current?.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   return dialogRef
 }
