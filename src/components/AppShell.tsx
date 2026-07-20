@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { BottomTabBar } from './BottomTabBar'
+import { IconArrowLeft } from './Icons'
+import { useAuth } from '../hooks/useAuth'
 
 type AppShellMode = 'browse' | 'focus' | 'kiosk'
 
@@ -13,12 +16,55 @@ type AppShellProps = {
    *             público de un invitado). Chrome mínimo a propósito.
    */
   mode?: AppShellMode
+  /**
+   * Solo aplica con mode="kiosk". Estas pantallas (GuestPass, EventJoin,
+   * EventArrive, EventWall) son de entrada pública — se llega sin sesión la
+   * mayoría de las veces, por eso no llevan Navbar/BottomTabBar. Pero
+   * cualquiera de ellas puede terminar viéndola un usuario YA autenticado
+   * (creó cuenta desde el mismo pase, o ya había iniciado sesión en otra
+   * pestaña) y, sin esto, esa persona queda sin ningún link de vuelta al
+   * resto de la app — la pantalla completa no tiene un solo <Link> ni
+   * navigate() hacia /dashboard (verificado en los 4 componentes). Con
+   * guestExit=true y sesión activa, se agrega esa única salida — nada
+   * cambia para el invitado anónimo, que sigue viendo el chrome mínimo.
+   * Scanner (el otro consumidor de mode="kiosk") deja esto en false a
+   * propósito: para el operador en la puerta, kiosk sí debe ser una
+   * pantalla sin salida mientras dura el evento.
+   */
+  guestExit?: boolean
   children: ReactNode
 }
 
-export function AppShell({ mode = 'browse', children }: AppShellProps) {
+function KioskExitBar() {
+  return (
+    <div
+      className="sticky top-0 z-40 border-b flex items-center h-12 px-4"
+      style={{
+        background: 'var(--app-chrome-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderColor: 'var(--app-chrome-border)',
+        paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
+        paddingRight: 'calc(1rem + env(safe-area-inset-right))',
+      }}
+    >
+      <Link
+        to="/dashboard"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors min-h-11"
+      >
+        <IconArrowLeft className="w-4 h-4" /> Volver a PaseLink
+      </Link>
+    </div>
+  )
+}
+
+export function AppShell({ mode = 'browse', guestExit = false, children }: AppShellProps) {
+  const { user } = useAuth()
+  const showKioskExit = mode === 'kiosk' && guestExit && !!user
+
   return (
     <>
+      {showKioskExit && <KioskExitBar />}
       {/* pb-16 alcanzaba para la altura "normal" de BottomTabBar, pero esa
           barra suma env(safe-area-inset-bottom) (~34px en iPhones con Home
           Indicator) por encima de esa altura — sin sumarlo acá también, el

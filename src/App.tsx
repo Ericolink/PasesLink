@@ -78,11 +78,15 @@ function App() {
         <Route path="/privacidad" element={<PublicLayout><Privacy /></PublicLayout>} />
         <Route path="/feedback" element={<PublicLayout><Feedback /></PublicLayout>} />
 
-        {/* Kiosko público: pases y flujos de invitado, sin chrome de marketing */}
-        <Route path="/pass/:eventId/:qrToken" element={<AppShell mode="kiosk"><GuestPass /></AppShell>} />
-        <Route path="/events/:id/arrive" element={<AppShell mode="kiosk"><EventArrive /></AppShell>} />
-        <Route path="/events/:id/join" element={<AppShell mode="kiosk"><EventJoin /></AppShell>} />
-        <Route path="/events/:id/wall" element={<AppShell mode="kiosk"><EventWall /></AppShell>} />
+        {/* Kiosko público: pases y flujos de invitado, sin chrome de marketing.
+            guestExit: a diferencia del Scanner (abajo), estas pantallas se
+            llegan mayormente sin sesión, pero un visitante que ya tiene
+            cuenta (o la acaba de crear desde el propio pase) necesita una
+            salida — ver el comentario de AppShell. */}
+        <Route path="/pass/:eventId/:qrToken" element={<AppShell mode="kiosk" guestExit><GuestPass /></AppShell>} />
+        <Route path="/events/:id/arrive" element={<AppShell mode="kiosk" guestExit><EventArrive /></AppShell>} />
+        <Route path="/events/:id/join" element={<AppShell mode="kiosk" guestExit><EventJoin /></AppShell>} />
+        <Route path="/events/:id/wall" element={<AppShell mode="kiosk" guestExit><EventWall /></AppShell>} />
 
         {/* Modo navegación: Inicio, Invitaciones, Perfil y sus drill-downs */}
         <Route
