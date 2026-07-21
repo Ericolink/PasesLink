@@ -14,6 +14,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../Empty/EmptyState'
 import { FormError } from '../FormError'
 import { buildPassUrl } from '../../utils/qrUrl'
+import { buildResendMailtoUrl, buildResendMessage, buildResendWhatsAppUrl } from '../../utils/resendInvitation'
 import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
 import { GuestSelectionBar } from './GuestSelectionBar'
@@ -101,6 +102,7 @@ function GuestSection({
 
 export const GuestList = memo(function GuestList({
   eventId,
+  eventName,
   guests,
   requiresPayment = false,
   paymentMethods = [],
@@ -118,6 +120,7 @@ export const GuestList = memo(function GuestList({
   canDeleteGuests = true,
 }: {
   eventId: string
+  eventName: string
   guests: GuestData[]
   requiresPayment?: boolean
   paymentMethods?: PaymentMethod[]
@@ -253,6 +256,19 @@ export const GuestList = memo(function GuestList({
     } catch (err) {
       console.error('Error copying invitation link:', err)
       setActionError('No se pudo copiar el link. Intenta de nuevo.')
+    }
+  }
+
+  // Reenvío del link ya existente (mismo qrToken) por WhatsApp/correo — ver
+  // src/utils/resendInvitation.ts. Deep-links (wa.me/mailto), no envío desde
+  // el backend: abre la app del propio organizador con todo prellenado, no
+  // toca Firestore ni genera un token nuevo.
+  function handleResend(guest: GuestData, channel: 'whatsapp' | 'email') {
+    const message = buildResendMessage(guest.name, eventName, eventId, guest.qrToken)
+    if (channel === 'whatsapp' && guest.phone) {
+      window.open(buildResendWhatsAppUrl(guest.phone, message), '_blank', 'noopener,noreferrer')
+    } else if (channel === 'email' && guest.email) {
+      window.location.href = buildResendMailtoUrl(guest.email, eventName, message)
     }
   }
 
@@ -407,6 +423,7 @@ export const GuestList = memo(function GuestList({
         canDeleteGuests={canDeleteGuests}
         onClose={() => setDetailGuest(null)}
         onShare={handleShare}
+        onResend={handleResend}
         onMarkPaid={handleMarkPaid}
         onMarkUnpaid={handleMarkUnpaid}
         onRequestDelete={(guest) => { setDetailGuest(null); setDeletingGuest(guest) }}

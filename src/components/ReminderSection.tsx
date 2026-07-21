@@ -3,15 +3,11 @@ import type { GuestData } from '../types'
 import type { EventData } from '../types'
 import { IconBell, IconCheckCircle, IconWhatsApp } from './Icons'
 import { buildPassUrl } from '../utils/qrUrl'
+import { cleanPhone } from '../utils/phone'
 
 interface Props {
   event: EventData
   guests: GuestData[]
-}
-
-function cleanPhone(raw: string): string {
-  // Keep only digits and leading +
-  return raw.replace(/[^\d+]/g, '')
 }
 
 export function ReminderSection({ event, guests }: Props) {

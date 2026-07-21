@@ -62,7 +62,7 @@ function Page({ guests, tick }: { guests: GuestData[]; tick: number }) {
       <div>
         <span>{tick}</span>
         <EventAnalytics guests={guests} />
-        <GuestList eventId="evt-perf" guests={guests} />
+        <GuestList eventId="evt-perf" eventName="Evento de prueba" guests={guests} />
       </div>
     </MemoryRouter>
   )

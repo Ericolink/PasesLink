@@ -524,6 +524,7 @@ export function EventDetail() {
 
           <GuestList
             eventId={event.id}
+            eventName={event.name}
             guests={filteredGuests}
             requiresPayment={event.requiresPayment}
             paymentMethods={event.paymentMethods}

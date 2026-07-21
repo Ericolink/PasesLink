@@ -9,10 +9,12 @@ import {
   IconHelpCircle,
   IconLock,
   IconLogOut,
+  IconMail,
   IconRotateCcw,
   IconShare,
   IconTicket,
   IconTrash,
+  IconWhatsApp,
   IconX,
 } from '../Icons'
 import { GuestAvatar } from './GuestAvatar'
@@ -86,6 +88,7 @@ export function GuestDetailSheet({
   canDeleteGuests = true,
   onClose,
   onShare,
+  onResend,
   onMarkPaid,
   onMarkUnpaid,
   onRequestDelete,
@@ -110,6 +113,7 @@ export function GuestDetailSheet({
   canDeleteGuests?: boolean
   onClose: () => void
   onShare: (guest: GuestData) => void
+  onResend: (guest: GuestData, channel: 'whatsapp' | 'email') => void
   onMarkPaid: (guest: GuestData, method?: PaymentMethod) => void
   onMarkUnpaid: (guest: GuestData) => void
   onRequestDelete: (guest: GuestData) => void
@@ -241,6 +245,22 @@ export function GuestDetailSheet({
                 <ActionButton icon={copiedId === guest.id ? <IconCheck className="w-4 h-4" /> : <IconShare className="w-4 h-4" />} onClick={() => onShare(guest)}>
                   {copiedId === guest.id ? 'Copiado!' : 'Compartir invitación'}
                 </ActionButton>
+                {/* Reenvío del mismo link (mismo qrToken) por si el invitado
+                    se autoregistró desde el navegador de Instagram/TikTok y
+                    lo perdió al cerrarlo — ver src/utils/resendInvitation.ts.
+                    Gateado por editGuests (mismo permiso que "Editar datos"):
+                    toca datos de contacto del invitado, no debe quedar
+                    disponible para un coanfitrión de solo lectura. */}
+                {canEditGuests && guest.phone?.trim() && (
+                  <ActionButton icon={<IconWhatsApp className="w-4 h-4" />} onClick={() => onResend(guest, 'whatsapp')}>
+                    Reenviar por WhatsApp
+                  </ActionButton>
+                )}
+                {canEditGuests && guest.email?.trim() && (
+                  <ActionButton icon={<IconMail className="w-4 h-4" />} onClick={() => onResend(guest, 'email')}>
+                    Reenviar por correo
+                  </ActionButton>
+                )}
                 {canEditGuests && (
                   <ActionButton icon={<IconEdit className="w-4 h-4" />} onClick={() => setEditing(true)}>
                     Editar datos

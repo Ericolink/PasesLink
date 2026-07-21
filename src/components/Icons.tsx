@@ -404,6 +404,15 @@ export function IconLink({ className = 'w-4 h-4' }: IconProps) {
   )
 }
 
+export function IconMail({ className = 'w-4 h-4' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 6-10 7L2 6" />
+    </svg>
+  )
+}
+
 export function IconWhatsApp({ className = 'w-4 h-4' }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
