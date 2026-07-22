@@ -1,3 +1,4 @@
+import type { CountryCode } from 'libphonenumber-js/min'
 import { buildPassUrl } from './qrUrl'
 import { toWhatsAppPhone } from './phone'
 
@@ -12,8 +13,8 @@ export function buildResendMessage(guestName: string, eventName: string, eventId
   return `Hola ${guestName} 👋\n\nAquí tienes nuevamente tu invitación para el evento *${eventName}*.\n\nPuedes acceder a tu pase desde el siguiente enlace:\n\n${passUrl}\n\nGuárdalo para tenerlo disponible el día del evento.\n\nNos vemos pronto 🎉`
 }
 
-export function buildResendWhatsAppUrl(phone: string, message: string): string {
-  const clean = toWhatsAppPhone(phone)
+export function buildResendWhatsAppUrl(phone: string, message: string, phoneCountry?: string): string {
+  const clean = toWhatsAppPhone(phone, phoneCountry as CountryCode | undefined)
   return `https://wa.me/${clean}?text=${encodeURIComponent(message)}`
 }
 

@@ -21,6 +21,15 @@ describe('toWhatsAppPhone', () => {
 
   it('accepts a different default country for numbers known to belong elsewhere', () => {
     expect(toWhatsAppPhone('9155551234', 'US')).toBe('19155551234')
+    // El caso reportado: celular de El Paso (915) guardado sin código de
+    // país es indistinguible de un número mexicano de 10 dígitos sin más
+    // información — solo se resuelve con el país explícito.
+    expect(toWhatsAppPhone('9153296219', 'US')).toBe('19153296219')
+  })
+
+  it('never mistakes an internationally-prefixed number for a different country', () => {
+    expect(toWhatsAppPhone('+1 915 555 1234')).toBe('19155551234')
+    expect(toWhatsAppPhone('+44 7700900123')).toBe('447700900123')
   })
 
   it('returns an empty string for empty input', () => {

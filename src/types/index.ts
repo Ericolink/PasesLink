@@ -113,6 +113,11 @@ export interface EventData {
   // dudas, pedir devolución o reportar un problema de acceso, todo por el
   // mismo canal. Opcional: si está vacío, ese apartado no se muestra.
   organizerContactPhone?: string
+  // País (código ISO alpha-2, ej. "MX", "US") elegido junto al teléfono de
+  // arriba — ver toWhatsAppPhone (utils/phone.ts): sin esto, un número sin
+  // "+" es ambiguo (10 dígitos locales no distinguen México de EE.UU./Canadá)
+  // y cae a México como último recurso.
+  organizerContactPhoneCountry?: string
   timeline?: TimelineEntry[]
   plan: Plan
   paymentStatus: PaymentStatus
@@ -261,6 +266,8 @@ export interface CompanionData {
   name?: string
   lastName?: string
   phone?: string
+  // País del teléfono de arriba — ver el mismo campo en GuestData.
+  phoneCountry?: string
 }
 
 export interface GuestData {
@@ -274,6 +281,13 @@ export interface GuestData {
   // los únicos flujos que hoy capturan email (ver buildNewGuestPayload/
   // registerWalkInGuest en src/firebase/guests.ts y capacity.ts).
   email?: string
+  // País (código ISO alpha-2, ej. "MX", "US") elegido junto al teléfono al
+  // cargarlo — igual que `phone`, vive en `guestContacts/{guestId}`. Sin
+  // esto, toWhatsAppPhone (utils/phone.ts) no puede distinguir un número
+  // local sin "+" de otro país (ej. un celular de EE.UU. de 10 dígitos es
+  // indistinguible de uno mexicano) y cae a México como último recurso.
+  // Ausente en invitados cargados antes de este campo.
+  phoneCountry?: string
   qrToken: string
   status: GuestStatus
   companions: CompanionData[]

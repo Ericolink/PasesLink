@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createEvent } from '../firebase/events'
+import { DEFAULT_PHONE_COUNTRY } from '../components/CountryCodeSelect'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useFormDraft } from '../hooks/useFormDraft'
 import { isNetworkError } from '../utils/network'
@@ -45,6 +46,7 @@ interface EventDraftFields {
   currency: string
   paymentInstructions: string
   organizerContactPhone: string
+  organizerContactPhoneCountry: string
   coverImage: string
   timeline: TimelineEntry[]
 }
@@ -111,6 +113,7 @@ export function EventCreate() {
     currency: '$',
     paymentInstructions: '',
     organizerContactPhone: '',
+    organizerContactPhoneCountry: DEFAULT_PHONE_COUNTRY,
     timeline: [],
   })
 
@@ -151,6 +154,7 @@ export function EventCreate() {
       maxCompanions: rest.maxCompanions ?? '0',
       paymentMethods: rest.paymentMethods?.length ? rest.paymentMethods : ['transfer'],
       organizerContactPhone: rest.organizerContactPhone || '',
+      organizerContactPhoneCountry: rest.organizerContactPhoneCountry || DEFAULT_PHONE_COUNTRY,
       timeline: rest.timeline || [],
     })
     if (draftCoverImage) setCoverImage(draftCoverImage)
@@ -274,6 +278,7 @@ export function EventCreate() {
         currency: form.requiresPayment ? form.currency.trim() : '',
         paymentInstructions: form.requiresPayment ? form.paymentInstructions.trim() : '',
         organizerContactPhone: form.requiresPayment ? form.organizerContactPhone.trim() : '',
+        organizerContactPhoneCountry: form.requiresPayment ? form.organizerContactPhoneCountry : '',
         timeline: form.timeline,
       })
       clearDraft()
@@ -396,6 +401,8 @@ export function EventCreate() {
             onPaymentInstructionsChange={(v) => updateField('paymentInstructions', v)}
             organizerContactPhone={form.organizerContactPhone}
             onOrganizerContactPhoneChange={(v) => updateField('organizerContactPhone', v)}
+            organizerContactPhoneCountry={form.organizerContactPhoneCountry}
+            onOrganizerContactPhoneCountryChange={(v) => updateField('organizerContactPhoneCountry', v)}
           />
         </WizardStep>
 

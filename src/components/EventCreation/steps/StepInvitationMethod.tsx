@@ -1,5 +1,7 @@
+import type { CountryCode } from 'libphonenumber-js/min'
 import { EntryModeSelector } from '../EntryModeSelector'
 import { Checkbox } from '../../Checkbox'
+import { CountryCodeSelect } from '../../CountryCodeSelect'
 import { FieldError } from '../../FieldError'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/paymentMethods'
 import { sanitizeDecimalInput } from '../../../utils/validationRules'
@@ -34,6 +36,8 @@ interface StepInvitationMethodProps {
   onPaymentInstructionsChange: (value: string) => void
   organizerContactPhone: string
   onOrganizerContactPhoneChange: (value: string) => void
+  organizerContactPhoneCountry: string
+  onOrganizerContactPhoneCountryChange: (value: CountryCode) => void
 }
 
 export function StepInvitationMethod({
@@ -55,6 +59,8 @@ export function StepInvitationMethod({
   onPaymentInstructionsChange,
   organizerContactPhone,
   onOrganizerContactPhoneChange,
+  organizerContactPhoneCountry,
+  onOrganizerContactPhoneCountryChange,
 }: StepInvitationMethodProps) {
   function adjustCapacity(delta: number) {
     const current = parseInt(capacity) || 0
@@ -232,14 +238,22 @@ export function StepInvitationMethod({
               <label htmlFor="event-organizer-contact" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Tu WhatsApp para pagos
               </label>
-              <input
-                id="event-organizer-contact"
-                type="tel"
-                value={organizerContactPhone}
-                onChange={(e) => onOrganizerContactPhoneChange(e.target.value)}
-                placeholder="Ej: +52 55 1234 5678"
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <div className="flex items-center gap-1.5">
+                <CountryCodeSelect
+                  value={organizerContactPhoneCountry as CountryCode}
+                  onChange={onOrganizerContactPhoneCountryChange}
+                  aria-label="País del WhatsApp de contacto"
+                  className="shrink-0 border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <input
+                  id="event-organizer-contact"
+                  type="tel"
+                  value={organizerContactPhone}
+                  onChange={(e) => onOrganizerContactPhoneChange(e.target.value)}
+                  placeholder="Ej: 55 1234 5678"
+                  className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
               <p className="text-xs text-gray-400 mt-1">
                 Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución.
               </p>

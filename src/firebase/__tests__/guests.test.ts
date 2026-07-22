@@ -891,8 +891,8 @@ describe('guests.ts', () => {
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
       expect(guest?.companions).toEqual([
-        { name: 'Uno editado', lastName: '', phone: '' },
-        { name: 'Dos editado', lastName: '', phone: '' },
+        { name: 'Uno editado', lastName: '', phone: '', phoneCountry: '' },
+        { name: 'Dos editado', lastName: '', phone: '', phoneCountry: '' },
       ])
     })
 

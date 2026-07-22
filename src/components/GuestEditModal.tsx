@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import type { CountryCode } from 'libphonenumber-js/min'
 import { getGuestContact, resolveMaxCompanions, updateGuestSelf } from '../firebase/guests'
 import type { CompanionData, EventData, GuestData } from '../types'
 import { CompanionFieldsEditor } from './CompanionFields'
+import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { CustomFieldsEditRow } from './CustomFieldsEditor'
 import { labelClass, inputClass } from '../pages/EventJoin'
 import { Modal } from './Modal'
@@ -26,6 +28,7 @@ export function GuestEditModal({
   const [name, setName] = useState(guest.name)
   const [lastName, setLastName] = useState(guest.lastName || '')
   const [phone, setPhone] = useState('')
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_PHONE_COUNTRY)
   const [email, setEmail] = useState('')
   const [companions, setCompanions] = useState<CompanionData[]>(guest.companions)
   const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
@@ -39,6 +42,7 @@ export function GuestEditModal({
       .then((contact) => {
         if (cancelled) return
         setPhone(contact.phone)
+        if (contact.phoneCountry) setPhoneCountry(contact.phoneCountry as CountryCode)
         setEmail(contact.email)
       })
       .finally(() => {
@@ -59,7 +63,7 @@ export function GuestEditModal({
         eventId,
         guest.id,
         lockToken,
-        { name, lastName, phone, email, companions, customData: customValues },
+        { name, lastName, phone, phoneCountry, email, companions, customData: customValues },
         event.customFields || [],
       )
       const trimmedName = name.trim()
@@ -123,13 +127,21 @@ export function GuestEditModal({
                 </div>
                 <div>
                   <label className={labelClass}>Teléfono</label>
-                  <input
-                    type="tel"
-                    maxLength={30}
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className={inputClass}
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <CountryCodeSelect
+                      value={phoneCountry}
+                      onChange={setPhoneCountry}
+                      aria-label="País del teléfono"
+                      className="shrink-0 rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
+                    />
+                    <input
+                      type="tel"
+                      maxLength={30}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className={`flex-1 min-w-0 ${inputClass}`}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className={labelClass}>Email</label>

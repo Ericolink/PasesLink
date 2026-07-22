@@ -51,6 +51,7 @@ export interface NewEventInput {
   currency?: string
   paymentInstructions?: string
   organizerContactPhone?: string
+  organizerContactPhoneCountry?: string
   timeline?: TimelineEntry[]
 }
 
@@ -79,6 +80,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     currency: input.currency || '',
     paymentInstructions: input.paymentInstructions || '',
     organizerContactPhone: input.organizerContactPhone?.trim() || '',
+    organizerContactPhoneCountry: input.organizerContactPhoneCountry || '',
     timeline: input.timeline || [],
     // Premium gratis mientras se da a conocer el servicio — sin plan a elegir
     // ni pago que confirmar. Cuando se reintroduzcan pagos, esto vuelve a
@@ -241,6 +243,7 @@ export interface UpdateEventInput {
   currency?: string
   paymentInstructions?: string
   organizerContactPhone?: string
+  organizerContactPhoneCountry?: string
   timeline?: TimelineEntry[]
 }
 
@@ -268,6 +271,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     currency: input.currency ?? '',
     paymentInstructions: input.paymentInstructions ?? '',
     organizerContactPhone: input.organizerContactPhone?.trim() ?? '',
+    organizerContactPhoneCountry: input.organizerContactPhoneCountry ?? '',
     timeline: input.timeline || [],
     updatedAt: serverTimestamp(),
   })
@@ -426,6 +430,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     currency: (data.currency as string) || '',
     paymentInstructions: (data.paymentInstructions as string) || '',
     organizerContactPhone: (data.organizerContactPhone as string) || '',
+    organizerContactPhoneCountry: (data.organizerContactPhoneCountry as string) || '',
     timeline: (data.timeline as TimelineEntry[]) || [],
     plan: data.plan as EventData['plan'],
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],

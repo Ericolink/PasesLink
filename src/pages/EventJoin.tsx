@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import type { CountryCode } from 'libphonenumber-js/min'
 import { useNavigate, useParams } from 'react-router-dom'
 import { subscribeToEventWithInitial } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
 import { resolveMaxCompanions } from '../firebase/guests'
+import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../components/CountryCodeSelect'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
@@ -60,6 +62,7 @@ export function EventJoin() {
   const [name, setName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_PHONE_COUNTRY)
   const [email, setEmail] = useState('')
   const [partySize, setPartySize] = useState(1)
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
@@ -146,6 +149,7 @@ export function EventJoin() {
         resolvedPaymentMethod,
         user?.uid,
         profile?.photoURL,
+        phoneCountry,
       )
       if (result.status === 'error') {
         setRegError('Este evento ya no está disponible. Actualiza la página e intenta de nuevo.')
@@ -307,15 +311,23 @@ export function EventJoin() {
             </div>
             <div>
               <label className={labelClass}>Teléfono <span className="font-normal normal-case">(opcional)</span></label>
-              <input
-                type="tel"
-                autoComplete="tel"
-                maxLength={GUEST_PHONE_MAX}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1 234 567 8900"
-                className={inputClass}
-              />
+              <div className="flex items-center gap-1.5">
+                <CountryCodeSelect
+                  value={phoneCountry}
+                  onChange={setPhoneCountry}
+                  aria-label="País del teléfono"
+                  className="shrink-0 rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
+                />
+                <input
+                  type="tel"
+                  autoComplete="tel"
+                  maxLength={GUEST_PHONE_MAX}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="656 123 4567"
+                  className={`flex-1 min-w-0 ${inputClass}`}
+                />
+              </div>
             </div>
             <div>
               <label className={labelClass}>

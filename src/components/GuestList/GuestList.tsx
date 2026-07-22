@@ -266,7 +266,7 @@ export const GuestList = memo(function GuestList({
   function handleResend(guest: GuestData, channel: 'whatsapp' | 'email') {
     const message = buildResendMessage(guest.name, eventName, eventId, guest.qrToken)
     if (channel === 'whatsapp' && guest.phone) {
-      window.open(buildResendWhatsAppUrl(guest.phone, message), '_blank', 'noopener,noreferrer')
+      window.open(buildResendWhatsAppUrl(guest.phone, message, guest.phoneCountry), '_blank', 'noopener,noreferrer')
     } else if (channel === 'email' && guest.email) {
       window.location.href = buildResendMailtoUrl(guest.email, eventName, message)
     }

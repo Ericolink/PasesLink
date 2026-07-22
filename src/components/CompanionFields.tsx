@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import type { CountryCode } from 'libphonenumber-js/min'
 import type { CompanionData } from '../types'
 import { IconTrash } from './Icons'
 import { ConfirmDialog } from './ConfirmDialog'
+import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 
 export function CompanionFieldsEditor({
   companions,
@@ -79,6 +81,12 @@ export function CompanionFieldsEditor({
             className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <div className="flex items-center gap-1">
+            <CountryCodeSelect
+              value={(companion.phoneCountry as CountryCode) || DEFAULT_PHONE_COUNTRY}
+              onChange={(v) => updateCompanion(index, 'phoneCountry', v)}
+              aria-label="País del teléfono del acompañante"
+              className="shrink-0 border border-gray-300 dark:border-gray-600 rounded-md px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+            />
             <input
               type="tel"
               placeholder="Teléfono (opcional)"

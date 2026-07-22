@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
+import type { CountryCode } from 'libphonenumber-js/min'
 import { addGuest, addGuestsBulk, addGuestsFromRows, type ImportedGuestRow } from '../firebase/guests'
 import { parseGuestsCsv } from '../utils/csvImport'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
+import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { ScrollableTabs } from './ScrollableTabs'
 import { TabButton } from './TabButton'
 import { Button } from './Button'
@@ -44,6 +46,7 @@ export function GuestAddForm({
   const [name, setName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_PHONE_COUNTRY)
   const [companions, setCompanions] = useState<CompanionData[]>([])
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [groupCustomValues, setGroupCustomValues] = useState<Record<string, string>>({})
@@ -81,10 +84,11 @@ export function GuestAddForm({
     setLoading(true)
     setError('')
     try {
-      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), companions, customData: customValues }, maxCompanions)
+      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), phoneCountry, companions, customData: customValues }, maxCompanions)
       setName('')
       setLastName('')
       setPhone('')
+      setPhoneCountry(DEFAULT_PHONE_COUNTRY)
       setCompanions([])
       setCustomValues({})
     } catch (err) {
@@ -258,14 +262,17 @@ export function GuestAddForm({
               onChange={(e) => setLastName(e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <input
-              type="tel"
-              maxLength={GUEST_PHONE_MAX}
-              placeholder="Teléfono (opcional)"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+            <div className="flex items-center gap-1">
+              <CountryCodeSelect value={phoneCountry} onChange={setPhoneCountry} aria-label="País del teléfono" className="shrink-0 border border-gray-300 rounded-md px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" />
+              <input
+                type="tel"
+                maxLength={GUEST_PHONE_MAX}
+                placeholder="Teléfono (opcional)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="flex-1 min-w-0 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
           </div>
 
           <CompanionFieldsEditor companions={companions} onChange={setCompanions} maxCompanions={maxCompanions} />

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { CountryCode } from 'libphonenumber-js/min'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
@@ -51,8 +52,8 @@ import { buildPassUrl, QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 // invitado necesita resolver (enviar comprobante, consultar, pedir
 // devolución o reportar un problema de acceso — todo el mismo canal, pedido
 // explícito).
-function organizerWhatsappUrl(phone: string, message: string): string {
-  return `https://wa.me/${toWhatsAppPhone(phone)}?text=${encodeURIComponent(message)}`
+function organizerWhatsappUrl(phone: string, message: string, phoneCountry?: string): string {
+  return `https://wa.me/${toWhatsAppPhone(phone, phoneCountry as CountryCode | undefined)}?text=${encodeURIComponent(message)}`
 }
 
 // El navegador reutiliza la misma instancia de GuestPass al navegar entre dos
@@ -810,6 +811,7 @@ function GuestPassInner() {
                     guest.paymentStatus === 'paid' || guest.paymentStatus === 'pending_confirmation'
                       ? `Hola! Tengo una consulta sobre mi pago de "${event.name}" (invitado: ${guest.name} ${guest.lastName || ''}).`
                       : `Hola! Te envío mi comprobante de pago para "${event.name}" (invitado: ${guest.name} ${guest.lastName || ''}).`,
+                    event.organizerContactPhoneCountry,
                   )}
                   target="_blank"
                   rel="noopener noreferrer"

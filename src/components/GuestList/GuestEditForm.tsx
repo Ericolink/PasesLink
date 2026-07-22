@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import type { CountryCode } from 'libphonenumber-js/min'
 import { partySize, updateGuest } from '../../firebase/guests'
 import type { CompanionData, CustomField, GuestData } from '../../types'
 import { CompanionFieldsEditor } from '../CompanionFields'
+import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../CountryCodeSelect'
 import { CustomFieldsEditRow } from '../CustomFieldsEditor'
 import { GUEST_GROUP_MAX_MEMBERS } from '../../utils/validation'
 import { Button } from '../Button'
@@ -23,6 +25,7 @@ function EditGuestRow({
   const [name, setName] = useState(guest.name)
   const [lastName, setLastName] = useState(guest.lastName || '')
   const [phone, setPhone] = useState(guest.phone || '')
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>((guest.phoneCountry as CountryCode) || DEFAULT_PHONE_COUNTRY)
   const [companions, setCompanions] = useState<CompanionData[]>(guest.companions)
   const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
   const [saving, setSaving] = useState(false)
@@ -38,6 +41,7 @@ function EditGuestRow({
         name: name.trim(),
         lastName: lastName.trim(),
         phone: phone.trim(),
+        phoneCountry,
         companions,
         customData: customValues,
       }, maxCompanions)
@@ -70,13 +74,21 @@ function EditGuestRow({
           className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder="Apellido"
         />
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-          placeholder="Teléfono"
-        />
+        <div className="flex items-center gap-1.5">
+          <CountryCodeSelect
+            value={phoneCountry}
+            onChange={setPhoneCountry}
+            aria-label="País del teléfono"
+            className="shrink-0 border border-gray-300 dark:border-gray-600 rounded-md px-1.5 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Teléfono"
+          />
+        </div>
         <CompanionFieldsEditor companions={companions} onChange={setCompanions} maxCompanions={maxCompanions} />
         <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />
         <div className="flex gap-2">

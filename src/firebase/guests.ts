@@ -52,6 +52,9 @@ export interface NewGuestInput {
   name: string
   lastName?: string
   phone?: string
+  // País (ISO alpha-2) del teléfono de arriba — ver el mismo campo en
+  // GuestData (types/index.ts) y toWhatsAppPhone (utils/phone.ts).
+  phoneCountry?: string
   companions?: CompanionData[]
   isGroup?: boolean
   customData?: Record<string, string>
@@ -157,7 +160,10 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
     const payload = buildNewGuestPayload({ ...input, name, lastName })
     batch.set(guestRef, payload)
     if (phone) {
-      batch.set(contactRef(eventId, guestRef.id), { phone })
+      batch.set(contactRef(eventId, guestRef.id), {
+        phone,
+        ...(input.phoneCountry ? { phoneCountry: input.phoneCountry } : {}),
+      })
     }
     batch.update(doc(db, 'events', eventId), {
       guestCount: increment(1),
@@ -263,6 +269,7 @@ export interface UpdateGuestInput {
   name?: string
   lastName?: string
   phone?: string
+  phoneCountry?: string
   companions?: CompanionData[]
   customData?: Record<string, string>
 }
@@ -274,7 +281,7 @@ export interface UpdateGuestInput {
 // función no distingue de antemano si el invitado que está editando es un
 // grupo o no).
 export async function updateGuest(eventId: string, guestId: string, input: UpdateGuestInput, maxCompanions: number) {
-  const { phone, ...guestFields } = input
+  const { phone, phoneCountry, ...guestFields } = input
 
   // Si `companions` cambia de largo (acompañantes agregados/quitados, o
   // cantidad de integrantes editada en una familia), partySize() de este
@@ -306,7 +313,7 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
       }
       transaction.update(guestRef, { ...guestFields })
       if (phone !== undefined) {
-        transaction.set(contactRef(eventId, guestId), { phone }, { merge: true })
+        transaction.set(contactRef(eventId, guestId), { phone, ...(phoneCountry !== undefined ? { phoneCountry } : {}) }, { merge: true })
       }
       if (after !== before) {
         const eventUpdates: Record<string, unknown> = { peopleCount: increment(after - before) }
@@ -324,7 +331,7 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
     batch.update(doc(db, 'events', eventId, 'guests', guestId), { ...guestFields })
   }
   if (phone !== undefined) {
-    batch.set(contactRef(eventId, guestId), { phone }, { merge: true })
+    batch.set(contactRef(eventId, guestId), { phone, ...(phoneCountry !== undefined ? { phoneCountry } : {}) }, { merge: true })
   }
   await batch.commit()
 }
@@ -333,6 +340,7 @@ export interface GuestSelfEditInput {
   name: string
   lastName: string
   phone: string
+  phoneCountry?: string
   email: string
   companions: CompanionData[]
   customData: Record<string, string>
@@ -343,10 +351,14 @@ export interface GuestSelfEditInput {
 // inicial del pase, para no gastar una lectura extra en cada visita de
 // invitados que nunca editan. Si el invitado nunca tuvo contacto cargado
 // (p.ej. de lista, agregado sin teléfono), devuelve strings vacíos.
-export async function getGuestContact(eventId: string, guestId: string): Promise<{ email: string; phone: string }> {
+export async function getGuestContact(eventId: string, guestId: string): Promise<{ email: string; phone: string; phoneCountry: string }> {
   const snap = await getDoc(contactRef(eventId, guestId))
   const data = snap.data()
-  return { email: (data?.email as string) || '', phone: (data?.phone as string) || '' }
+  return {
+    email: (data?.email as string) || '',
+    phone: (data?.phone as string) || '',
+    phoneCountry: (data?.phoneCountry as string) || '',
+  }
 }
 
 // Auto-edición del propio invitado desde su pase (GuestPass, "Editar mis
@@ -367,6 +379,7 @@ export async function updateGuestSelf(
   const name = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
   const lastName = requireMaxLength((input.lastName || '').trim(), GUEST_NAME_PART_MAX, 'El apellido')
   const phone = requireMaxLength((input.phone || '').trim(), GUEST_PHONE_MAX, 'El teléfono')
+  const phoneCountry = (input.phoneCountry || '').trim()
   const emailTrimmed = (input.email || '').trim().toLowerCase()
   const email = emailTrimmed
     ? requireMaxLength(requireValidEmail(emailTrimmed, 'El email'), GUEST_EMAIL_MAX, 'El email')
@@ -376,6 +389,7 @@ export async function updateGuestSelf(
     name: requireMaxLength((c.name || '').trim(), GUEST_NAME_PART_MAX, `El nombre del acompañante ${i + 1}`),
     lastName: requireMaxLength((c.lastName || '').trim(), GUEST_NAME_PART_MAX, `El apellido del acompañante ${i + 1}`),
     phone: requireMaxLength((c.phone || '').trim(), GUEST_PHONE_MAX, `El teléfono del acompañante ${i + 1}`),
+    phoneCountry: (c.phoneCountry || '').trim(),
   }))
 
   // Solo se guardan claves que correspondan a un customField vigente del
@@ -399,7 +413,7 @@ export async function updateGuestSelf(
     customData,
     lockToken,
   })
-  batch.set(contactRef(eventId, guestId), { email, phone, lockToken }, { merge: true })
+  batch.set(contactRef(eventId, guestId), { email, phone, phoneCountry, lockToken }, { merge: true })
   await batch.commit()
 }
 
@@ -634,8 +648,8 @@ const CONTACT_FETCH_CHUNK = 30
 async function fetchContactsByIds(
   eventId: string,
   ids: string[],
-): Promise<Record<string, { phone: string; email: string }>> {
-  const result: Record<string, { phone: string; email: string }> = {}
+): Promise<Record<string, { phone: string; phoneCountry: string; email: string }>> {
+  const result: Record<string, { phone: string; phoneCountry: string; email: string }> = {}
   const chunks: string[][] = []
   for (let i = 0; i < ids.length; i += CONTACT_FETCH_CHUNK) chunks.push(ids.slice(i, i + CONTACT_FETCH_CHUNK))
   await Promise.all(
@@ -644,7 +658,11 @@ async function fetchContactsByIds(
         query(collection(db, 'events', eventId, 'guestContacts'), where(documentId(), 'in', chunk)),
       )
       snap.docs.forEach((d) => {
-        result[d.id] = { phone: (d.data().phone as string) || '', email: (d.data().email as string) || '' }
+        result[d.id] = {
+          phone: (d.data().phone as string) || '',
+          phoneCountry: (d.data().phoneCountry as string) || '',
+          email: (d.data().email as string) || '',
+        }
       })
     }),
   )
@@ -658,7 +676,7 @@ export function subscribeToGuests(
   limitCount: number | null = GUEST_WINDOW_DEFAULT,
 ): Unsubscribe {
   let baseGuests: GuestData[] | null = null
-  let contacts: Record<string, { phone: string; email: string }> = {}
+  let contacts: Record<string, { phone: string; phoneCountry: string; email: string }> = {}
   let cancelled = false
 
   function emit() {
@@ -667,6 +685,7 @@ export function subscribeToGuests(
       baseGuests.map((g) => ({
         ...g,
         phone: contacts[g.id]?.phone || g.phone,
+        phoneCountry: contacts[g.id]?.phoneCountry || g.phoneCountry,
         email: contacts[g.id]?.email || g.email,
       })),
     )
@@ -1230,6 +1249,7 @@ function normalizeCompanions(value: unknown): CompanionData[] {
       name: (c as CompanionData)?.name || '',
       lastName: (c as CompanionData)?.lastName || '',
       phone: (c as CompanionData)?.phone || '',
+      phoneCountry: (c as CompanionData)?.phoneCountry || '',
     }))
   }
   if (typeof value === 'number' && value > 0) {
@@ -1257,6 +1277,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     name: data.name as string,
     lastName: (data.lastName as string) || '',
     phone: (data.phone as string) || '',
+    phoneCountry: (data.phoneCountry as string) || '',
     qrToken: data.qrToken as string,
     status: data.status as GuestData['status'],
     companions: normalizeCompanions(data.companions),

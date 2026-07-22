@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import type { CountryCode } from 'libphonenumber-js/min'
 import { updateEventDetails } from '../firebase/events'
+import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useFormDraft } from '../hooks/useFormDraft'
@@ -43,6 +45,7 @@ interface EventEditDraftFields {
   currency: string
   paymentInstructions: string
   organizerContactPhone: string
+  organizerContactPhoneCountry: string
   coverImage: string
   timeline: TimelineEntry[]
 }
@@ -135,6 +138,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     currency: event.currency || '$',
     paymentInstructions: event.paymentInstructions || '',
     organizerContactPhone: event.organizerContactPhone || '',
+    organizerContactPhoneCountry: event.organizerContactPhoneCountry || DEFAULT_PHONE_COUNTRY,
     timeline: event.timeline || [],
   })
 
@@ -172,6 +176,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       maxCompanions: rest.maxCompanions ?? String(resolveMaxCompanions(event)),
       paymentMethods: rest.paymentMethods?.length ? rest.paymentMethods : ['transfer'],
       organizerContactPhone: rest.organizerContactPhone || '',
+      organizerContactPhoneCountry: rest.organizerContactPhoneCountry || DEFAULT_PHONE_COUNTRY,
       timeline: rest.timeline || [],
     })
     if (draftCoverImage) setCoverImage(draftCoverImage)
@@ -323,6 +328,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         currency: form.requiresPayment ? form.currency.trim() : '',
         paymentInstructions: form.requiresPayment ? form.paymentInstructions.trim() : '',
         organizerContactPhone: form.requiresPayment ? form.organizerContactPhone.trim() : '',
+        organizerContactPhoneCountry: form.requiresPayment ? form.organizerContactPhoneCountry : '',
         timeline: form.timeline,
       })
       clearDraft()
@@ -642,14 +648,22 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             )}
             <div>
               <label htmlFor="edit-event-organizer-contact" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tu WhatsApp para pagos</label>
-              <input
-                id="edit-event-organizer-contact"
-                type="tel"
-                value={form.organizerContactPhone}
-                onChange={(e) => updateField('organizerContactPhone', e.target.value)}
-                placeholder="Ej: +52 55 1234 5678"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <div className="flex items-center gap-1.5">
+                <CountryCodeSelect
+                  value={form.organizerContactPhoneCountry as CountryCode}
+                  onChange={(v) => updateField('organizerContactPhoneCountry', v)}
+                  aria-label="País del WhatsApp de contacto"
+                  className="shrink-0 border border-gray-300 rounded-lg px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <input
+                  id="edit-event-organizer-contact"
+                  type="tel"
+                  value={form.organizerContactPhone}
+                  onChange={(e) => updateField('organizerContactPhone', e.target.value)}
+                  placeholder="Ej: 55 1234 5678"
+                  className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
               <p className="text-xs text-gray-400 mt-1">
                 Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución.
               </p>

@@ -432,7 +432,8 @@ service cloud.firestore {
     function isValidPublicGuestContact() {
       let d = request.resource.data;
       return (!('email' in d) || (d.email is string && d.email.size() <= 120))
-        && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30));
+        && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30))
+        && (!('phoneCountry' in d) || (d.phoneCountry is string && d.phoneCountry.size() <= 5));
     }
 
     // Tamaño de `companions` de un documento dado (`d`), sea cual sea su
@@ -1084,13 +1085,13 @@ service cloud.firestore {
           // exige isOpenEvent: esto aplica a cualquier invitado con pase,
           // venga de lista o autoregistro.
           || (
-            request.resource.data.keys().hasOnly(['email', 'phone', 'lockToken']) &&
+            request.resource.data.keys().hasOnly(['email', 'phone', 'phoneCountry', 'lockToken']) &&
             isValidPublicGuestContact() &&
             guestSelfEditContactLockOk(eventId, guestId)
           );
         allow update: if canDo(eventId, 'editGuests', true) || isAdmin()
           || (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email', 'phone', 'lockToken']) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email', 'phone', 'phoneCountry', 'lockToken']) &&
             isValidPublicGuestContact() &&
             guestSelfEditContactLockOk(eventId, guestId)
           );

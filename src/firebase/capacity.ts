@@ -97,6 +97,9 @@ export async function registerWalkInGuest(
   // que mandar valores falsos acá no tiene efecto (las reglas lo rechazan).
   guestUid?: string,
   guestPhotoURL?: string,
+  // País (ISO alpha-2) elegido junto al teléfono — ver el mismo campo en
+  // GuestData y toWhatsAppPhone (utils/phone.ts).
+  phoneCountry?: string,
 ): Promise<{ status: 'success' | 'error'; qrToken?: string }> {
   const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
   // Minúsculas: permite encontrar este contacto más tarde por igualdad
@@ -161,6 +164,7 @@ export async function registerWalkInGuest(
       tx.set(doc(db, 'events', eventId, 'guestContacts', guestRef.id), {
         email: trimmedEmail,
         phone: trimmedPhone,
+        ...(trimmedPhone && phoneCountry ? { phoneCountry } : {}),
       })
     }
     // Valor absoluto calculado dentro de la transacción, NO increment():

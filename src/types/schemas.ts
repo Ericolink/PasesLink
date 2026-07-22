@@ -81,6 +81,7 @@ export const EventSchema = z.object({
   currency: z.string(),
   paymentInstructions: z.string(),
   organizerContactPhone: z.string().optional(),
+  organizerContactPhoneCountry: z.string().optional(),
   timeline: z.array(TimelineEntrySchema).optional(),
   plan: z.enum(['premium']),
   paymentStatus: z.enum(['pending', 'paid', 'free_trial']),
@@ -107,6 +108,7 @@ const CompanionDataSchema = z.object({
   name: z.string().optional(),
   lastName: z.string().optional(),
   phone: z.string().optional(),
+  phoneCountry: z.string().optional(),
 })
 
 export const GuestSchema = z.object({
@@ -114,6 +116,7 @@ export const GuestSchema = z.object({
   name: z.string().min(1),
   lastName: z.string(),
   phone: z.string(),
+  phoneCountry: z.string().optional(),
   email: z.string().optional(),
   qrToken: z.string().min(1),
   status: z.enum(['invited', 'checked_in']),
