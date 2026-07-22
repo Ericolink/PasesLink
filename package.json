@@ -27,6 +27,7 @@
     "html-to-image": "^1.11.13",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",
+    "libphonenumber-js": "^1.13.9",
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.6",
