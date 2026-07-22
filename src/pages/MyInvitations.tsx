@@ -133,43 +133,44 @@ export function MyInvitations() {
 
       <div className="space-y-4">
         {invitations.map((inv, index) => (
-          <div key={inv.eventId} className="relative">
-            <EventTicketCard
-              href={`/pass/${inv.eventId}/${inv.qrToken}`}
-              index={index}
-              date={inv.eventDate}
-              templateId={inv.eventTemplateId}
-              accentColor={inv.eventAccentColor}
-              highlight={index === 0}
-              title={inv.eventName}
-              subtitle={`${formatDate(inv.eventDate)} · ${inv.eventLocation}`}
-              body={
-                <div className="flex items-center gap-4">
-                  {inv.eventCoverImage
-                    ? <img src={optimizedImageUrl(inv.eventCoverImage, 128)} alt="" loading="lazy" crossOrigin="anonymous" className="w-12 h-12 rounded-lg object-cover shrink-0" />
-                    : <div className="w-12 h-12 rounded-lg bg-[var(--invite-accent-soft,rgba(255,20,100,.1))] flex items-center justify-center shrink-0">
-                        <IconCalendar className="w-5 h-5 text-[var(--invite-accent,#FF1464)]" />
-                      </div>
-                  }
-                  <p className="flex-1 min-w-0 text-xs text-[var(--invite-text-muted,#6b7280)] truncate">Como: {inv.guestName}</p>
-                  <div className="shrink-0 flex flex-col items-center">
-                    <QRCodeCanvas value={inv.qrToken} size={52} marginSize={QR_QUIET_ZONE_MODULES} className="rounded" />
-                    <p className="text-2xs text-[var(--invite-accent,#FF1464)] text-center mt-1 font-medium">Ver pase</p>
+          <div key={inv.eventId} className="flex items-stretch gap-1.5">
+            <div className="flex-1 min-w-0">
+              <EventTicketCard
+                href={`/pass/${inv.eventId}/${inv.qrToken}`}
+                index={index}
+                date={inv.eventDate}
+                templateId={inv.eventTemplateId}
+                accentColor={inv.eventAccentColor}
+                highlight={index === 0}
+                title={inv.eventName}
+                subtitle={`${formatDate(inv.eventDate)} · ${inv.eventLocation}`}
+                body={
+                  <div className="flex items-center gap-4">
+                    {inv.eventCoverImage
+                      ? <img src={optimizedImageUrl(inv.eventCoverImage, 128)} alt="" loading="lazy" crossOrigin="anonymous" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                      : <div className="w-12 h-12 rounded-lg bg-[var(--invite-accent-soft,rgba(255,20,100,.1))] flex items-center justify-center shrink-0">
+                          <IconCalendar className="w-5 h-5 text-[var(--invite-accent,#FF1464)]" />
+                        </div>
+                    }
+                    <p className="flex-1 min-w-0 text-xs text-[var(--invite-text-muted,#6b7280)] truncate">Como: {inv.guestName}</p>
+                    <div className="shrink-0 flex flex-col items-center">
+                      <QRCodeCanvas value={inv.qrToken} size={52} marginSize={QR_QUIET_ZONE_MODULES} className="rounded" />
+                      <p className="text-2xs text-[var(--invite-accent,#FF1464)] text-center mt-1 font-medium">Ver pase</p>
+                    </div>
                   </div>
-                </div>
-              }
-            />
+                }
+              />
+            </div>
 
-            {/* Esquina inferior-derecha (no superior): arriba es donde
-                EventTicketCard ya dibuja sus propias insignias ("Próximo",
-                estado) — este botón flotante quedaba superpuesto con esas
-                insignias en vez de al lado. Sin `footer` en este uso del
-                ticket, la esquina inferior queda libre. Colores fijos (no
-                dark:): el ticket tiene su propio fondo oscuro/temático sin
-                importar el modo claro/oscuro de la app. */}
+            {/* Fuera de la tarjeta (no superpuesto): antes era un botón
+                `absolute` sobre todo el ticket y en pantallas con poco
+                contenido terminaba pisando el QR/"Ver pase" del body. Al
+                vivir en el flujo normal, al costado, nunca puede
+                solaparse con nada — y de paso queda fuera del área
+                táctil del pase, así que no compite con "abrir invitación". */}
             <button
               onClick={() => setConfirmDelete(inv)}
-              className="absolute bottom-2 right-2 min-w-11 min-h-11 inline-flex items-center justify-center rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+              className="shrink-0 self-center min-w-11 min-h-11 inline-flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 active:bg-red-100 dark:active:bg-red-950/50 transition-colors"
               aria-label="Eliminar invitación"
             >
               <IconTrash className="w-4 h-4" />
