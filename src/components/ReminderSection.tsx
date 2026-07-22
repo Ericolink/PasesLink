@@ -3,7 +3,7 @@ import type { GuestData } from '../types'
 import type { EventData } from '../types'
 import { IconBell, IconCheckCircle, IconWhatsApp } from './Icons'
 import { buildPassUrl } from '../utils/qrUrl'
-import { cleanPhone } from '../utils/phone'
+import { toWhatsAppPhone } from '../utils/phone'
 
 interface Props {
   event: EventData
@@ -71,7 +71,7 @@ export function ReminderSection({ event, guests }: Props) {
         {/* Lista de invitados pendientes */}
         <div className="space-y-2 max-h-72 overflow-y-auto">
           {pending.map((guest) => {
-            const phone = cleanPhone(guest.phone || '')
+            const phone = toWhatsAppPhone(guest.phone || '')
             const msg = reminderMessage(guest)
             const waUrl = phone
               ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`

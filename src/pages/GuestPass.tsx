@@ -18,6 +18,7 @@ import { EventMap } from '../components/EventMap'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
+import { toWhatsAppPhone } from '../utils/phone'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { TimelineDisplay } from '../components/TimelineDisplay'
@@ -51,8 +52,7 @@ import { buildPassUrl, QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 // devolución o reportar un problema de acceso — todo el mismo canal, pedido
 // explícito).
 function organizerWhatsappUrl(phone: string, message: string): string {
-  const digits = phone.replace(/[^\d+]/g, '')
-  return `https://wa.me/${digits.replace(/^\+/, '')}?text=${encodeURIComponent(message)}`
+  return `https://wa.me/${toWhatsAppPhone(phone)}?text=${encodeURIComponent(message)}`
 }
 
 // El navegador reutiliza la misma instancia de GuestPass al navegar entre dos

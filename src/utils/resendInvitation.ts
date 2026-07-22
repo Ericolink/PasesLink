@@ -1,5 +1,5 @@
 import { buildPassUrl } from './qrUrl'
-import { cleanPhone } from './phone'
+import { toWhatsAppPhone } from './phone'
 
 // Reenvío de una invitación ya existente (mismo qrToken, no se genera nada
 // nuevo) para el invitado que se autoregistró desde un navegador integrado
@@ -13,7 +13,7 @@ export function buildResendMessage(guestName: string, eventName: string, eventId
 }
 
 export function buildResendWhatsAppUrl(phone: string, message: string): string {
-  const clean = cleanPhone(phone)
+  const clean = toWhatsAppPhone(phone)
   return `https://wa.me/${clean}?text=${encodeURIComponent(message)}`
 }
 
