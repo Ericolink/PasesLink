@@ -168,6 +168,38 @@ service cloud.firestore {
         && counterDeltaOk(newEv.get('rsvpPendingCount', 0), oldEv.get('rsvpPendingCount', 0));
     }
 
+    // Autocancelación ("Cancelar mi asistencia", GuestPass.tsx, invitado con
+    // rsvpStatus 'yes' que decide no ir) — a diferencia de rsvpCountsOk (que
+    // solo MUEVE un invitado entre baldes), acá el invitado se borra entero:
+    // el total baja en 1. Sin gate de canDo, mismo criterio que la rama de
+    // RSVP de arriba: lo dispara el invitado sin cuenta desde su propio pase.
+    // checkedInCount/occupancyCount deben quedar exactamente iguales — es la
+    // defensa (del lado del contador) de la misma regla de negocio que
+    // guests/{guestId} `allow delete` exige del lado del documento borrado:
+    // si ya hizo check-in, no puede autocancelarse. peopleCount acotado a
+    // 1..21 (mismo techo que 1 + GUEST_MAX_COMPANIONS ya usado en la rama de
+    // autoregistro) porque una autocancelación es siempre de UN invitado
+    // (nunca en lote, a diferencia del borrado del organizador). paidCount
+    // solo puede bajar 0 (no había pagado) o exactamente lo mismo que
+    // peopleCount (pago es todo-o-nada por invitado, nunca parcial).
+    function guestSelfCancelCountsOk(oldEv, newEv) {
+      return newEv.get('guestCount', 0) == eventGuestCountBefore(oldEv) - 1
+        && newEv.get('peopleCount', 0) <= eventPeopleCountBefore(oldEv) - 1
+        && newEv.get('peopleCount', 0) >= eventPeopleCountBefore(oldEv) - 21
+        && newEv.get('checkedInCount', 0) == oldEv.get('checkedInCount', 0)
+        && newEv.get('occupancyCount', 0) == oldEv.get('occupancyCount', 0)
+        && (
+          newEv.get('paidCount', 0) == oldEv.get('paidCount', 0)
+          || (oldEv.get('paidCount', 0) - newEv.get('paidCount', 0)) == (eventPeopleCountBefore(oldEv) - newEv.get('peopleCount', 0))
+        )
+        && (oldEv.get('rsvpYesCount', 0) - newEv.get('rsvpYesCount', 0)) in [0, 1]
+        && (oldEv.get('rsvpNoCount', 0) - newEv.get('rsvpNoCount', 0)) in [0, 1]
+        && (oldEv.get('rsvpPendingCount', 0) - newEv.get('rsvpPendingCount', 0)) in [0, 1]
+        && ((oldEv.get('rsvpYesCount', 0) - newEv.get('rsvpYesCount', 0))
+            + (oldEv.get('rsvpNoCount', 0) - newEv.get('rsvpNoCount', 0))
+            + (oldEv.get('rsvpPendingCount', 0) - newEv.get('rsvpPendingCount', 0))) == 1;
+    }
+
     // reactionCount/reactionCountsByType (auditoría F2/F11, migración de
     // `reactions{}` embebido a subcolección): a diferencia de
     // counterDeltaOk (margen de 50, pensado para altas en lote como
@@ -860,12 +892,32 @@ service cloud.firestore {
         // rsvpCountsOk más arriba. Sin gate de canDo/scanQr a propósito: lo
         // dispara el invitado sin cuenta desde su propio pase.
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpYesCount', 'rsvpNoCount', 'rsvpPendingCount'])
-            && rsvpCountsOk(resource.data, request.resource.data));
+            && rsvpCountsOk(resource.data, request.resource.data))
+        // Autocancelación ("Cancelar mi asistencia", deleteGuest disparado
+        // por el propio invitado desde GuestPass) — ver guestSelfCancelCountsOk
+        // más arriba. Mismo criterio sin gate que la rama de RSVP de justo
+        // arriba: el invitado no tiene cuenta necesariamente, así que la
+        // única forma de habilitar esta escritura es sin permiso de por
+        // medio — la función ya acota todo lo que puede moverse en un solo
+        // request (un invitado por vez, sin tocar presencia).
+        || (request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['guestCount', 'peopleCount', 'checkedInCount', 'occupancyCount', 'paidCount', 'rsvpYesCount', 'rsvpNoCount', 'rsvpPendingCount'])
+            && guestSelfCancelCountsOk(resource.data, request.resource.data));
       allow delete: if isOwnerData(resource.data) || isAdmin();
 
       match /guests/{guestId} {
         allow read: if canDo(eventId, 'viewGuestList', true) || isAdmin();
-        allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin();
+        // Autocancelación ("Cancelar mi asistencia"): mismo criterio de
+        // confianza que el resto del autoservicio del invitado en este
+        // archivo (RSVP, autoedición, reclamo de guestUid) — resolver este
+        // (eventId, guestId), un id de Firestore no adivinable ni listable,
+        // es la barrera real, no hace falta cuenta ni permiso de
+        // coanfitrión. Bloqueado si ya hizo check-in (status == 'checked_in'):
+        // esa es la regla de negocio ("ya usaste el pase, no podés
+        // autocancelar"), reforzada del lado del contador del evento por
+        // guestSelfCancelCountsOk (checkedInCount/occupancyCount fijos).
+        allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin()
+          || resource.data.get('status', 'invited') != 'checked_in';
         allow create: if (canDo(eventId, 'addGuests', true) && companionsWithinLimit(eventId, request.resource.data, false))
           || isAdmin()
           || canSelfRegisterGuest(eventId, request.resource.data);
@@ -1011,7 +1063,12 @@ service cloud.firestore {
       match /guestContacts/{guestId} {
         allow get: if true;
         allow list: if canDo(eventId, 'viewGuestList', true) || isAdmin();
-        allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin();
+        // Mismo criterio de autocancelación que guests/{guestId} `allow
+        // delete` de arriba (deleteGuest borra ambos documentos en el mismo
+        // batch) — el status vive en el guest hermano, no acá, de ahí el
+        // get().
+        allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin()
+          || get(/databases/$(database)/documents/events/$(eventId)/guests/$(guestId)).data.get('status', 'invited') != 'checked_in';
         // canDo(...,'addGuests',...) además de editGuests: agregar un
         // invitado (addGuest/addGuestsBulk/import CSV) puede incluir su
         // teléfono/email en la MISMA operación de alta — antes, un

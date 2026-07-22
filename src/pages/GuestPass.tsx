@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
-import { checkInGuest, claimGuestOwnership, claimGuestPass, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
+import { checkInGuest, claimGuestOwnership, claimGuestPass, deleteGuest, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
-import { saveUserInvitation } from '../firebase/userProfile'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { saveUserInvitation, deleteUserInvitation } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { resolveEventPermissions } from '../types/coOrganizerPermissions'
@@ -34,7 +35,7 @@ import { GuestPassTicket } from '../components/GuestPassTicket'
 import { OrganizerPassView, type CheckInState } from '../components/OrganizerPassView'
 import { PaymentProofForm } from '../components/PaymentProofForm'
 import { usePaymentProof } from '../hooks/usePaymentProof'
-import { formatDate, formatTime12h } from '../utils/time'
+import { formatDate, formatTime12h, isEventPast } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadPassImage } from '../utils/downloadPass'
 import { downloadIcsFile } from '../utils/calendar'
@@ -86,6 +87,10 @@ function GuestPassInner() {
   const [showMaybeMessage, setShowMaybeMessage] = useState(false)
   const [showDeclineModal, setShowDeclineModal] = useState(false)
   const [showSignupPrompt, setShowSignupPrompt] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelSaving, setCancelSaving] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
+  const [cancelled, setCancelled] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [checkInState, setCheckInState] = useState<CheckInState>('idle')
   const [paymentSaving, setPaymentSaving] = useState(false)
@@ -346,6 +351,30 @@ function GuestPassInner() {
     )
   }
 
+  // Pantalla final tras confirmar la cancelación — reemplaza todo el pase en
+  // vez de volver a mostrarlo (el documento ya no existe en Firestore):
+  // evita el estado roto de "invitación eliminada mostrando su propio
+  // contenido viejo" que quedó cargado en memoria.
+  if (cancelled) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center p-4">
+        <div className="w-full max-w-sm text-center">
+          <IconCheckCircle className="w-10 h-10 mx-auto mb-3 text-green-500" />
+          <p className="font-medium text-lg">Listo, cancelaste tu asistencia</p>
+          <p className="text-sm mt-2 text-gray-500 dark:text-gray-400">
+            Ya no formas parte de la lista de invitados de {event.name}. Si cambias de opinión, contacta al organizador
+            para solicitar una nueva invitación.
+          </p>
+          {user && (
+            <Link to="/my-invitations" className="inline-block mt-5 text-sm font-medium underline underline-offset-2">
+              Ver mis invitaciones
+            </Link>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   async function handleRsvp(rsvpStatus: RsvpStatus) {
     if (!guest) return
     setRsvpSaving(true)
@@ -370,6 +399,41 @@ function GuestPassInner() {
       setRsvpError('No se guardó. Intenta de nuevo.')
     } finally {
       setRsvpSaving(false)
+    }
+  }
+
+  // Autocancelación de un invitado ya confirmado (rsvpStatus 'yes', incluye
+  // autoregistro — registerWalkInGuest siempre crea con 'yes'). A diferencia
+  // de handleRsvp('no') de arriba (decline blando, invitado pendiente que
+  // sigue en la lista): esto borra el documento entero vía deleteGuest, el
+  // mismo helper que ya usa el organizador desde GuestList — reusa su lógica
+  // de contadores (peopleCount/paidCount/checkedInCount/occupancyCount) sin
+  // duplicarla.
+  async function handleCancelAttendance() {
+    if (!eventId || !guest) return
+    setCancelSaving(true)
+    setCancelError(null)
+    try {
+      await deleteGuest(eventId, guest)
+      // Best-effort: limpia la caché de "Mis invitaciones" del propio dueño
+      // de la cuenta. Solo puede hacerlo si el visor ES esa cuenta (reglas de
+      // users/{uid}/invitations exigen request.auth.uid == uid, sin excepción
+      // para organizador/admin) — si el invitado no tiene sesión iniciada o
+      // el pase nunca se vinculó a una cuenta, esta tarjeta queda huérfana
+      // igual que ya le pasa hoy a un borrado hecho por el organizador (el
+      // pase muestra "no encontrado" al abrirla, sin romper nada).
+      if (user && guest.guestUid && guest.guestUid === user.uid) {
+        deleteUserInvitation(user.uid, eventId).catch((err) => {
+          console.error('Error limpiando la invitación cacheada del usuario:', err)
+        })
+      }
+      setShowCancelDialog(false)
+      setCancelled(true)
+    } catch (err) {
+      console.error('Error cancelando la asistencia:', err)
+      setCancelError('No se pudo cancelar tu asistencia. Intenta de nuevo.')
+    } finally {
+      setCancelSaving(false)
     }
   }
 
@@ -603,6 +667,22 @@ function GuestPassInner() {
                     )}
                   </div>
                   <PassSecurityNotice />
+
+                  {/* Autocancelación — solo si todavía tiene sentido: oculta
+                      sin explicación si ya hizo check-in (el badge de arriba
+                      ya lo dice) o si el evento ya pasó. Jerarquía visual
+                      baja a propósito (link de texto apagado, no un botón),
+                      es una acción destructiva secundaria. */}
+                  {guest.status !== 'checked_in' && !isEventPast(event.date) && (
+                    <button
+                      type="button"
+                      data-pass-exclude="true"
+                      onClick={() => setShowCancelDialog(true)}
+                      className="mt-4 text-xs text-[var(--invite-text-muted)] hover:text-red-500 active:text-red-500 underline underline-offset-2 transition-colors"
+                    >
+                      Cancelar mi asistencia
+                    </button>
+                  )}
                 </>
               )}
 
@@ -843,6 +923,26 @@ function GuestPassInner() {
           onSuccess={() => setShowSignupPrompt(false)}
         />
       )}
+      <ConfirmDialog
+        open={showCancelDialog}
+        title="Cancelar mi asistencia"
+        message={
+          <>
+            ¿Estás seguro de que deseas cancelar tu asistencia? Serás eliminado de la lista de invitados y perderás el
+            acceso a esta invitación.
+            {cancelError && <p className="text-red-500 mt-2">{cancelError}</p>}
+            <p className="mt-2">
+              Si deseas asistir nuevamente, deberás registrarte otra vez (si el evento lo permite) o solicitar una
+              nueva invitación al organizador.
+            </p>
+          </>
+        }
+        confirmLabel={cancelSaving ? 'Cancelando…' : 'Sí, cancelar mi asistencia'}
+        cancelLabel="Volver"
+        danger
+        onConfirm={() => { if (!cancelSaving) void handleCancelAttendance() }}
+        onCancel={() => { setShowCancelDialog(false); setCancelError(null) }}
+      />
     </InvitationThemeRoot>
   )
 }
