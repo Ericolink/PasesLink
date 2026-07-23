@@ -1,5 +1,6 @@
 import type { EventData } from '../../types'
 import { getTemplate } from '../../templates/registry'
+import { getShareRecipe } from '../../templates/shareRecipes'
 import { formatDate, formatTime12h } from '../time'
 import { optimizedImageUrl } from '../cloudinary'
 import type { ShareCardContent } from './types'
@@ -20,8 +21,11 @@ export function buildEventShareCard(event: EventData, joinUrl: string): ShareCar
     dateLabel: formatDate(event.date),
     timeLabel,
     locationLabel: event.location,
-    coverImageUrl: event.coverImage ? optimizedImageUrl(event.coverImage, 800) : undefined,
+    // 1200px: el lienzo final se captura a 1080px reales de ancho (ver
+    // EventShareCardTemplate.tsx), 800px quedaba por debajo de esa resolución.
+    coverImageUrl: event.coverImage ? optimizedImageUrl(event.coverImage, 1200) : undefined,
     ctaLabel: 'Únete al evento',
+    domainLabel: new URL(joinUrl).host,
     url: joinUrl,
     theme: {
       accent: vars.accent,
@@ -33,5 +37,6 @@ export function buildEventShareCard(event: EventData, joinUrl: string): ShareCar
       fontFamily: vars.fontFamily,
       borderRadius: vars.borderRadius,
     },
+    recipe: getShareRecipe(event.templateId),
   }
 }

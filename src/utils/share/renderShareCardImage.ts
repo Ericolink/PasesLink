@@ -11,7 +11,11 @@ function isExcluded(node: unknown): boolean {
   return node instanceof HTMLElement && node.dataset.shareCardExclude === 'true'
 }
 
-export async function renderShareCardImage(node: HTMLElement): Promise<Blob | null> {
+// `fallbackColor` se pasa como `backgroundColor` a ambas capturas: aunque el
+// nodo ya trae su propio fondo de plantilla (EventShareCardTemplate.tsx), esto
+// es la segunda red de seguridad contra un PNG con transparencia real (por
+// ejemplo antialiasing en los bordes del nodo) sin costo para el caso normal.
+export async function renderShareCardImage(node: HTMLElement, fallbackColor: string): Promise<Blob | null> {
   if (document.fonts?.ready) {
     await document.fonts.ready
   }
@@ -20,6 +24,7 @@ export async function renderShareCardImage(node: HTMLElement): Promise<Blob | nu
     return await toBlob(node, {
       pixelRatio: PIXEL_RATIO,
       cacheBust: true,
+      backgroundColor: fallbackColor,
       filter: (n) => !isExcluded(n),
     })
   } catch (err) {
@@ -32,6 +37,7 @@ export async function renderShareCardImage(node: HTMLElement): Promise<Blob | nu
       return await toBlob(node, {
         pixelRatio: PIXEL_RATIO,
         cacheBust: true,
+        backgroundColor: fallbackColor,
         filter: (n) => !isExcluded(n) && !(n instanceof HTMLImageElement),
       })
     } catch (retryErr) {

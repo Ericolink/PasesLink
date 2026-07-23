@@ -87,6 +87,9 @@ function App() {
         <Route path="/events/:id/arrive" element={<AppShell mode="kiosk" guestExit><EventArrive /></AppShell>} />
         <Route path="/events/:id/join" element={<AppShell mode="kiosk" guestExit><EventJoin /></AppShell>} />
         <Route path="/events/:id/wall" element={<AppShell mode="kiosk" guestExit><EventWall /></AppShell>} />
+        {/* Alias corto de /events/:id/join para compartir en redes (ver
+            ShareEventButton.tsx) — EventJoin no depende del prefijo de ruta. */}
+        <Route path="/e/:id" element={<AppShell mode="kiosk" guestExit><EventJoin /></AppShell>} />
 
         {/* Modo navegación: Inicio, Invitaciones, Perfil y sus drill-downs */}
         <Route

@@ -17,6 +17,14 @@ export type ShareResult = 'shared' | 'shared-no-image' | 'unsupported'
 export async function shareEventCard(content: ShareCardContent, imageBlob: Blob | null): Promise<ShareResult> {
   const shareData = { title: content.title, text: content.ctaLabel, url: content.url }
 
+  // Punto de inserción futuro para un "paso 0": el esquema privado
+  // instagram-stories://share (pasteboard + deep link) es la única forma de
+  // que Instagram adjunte un link realmente tocable a una Story — pero
+  // requiere una app registrada en Meta for Developers y solo se puede
+  // validar en un dispositivo iOS real. Pospuesto a propósito (ver plan de
+  // rediseño de compartir); si se implementa, va antes de la cascada de Web
+  // Share API de abajo, no reemplazándola.
+
   if (imageBlob && navigator.canShare && navigator.share) {
     const file = new File([imageBlob], 'evento-paselink.png', { type: 'image/png' })
     if (navigator.canShare({ files: [file] })) {
