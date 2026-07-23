@@ -316,7 +316,7 @@ export function EventJoin() {
                   value={phoneCountry}
                   onChange={setPhoneCountry}
                   aria-label="País del teléfono"
-                  className="shrink-0 rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
+                  className="rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
                 />
                 <input
                   type="tel"

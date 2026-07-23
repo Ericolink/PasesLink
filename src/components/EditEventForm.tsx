@@ -653,7 +653,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                   value={form.organizerContactPhoneCountry as CountryCode}
                   onChange={(v) => updateField('organizerContactPhoneCountry', v)}
                   aria-label="País del WhatsApp de contacto"
-                  className="shrink-0 border border-gray-300 rounded-lg px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="border border-gray-300 rounded-lg px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <input
                   id="edit-event-organizer-contact"

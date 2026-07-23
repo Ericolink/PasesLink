@@ -243,7 +243,7 @@ export function StepInvitationMethod({
                   value={organizerContactPhoneCountry as CountryCode}
                   onChange={onOrganizerContactPhoneCountryChange}
                   aria-label="País del WhatsApp de contacto"
-                  className="shrink-0 border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <input
                   id="event-organizer-contact"

@@ -263,7 +263,7 @@ export function GuestAddForm({
               className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <div className="flex items-center gap-1">
-              <CountryCodeSelect value={phoneCountry} onChange={setPhoneCountry} aria-label="País del teléfono" className="shrink-0 border border-gray-300 rounded-md px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" />
+              <CountryCodeSelect value={phoneCountry} onChange={setPhoneCountry} aria-label="País del teléfono" className="border border-gray-300 rounded-md px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" />
               <input
                 type="tel"
                 maxLength={GUEST_PHONE_MAX}

@@ -25,6 +25,17 @@ interface Props {
   'aria-label'?: string
 }
 
+// Un <select> nativo sin ancho fijo se dimensiona según su OPTION más ancha
+// (ej. "Territorio Británico del Océano Índico (+246)"), no según el valor
+// seleccionado — Chrome mide las 245 opciones aunque solo se vea "México
+// (+52)". Con 245 países eso vuelve al selector más ancho que su contenedor
+// y aplasta el input de teléfono a unos pocos píxeles. `w-28 truncate` fija
+// un ancho angosto e independiente del contenido; el desplegable abierto
+// sigue mostrando el texto completo de cada país sin recortar, solo el
+// control cerrado se acorta. No es overridable por className a propósito:
+// es la única forma de garantizar el fix en los 7 usos de este componente.
+const STRUCTURAL_CLASS = 'w-28 shrink-0 truncate'
+
 export function CountryCodeSelect({ value, onChange, id, className, 'aria-label': ariaLabel }: Props) {
   return (
     <select
@@ -32,10 +43,10 @@ export function CountryCodeSelect({ value, onChange, id, className, 'aria-label'
       aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value as CountryCode)}
-      className={
+      className={`${STRUCTURAL_CLASS} ${
         className
         ?? 'border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
-      }
+      }`}
     >
       {COUNTRY_OPTIONS.map((c) => (
         <option key={c.code} value={c.code}>{c.label}</option>

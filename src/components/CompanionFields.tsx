@@ -85,7 +85,7 @@ export function CompanionFieldsEditor({
               value={(companion.phoneCountry as CountryCode) || DEFAULT_PHONE_COUNTRY}
               onChange={(v) => updateCompanion(index, 'phoneCountry', v)}
               aria-label="País del teléfono del acompañante"
-              className="shrink-0 border border-gray-300 dark:border-gray-600 rounded-md px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <input
               type="tel"
@@ -98,7 +98,7 @@ export function CompanionFieldsEditor({
               <button
                 type="button"
                 onClick={() => setPendingRemoveIndex(index)}
-                className="shrink-0 min-w-11 min-h-11 inline-flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
+                className="min-w-11 min-h-11 inline-flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
                 aria-label="Eliminar acompañante"
               >
                 <IconTrash className="w-4 h-4" />
