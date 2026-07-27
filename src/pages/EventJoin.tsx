@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { useNavigate, useParams } from 'react-router-dom'
 import { subscribeToEventWithInitial } from '../firebase/events'
@@ -31,6 +31,8 @@ import { EventCountdown } from '../components/EventCountdown'
 import { formatTime12h } from '../utils/time'
 import { IconBan } from '../components/Icons'
 import { FieldError } from '../components/FieldError'
+import { FormField } from '../components/FormField'
+import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import type { EventData, PaymentMethod } from '../types'
 import { buildPassUrl } from '../utils/qrUrl'
 import { customFieldInputProps } from '../utils/customFieldInput'
@@ -68,6 +70,9 @@ export function EventJoin() {
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
   const [regError, setRegError] = useState('')
+  const [regErrorAttempt, setRegErrorAttempt] = useState(0)
+  const formRef = useRef<HTMLFormElement>(null)
+  useFocusFirstInvalidField(formRef, regErrorAttempt)
 
   // Un único listener cubre tanto la decisión de estado inicial
   // (not_found/error/form, resuelta con su primer snapshot) como las
@@ -133,6 +138,7 @@ export function EventJoin() {
     if (!id || !name.trim() || !lastName.trim()) return
     if (needsMethodChoice && !resolvedPaymentMethod) {
       setRegError('Elegí cómo vas a pagar antes de continuar.')
+      setRegErrorAttempt((n) => n + 1)
       return
     }
     setState('submitting')
@@ -153,6 +159,7 @@ export function EventJoin() {
       )
       if (result.status === 'error') {
         setRegError('Este evento ya no está disponible. Actualiza la página e intenta de nuevo.')
+        setRegErrorAttempt((n) => n + 1)
         setState('form')
         return
       }
@@ -191,6 +198,7 @@ export function EventJoin() {
     } catch (err) {
       console.error('Error registering guest:', err)
       setRegError(err instanceof Error ? err.message : 'No se pudo completar el registro. Intenta de nuevo.')
+      setRegErrorAttempt((n) => n + 1)
       setState('form')
     }
   }
@@ -249,37 +257,39 @@ export function EventJoin() {
             </p>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3 text-left">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-3 text-left">
             <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className={labelClass}>Tu nombre *</label>
-                <input
-                  type="text"
-                  required
-                  autoComplete="given-name"
-                  maxLength={GUEST_NAME_PART_MAX}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ana"
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Apellido *</label>
-                <input
-                  type="text"
-                  required
-                  autoComplete="family-name"
-                  maxLength={GUEST_NAME_PART_MAX}
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="García"
-                  className={inputClass}
-                />
-              </div>
+              <FormField label="Tu nombre" required labelClassName={labelClass}>
+                {(fieldProps) => (
+                  <input
+                    {...fieldProps}
+                    type="text"
+                    autoComplete="given-name"
+                    maxLength={GUEST_NAME_PART_MAX}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ana"
+                    className={inputClass}
+                  />
+                )}
+              </FormField>
+              <FormField label="Apellido" required labelClassName={labelClass}>
+                {(fieldProps) => (
+                  <input
+                    {...fieldProps}
+                    type="text"
+                    autoComplete="family-name"
+                    maxLength={GUEST_NAME_PART_MAX}
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="García"
+                    className={inputClass}
+                  />
+                )}
+              </FormField>
             </div>
-            <div>
-              <label className={labelClass}>¿Cuántos vienen? <span className="font-normal normal-case">(incluyéndote)</span></label>
+            <fieldset className="border-0 p-0 m-0">
+              <legend className={labelClass}>¿Cuántos vienen? <span className="font-normal normal-case">(incluyéndote)</span></legend>
               <div className="flex items-center justify-between rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] px-2 py-1">
                 <button
                   type="button"
@@ -290,7 +300,11 @@ export function EventJoin() {
                 >
                   −
                 </button>
-                <span className="text-base font-semibold text-[var(--invite-text)] tabular-nums">{partySize}</span>
+                {/* aria-live: un stepper personalizado no anuncia su cambio
+                    de valor por sí solo como lo haría un <input type=number>
+                    nativo — sin esto, un lector de pantalla no confirma el
+                    nuevo total al presionar +/-. */}
+                <span aria-live="polite" className="text-base font-semibold text-[var(--invite-text)] tabular-nums">{partySize}</span>
                 <button
                   type="button"
                   onClick={() => setPartySize(Math.min(partySize + 1, maxPartySize))}
@@ -308,71 +322,78 @@ export function EventJoin() {
                     : 'Alcanzaste el máximo de acompañantes permitidos para este evento.'}
                 </p>
               )}
-            </div>
-            <div>
-              <label className={labelClass}>Teléfono <span className="font-normal normal-case">(opcional)</span></label>
-              <div className="flex items-center gap-1.5">
-                <CountryCodeSelect
-                  value={phoneCountry}
-                  onChange={setPhoneCountry}
-                  aria-label="País del teléfono"
-                  className="rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
-                />
+            </fieldset>
+            <FormField label={<>Teléfono <span className="font-normal normal-case">(opcional)</span></>} labelClassName={labelClass}>
+              {(fieldProps) => (
+                <div className="flex items-center gap-1.5">
+                  <CountryCodeSelect
+                    value={phoneCountry}
+                    onChange={setPhoneCountry}
+                    aria-label="País del teléfono"
+                    className="rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
+                  />
+                  <input
+                    {...fieldProps}
+                    type="tel"
+                    autoComplete="tel"
+                    maxLength={GUEST_PHONE_MAX}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="656 123 4567"
+                    className={`flex-1 min-w-0 ${inputClass}`}
+                  />
+                </div>
+              )}
+            </FormField>
+            <FormField
+              label={<>Email <span className="font-normal normal-case">(opcional, para recibir tu pase por correo)</span></>}
+              labelClassName={labelClass}
+            >
+              {(fieldProps) => (
                 <input
-                  type="tel"
-                  autoComplete="tel"
-                  maxLength={GUEST_PHONE_MAX}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="656 123 4567"
-                  className={`flex-1 min-w-0 ${inputClass}`}
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>
-                Email <span className="font-normal normal-case">(opcional, para recibir tu pase por correo)</span>
-              </label>
-              <input
-                type="email"
-                autoComplete="email"
-                inputMode="email"
-                maxLength={GUEST_EMAIL_MAX}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
-                className={inputClass}
-              />
-            </div>
-
-            {customFields.map((field) => (
-              <div key={field.id}>
-                <label className={labelClass}>
-                  {field.label}{field.required ? ' *' : ''}
-                </label>
-                <input
-                  {...customFieldInputProps(field.type)}
-                  required={field.required}
-                  maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
-                  value={customValues[field.id] || ''}
-                  onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                  {...fieldProps}
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  maxLength={GUEST_EMAIL_MAX}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tu@email.com"
                   className={inputClass}
                 />
-              </div>
+              )}
+            </FormField>
+
+            {customFields.map((field) => (
+              <FormField key={field.id} label={field.label} required={field.required} labelClassName={labelClass}>
+                {(fieldProps) => (
+                  <input
+                    {...fieldProps}
+                    {...customFieldInputProps(field)}
+                    maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
+                    value={customValues[field.id] || ''}
+                    onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                    className={inputClass}
+                  />
+                )}
+              </FormField>
             ))}
 
             {event?.requiresPayment && (
-              <div>
-                <label className={labelClass}>
+              <fieldset className="border-0 p-0 m-0">
+                <legend className={labelClass}>
                   Entrada: {event.currency}{(event.ticketPrice * partySize).toLocaleString('es')}
-                  {needsMethodChoice && ' — ¿cómo vas a pagar? *'}
-                </label>
+                  {needsMethodChoice && ' — ¿cómo vas a pagar?'}
+                  {needsMethodChoice && <span aria-hidden="true" className="text-error"> *</span>}
+                </legend>
                 {needsMethodChoice ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div role="radiogroup" aria-label="Método de pago" className="grid grid-cols-2 gap-2">
                     {event.paymentMethods.map((m) => (
                       <button
                         key={m}
                         type="button"
+                        role="radio"
+                        aria-checked={paymentMethod === m}
                         onClick={() => setPaymentMethod(m)}
                         className={`min-h-11 rounded-full border text-sm font-semibold transition-colors ${
                           paymentMethod === m
@@ -392,7 +413,7 @@ export function EventJoin() {
                 {event.paymentMethods.includes('transfer') && (needsMethodChoice ? paymentMethod === 'transfer' : true) && (
                   <p className="text-xs mt-1.5 text-[var(--invite-text-muted)]">Podés enviar tu comprobante cuando quieras después de registrarte.</p>
                 )}
-              </div>
+              </fieldset>
             )}
 
             {!!event?.capacity && (

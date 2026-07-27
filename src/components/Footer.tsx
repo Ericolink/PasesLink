@@ -29,7 +29,12 @@ export function Footer() {
       <div className="max-w-5xl mx-auto px-4 py-10 text-sm">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-8">
           <div>
-            <Logo />
+            {/* variant="fixed": el footer es oscuro en los dos temas
+                (background literal más arriba, sin dark:), así que el logo
+                debe quedarse blanco siempre — con el logo-glow normal (el
+                que sí sigue el tema) se volvía negro sobre este fondo
+                oscuro en modo claro. */}
+            <Logo variant="fixed" />
             <p className="text-xs text-gray-500 mt-3 max-w-[220px] leading-relaxed">
               Invitaciones digitales y check-in con QR para tus eventos.
             </p>

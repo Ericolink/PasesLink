@@ -8,7 +8,7 @@
 export function FormError({ message, className = '' }: { message?: string | null; className?: string }) {
   if (!message) return null
   return (
-    <p className={`text-sm text-error bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 ${className}`}>
+    <p role="alert" className={`text-sm text-error bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 ${className}`}>
       {message}
     </p>
   )

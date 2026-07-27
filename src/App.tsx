@@ -4,6 +4,7 @@ import { SentryRoutes } from './lib/sentry'
 import { Background } from './components/Background'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { GlobalToastHost } from './components/GlobalToastHost'
+import { RouteAnnouncer } from './components/RouteAnnouncer'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
 import { CrownLoader } from './components/CrownLoader'
@@ -65,6 +66,7 @@ function App() {
     <>
       <Background />
       <GlobalToastHost />
+      <RouteAnnouncer />
       <ErrorBoundary>
       <Suspense fallback={<PageFallback />}>
       <SentryRoutes>

@@ -8,8 +8,9 @@ import { Footer } from './Footer'
 export function PublicLayout({ children }: { children: ReactNode }) {
   return (
     <>
+      <a href="#main-content" className="skip-link">Saltar al contenido</a>
       <Navbar />
-      <main>{children}</main>
+      <main id="main-content" tabIndex={-1}>{children}</main>
       <Footer />
     </>
   )

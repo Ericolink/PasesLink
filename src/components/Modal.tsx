@@ -49,20 +49,29 @@ export function Modal({
   label,
   maxWidth = 'sm:max-w-sm',
   variant = 'sheet',
-  surfaceClassName = 'bg-white dark:bg-gray-800',
+  // bg-surface ya se ramifica solo (blanco en claro, el mismo translúcido
+  // rgba(30,20,40,.88) que antes daba dark:bg-gray-800 en oscuro — ver
+  // --color-surface en index.css), así que no hace falta el dark: aparte.
+  surfaceClassName = 'bg-surface',
   className = '',
 }: ModalProps) {
   const dialogRef = useModalA11y<HTMLDivElement>(open, onClose)
 
   if (!open) return null
 
+  // Scrim ink-900@42% (Design Memory) en vez de negro puro; en oscuro
+  // --scrim vuelve al negro/50 original, sin cambios ahí.
   const backdropClass = variant === 'dialog'
-    ? 'fixed inset-0 z-[200] flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-black/50 backdrop-blur-sm'
-    : 'fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[env(safe-area-inset-bottom)] sm:pb-0 bg-black/50 backdrop-blur-sm'
+    ? 'fixed inset-0 z-[200] flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-[var(--scrim)] backdrop-blur-sm'
+    : 'fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 pb-[env(safe-area-inset-bottom)] sm:pb-0 bg-[var(--scrim)] backdrop-blur-sm'
 
+  // rounded-xl (24px) y no rounded-2xl (30px, reservado a superficies más
+  // grandes) — "sheet con grabber y radio 24 solo arriba" (Design Memory).
+  // shadow-[var(--shadow-lg)] reemplaza shadow-2xl: en oscuro --shadow-lg
+  // ya está calibrado para verse igual que el shadow-2xl que había antes.
   const panelClass = variant === 'dialog'
-    ? `${surfaceClassName} rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[85dvh] flex flex-col animate-bounce-in`
-    : `${surfaceClassName} rounded-t-2xl sm:rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[85dvh] flex flex-col animate-bounce-in`
+    ? `${surfaceClassName} rounded-xl shadow-[var(--shadow-lg)] w-full ${maxWidth} max-h-[85dvh] flex flex-col animate-bounce-in`
+    : `${surfaceClassName} rounded-t-xl sm:rounded-xl shadow-[var(--shadow-lg)] w-full ${maxWidth} max-h-[85dvh] flex flex-col animate-bounce-in`
 
   return createPortal(
     <div className={backdropClass} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>

@@ -4,6 +4,10 @@ import type { CompanionData } from '../types'
 import { IconTrash } from './Icons'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
+import { FormField } from './FormField'
+
+const COMPANION_INPUT_CLASS =
+  'w-full border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary'
 
 export function CompanionFieldsEditor({
   companions,
@@ -64,49 +68,72 @@ export function CompanionFieldsEditor({
           </button>
         )
       )}
-      {companions.map((companion, index) => (
+      {companions.map((companion, index) => {
+        // Con 2+ acompañantes, cada fila repetía "Nombre (opcional)"/
+        // "Apellido (opcional)"/"Teléfono (opcional)" idéntico — un lector de
+        // pantalla no podía distinguir en cuál acompañante estaba parado. El
+        // label real (oculto, el placeholder visible no cambia) ahora incluye
+        // el número de orden.
+        const humanIndex = index + 1
+        return (
         <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-gray-50 dark:bg-gray-700/50 rounded-md p-2">
-          <input
-            type="text"
-            placeholder="Nombre (opcional)"
-            value={companion.name || ''}
-            onChange={(e) => updateCompanion(index, 'name', e.target.value)}
-            className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <input
-            type="text"
-            placeholder="Apellido (opcional)"
-            value={companion.lastName || ''}
-            onChange={(e) => updateCompanion(index, 'lastName', e.target.value)}
-            className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+          <FormField label={`Nombre del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
+            {(fieldProps) => (
+              <input
+                {...fieldProps}
+                type="text"
+                placeholder="Nombre (opcional)"
+                value={companion.name || ''}
+                onChange={(e) => updateCompanion(index, 'name', e.target.value)}
+                className={COMPANION_INPUT_CLASS}
+              />
+            )}
+          </FormField>
+          <FormField label={`Apellido del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
+            {(fieldProps) => (
+              <input
+                {...fieldProps}
+                type="text"
+                placeholder="Apellido (opcional)"
+                value={companion.lastName || ''}
+                onChange={(e) => updateCompanion(index, 'lastName', e.target.value)}
+                className={COMPANION_INPUT_CLASS}
+              />
+            )}
+          </FormField>
           <div className="flex items-center gap-1">
             <CountryCodeSelect
               value={(companion.phoneCountry as CountryCode) || DEFAULT_PHONE_COUNTRY}
               onChange={(v) => updateCompanion(index, 'phoneCountry', v)}
-              aria-label="País del teléfono del acompañante"
+              aria-label={`País del teléfono del acompañante ${humanIndex}`}
               className="border border-gray-300 dark:border-gray-600 rounded-md px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <input
-              type="tel"
-              placeholder="Teléfono (opcional)"
-              value={companion.phone || ''}
-              onChange={(e) => updateCompanion(index, 'phone', e.target.value)}
-              className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+            <FormField label={`Teléfono del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only" className="flex-1 min-w-0">
+              {(fieldProps) => (
+                <input
+                  {...fieldProps}
+                  type="tel"
+                  placeholder="Teléfono (opcional)"
+                  value={companion.phone || ''}
+                  onChange={(e) => updateCompanion(index, 'phone', e.target.value)}
+                  className={COMPANION_INPUT_CLASS}
+                />
+              )}
+            </FormField>
             {allowAddRemove && (
               <button
                 type="button"
                 onClick={() => setPendingRemoveIndex(index)}
                 className="min-w-11 min-h-11 inline-flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
-                aria-label="Eliminar acompañante"
+                aria-label={`Eliminar acompañante ${humanIndex}`}
               >
                 <IconTrash className="w-4 h-4" />
               </button>
             )}
           </div>
         </div>
-      ))}
+        )
+      })}
 
       <ConfirmDialog
         open={pendingRemoveIndex !== null}

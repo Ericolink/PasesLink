@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { getGuestContact, resolveMaxCompanions, updateGuestSelf } from '../firebase/guests'
 import type { CompanionData, EventData, GuestData } from '../types'
@@ -8,6 +8,8 @@ import { CustomFieldsEditRow } from './CustomFieldsEditor'
 import { labelClass, inputClass } from '../pages/EventJoin'
 import { Modal } from './Modal'
 import { FieldError } from './FieldError'
+import { FormField } from './FormField'
+import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 
 export function GuestEditModal({
   eventId,
@@ -34,7 +36,10 @@ export function GuestEditModal({
   const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [errorAttempt, setErrorAttempt] = useState(0)
   const [saved, setSaved] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  useFocusFirstInvalidField(formRef, errorAttempt)
 
   useEffect(() => {
     let cancelled = false
@@ -73,6 +78,7 @@ export function GuestEditModal({
     } catch (err) {
       console.error('Error al guardar la edición del invitado:', err)
       setError(err instanceof Error ? err.message : 'No se pudo guardar. Recargá la página e intentá de nuevo.')
+      setErrorAttempt((n) => n + 1)
     } finally {
       setSaving(false)
     }
@@ -98,82 +104,97 @@ export function GuestEditModal({
             </button>
           </>
         ) : (
-          <form onSubmit={handleSave} className="space-y-3">
+          <form ref={formRef} onSubmit={handleSave} className="space-y-3">
             <h2 id="guest-edit-title" className="text-base font-semibold mb-1 text-[var(--invite-text)]">Editar mis datos</h2>
             {loadingContact ? (
               <p className="text-sm text-[var(--invite-text-muted)]">Cargando…</p>
             ) : (
               <>
-                <div>
-                  <label className={labelClass}>Nombre</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={60}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Apellido</label>
-                  <input
-                    type="text"
-                    maxLength={60}
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Teléfono</label>
-                  <div className="flex items-center gap-1.5">
-                    <CountryCodeSelect
-                      value={phoneCountry}
-                      onChange={setPhoneCountry}
-                      aria-label="País del teléfono"
-                      className="rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
-                    />
+                <FormField label="Nombre" required labelClassName={labelClass}>
+                  {(fieldProps) => (
                     <input
-                      type="tel"
-                      maxLength={30}
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className={`flex-1 min-w-0 ${inputClass}`}
+                      {...fieldProps}
+                      type="text"
+                      maxLength={60}
+                      autoComplete="given-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className={inputClass}
                     />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Email</label>
-                  <input
-                    type="email"
-                    maxLength={120}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
+                  )}
+                </FormField>
+                <FormField label="Apellido" labelClassName={labelClass}>
+                  {(fieldProps) => (
+                    <input
+                      {...fieldProps}
+                      type="text"
+                      maxLength={60}
+                      autoComplete="family-name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className={inputClass}
+                    />
+                  )}
+                </FormField>
+                <FormField label="Teléfono" labelClassName={labelClass}>
+                  {(fieldProps) => (
+                    <div className="flex items-center gap-1.5">
+                      <CountryCodeSelect
+                        value={phoneCountry}
+                        onChange={setPhoneCountry}
+                        aria-label="País del teléfono"
+                        className="rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
+                      />
+                      <input
+                        {...fieldProps}
+                        type="tel"
+                        maxLength={30}
+                        autoComplete="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className={`flex-1 min-w-0 ${inputClass}`}
+                      />
+                    </div>
+                  )}
+                </FormField>
+                <FormField label="Email" labelClassName={labelClass}>
+                  {(fieldProps) => (
+                    <input
+                      {...fieldProps}
+                      type="email"
+                      maxLength={120}
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={inputClass}
+                    />
+                  )}
+                </FormField>
                 {event.customFields && event.customFields.length > 0 && (
-                  <div className="space-y-2">
-                    <label className={labelClass}>Datos del evento</label>
+                  // <fieldset>/<legend> en vez de un <label> suelto: agrupa
+                  // varios campos (no un control único), así que un <label>
+                  // sin htmlFor era HTML inválido y no se anunciaba como
+                  // grupo a lectores de pantalla.
+                  <fieldset className="space-y-2 border-0 p-0 m-0">
+                    <legend className={labelClass}>Datos del evento</legend>
                     <CustomFieldsEditRow
                       customFields={event.customFields}
                       values={customValues}
                       onChange={setCustomValues}
                       inputClassName={inputClass}
                     />
-                  </div>
+                  </fieldset>
                 )}
                 {companions.length > 0 && (
-                  <div>
-                    <label className={labelClass}>Acompañantes</label>
+                  <fieldset className="border-0 p-0 m-0">
+                    <legend className={labelClass}>Acompañantes</legend>
                     <CompanionFieldsEditor
                       companions={companions}
                       onChange={setCompanions}
                       allowAddRemove={false}
                       maxCompanions={resolveMaxCompanions(event)}
                     />
-                  </div>
+                  </fieldset>
                 )}
               </>
             )}

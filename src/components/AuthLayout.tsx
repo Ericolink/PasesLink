@@ -28,7 +28,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           <img
             src="/Icon.png"
             alt="PaseLink icon"
-            className="h-24 w-auto mx-auto mb-6 animate-float logo-glow"
+            className="h-24 w-auto mx-auto mb-6 animate-float logo-glow-fixed"
           />
 
           <h2 className="text-2xl font-bold text-white mt-2 max-w-sm">

@@ -7,6 +7,7 @@ import { IconEye, IconInbox, IconStar, IconTrash } from '../Icons'
 import { Pagination } from './Pagination'
 import { ResponsiveTable } from './ResponsiveTable'
 import { SkeletonBlock } from '../Skeleton'
+import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
 
 const STATUS_PILL_CLASSES: Record<FeedbackStatus, string> = {
   new: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
@@ -38,6 +39,7 @@ interface Props {
 }
 
 export function AdminFeedbackTable({ items, loading, search, onSearchChange, onOpen, onToggleFavorite, onRequestDelete }: Props) {
+  useLoadingAnnouncement(loading)
   const [categoryFilter, setCategoryFilter] = useState<FeedbackCategory | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<FeedbackStatus | 'all'>('all')
   const [priorityFilter, setPriorityFilter] = useState<FeedbackPriority | 'all'>('all')
@@ -145,10 +147,24 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
             </div>
           ))}
           {!loading && pageItems.map((item) => (
+            // role="button" + tabIndex + onKeyDown (no <button> real): esta
+            // tarjeta contiene dos <button> propios (favorito/eliminar)
+            // anidados adentro — un <button> envolvente sería HTML inválido
+            // (botón dentro de botón). aria-label explícito evita que el
+            // nombre accesible de la tarjeta arrastre el texto de esos
+            // botones internos. Antes esta vista (a diferencia de la de
+            // escritorio, que sí tiene un ícono "ver" redundante) no tenía
+            // ninguna forma de abrir el detalle por teclado.
             <div
               key={item.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`Ver mensaje de ${item.userEmail || item.userDisplayName || 'anónimo'}: ${item.subject}`}
               onClick={() => onOpen(item)}
-              className="p-4 space-y-1.5 cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/40"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(item) }
+              }}
+              className="p-4 space-y-1.5 cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
             >
               <div className="flex items-start gap-2">
                 {!item.read && <span className="mt-1.5 block w-2 h-2 rounded-full bg-primary shrink-0" title="No leído" />}
@@ -201,7 +217,7 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
         table={<>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+              <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
                 <th className="px-4 py-2 font-medium w-8"></th>
                 <th className="px-4 py-2 font-medium">Asunto</th>
                 <th className="px-4 py-2 font-medium">Remitente</th>
@@ -217,7 +233,7 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
                 <tr
                   key={item.id}
                   onClick={() => onOpen(item)}
-                  className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 ${!item.read ? 'font-semibold' : ''}`}
+                  className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 even:bg-[var(--color-bg-subtle)] dark:even:bg-transparent ${!item.read ? 'font-semibold' : ''}`}
                 >
                   <td className="px-4 py-2">
                     {!item.read && <span className="block w-2 h-2 rounded-full bg-primary" title="No leído" />}

@@ -1,7 +1,7 @@
 import { forwardRef } from 'react'
 import type { ButtonHTMLAttributes } from 'react'
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'danger-outline' | 'text'
+type ButtonVariant = 'primary' | 'secondary' | 'tonal' | 'danger' | 'danger-outline' | 'text'
 type ButtonSize = 'md' | 'sm'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -16,7 +16,18 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
   primary: 'bg-primary text-white hover:bg-primary-dark',
-  secondary: 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+  // Superficie + borde marcado (Design Memory: "secundario = surface + borde
+  // border-strong, no relleno gris") — antes era un borde gris plano sin
+  // fondo propio. Solo se agrega fondo en CLARO (dark:bg-transparent
+  // restaura el resto original, transparente salvo hover, para no tocar
+  // la apariencia oscura). border-gray-300 sin dark: aparte: el bloque
+  // `.dark .border-gray-300` de index.css ya lo pisa con !important para
+  // todo el app (mismo trato que cualquier otro borde de tarjeta en oscuro).
+  secondary: 'bg-surface dark:bg-transparent border border-gray-300 text-gray-700 dark:text-gray-300 shadow-[var(--shadow-xs)] dark:shadow-none hover:bg-[var(--hover)] dark:hover:bg-gray-700',
+  // Tonal (subtle+ink de la familia primary) — variante que pedía la Design
+  // Memory y no existía: para acciones secundarias con más peso que "text"
+  // pero sin la formalidad de un borde.
+  tonal: 'bg-primary-subtle text-primary-ink dark:text-primary hover:bg-primary-subtle-border/60',
   danger: 'bg-red-600 text-white hover:bg-red-700',
   'danger-outline': 'border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20',
   // Variante liviana para links inline (ej. "Cerrar" tras enviar un

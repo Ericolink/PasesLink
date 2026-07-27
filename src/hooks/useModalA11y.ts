@@ -1,7 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { useScrollLock } from './useScrollLock'
 
-const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+// :not(:disabled) en los elementos que lo soportan: un botón/input/etc.
+// deshabilitado en el borde del trap nunca puede recibir foco real del
+// navegador, así que `document.activeElement` jamás coincide con ese
+// "last"/"first" calculado — el Tab se escapa del modal en vez de ciclar
+// (bug real, confirmado en ReportModal con su botón "Enviar" deshabilitado
+// mientras el textarea está vacío).
+const FOCUSABLE_SELECTOR =
+  'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
 // Accesibilidad compartida para los modales del proyecto: focus trap (Tab
 // cíclico dentro del modal), Escape cierra, devolución de foco al elemento

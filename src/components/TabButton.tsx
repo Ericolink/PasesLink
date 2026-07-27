@@ -19,9 +19,16 @@ export function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 whitespace-nowrap min-h-11 px-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+      // Activo = tonal pink, no solo el subrayado (Design Memory: "item
+      // activo = tonal pink, no fill pleno") — bg-primary-subtle + radio
+      // arriba, conservando el underline que ya usa el mismo lenguaje que
+      // Navbar.tsx. text-primary ya resuelve a primary-ink en claro (ver
+      // .text-primary en index.css), no hace falta tocarlo acá. El tonal
+      // solo se agrega en CLARO: dark:bg-transparent restaura el activo sin
+      // fondo que ya había en oscuro, para no tocar su apariencia.
+      className={`shrink-0 whitespace-nowrap min-h-11 px-3 text-sm font-medium border-b-2 -mb-px rounded-t-md transition-colors ${
         active
-          ? 'border-primary text-primary'
+          ? 'border-primary text-primary bg-primary-subtle dark:bg-transparent'
           : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
       }`}
     >

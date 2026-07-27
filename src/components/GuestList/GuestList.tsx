@@ -19,6 +19,7 @@ import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
 import { GuestSelectionBar } from './GuestSelectionBar'
 import { SECTION_ORDER, groupGuestsByUrgency, type GuestUrgency } from './guestGrouping'
+import { useAnnouncer } from '../../contexts/AnnouncementContext'
 
 // Paginación de RENDERIZADO, no de datos: `guests` ya llega completo a este
 // componente (EventDetail lo carga entero vía useEvent/subscribeToGuests,
@@ -152,6 +153,7 @@ export const GuestList = memo(function GuestList({
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const { announce } = useAnnouncer()
 
   // Los dos useCallback de acá abajo tienen que vivir ANTES del early return
   // de "sin invitados" (regla de hooks: siempre en el mismo orden, nunca
@@ -183,11 +185,13 @@ export const GuestList = memo(function GuestList({
   const handleQuickPay = useCallback((guest: GuestData) => {
     setActionError('')
     const method = guest.paymentMethod || paymentMethods[0]
-    setGuestPaymentStatus(eventId, guest.id, 'paid', method).catch((err) => {
-      console.error('Error marking guest as paid:', err)
-      setActionError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
-    })
-  }, [eventId, paymentMethods])
+    setGuestPaymentStatus(eventId, guest.id, 'paid', method)
+      .then(() => announce(`Pago confirmado: ${guest.name}`))
+      .catch((err) => {
+        console.error('Error marking guest as paid:', err)
+        setActionError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
+      })
+  }, [eventId, paymentMethods, announce])
 
   if (guests.length === 0) {
     return hasActiveFilters ? (
@@ -277,6 +281,7 @@ export const GuestList = memo(function GuestList({
     setActionError('')
     try {
       await deleteGuest(eventId, deletingGuest)
+      announce(`Invitado eliminado: ${deletingGuest.name}`)
     } catch (err) {
       console.error('Error deleting guest:', err)
       setActionError('No se pudo eliminar el invitado. Intenta de nuevo.')

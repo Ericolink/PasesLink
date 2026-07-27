@@ -5,6 +5,7 @@ import { IconDownload, IconUsers } from '../Icons'
 import { Pagination } from './Pagination'
 import { ResponsiveTable } from './ResponsiveTable'
 import { SkeletonBlock } from '../Skeleton'
+import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
 
 type SortKey = 'email' | 'createdAt' | 'eventCount'
 
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEventsByOwner }: Props) {
+  useLoadingAnnouncement(loading)
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -127,7 +129,7 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
         table={<>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+              <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
                 <SortableHeader label="Email" active={sortKey === 'email'} dir={sortDir} onClick={() => toggleSort('email')} />
                 <th className="px-4 py-2 font-medium">Nombre</th>
                 <SortableHeader label="Eventos" active={sortKey === 'eventCount'} dir={sortDir} onClick={() => toggleSort('eventCount')} />
@@ -143,7 +145,7 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
                 </tr>
               ))}
               {!loading && pageItems.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 even:bg-[var(--color-bg-subtle)] dark:even:bg-transparent">
                   <td className="px-4 py-2 text-gray-900 dark:text-white">{u.email || u.id}</td>
                   <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{u.displayName || '—'}</td>
                   <td className="px-4 py-2">

@@ -149,12 +149,12 @@ export function Dashboard() {
 
       {loading && <LoadingInline label="Cargando eventos…" />}
 
-      {/* Gráfico de actividad mensual */}
+      {/* Gráfico de actividad mensual. Antes fondo/borde oscuros fijos con
+          las etiquetas gray-500 (pensadas para fondo claro) encima —
+          ilegible en modo claro. Design Memory: "fondo de gráfica
+          bg-subtle". dark: mantiene el rgba original. */}
       {!loading && events.length >= 2 && monthCounts.some((c) => c > 0) && (
-        <div
-          className="rounded-xl p-4 mb-6"
-          style={{ background: 'rgba(30,20,40,.7)', border: '1px solid rgba(74,50,92,.8)' }}
-        >
+        <div className="rounded-xl p-4 mb-6 bg-[var(--color-bg-subtle)] dark:bg-[rgba(30,20,40,.7)] border border-[var(--color-border)] dark:border-[rgba(74,50,92,.8)]">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
             Actividad (últimos 6 meses)
           </p>

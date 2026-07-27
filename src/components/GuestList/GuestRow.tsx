@@ -184,12 +184,21 @@ export const GuestRow = memo(function GuestRow({
         )}
       </div>
 
-      <div
+      {/* <button> real (no <div onClick>): es la única forma de abrir el
+          detalle de un invitado o alternar su selección — sin esto, un
+          usuario de teclado/switch no puede gestionar invitados en absoluto
+          desde esta lista. Un <button> es focuseable de forma nativa y
+          dispara onClick con Enter/Espacio sin JS extra; `w-full text-left
+          appearance-none` deshace los estilos por defecto del navegador para
+          que se siga viendo igual que el <div> anterior. */}
+      <button
+        type="button"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onClick={handleContentClick}
-        className="relative bg-white dark:bg-gray-800 flex items-center gap-3 px-3 py-2.5 cursor-pointer"
+        aria-pressed={selectMode ? selected : undefined}
+        className="relative w-full text-left appearance-none bg-white dark:bg-gray-800 flex items-center gap-3 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
         style={{
           transform: `translateX(${offset}px)`,
           transition: dragOffset !== null ? 'none' : `${SWIPE_SETTLE_TRANSITION}, box-shadow 240ms ease-out`,
@@ -198,6 +207,7 @@ export const GuestRow = memo(function GuestRow({
       >
         {selectMode && (
           <div
+            aria-hidden="true"
             className={`w-5 h-5 rounded-full border-[1.5px] shrink-0 flex items-center justify-center ${
               selected ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-gray-600'
             }`}
@@ -213,8 +223,8 @@ export const GuestRow = memo(function GuestRow({
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{subtitle}</p>
         </div>
-        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${INDICATOR_CLASS[indicator]}`} />
-      </div>
+        <span aria-hidden="true" className={`w-2.5 h-2.5 rounded-full shrink-0 ${INDICATOR_CLASS[indicator]}`} />
+      </button>
     </div>
   )
 })

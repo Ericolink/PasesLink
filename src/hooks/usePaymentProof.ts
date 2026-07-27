@@ -18,11 +18,18 @@ export function usePaymentProof(
   const [proofFormOpen, setProofFormOpen] = useState(false)
   const [proofSubmitting, setProofSubmitting] = useState(false)
   const [proofError, setProofError] = useState<string | null>(null)
+  // Contador aparte del mensaje en sí: el mismo texto de error puede repetirse
+  // en 2 intentos seguidos (ej. dejar el campo vacío dos veces), y React no
+  // vuelve a renderizar si el nuevo string es idéntico al actual — sin este
+  // contador, useFocusFirstInvalidField (que depende de un valor que cambie)
+  // no se enteraría del segundo intento fallido.
+  const [proofErrorAttempt, setProofErrorAttempt] = useState(0)
 
   async function handleSubmitProof() {
     if (!eventId || !guestId) return
     if (!proofNote.trim()) {
       setProofError('Ingresá el número de referencia de tu transferencia.')
+      setProofErrorAttempt((n) => n + 1)
       return
     }
     setProofSubmitting(true)
@@ -34,6 +41,7 @@ export function usePaymentProof(
     } catch (err) {
       console.error('Error submitting payment proof:', err)
       setProofError('No se pudo enviar. Intenta de nuevo.')
+      setProofErrorAttempt((n) => n + 1)
     } finally {
       setProofSubmitting(false)
     }
@@ -46,6 +54,7 @@ export function usePaymentProof(
     setProofFormOpen,
     proofSubmitting,
     proofError,
+    proofErrorAttempt,
     handleSubmitProof,
   }
 }

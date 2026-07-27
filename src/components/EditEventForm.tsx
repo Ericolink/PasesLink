@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { updateEventDetails } from '../firebase/events'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
@@ -19,6 +19,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { Button } from './Button'
 import { Checkbox } from './Checkbox'
 import { FieldError } from './FieldError'
+import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { EventScheduleField } from './EventScheduleField'
 import { getTemplate } from '../templates/registry'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
@@ -155,6 +156,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
   const [capacityError, setCapacityError] = useState('')
   const [maxCompanionsError, setMaxCompanionsError] = useState('')
+  const [errorAttempt, setErrorAttempt] = useState(0)
+  const formRef = useRef<HTMLFormElement>(null)
+  useFocusFirstInvalidField(formRef, errorAttempt)
 
   // "Modo anti-tontos": antes de guardar de verdad, se muestra un resumen de
   // qué va a cambiar y hay que confirmarlo explícitamente. `null` = sin
@@ -340,6 +344,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       } else {
         setSubmitError('No pudimos guardar los cambios. Intenta de nuevo.')
       }
+      setErrorAttempt((n) => n + 1)
     } finally {
       setSaving(false)
     }
@@ -353,20 +358,24 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if (!form.name.trim() || !form.date || !form.location.trim()) return
     if (form.requiresPayment && form.paymentMethods.length === 0) {
       setSubmitError('Elegí al menos un método de cobro.')
+      setErrorAttempt((n) => n + 1)
       return
     }
     if (form.requiresPayment && !(parseFloat(form.ticketPrice) > 0)) {
       setSubmitError('Ingresá un precio mayor a 0 para el boleto.')
+      setErrorAttempt((n) => n + 1)
       return
     }
     const { value: parsedCapacity, error: capacityValidationError } = parseCapacity(form.capacity)
     if (capacityValidationError) {
       setCapacityError(capacityValidationError)
+      setErrorAttempt((n) => n + 1)
       return
     }
     const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(form.maxCompanions)
     if (maxCompanionsValidationError) {
       setMaxCompanionsError(maxCompanionsValidationError)
+      setErrorAttempt((n) => n + 1)
       return
     }
     setCapacityError('')
@@ -416,7 +425,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       onConfirm={() => { setPendingChanges(null); void submitEvent() }}
       onCancel={() => setPendingChanges(null)}
     />
-    <form onSubmit={handleReviewSubmit} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4 space-y-3 animate-fade-in-up">
+    <form ref={formRef} onSubmit={handleReviewSubmit} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4 space-y-3 animate-fade-in-up">
       <h2 className="font-medium text-gray-900 dark:text-white">Editar evento</h2>
 
       <EditSection title="Lo esencial" defaultOpen>
@@ -555,23 +564,32 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         </div>
         <div>
           <label htmlFor="edit-event-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Límite de invitados</label>
-          <input id="edit-event-capacity" type="number" required min="1" value={form.capacity} onChange={(e) => updateField('capacity', e.target.value)}
-            placeholder="Ej: 200" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-          <p className="text-xs text-gray-400 mt-1">
+          <input
+            id="edit-event-capacity" type="number" required min="1" value={form.capacity} onChange={(e) => updateField('capacity', e.target.value)}
+            placeholder="Ej: 200"
+            aria-describedby={capacityError ? 'edit-event-capacity-error' : 'edit-event-capacity-hint'}
+            aria-invalid={!!capacityError}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p id="edit-event-capacity-hint" className="text-xs text-gray-400 mt-1">
             Total de personas recomendado (invitados + acompañantes) — informativo, no bloquea nuevos registros si
             se supera.
           </p>
-          <FieldError message={capacityError} />
+          <FieldError id="edit-event-capacity-error" message={capacityError} />
         </div>
         <div>
           <label htmlFor="edit-event-max-companions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Acompañantes por invitado</label>
-          <input id="edit-event-max-companions" type="number" min="0" max={GUEST_MAX_COMPANIONS} value={form.maxCompanions} onChange={(e) => updateField('maxCompanions', e.target.value)}
-            className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-          <p className="text-xs text-gray-400 mt-1">
+          <input
+            id="edit-event-max-companions" type="number" min="0" max={GUEST_MAX_COMPANIONS} value={form.maxCompanions} onChange={(e) => updateField('maxCompanions', e.target.value)}
+            aria-describedby={maxCompanionsError ? 'edit-event-max-companions-error' : 'edit-event-max-companions-hint'}
+            aria-invalid={!!maxCompanionsError}
+            className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p id="edit-event-max-companions-hint" className="text-xs text-gray-400 mt-1">
             Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten
             acompañantes. No aplica a "Familia o grupo", que tiene su propio límite de integrantes.
           </p>
-          <FieldError message={maxCompanionsError} />
+          <FieldError id="edit-event-max-companions-error" message={maxCompanionsError} />
         </div>
       </EditSection>
 
@@ -588,8 +606,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         </label>
         {form.requiresPayment && (
           <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Métodos de cobro</label>
+            <fieldset className="border-0 p-0 m-0">
+              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Métodos de cobro</legend>
               <div className="flex gap-2">
                 {(['transfer', 'cash'] as PaymentMethod[]).map((m) => (
                   <label
@@ -606,7 +624,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                 ))}
               </div>
               {form.paymentMethods.length === 0 && <FieldError message="Elegí al menos un método." />}
-            </div>
+            </fieldset>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
                 <label htmlFor="edit-event-ticket-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio por persona</label>
@@ -673,10 +691,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       </EditSection>
 
       {submitError && (
-        <div className="text-sm text-red-600">
-          <p>{submitError}</p>
+        <div>
+          <FieldError message={submitError} />
           {networkRetry && (
-            <button type="button" onClick={() => void submitEvent()} className="mt-1 font-medium underline">
+            <button type="button" onClick={() => void submitEvent()} className="mt-1 text-sm font-medium underline text-error">
               Reintentar ahora
             </button>
           )}

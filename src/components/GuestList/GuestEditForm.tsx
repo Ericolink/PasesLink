@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { partySize, updateGuest } from '../../firebase/guests'
 import type { CompanionData, CustomField, GuestData } from '../../types'
@@ -8,6 +8,11 @@ import { CustomFieldsEditRow } from '../CustomFieldsEditor'
 import { GUEST_GROUP_MAX_MEMBERS } from '../../utils/validation'
 import { Button } from '../Button'
 import { FieldError } from '../FieldError'
+import { InputField } from '../InputField'
+import { useFocusFirstInvalidField } from '../../hooks/useFocusFirstInvalidField'
+
+const EDIT_ROW_INPUT_CLASS =
+  'border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary'
 
 function EditGuestRow({
   eventId,
@@ -30,6 +35,9 @@ function EditGuestRow({
   const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [errorAttempt, setErrorAttempt] = useState(0)
+  const formRef = useRef<HTMLFormElement>(null)
+  useFocusFirstInvalidField(formRef, errorAttempt)
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -49,29 +57,34 @@ function EditGuestRow({
     } catch (err) {
       console.error('Error updating guest:', err)
       setError('No se pudo guardar el invitado. Intenta de nuevo.')
+      setErrorAttempt((n) => n + 1)
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-2">
+    <form ref={formRef} onSubmit={handleSave} className="space-y-2">
       <FieldError message={error} />
       <div className="grid grid-cols-1 gap-2">
-        <input
+        <InputField
+          label="Nombre"
+          labelClassName="sr-only"
           type="text"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+          className={EDIT_ROW_INPUT_CLASS}
           placeholder="Nombre"
         />
-        <input
+        <InputField
+          label="Apellido"
+          labelClassName="sr-only"
           type="text"
           required
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
-          className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+          className={EDIT_ROW_INPUT_CLASS}
           placeholder="Apellido"
         />
         <div className="flex items-center gap-1.5">
@@ -81,11 +94,14 @@ function EditGuestRow({
             aria-label="País del teléfono"
             className="border border-gray-300 dark:border-gray-600 rounded-md px-1.5 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <input
+          <InputField
+            label="Teléfono"
+            labelClassName="sr-only"
+            containerClassName="flex-1 min-w-0"
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+            className={EDIT_ROW_INPUT_CLASS}
             placeholder="Teléfono"
           />
         </div>
@@ -126,6 +142,9 @@ function EditGroupRow({
   const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [errorAttempt, setErrorAttempt] = useState(0)
+  const formRef = useRef<HTMLFormElement>(null)
+  useFocusFirstInvalidField(formRef, errorAttempt)
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -147,24 +166,29 @@ function EditGroupRow({
     } catch (err) {
       console.error('Error updating group:', err)
       setError('No se pudo guardar el grupo. Intenta de nuevo.')
+      setErrorAttempt((n) => n + 1)
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-2">
+    <form ref={formRef} onSubmit={handleSave} className="space-y-2">
       <FieldError message={error} />
       <div className="grid grid-cols-1 gap-2">
-        <input
+        <InputField
+          label="Nombre del grupo"
+          labelClassName="sr-only"
           type="text"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+          className={EDIT_ROW_INPUT_CLASS}
           placeholder="Nombre del grupo"
         />
-        <input
+        <InputField
+          label="Cantidad de integrantes"
+          labelClassName="sr-only"
           type="number"
           required
           min={1}
@@ -173,7 +197,7 @@ function EditGroupRow({
           onChange={(e) => setMemberCount(Math.max(1, Math.min(GUEST_GROUP_MAX_MEMBERS, Number(e.target.value) || 1)))}
           onFocus={(e) => e.currentTarget.select()}
           onClick={(e) => e.currentTarget.select()}
-          className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+          className={EDIT_ROW_INPUT_CLASS}
           placeholder="Integrantes"
         />
         <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />

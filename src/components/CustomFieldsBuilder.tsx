@@ -46,16 +46,24 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
 
   return (
     <div className="space-y-2">
-      {fields.map((field) => (
+      {fields.map((field, index) => {
+        const humanIndex = index + 1
+        const labelInputId = `custom-field-label-${field.id}`
+        const typeSelectId = `custom-field-type-${field.id}`
+        return (
         <div key={field.id} className="flex flex-wrap items-center gap-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
+          <label htmlFor={labelInputId} className="sr-only">Nombre del campo personalizado {humanIndex}</label>
           <input
+            id={labelInputId}
             type="text"
             value={field.label}
             onChange={(e) => updateField(field.id, { label: e.target.value })}
             placeholder="Nombre del campo (ej: Edad)"
             className="basis-full sm:basis-auto sm:flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-800"
           />
+          <label htmlFor={typeSelectId} className="sr-only">Tipo del campo personalizado {humanIndex}</label>
           <select
+            id={typeSelectId}
             value={field.type}
             onChange={(e) => updateField(field.id, { type: e.target.value as CustomFieldType })}
             className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-800"
@@ -74,13 +82,14 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
           <button
             type="button"
             onClick={() => setPendingRemoveId(field.id)}
-            aria-label="Eliminar campo"
+            aria-label={`Eliminar campo ${humanIndex}${field.label ? `: ${field.label}` : ''}`}
             className="ml-auto min-w-11 min-h-11 inline-flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors shrink-0 text-lg leading-none"
           >
             ×
           </button>
         </div>
-      ))}
+        )
+      })}
       {fields.length < EVENT_CUSTOM_FIELDS_MAX_COUNT && (
         <button
           type="button"

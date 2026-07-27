@@ -123,7 +123,7 @@ export function AdminReportsTab({ initialReportId }: Props) {
   return (
     <div>
       {actionError && (
-        <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 mb-4">{actionError}</p>
+        <p role="alert" className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 mb-4">{actionError}</p>
       )}
 
       <AdminReportsTable

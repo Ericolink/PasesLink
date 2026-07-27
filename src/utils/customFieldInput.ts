@@ -1,4 +1,4 @@
-import type { CustomFieldType } from '../types'
+import type { CustomField, CustomFieldType } from '../types'
 
 // Traduce el tipo elegido por el organizador (CustomFieldsBuilder.tsx) al
 // <input type>/inputMode real que debe ver quien completa el campo — antes
@@ -20,6 +20,15 @@ const INPUT_MODE_BY_FIELD_TYPE: Record<CustomFieldType, 'text' | 'numeric' | 'em
   phone: 'tel',
 }
 
-export function customFieldInputProps(type: CustomFieldType): { type: string; inputMode: 'text' | 'numeric' | 'email' | 'tel' } {
-  return { type: HTML_TYPE_BY_FIELD_TYPE[type], inputMode: INPUT_MODE_BY_FIELD_TYPE[type] }
+// Recibe el CustomField completo (no solo el `type`) para devolver también
+// `required`: el modelo de datos ya lo tiene (CustomFieldsBuilder.tsx), pero
+// solo EventJoin.tsx lo pasaba a mano al <input> — GuestAddForm/
+// CustomFieldsEditor nunca lo aplicaban, así que un campo obligatorio del
+// organizador no se anunciaba como tal en esos dos flujos.
+export function customFieldInputProps(field: Pick<CustomField, 'type' | 'required'>): { type: string; inputMode: 'text' | 'numeric' | 'email' | 'tel'; required: boolean } {
+  return {
+    type: HTML_TYPE_BY_FIELD_TYPE[field.type],
+    inputMode: INPUT_MODE_BY_FIELD_TYPE[field.type],
+    required: field.required,
+  }
 }

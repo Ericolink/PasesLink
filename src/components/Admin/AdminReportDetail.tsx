@@ -326,7 +326,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
               </div>
 
               <FieldError message={sanctionError} />
-              {sanctionMessage && <p className="text-xs text-green-600 dark:text-green-400">{sanctionMessage}</p>}
+              {sanctionMessage && <p role="status" className="text-xs text-green-600 dark:text-green-400">{sanctionMessage}</p>}
 
               <button
                 onClick={handleApplySanction}

@@ -20,18 +20,72 @@
   /* ── Tokens semánticos (auditoría de consistencia visual, PR 01) ──
      Un solo tono por rol de feedback (éxito/advertencia/error/info),
      para dejar de elegir entre red-500/red-600, green/emerald, etc.
-     a mano en cada componente. Mismo valor en claro y oscuro: los
-     cuatro ya tienen contraste suficiente sobre --app-html-bg claro
-     y oscuro (no hace falta redefinirlos en .dark). */
-  --color-success: #16a34a;
-  --color-warning: #d97706;
-  --color-error:   #dc2626;
-  --color-info:    #2563eb;
+     a mano en cada componente. Valor de acá = MODO CLARO (Design Memory);
+     .dark más abajo pisa warning/error/info de vuelta a los valores que
+     ya tenían (sin cambios) — solo success coincide con el nuevo valor,
+     así que no hace falta redefinirlo. */
+  --color-success: #16A34A;
+  --color-warning: #E5A400;
+  --color-error:   #E5484D;
+  --color-info:    #7C5CFF;
+
+  /* -ink (texto/links/iconos chicos, AA sobre superficie clara — mismo
+     motivo que --color-primary-ink) y -subtle (fondo de chip/alerta) que
+     el PR 01 no tenía. Declarados acá con el valor de MODO CLARO; .dark
+     los pisa más abajo. */
+  --color-success-ink: #0E7A3C;
+  --color-success-subtle: #E4F7EC;
+  --color-warning-ink: #8A5A00;
+  --color-warning-subtle: #FFF4D4;
+  --color-error-ink: #C22A2F;
+  --color-error-subtle: #FDEBEC;
+  --color-info-ink: #5B3CE0;
+  --color-info-subtle: #EDE9FF;
 
   /* Paso tipográfico para micro-labels (badges, contadores) — hoy
      resuelto con text-[10px]/text-[11px] sueltos por ~30 archivos. */
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
+
+  /* ── Light Theme v1.0 (Design Memory, claude.ai/design proyecto
+     "Rediseño del light theme de PaseLink") ──────────────────────────
+     Tokens nuevos que la auditoría pide y hoy no existían: un "ink" del
+     pink de marca accesible para texto/links/iconos chicos (el pink
+     crudo --color-primary #FF1464 solo pasa AA en texto ≥24px — ver
+     Button.tsx/.text-primary más abajo), Secondary (grape) y Accent
+     (festive gold) como colores de marca de pleno derecho, más los
+     niveles de superficie (surface/surface-sunken) que hoy no existían
+     (solo había bg-white plano). Declarados acá para que Tailwind genere
+     sus utilidades (text-primary-ink, bg-surface-sunken, bg-secondary,
+     etc). El valor de acá abajo es el de MODO CLARO — el bloque .dark
+     más abajo los pisa solo donde debe verse distinto; nada de esto lo
+     consume hoy ningún componente, así que no hay resultado oscuro que
+     preservar, pero se eligieron valores oscuros consistentes con el
+     resto de la paleta ya establecida (ver overrides en .dark). */
+  --color-primary-ink: #C40A47;
+  --color-primary-subtle: #FFE7F0;
+  --color-primary-subtle-border: #FFC5DA;
+  --color-secondary: #6A4A80;
+  --color-secondary-hover: #5A3C6F;
+  --color-secondary-subtle: #F0E9F6;
+  --color-accent: #F5B301;
+  --color-accent-strong: #E5A400;
+  --color-accent-ink: #946200;
+  --color-accent-subtle: #FFF4D4;
+  --color-surface: #FFFFFF;
+  --color-surface-sunken: #F7F2FA;
+
+  /* Radios: la Design Memory los define iguales en claro/oscuro (a
+     diferencia del color, que sí se remapea) — por eso van acá sin
+     branch, pisando la escala default de Tailwind para que cualquier
+     rounded-sm/md/lg/xl/2xl ya usado en toda la app (~350 usos) herede
+     el radio nuevo, más generoso, automáticamente. */
+  --radius-xs: 8px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-2xl: 30px;
 }
 
 /* ── Paleta de grises "light" ──────────────────────────────────
@@ -43,24 +97,64 @@
    dark:text-white` (la mayoría de la app) queda resuelto en claro sin
    tocarlo — hoy "sin .dark" caía al gris default de Tailwind. */
 :root {
-  --color-gray-50:  #F7F6FB;
-  --color-gray-100: #EFEDF6;
-  --color-gray-200: #E3E0EF;
-  --color-gray-300: #CBC6DE;
-  --color-gray-400: #9892AE;   /* iconos muted / placeholders */
-  --color-gray-500: #746D8B;   /* texto secundario   (~4.7:1) */
-  --color-gray-600: #58516F;   /* texto secundario+  (~7.3:1) */
-  --color-gray-700: #423B57;   /* texto principal 2°  (~10:1) */
-  --color-gray-800: #2A2438;   /* headings            (~14:1) */
-  --color-gray-900: #17131F;   /* texto máximo        (~17:1) */
+  /* Recalibrados a la escala "ink" de la Design Memory (ink-900 #1A1022
+     … ink-400 #A091AB) en vez del gris azulado anterior — mismo rol por
+     paso (50/100 fondos sutiles, 200/300 bordes, 400-900 texto), pero
+     con el matiz ciruela correcto y sin inventar una escala paralela:
+     el idiom `bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400`
+     que ya usa casi toda la app hereda el tono nuevo sin tocar componentes. */
+  --color-gray-50:  #F5EFF8;   /* = --color-secondary-subtle / bg sutil */
+  --color-gray-100: #F0E9F6;   /* fondos sutiles, chips en reposo */
+  --color-gray-200: #ECE2F1;   /* border */
+  --color-gray-300: #DCCCE4;   /* border-strong */
+  --color-gray-400: #A091AB;   /* iconos muted / placeholders  (ink-400) */
+  --color-gray-500: #7A6787;   /* texto secundario             (ink-500, ~4.7:1) */
+  --color-gray-600: #6A5C78;   /* texto secundario+            (~6.8:1) */
+  --color-gray-700: #4A325C;   /* texto principal 2°           (ink-700, ~8.1:1) */
+  --color-gray-800: #2E2138;   /* headings                     (~12:1) */
+  --color-gray-900: #1A1022;   /* texto máximo                 (ink-900, ~15.8:1) */
+
+  /* Border/divider con nombre semántico propio (mismo valor que
+     gray-200/300 — alias, no una escala paralela) para que código nuevo
+     pueda escribir border-[var(--color-border)] sin acoplarse al número
+     de la escala gray. */
+  --color-border: var(--color-gray-200);
+  --color-border-strong: var(--color-gray-300);
+  --color-divider: #F1EAF5;
+
+  /* Capas de estado (hover/active) y anillo de foco — nuevos, nada los
+     consume todavía hoy en modo oscuro, así que no hay resultado que
+     preservar; el valor de foco sí es el mismo de siempre (ver
+     input:focus más abajo), solo nombrado. */
+  --hover: rgba(74,50,92,.05);
+  --active: rgba(74,50,92,.09);
+  --focus-ring: rgba(255,20,100,.30);
+
+  /* Elevación — sombras teñidas de ciruela, nunca gris neutro (Design
+     Memory). Nombres propios (no pisan --shadow-sm/md/lg de Tailwind)
+     para no afectar los pocos usos existentes de shadow-lg/xl/2xl que
+     no son parte de este rediseño. */
+  --shadow-xs: 0 1px 2px rgba(42,20,54,.06);
+  --shadow-sm: 0 2px 8px rgba(42,20,54,.08);
+  --shadow-md: 0 10px 28px rgba(42,20,54,.10);
+  --shadow-lg: 0 26px 64px rgba(42,20,54,.18);
+  --shadow-glow: 0 8px 22px rgba(255,20,100,.30);
+  --shadow-glow-soft: 0 6px 18px rgba(255,20,100,.18);
+
+  /* Scrim de modales/sheets: ink-900 @ 42% (ciruela), no negro puro —
+     token dedicado en vez de reusar --color-gray-900 a propósito: esa
+     variable INVIERTE de rol en oscuro (pasa a ser el texto más claro,
+     no un tono oscuro), así que usarla acá tiñiría el scrim de blanco
+     en modo oscuro. .dark abajo vuelve al negro/50 original. */
+  --scrim: rgba(26,16,34,.42);
 
   /* Fondo/texto base de html/body, orbs, vignette, grano — hoy son
      literales incondicionales pensados solo para dark; acá quedan como
      tokens con su propia versión de día (el bloque .dark de abajo pisa
      estos mismos nombres con los valores oscuros originales, sin
      cambios). */
-  --app-html-bg: var(--color-gray-50);
-  --app-body-text: var(--color-gray-800);
+  --app-html-bg: #FBF8FC;      /* --color-bg de la Design Memory */
+  --app-body-text: var(--color-gray-700);
   --app-glow-1: rgba(139,92,246,.05);
   --app-glow-2: rgba(232,184,75,.04);
   --app-vignette: rgba(120,105,150,.08);
@@ -102,6 +196,81 @@ input,
 select,
 textarea {
   font-size: 16px;
+}
+
+/* Oculta visualmente sin ocultar a lectores de pantalla — utilidad genérica
+   reutilizada por las regiones aria-live de AnnouncementContext, labels
+   ocultos de campos indexados (acompañantes), captions de tabla, etc. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link: mismo truco de .sr-only, pero visible al recibir foco de
+   teclado — se monta una sola vez por layout (PublicLayout/AppShell), sin
+   depender de más CSS que este bloque. */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0.5rem;
+  z-index: 300;
+  padding: 0.5rem 1rem;
+  border-radius: 0 0 0.5rem 0.5rem;
+  background: var(--color-primary, #e91e63);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 150ms ease-out;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* RouteAnnouncer mueve el foco acá programáticamente en cada cambio de
+   ruta (no por Tab) — sin esto, el navegador dibuja un contorno alrededor
+   de todo el bloque <main> en cada navegación, que se ve como un parpadeo
+   de caja gigante en vez de un cambio de foco discreto. El punto de foco
+   real para teclado/lector de pantalla no depende de este contorno. */
+#main-content:focus {
+  outline: none;
+}
+
+/* Inputs "well" (Design Memory): fondo hundido + borde sutil, en vez del
+   bg-white/border-gray-300 que cada formulario trae hoy suelto — mismo
+   mecanismo que .dark input,select,textarea de más abajo (CSS sin
+   @layer le gana a las utilidades de Tailwind sin importar
+   especificidad), así que un solo cambio acá alcanza para los ~20+
+   formularios de la app sin tocarlos uno por uno. .dark ya trae su
+   propia regla equivalente (más abajo) con más especificidad (clase +
+   elemento vs. elemento solo), así que gana ella en oscuro sin pisar
+   nada acá. [data-template] input (tema de invitación) tiene su propia
+   regla, también más específica, y sigue intacta. */
+input,
+select,
+textarea {
+  background-color: var(--color-surface-sunken);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-gray-900);
+  box-shadow: inset 0 1px 2px rgba(42,20,54,.06);
+}
+
+input::placeholder,
+textarea::placeholder {
+  /* gray-500, no gray-400: sobre --color-surface-sunken (el fondo nuevo del
+     input) gray-400 quedaba en ~2.7:1, por debajo de AA (mismo problema ya
+     existía antes de este PR sobre fondo blanco, ~3:1) — acá se aprovecha
+     para subirlo a ~4.6:1 en vez de solo mantenerlo. */
+  color: var(--color-gray-500);
 }
 
 body {
@@ -259,6 +428,60 @@ body {
   --color-gray-800: #E9E5EF;   /* texto principal            (~12:1)  */
   --color-gray-900: #F6F4F9;   /* texto máximo brillo        (~14:1)  */
   --color-primary-light: #2B0A1C;
+
+  /* Contrapartes oscuras de los tokens nuevos del Light Theme v1.0 (ver
+     @theme/:root más arriba) — nada los consume todavía en modo oscuro,
+     así que no hay resultado visual que preservar, pero se eligen
+     valores consistentes con el lenguaje que el dark mode YA usa en
+     otras partes de este archivo (reutilizados, no inventados de cero):
+     primary-subtle = el mismo --color-primary-light de arriba; surface/
+     surface-sunken = los mismos rgba que .dark .bg-white / .dark input
+     más abajo; shadow-glow = el mismo --app-primary-glow del botón. */
+  --color-primary-ink: var(--color-primary);
+  --color-primary-subtle: var(--color-primary-light);
+  --color-primary-subtle-border: rgba(255,20,100,.35);
+  --color-secondary-subtle: rgba(106,74,128,.22);
+  --color-accent: #E8B84B;
+  --color-accent-strong: #E8B84B;
+  --color-accent-ink: #E8B84B;
+  --color-accent-subtle: rgba(232,184,75,.16);
+  --color-surface: rgba(30,20,40,.88);
+  --color-surface-sunken: rgba(21,13,28,.9);
+  --color-divider: rgba(74,50,92,.45);
+
+  /* warning/error/info vuelven a los valores que @theme ya traía antes de
+     este PR (d97706/dc2626/2563eb) — sin cambios en oscuro. success ya
+     coincidía. Los -ink/-subtle son nuevos (nada los usaba en oscuro
+     todavía), con valores consistentes con el resto de la paleta oscura
+     ya establecida (mismo criterio que --color-primary-ink arriba). */
+  --color-success-ink: #4ADE80;
+  --color-success-subtle: rgba(22,163,74,.16);
+  --color-warning: #d97706;
+  --color-warning-ink: #FBBF24;
+  --color-warning-subtle: rgba(217,119,6,.16);
+  --color-error: #dc2626;
+  --color-error-ink: #F87171;
+  --color-error-subtle: rgba(220,38,38,.16);
+  --color-info: #2563eb;
+  --color-info-ink: #93C5FD;
+  --color-info-subtle: rgba(37,99,235,.16);
+  --hover: rgba(255,255,255,.06);
+  --active: rgba(255,255,255,.10);
+  /* El anillo de foco ya era rgba(255,20,100,.22) fijo en los dos temas
+     antes de este PR (no había .dark aparte) — --focus-ring de :root pasa
+     ese valor a .30 (spec de la Design Memory), así que acá se vuelve a
+     fijar el .22 original para que el foco en oscuro no cambie. */
+  --focus-ring: rgba(255,20,100,.22);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-sm: 0 2px 10px rgba(0,0,0,.35);
+  --shadow-md: 0 10px 30px rgba(0,0,0,.4);
+  /* = shadow-2xl default de Tailwind — Modal.tsx pasó de esa clase a este
+     token, este valor evita que el modal se vea más oscuro en modo
+     oscuro que antes del cambio. */
+  --shadow-lg: 0 25px 50px -12px rgba(0,0,0,.25);
+  --shadow-glow: 0 0 12px rgba(255,20,100,.5), 0 0 24px rgba(255,20,100,.2);
+  --shadow-glow-soft: 0 0 10px rgba(255,20,100,.4), 0 0 20px rgba(255,20,100,.16);
+  --scrim: rgba(0,0,0,.5);
 
   /* Contraparte oscura de los tokens de fondo/orbs/vignette/grano
      definidos en :root — mismos valores que ya tenía la app antes de
@@ -501,15 +724,11 @@ h2 {
   text-shadow: var(--app-neon-shadow);
 }
 
-/* Colores de acento — dorado, eco de la corona del logo. #E8B84B da ~1.6:1
-   de contraste sobre blanco (falla WCAG como texto) — .text-accent usa un
-   dorado más oscuro de día y el dorado luminoso original de noche;
-   .bg-accent es fondo de chip (el contraste depende del texto que va
-   encima, se audita por componente), se mantiene con el valor fijo. */
-:root { --color-gold-ink: #8A6A22; }
-.dark { --color-gold-ink: #E8B84B; }
-.text-accent { color: var(--color-gold-ink); }
-.bg-accent    { background-color: #E8B84B; }
+/* .text-accent/.bg-accent (dorado "eco de la corona") no los usaba ningún
+   componente — reemplazados por el sistema Accent/Festive Gold completo
+   de la Design Memory (--color-accent/-strong/-ink/-subtle, declarados en
+   @theme más arriba), que Tailwind ya expone como bg-accent/text-accent/
+   text-accent-ink/bg-accent-subtle sin necesitar estas clases a mano. */
 
 /* Botón primario: de noche mantiene el glow neón original; de día pasa a
    una sombra de elevación plana con tinte magenta — "app moderna", no
@@ -531,10 +750,64 @@ h2 {
   box-shadow: var(--app-primary-glow-hover);
 }
 
-/* Logo/ícono: son negro puro sobre transparencia, así que sobre la
-   interfaz oscura se invierten a blanco y se les da un halo suave,
-   como el letrero de neón a la entrada del evento. */
+/* Pink de fill ≠ pink de texto (Design Memory): en claro, el pink crudo
+   --color-primary (#FF1464) solo pasa AA en texto ≥24px, así que
+   text-primary (usado hoy para links y textos chicos en ~15 archivos,
+   p.ej. Button.tsx variant="text", paginación de Admin) pasa a un
+   magenta más oscuro y accesible (--color-primary-ink). bg-primary/
+   border-primary (fills, no texto) no cambian. En oscuro no hace falta:
+   el pink crudo ya tiene contraste de sobra sobre el fondo casi negro,
+   así que ahí text-primary se queda igual que siempre. */
+.text-primary {
+  color: var(--color-primary-ink);
+}
+.dark .text-primary {
+  color: var(--color-primary);
+}
+
+/* Mismo criterio para el error: .text-error (FieldError/FormError/
+   AuthErrorMessage, texto chico) pasa a error-ink en claro — el error de
+   fill (#E5484D) rinde algo menos de AA en texto de 14px que el dc2626
+   anterior. En oscuro dc2626 ya tenía contraste de sobra, sin cambios. */
+.text-error {
+  color: var(--color-error-ink);
+}
+.dark .text-error {
+  color: var(--color-error);
+}
+
+/* Logo/ícono: son negro puro sobre transparencia — en claro ya se ven tal
+   cual (negro sobre fondo claro); en oscuro se invierten a blanco y se les
+   da un halo suave, como el letrero de neón a la entrada del evento.
+   Antes invertía siempre a blanco sin importar el tema (mismo descuido
+   que .crown-loader-icon ya tenía resuelto más abajo) — quedaba invisible
+   en claro (logo blanco sobre fondo claro). Usado por Logo.tsx (Navbar,
+   headers de auth) — no por el ícono de AuthLayout, que vive en un panel
+   oscuro FIJO sin importar el tema: ver .logo-glow-fixed más abajo. */
 .logo-glow {
+  filter: drop-shadow(0 1px 2px rgba(23,19,31,.12));
+}
+.dark .logo-glow {
+  filter: brightness(0) invert(1) drop-shadow(0 0 10px rgba(255,20,100,.35));
+}
+
+/* Variante siempre-blanca para el ícono decorativo de AuthLayout: su panel
+   es oscuro en los dos temas (no sigue el toggle), así que el ícono debe
+   quedar invertido siempre, no solo en .dark. */
+.logo-glow-fixed {
+  filter: brightness(0) invert(1) drop-shadow(0 0 10px rgba(255,20,100,.35));
+}
+
+/* Variante para GuestPassTicket (boleto exportable), dentro de
+   InvitationThemeRoot: "detrás" del logo ahí es --invite-surface, que
+   cambia por plantilla de evento (registry.ts), no por el tema de la app.
+   6 de las 7 plantillas tienen superficie clara → negro por defecto;
+   'houseparty' es la única oscura → blanco solo ahí. Selector con más
+   especificidad que la regla de base, gana sin importar el orden. */
+.logo-glow-invite {
+  filter: drop-shadow(0 1px 2px rgba(23,19,31,.12));
+}
+[data-template='houseparty'] .logo-glow-invite {
   filter: brightness(0) invert(1) drop-shadow(0 0 10px rgba(255,20,100,.35));
 }
 
@@ -576,8 +849,8 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: #FF1464 !important;
-  box-shadow: 0 0 0 3px rgba(255,20,100,.22) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px var(--focus-ring) !important;
 }
 
 /* Dentro de una invitación temática (formulario del muro, etc.) el foco usa
@@ -772,6 +1045,28 @@ textarea:focus {
 .app-tabbar {
   --color-primary: #FF1464;
   --color-primary-dark: #D40E52;
+}
+
+/* ── Skeleton shimmer (Design Memory: "skeletons con shimmer ciruela") ──
+   Reemplaza el animate-pulse (solo opacidad) por un barrido de brillo —
+   gray-100/200 ya llevan el matiz ciruela correcto en los dos temas (se
+   ramifican solos), así que un único keyframe alcanza para claro y
+   oscuro sin condicional. */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background-image: linear-gradient(90deg, var(--color-gray-100) 25%, var(--color-gray-200) 37%, var(--color-gray-100) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+    background-image: none;
+    background-color: var(--color-gray-100);
+  }
 }
 
 /* ── Animaciones ─────────────────────────────────────────────── */

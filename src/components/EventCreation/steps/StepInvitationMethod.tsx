@@ -78,8 +78,8 @@ export function StepInvitationMethod({
 
       {/* Capacidad */}
       <div className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-          Límite de invitados *
+        <label htmlFor="event-capacity" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+          Límite de invitados <span aria-hidden="true" className="text-error">*</span>
         </label>
         <div className="flex items-center gap-3">
           <button
@@ -91,7 +91,9 @@ export function StepInvitationMethod({
             −
           </button>
           <input
+            id="event-capacity"
             type="number"
+            required
             min="1"
             value={capacity}
             onChange={(e) => onCapacityChange(e.target.value)}
@@ -151,10 +153,10 @@ export function StepInvitationMethod({
               El pago se confirma manualmente: marcás a cada invitado como pagado desde la lista o al escanear su pase.
             </p>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Métodos de cobro *
-              </label>
+            <fieldset className="border-0 p-0 m-0">
+              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Métodos de cobro <span aria-hidden="true" className="text-error">*</span>
+              </legend>
               <div className="flex gap-2">
                 {(['transfer', 'cash'] as PaymentMethod[]).map((m) => (
                   <label
@@ -181,7 +183,7 @@ export function StepInvitationMethod({
                   Transferencia: el invitado puede subir su comprobante cuando quiera, sin límite de tiempo — vos confirmás el pago manualmente desde la lista de invitados o el escáner.
                 </p>
               )}
-            </div>
+            </fieldset>
 
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
@@ -196,9 +198,11 @@ export function StepInvitationMethod({
                   value={ticketPrice}
                   onChange={(e) => onTicketPriceChange(sanitizeDecimalInput(e.target.value))}
                   placeholder="Ej: 5000"
+                  aria-invalid={!(parseFloat(ticketPrice) > 0)}
+                  aria-describedby={!(parseFloat(ticketPrice) > 0) ? 'event-ticket-price-error' : undefined}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
-                {!(parseFloat(ticketPrice) > 0) && <FieldError message="Ingresá un precio mayor a 0." />}
+                {!(parseFloat(ticketPrice) > 0) && <FieldError id="event-ticket-price-error" message="Ingresá un precio mayor a 0." />}
               </div>
               <div>
                 <label htmlFor="event-currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

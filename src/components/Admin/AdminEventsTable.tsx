@@ -7,6 +7,7 @@ import { IconCalendar, IconDownload, IconEye, IconBarChart2, IconTrash } from '.
 import { Pagination } from './Pagination'
 import { ResponsiveTable } from './ResponsiveTable'
 import { SkeletonBlock } from '../Skeleton'
+import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
 
 const STATUS_LABELS: Record<EventStatus, string> = {
   active: 'Activo',
@@ -36,6 +37,7 @@ interface Props {
 }
 
 export function AdminEventsTable({ events, usersById, loading, search, onSearchChange, onStatusChange, onRequestDelete, onRequestBulkAction }: Props) {
+  useLoadingAnnouncement(loading)
   const [statusFilter, setStatusFilter] = useState<EventStatus | 'all'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -240,8 +242,12 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
         </>}
         table={<>
         <table className="w-full text-sm">
+          {/* Header sunken + zebra + fila seleccionada (Design Memory) — solo
+              en claro (dark:bg-transparent/dark:even:bg-transparent) para no
+              tocar la apariencia oscura, que antes no tenía ninguno de los
+              tres. */}
           <thead>
-            <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+            <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
               <th className="px-4 py-2 font-medium w-8">
                 <input
                   type="checkbox"
@@ -262,7 +268,14 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
             {loading && Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
             {!loading && pageItems.map((event) => (
-              <tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+              <tr
+                key={event.id}
+                className={`hover:bg-gray-50 dark:hover:bg-gray-700/40 ${
+                  selected.has(event.id)
+                    ? 'bg-primary-subtle dark:bg-transparent'
+                    : 'even:bg-[var(--color-bg-subtle)] dark:even:bg-transparent'
+                }`}
+              >
                 <td className="px-4 py-2">
                   <input type="checkbox" checked={selected.has(event.id)} onChange={() => toggleSelect(event.id)} aria-label={`Seleccionar ${event.name}`} />
                 </td>

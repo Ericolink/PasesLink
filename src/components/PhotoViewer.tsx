@@ -4,7 +4,7 @@ import type { PhotoData } from '../firebase/photos'
 import type { ReactionType } from '../types'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { WALL_TEXT_MAX } from '../utils/validation'
-import { useScrollLock } from '../hooks/useScrollLock'
+import { useModalA11y } from '../hooks/useModalA11y'
 import { IconX, IconArrowLeft } from './Icons'
 import { ProgressiveImage } from './ProgressiveImage'
 import { ReactionPicker } from './ReactionPicker'
@@ -134,9 +134,13 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStory, index, photos.length])
 
+  // Solo flechas acá — Escape, focus trap, restauración de foco y scroll-lock
+  // ahora los cubre useModalA11y (ver más abajo), el mismo hook que usa el
+  // resto de overlays de la app. Antes este visor era el único que no lo
+  // usaba: no atrapaba Tab y el foco podía "salirse" hacia el contenido de
+  // fondo detrás del overlay opaco.
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowLeft') goPrev()
       if (e.key === 'ArrowRight') goNext()
     }
@@ -145,7 +149,10 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, photos.length])
 
-  useScrollLock(true)
+  // `true` fijo (no un `open` interno): el padre monta/desmonta este
+  // componente condicionalmente, así que el montaje ya equivale a "abierto"
+  // (mismo patrón documentado en useModalA11y para este caso).
+  const dialogRef = useModalA11y<HTMLDivElement>(true, onClose)
 
   if (!photo) return null
 
@@ -185,6 +192,10 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
   // que un wrapper de tema (actual o futuro) le ponga a sus ancestros.
   return createPortal(
     <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={isStory ? `Historia de ${photo.authorName}` : `Foto ${index + 1} de ${photos.length}`}
       className="fixed inset-0 z-50 bg-black flex flex-col"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       onClick={isStory ? undefined : onClose}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createEvent } from '../firebase/events'
@@ -13,6 +13,8 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal'
 import { Modal } from '../components/Modal'
 import { Button } from '../components/Button'
+import { FieldError } from '../components/FieldError'
+import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { IconCheckCircle } from '../components/Icons'
 import { WizardContainer, WizardStep } from '../components/Wizard'
 import { StepBasicInfo } from '../components/EventCreation/steps/StepBasicInfo'
@@ -128,6 +130,9 @@ export function EventCreate() {
   const [returnStep, setReturnStep] = useState<StepKey | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [errorAttempt, setErrorAttempt] = useState(0)
+  const errorRef = useRef<HTMLDivElement>(null)
+  useFocusFirstInvalidField(errorRef, errorAttempt)
   const [networkRetry, setNetworkRetry] = useState(false)
   const [createdEventId, setCreatedEventId] = useState<string | null>(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
@@ -246,11 +251,13 @@ export function EventCreate() {
     const { value: parsedCapacity, error: capacityError } = parseCapacity(form.capacity)
     if (capacityError) {
       setError(capacityError)
+      setErrorAttempt((n) => n + 1)
       return
     }
     const { value: parsedMaxCompanions, error: maxCompanionsError } = parseMaxCompanions(form.maxCompanions)
     if (maxCompanionsError) {
       setError(maxCompanionsError)
+      setErrorAttempt((n) => n + 1)
       return
     }
     setLoading(true)
@@ -290,6 +297,7 @@ export function EventCreate() {
       } else {
         setError('No pudimos crear el evento. Intenta de nuevo.')
       }
+      setErrorAttempt((n) => n + 1)
     } finally {
       setLoading(false)
     }
@@ -466,13 +474,13 @@ export function EventCreate() {
             onEditStep={(key) => goToStepForEdit(key as StepKey)}
           />
           {error && (
-            <div className="text-sm text-red-600 dark:text-red-400 mt-4">
-              <p>{error}</p>
+            <div ref={errorRef} className="mt-4">
+              <FieldError message={error} />
               {networkRetry && (
                 <button
                   type="button"
                   onClick={() => void submitEvent()}
-                  className="mt-1 font-medium underline"
+                  className="mt-1 text-sm font-medium underline text-error"
                 >
                   Reintentar ahora
                 </button>

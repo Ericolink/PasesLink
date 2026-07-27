@@ -64,6 +64,7 @@ export function AppShell({ mode = 'browse', guestExit = false, children }: AppSh
 
   return (
     <>
+      <a href="#main-content" className="skip-link">Saltar al contenido</a>
       {showKioskExit && <KioskExitBar />}
       {/* pb-16 alcanzaba para la altura "normal" de BottomTabBar, pero esa
           barra suma env(safe-area-inset-bottom) (~34px en iPhones con Home
@@ -75,6 +76,8 @@ export function AppShell({ mode = 'browse', guestExit = false, children }: AppSh
           en un dispositivo con notch, el contenido pegado al borde puede
           quedar tapado por él — antes solo se protegía el borde inferior. */}
       <main
+        id="main-content"
+        tabIndex={-1}
         className={mode === 'browse' ? 'pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0' : ''}
         style={{ paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}
       >

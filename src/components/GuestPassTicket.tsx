@@ -101,8 +101,11 @@ export const GuestPassTicket = forwardRef<HTMLDivElement, GuestPassTicketProps>(
 
         <PassSecurityNotice />
 
+        {/* variant="invite": este boleto vive dentro de InvitationThemeRoot,
+            así que "detrás" del logo es --invite-surface (varía por
+            plantilla del evento), no el tema claro/oscuro de la app. */}
         <div className="mt-5 flex justify-center opacity-80">
-          <Logo className="h-6" />
+          <Logo className="h-6" variant="invite" />
         </div>
       </div>
     </div>

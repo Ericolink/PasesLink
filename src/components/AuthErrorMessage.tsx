@@ -3,7 +3,7 @@ import type { AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
 export function AuthErrorMessage({ info }: { info: AuthErrorInfo }) {
   return (
-    <p className="text-sm text-error">
+    <p role="alert" className="text-sm text-error">
       {info.message}
       {info.actionTo && info.actionLabel && (
         <>

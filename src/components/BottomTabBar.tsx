@@ -30,7 +30,7 @@ export function BottomTabBar() {
 
   return (
     <nav
-      className="app-tabbar sm:hidden fixed bottom-0 left-0 right-0 z-40 border-t flex"
+      className="app-tabbar sm:hidden fixed bottom-0 left-0 right-0 z-40 border-t flex relative"
       style={{
         background: 'var(--app-chrome-bg-tabbar)',
         backdropFilter: 'blur(16px)',
@@ -60,6 +60,20 @@ export function BottomTabBar() {
           </Link>
         )
       })}
+      {/* FAB "Crear evento" (Design Memory: "bottom-nav móvil con FAB
+          central pink+glow") — flota centrado y elevado sobre la barra en
+          vez de ocupar un 4° slot del flex, para no desbalancear los 3 tabs
+          existentes. Nuevo en el árbol de navegación (antes no había acceso
+          directo a "crear evento" desde el bottom-nav), no reemplaza ningún
+          botón existente. */}
+      <Link
+        to="/events/new"
+        aria-label="Crear evento"
+        className="absolute left-1/2 -translate-x-1/2 w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl font-bold bg-primary transition-transform active:scale-95"
+        style={{ top: '-22px', boxShadow: 'var(--shadow-glow)' }}
+      >
+        +
+      </Link>
     </nav>
   )
 }

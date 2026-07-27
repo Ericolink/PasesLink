@@ -26,7 +26,7 @@ export function WalkInCounter({ event, walkInMsg, onWalkIn, onWalkOut }: Props) 
         <button onClick={onWalkIn} aria-label="Registrar entrada" className="min-h-12 flex-1 bg-primary hover:bg-primary-dark text-white rounded-md py-3 text-lg font-bold transition-colors">+</button>
       </div>
       {walkInMsg && (
-        <p className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>
+        <p role="status" aria-live="polite" className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>
           {walkInMsg === 'full' ? '¡Cupo máximo alcanzado!' : 'Ingreso registrado'}
         </p>
       )}

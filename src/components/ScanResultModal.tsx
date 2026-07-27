@@ -35,17 +35,27 @@ export function ScanResultModal({
 }) {
   const [showFirstCheckIn, setShowFirstCheckIn] = useState(false)
 
+  // bg-success/bg-error/bg-warning (Design Memory: "verde=válido,
+  // rojo=usado/duplicado") en vez de los verdes/rojos/ámbares sueltos de
+  // Tailwind — success ya coincidía en valor (green-600 = #16a34a), así
+  // que pasa a el token sin cambio visual. error/warning si cambian en
+  // claro (rojo/ámbar más suaves de marca); en oscuro quedan iguales a
+  // como estaban (--color-error/--color-warning se congelaron ahí). Los
+  // rojos "700" (denegado/bloqueado) se dejan sueltos a propósito: son un
+  // matiz más severo que el error base, distinción que Design Memory no
+  // define pero que la app ya usaba para diferenciar "duplicado" de
+  // "denegado".
   const styles = {
-    success: { bg: 'bg-green-600', icon: IconCheckCircle, title: 'Bienvenido/a' },
-    already: { bg: 'bg-red-600', icon: IconCopy, title: 'QR ya registrado' },
-    invalid: { bg: 'bg-red-600', icon: IconXCircle, title: 'No válido' },
+    success: { bg: 'bg-success', icon: IconCheckCircle, title: 'Bienvenido/a' },
+    already: { bg: 'bg-error', icon: IconCopy, title: 'QR ya registrado' },
+    invalid: { bg: 'bg-error', icon: IconXCircle, title: 'No válido' },
     // No entra en AUTO_CLOSE_TYPES (ver Scanner.tsx) a propósito: el pago
     // pendiente exige una decisión consciente del guardia (negar el acceso),
     // no debe desaparecer solo mientras lo está leyendo.
     payment_required: { bg: 'bg-red-700', icon: IconBan, title: 'Acceso denegado — no pagó' },
     checkout: { bg: 'bg-blue-600', icon: IconLogOut, title: 'Hasta luego' },
-    already_out: { bg: 'bg-amber-500', icon: IconAlertTriangle, title: 'Ya había salido' },
-    not_checked_in: { bg: 'bg-amber-500', icon: IconAlertTriangle, title: 'Sin check-in' },
+    already_out: { bg: 'bg-warning', icon: IconAlertTriangle, title: 'Ya había salido' },
+    not_checked_in: { bg: 'bg-warning', icon: IconAlertTriangle, title: 'Sin check-in' },
     exit_blocked: { bg: 'bg-red-700', icon: IconBan, title: 'Reingreso no permitido' },
     full: { bg: 'bg-orange-500', icon: IconUsers, title: 'Cupo lleno' },
     not_found: { bg: 'bg-gray-600', icon: IconHelpCircle, title: 'No encontrado' },

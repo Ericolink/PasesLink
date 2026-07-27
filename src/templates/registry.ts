@@ -75,8 +75,15 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
       // accentDark se mantiene dorado profundo, nunca marrón apagado, para
       // que el acento siga leyéndose "luminoso" incluso en sus variantes
       // oscuras (ver el override de :hover en templates.css).
-      accent: '#c9a35e',
-      accentDark: '#ad8542',
+      // Oscurecidos vs. el dorado original (auditoría de accesibilidad
+      // 2026-07-25, hallazgo J-1/J-2/J-3): #c9a35e/#ad8542/#9c8a7d daban
+      // 2.29:1/2.82:1/3.21:1 contra surface/accentSoft — muy por debajo del
+      // 4.5:1 mínimo AA, y accent se usa en texto real (horario del evento,
+      // enlaces), no solo decorativo. Mismo matiz (H/S sin tocar), solo más
+      // oscuros — verificado con la fórmula de luminancia relativa WCAG:
+      // accent 4.54:1, accentDark 4.56:1, textMuted 4.55:1.
+      accent: '#916e30',
+      accentDark: '#836432',
       accentSoft: '#f6e9d3',
       // Marfil con base rosada — papel algodón, no el marfil más amarillo/
       // documental de Graduación.
@@ -85,8 +92,9 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
       text: '#4a3b32',
       // Más claro que el resto de los temas a propósito: Bodas debe sentirse
       // más liviano en jerarquía visual que Graduación, nunca tan oscuro
-      // como para competir con el texto principal.
-      textMuted: '#9c8a7d',
+      // como para competir con el texto principal. Igual, oscurecido lo
+      // mínimo necesario para cruzar 4.5:1 (ver nota de accent arriba).
+      textMuted: '#837063',
       border: '#ecdcc4',
       // Cuerpo en Cormorant Garamond (override de h1 a Playfair Display
       // itálica vía templates.css, mismo mecanismo que separa el h1 Cinzel
@@ -195,15 +203,21 @@ export const INVITATION_TEMPLATES: InvitationTemplate[] = [
       // moderna. accent/accentDark/accentSoft siguen siendo un solo matiz en
       // tres intensidades (confeti monocromático, no multicolor) para que
       // el fondo se sienta controlado, nunca caótico.
-      accent: '#e8916a',
-      accentDark: '#c46a3f',
+      // Oscurecidos vs. el coral original (auditoría de accesibilidad
+      // 2026-07-25, hallazgo J-1/J-2/J-4): #e8916a/#c46a3f/#8a7363 daban
+      // 2.33:1/2.96:1/4.29:1 contra surface/accentSoft — el mismo problema
+      // de Boda (ver esa plantilla para el detalle). Mismo matiz, más
+      // oscuros — verificado con la fórmula de luminancia relativa WCAG:
+      // accent 4.54:1, accentDark 4.52:1, textMuted 4.53:1.
+      accent: '#c1501e',
+      accentDark: '#99512f',
       accentSoft: '#f8ddd0',
       // Durazno/crema, no el marfil rosado de Bodas ni el ámbar saturado
       // anterior — "papel de fiesta" cálido, sin convertirse en otro tema.
       pageBg: '#fbe8d8',
       surface: '#fffaf3',
       text: '#5a4133',
-      textMuted: '#8a7363',
+      textMuted: '#866f60',
       border: '#f3ddc9',
       fontFamily: "'Baloo 2', system-ui, sans-serif",
       borderRadius: '1.75rem',

@@ -1,3 +1,6 @@
+import { useEffect } from 'react'
+import { useAnnouncer } from '../../contexts/AnnouncementContext'
+
 interface Props {
   page: number
   pageCount: number
@@ -6,11 +9,29 @@ interface Props {
   onPageChange: (page: number) => void
 }
 
+// Un solo componente compartido por las 4 tablas admin — anunciar acá el
+// conteo/página cubre de una vez tanto el recálculo por filtro/búsqueda
+// (L-4) como el cambio de página (L-5), que hasta ahora eran completamente
+// silenciosos para lectores de pantalla. Debounce de 400ms: `totalItems`
+// cambia en cada tecla mientras se escribe en el buscador, y anunciar cada
+// una saturaría al lector de pantalla.
 export function Pagination({ page, pageCount, totalItems, pageSize, onPageChange }: Props) {
-  if (totalItems === 0) return null
-
+  const { announce } = useAnnouncer()
   const start = (page - 1) * pageSize + 1
   const end = Math.min(page * pageSize, totalItems)
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      announce(
+        totalItems === 0
+          ? 'Sin resultados'
+          : `${start}–${end} de ${totalItems} resultados, página ${page} de ${pageCount}`,
+      )
+    }, 400)
+    return () => clearTimeout(timeout)
+  }, [start, end, totalItems, page, pageCount, announce])
+
+  if (totalItems === 0) return null
 
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 dark:border-gray-700 text-sm">

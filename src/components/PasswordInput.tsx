@@ -30,7 +30,11 @@ export function PasswordInput({ id, value, onChange, autoComplete, minLength, re
         aria-label={ariaLabel}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={className || 'w-full border border-gray-300 rounded-md pl-3 pr-11 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary'}
+        // border-gray-300/rounded-md/focus:ring-primary quedaban muertos: la
+        // regla base `input,select,textarea` de index.css (sin @layer) ya
+        // gana esa pelea siempre — ver comentario ahí. Solo queda lo que
+        // sí aporta algo (layout/tipografía).
+        className={className || 'w-full pl-3 pr-11 py-3 text-sm'}
       />
       <button
         type="button"

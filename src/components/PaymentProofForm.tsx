@@ -1,6 +1,9 @@
+import { useRef } from 'react'
 import type { GuestData } from '../types'
 import type { usePaymentProof } from '../hooks/usePaymentProof'
 import { canSubmitPaymentProof } from '../firebase/guests'
+import { FormField } from './FormField'
+import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 
 interface Props {
   guest: GuestData
@@ -12,12 +15,14 @@ interface Props {
 // sigue en GuestPass.tsx: este marca el estado en la app, WhatsApp sigue
 // siendo el canal para mandar la imagen real del comprobante.
 export function PaymentProofForm({ guest, proof }: Props) {
-  const { proofNote, setProofNote, proofFormOpen, setProofFormOpen, proofSubmitting, proofError, handleSubmitProof } = proof
+  const { proofNote, setProofNote, proofFormOpen, setProofFormOpen, proofSubmitting, proofError, proofErrorAttempt, handleSubmitProof } = proof
+  const containerRef = useRef<HTMLDivElement>(null)
+  useFocusFirstInvalidField(containerRef, proofErrorAttempt)
 
   if (!canSubmitPaymentProof(guest)) return null
 
   return (
-    <div className="mt-3">
+    <div ref={containerRef} className="mt-3">
       {!proofFormOpen ? (
         <button
           onClick={() => setProofFormOpen(true)}
@@ -28,23 +33,27 @@ export function PaymentProofForm({ guest, proof }: Props) {
         </button>
       ) : (
         <div className="space-y-2">
-          <label className="block text-xs font-medium text-[var(--invite-text-muted)]">
-            Número de referencia de tu transferencia *
-          </label>
-          <input
-            type="text"
+          <FormField
+            label="Número de referencia de tu transferencia"
             required
-            value={proofNote}
-            onChange={(e) => setProofNote(e.target.value)}
-            maxLength={300}
-            placeholder="Ej: op. 123456789"
-            className="w-full rounded-md border px-3 py-2 text-sm bg-[var(--invite-surface)] text-[var(--invite-text)]"
-            style={{ borderColor: 'var(--invite-border)' }}
-          />
-          <p className="text-xs text-[var(--invite-text-muted)]">
-            Lo va a ver el organizador para poder cotejarlo con su resumen bancario.
-          </p>
-          {proofError && <p className="text-xs text-red-600">{proofError}</p>}
+            hint="Lo va a ver el organizador para poder cotejarlo con su resumen bancario."
+            error={proofError}
+            labelClassName="block text-xs font-medium text-[var(--invite-text-muted)]"
+            hintClassName="text-xs text-[var(--invite-text-muted)]"
+          >
+            {(fieldProps) => (
+              <input
+                {...fieldProps}
+                type="text"
+                value={proofNote}
+                onChange={(e) => setProofNote(e.target.value)}
+                maxLength={300}
+                placeholder="Ej: op. 123456789"
+                className="w-full rounded-md border px-3 py-2 text-sm bg-[var(--invite-surface)] text-[var(--invite-text)]"
+                style={{ borderColor: 'var(--invite-border)' }}
+              />
+            )}
+          </FormField>
           <div className="flex gap-2">
             <button
               onClick={handleSubmitProof}

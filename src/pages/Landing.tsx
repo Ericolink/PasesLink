@@ -57,7 +57,7 @@ export function Landing() {
   }
 
   return (
-    <div className="text-gray-900 dark:text-gray-900">
+    <div className="text-gray-900 dark:text-white">
 
       {/* ── Hero ──────────────────────────────────────────────── */}
       {/* svh (no vh): en mobile, `vh` mide como si la barra de direcciones
@@ -90,7 +90,7 @@ export function Landing() {
           </span>
 
           {/* Headline */}
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight max-w-3xl mx-auto mb-6">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-white leading-tight max-w-3xl mx-auto mb-6">
             Gestiona tus invitados{' '}
             <span
               className="relative inline-block"
@@ -118,13 +118,17 @@ export function Landing() {
             >
               Crear mi primer evento →
             </Link>
+            {/* Antes fondo/borde/texto fijos pensados solo para fondo oscuro
+                (rgba(255,255,255,·) / #C9C3D8) — casi invisibles sobre el
+                hero claro nuevo. --hover/--color-border-strong/--color-gray-700
+                ya se ramifican solos entre temas (ver index.css). */}
             <Link
               to="/login"
               className="rounded-lg px-6 py-3 font-semibold text-sm transition-all hover:-translate-y-0.5"
               style={{
-                background: 'rgba(255,255,255,.06)',
-                border: '1px solid rgba(255,255,255,.15)',
-                color: '#C9C3D8',
+                background: 'var(--hover)',
+                border: '1px solid var(--color-border-strong)',
+                color: 'var(--color-gray-700)',
               }}
             >
               Iniciar sesión
@@ -155,7 +159,7 @@ export function Landing() {
       <section className="max-w-5xl mx-auto px-4 py-20">
         <div className="text-center mb-12">
           <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Funcionalidades</p>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">Todo lo que necesitas</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Todo lo que necesitas</h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
@@ -173,7 +177,7 @@ export function Landing() {
               >
                 <feature.icon className="w-5 h-5 text-primary" />
               </div>
-              <h3 className="font-semibold text-white mb-2">{feature.title}</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
               <p className="text-sm text-gray-500 dark:text-gray-500 leading-relaxed">{feature.description}</p>
             </div>
           ))}
@@ -188,7 +192,7 @@ export function Landing() {
         <div className="max-w-4xl mx-auto px-4">
           <div className="text-center mb-12">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">¿Cómo funciona?</p>
-            <h2 className="text-2xl sm:text-3xl font-bold text-white">Tres pasos. Eso es todo.</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Tres pasos. Eso es todo.</h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 relative">
@@ -213,7 +217,7 @@ export function Landing() {
                 >
                   {step.number}
                 </div>
-                <h3 className="font-semibold text-white mb-2">{step.title}</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{step.title}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-500 leading-relaxed">{step.description}</p>
               </div>
             ))}
@@ -235,7 +239,7 @@ export function Landing() {
           </span>
 
           <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Precio</p>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">Todo incluido, totalmente gratis</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">Todo incluido, totalmente gratis</h2>
           <p className="text-gray-500 dark:text-gray-500 mb-6">
             Mientras damos a conocer el servicio, todas las funciones están incluidas sin costo. Sin tarjeta, sin
             límite de invitados.
@@ -263,7 +267,7 @@ export function Landing() {
       {/* ── Bottom CTA ────────────────────────────────────────── */}
       <section className="bg-grid border-t py-20" style={{ borderColor: 'rgba(74,50,92,.5)' }}>
         <div className="max-w-xl mx-auto px-4 text-center animate-fade-in-up">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-3">
             ¿Listo para tu próximo evento?
           </h2>
           <p className="text-gray-500 dark:text-gray-500 mb-8">

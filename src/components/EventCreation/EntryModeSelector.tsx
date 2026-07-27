@@ -41,11 +41,13 @@ interface EntryModeSelectorProps {
 
 export function EntryModeSelector({ value, onChange }: EntryModeSelectorProps) {
   return (
-    <div className="space-y-3">
+    <div role="radiogroup" aria-label="Modo de ingreso" className="space-y-3">
       {MODES.map((mode) => (
         <button
           key={mode.id}
           type="button"
+          role="radio"
+          aria-checked={value === mode.id}
           onClick={() => onChange(mode.id)}
           className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
             value === mode.id

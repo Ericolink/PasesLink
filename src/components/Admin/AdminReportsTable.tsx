@@ -5,6 +5,7 @@ import { EmptyState } from '../Empty/EmptyState'
 import { IconEye, IconFlag } from '../Icons'
 import { ResponsiveTable } from './ResponsiveTable'
 import { SkeletonBlock } from '../Skeleton'
+import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
 
 const STATUS_PILL_CLASSES: Record<ReportStatus, string> = {
   pending: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
@@ -42,6 +43,7 @@ export function AdminReportsTable({
   loadingMore,
   onLoadMore,
 }: Props) {
+  useLoadingAnnouncement(loading)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const filtered = useMemo(() => {
@@ -143,7 +145,7 @@ export function AdminReportsTable({
         table={<>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+              <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
                 <th className="px-4 py-2 font-medium">Contenido reportado</th>
                 <th className="px-4 py-2 font-medium">Evento</th>
                 <th className="px-4 py-2 font-medium">Estado</th>
@@ -165,7 +167,7 @@ export function AdminReportsTable({
                 <tr
                   key={item.id}
                   onClick={() => onOpen(item)}
-                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40"
+                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 even:bg-[var(--color-bg-subtle)] dark:even:bg-transparent"
                 >
                   <td className="px-4 py-2 max-w-[280px]">
                     <div className="flex items-center gap-2">

@@ -372,10 +372,10 @@ export function AdminDashboard() {
       <ScreenHeader title="Panel de administración" subtitle="Visión general de eventos y clientes de PaseLink" backTo="/profile" />
 
       {actionError && (
-        <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 mb-4">{actionError}</p>
+        <p role="alert" className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 mb-4">{actionError}</p>
       )}
       {actionMessage && (
-        <p className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2 mb-4">{actionMessage}</p>
+        <p role="status" className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2 mb-4">{actionMessage}</p>
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">

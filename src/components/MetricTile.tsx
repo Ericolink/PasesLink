@@ -15,10 +15,13 @@ interface MetricTileProps {
   accent?: MetricAccent
 }
 
+// success-ink/warning-ink ya se ramifican solos entre temas (ver
+// index.css) — reemplazan los pares green-600/green-400 y amber-600/
+// amber-400 sueltos por los tokens semánticos del sistema.
 const ACCENT_CLASS: Record<MetricAccent, string> = {
   primary: 'text-primary',
-  success: 'text-green-600 dark:text-green-400',
-  warning: 'text-amber-600 dark:text-amber-400',
+  success: 'text-success-ink',
+  warning: 'text-warning-ink',
   gray: 'text-gray-900 dark:text-white',
 }
 

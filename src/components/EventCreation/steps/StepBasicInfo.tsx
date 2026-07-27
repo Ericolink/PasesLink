@@ -42,6 +42,7 @@ export function StepBasicInfo({
           <input
             id="event-name"
             type="text"
+            required
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
             placeholder="Mi graduación, Boda de Ana y Luis…"
@@ -58,6 +59,7 @@ export function StepBasicInfo({
           <input
             id="event-location"
             type="text"
+            required
             value={location}
             onChange={(e) => onLocationChange(e.target.value)}
             placeholder="Salón Los Olivos"

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { addGuest, addGuestsBulk, addGuestsFromRows, type ImportedGuestRow } from '../firebase/guests'
 import { parseGuestsCsv } from '../utils/csvImport'
@@ -9,9 +9,13 @@ import { ScrollableTabs } from './ScrollableTabs'
 import { TabButton } from './TabButton'
 import { Button } from './Button'
 import { FieldError } from './FieldError'
+import { FormField } from './FormField'
+import { InputField } from './InputField'
 import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
 import { customFieldInputProps } from '../utils/customFieldInput'
 import { captureException } from '../lib/sentry'
+import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
+import { useAnnouncer } from '../contexts/AnnouncementContext'
 import type { CompanionData, CustomField, GuestData } from '../types'
 
 function normalizeName(value: string): string {
@@ -59,7 +63,11 @@ export function GuestAddForm({
   const [csvHeaderError, setCsvHeaderError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [errorAttempt, setErrorAttempt] = useState(0)
   const [pendingDuplicate, setPendingDuplicate] = useState<PendingDuplicate | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  useFocusFirstInvalidField(containerRef, errorAttempt)
+  const { announce } = useAnnouncer()
 
   // Nombre completo normalizado de cada invitado ya cargado — usado para
   // avisar antes de crear un duplicado (mismo invitado agregado 2 veces),
@@ -85,6 +93,7 @@ export function GuestAddForm({
     setError('')
     try {
       await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), phoneCountry, companions, customData: customValues }, maxCompanions)
+      announce(`Invitado agregado: ${name.trim()} ${lastName.trim()}`)
       setName('')
       setLastName('')
       setPhone('')
@@ -94,6 +103,7 @@ export function GuestAddForm({
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_single' } })
       setError(err instanceof Error ? err.message : 'No se pudo agregar el invitado. Intenta de nuevo.')
+      setErrorAttempt((n) => n + 1)
     } finally {
       setLoading(false)
     }
@@ -125,12 +135,14 @@ export function GuestAddForm({
         isGroup: true,
         customData: groupCustomValues,
       }, maxCompanions)
+      announce(`Familia o grupo agregado: ${trimmedGroupName}`)
       setGroupName('')
       setMemberCount(2)
       setGroupCustomValues({})
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_group' } })
       setError(err instanceof Error ? err.message : 'No se pudo agregar la familia o grupo. Intenta de nuevo.')
+      setErrorAttempt((n) => n + 1)
     } finally {
       setLoading(false)
     }
@@ -151,6 +163,7 @@ export function GuestAddForm({
     setError('')
     try {
       await addGuestsBulk(eventId, names)
+      announce(`${names.length} invitados agregados`)
       setBulkNames('')
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_bulk' } })
@@ -159,6 +172,7 @@ export function GuestAddForm({
           ? err.message
           : 'Ocurrió un error agregando la lista. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.',
       )
+      setErrorAttempt((n) => n + 1)
     } finally {
       setLoading(false)
     }
@@ -194,6 +208,7 @@ export function GuestAddForm({
     setError('')
     try {
       await addGuestsFromRows(eventId, rows)
+      announce(`${rows.length} invitados importados`)
       setCsvFileName('')
       setCsvRows([])
       setCsvRowErrors([])
@@ -205,6 +220,7 @@ export function GuestAddForm({
           ? err.message
           : 'Ocurrió un error importando el archivo. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.',
       )
+      setErrorAttempt((n) => n + 1)
     } finally {
       setLoading(false)
     }
@@ -231,7 +247,7 @@ export function GuestAddForm({
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4 bg-white">
+    <div ref={containerRef} className="border border-gray-200 rounded-lg p-4 bg-white">
       <ScrollableTabs className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
         <TabButton label="Agregar uno" active={mode === 'single'} onClick={() => setMode('single')} />
         <TabButton label="Familia o grupo" active={mode === 'group'} onClick={() => setMode('group')} />
@@ -244,33 +260,40 @@ export function GuestAddForm({
       {mode === 'single' ? (
         <form onSubmit={handleSingleSubmit} className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input
+            <InputField
+              label="Nombre"
+              labelClassName="sr-only"
               type="text"
               required
               maxLength={GUEST_NAME_PART_MAX}
               placeholder="Nombre"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <input
+            <InputField
+              label="Apellido"
+              labelClassName="sr-only"
               type="text"
               required
               maxLength={GUEST_NAME_PART_MAX}
               placeholder="Apellido"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <div className="flex items-center gap-1">
               <CountryCodeSelect value={phoneCountry} onChange={setPhoneCountry} aria-label="País del teléfono" className="border border-gray-300 rounded-md px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" />
-              <input
+              <InputField
+                label="Teléfono (opcional)"
+                labelClassName="sr-only"
+                containerClassName="flex-1 min-w-0"
                 type="tel"
                 maxLength={GUEST_PHONE_MAX}
                 placeholder="Teléfono (opcional)"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="flex-1 min-w-0 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
           </div>
@@ -280,15 +303,19 @@ export function GuestAddForm({
           {customFields.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {customFields.map((field) => (
-                <input
-                  key={field.id}
-                  {...customFieldInputProps(field.type)}
-                  placeholder={field.label}
-                  maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
-                  value={customValues[field.id] || ''}
-                  onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+                <FormField key={field.id} label={field.label} required={field.required} labelClassName="sr-only">
+                  {(fieldProps) => (
+                    <input
+                      {...fieldProps}
+                      {...customFieldInputProps(field)}
+                      placeholder={field.label}
+                      maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
+                      value={customValues[field.id] || ''}
+                      onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  )}
+                </FormField>
               ))}
             </div>
           )}
@@ -300,16 +327,21 @@ export function GuestAddForm({
       ) : mode === 'group' ? (
         <form onSubmit={handleGroupSubmit} className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input
+            <InputField
+              label="Nombre del grupo"
+              labelClassName="sr-only"
+              containerClassName="sm:col-span-2"
               type="text"
               required
               maxLength={GUEST_FULL_NAME_MAX}
               placeholder="Nombre del grupo (ej. Familia Muñoz)"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
-              className="sm:col-span-2 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <input
+            <InputField
+              label="Cantidad de integrantes"
+              labelClassName="sr-only"
               type="number"
               required
               min={1}
@@ -319,7 +351,7 @@ export function GuestAddForm({
               onChange={(e) => setMemberCount(Math.max(1, Math.min(GUEST_GROUP_MAX_MEMBERS, Number(e.target.value) || 1)))}
               onFocus={(e) => e.currentTarget.select()}
               onClick={(e) => e.currentTarget.select()}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <p className="text-xs text-gray-500">
@@ -330,15 +362,19 @@ export function GuestAddForm({
           {customFields.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {customFields.map((field) => (
-                <input
-                  key={field.id}
-                  {...customFieldInputProps(field.type)}
-                  placeholder={field.label}
-                  maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
-                  value={groupCustomValues[field.id] || ''}
-                  onChange={(e) => setGroupCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+                <FormField key={field.id} label={field.label} required={field.required} labelClassName="sr-only">
+                  {(fieldProps) => (
+                    <input
+                      {...fieldProps}
+                      {...customFieldInputProps(field)}
+                      placeholder={field.label}
+                      maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
+                      value={groupCustomValues[field.id] || ''}
+                      onChange={(e) => setGroupCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  )}
+                </FormField>
               ))}
             </div>
           )}
@@ -349,7 +385,9 @@ export function GuestAddForm({
         </form>
       ) : mode === 'bulk' ? (
         <form onSubmit={handleBulkSubmit} className="space-y-3">
+          <label htmlFor="guest-bulk-names" className="sr-only">Lista de nombres, uno por línea</label>
           <textarea
+            id="guest-bulk-names"
             placeholder={'Un nombre por línea\nEj.\nJuan Pérez\nMaría López'}
             value={bulkNames}
             onChange={(e) => setBulkNames(e.target.value)}
