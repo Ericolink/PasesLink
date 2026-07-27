@@ -1,4 +1,5 @@
 import type { CountryCode } from 'libphonenumber-js/min'
+import { useAnnouncer } from '../../../contexts/AnnouncementContext'
 import { EntryModeSelector } from '../EntryModeSelector'
 import { Checkbox } from '../../Checkbox'
 import { CountryCodeSelect } from '../../CountryCodeSelect'
@@ -62,10 +63,17 @@ export function StepInvitationMethod({
   organizerContactPhoneCountry,
   onOrganizerContactPhoneCountryChange,
 }: StepInvitationMethodProps) {
+  const { announce } = useAnnouncer()
+
+  // Los botones ±10 no mueven el foco al input (a propósito, para poder
+  // hacer varios clicks seguidos) — sin este anuncio, un lector de pantalla
+  // nunca se entera de que el valor cambió, porque el foco nunca pasa por el
+  // campo que sí lo muestra.
   function adjustCapacity(delta: number) {
     const current = parseInt(capacity) || 0
     const next = Math.max(1, current + delta)
     onCapacityChange(String(next))
+    announce(`Límite de invitados: ${next}`)
   }
 
   return (

@@ -19,6 +19,12 @@ interface ModalProps {
       tienen versión mobile-first propia (ver AdminReportDetail/
       AdminFeedbackDetail). */
   variant?: ModalVariant
+  /** 'dialog' (default): contenido informativo/de edición normal.
+      'alertdialog': para confirmaciones que interrumpen y exigen una
+      respuesta antes de seguir (ver APG Alert Dialog) — usarlo en
+      confirmaciones destructivas (`ConfirmDialog` con `danger`), no en
+      diálogos informativos. */
+  role?: 'dialog' | 'alertdialog'
   /** Reemplaza (no se agrega a) `bg-white dark:bg-gray-800` — para overlays
       que viven dentro de una invitación temática y necesitan
       `bg-[var(--invite-surface)]` (ver GuestEditModal). Un className normal
@@ -49,6 +55,7 @@ export function Modal({
   label,
   maxWidth = 'sm:max-w-sm',
   variant = 'sheet',
+  role = 'dialog',
   // bg-surface ya se ramifica solo (blanco en claro, el mismo translúcido
   // rgba(30,20,40,.88) que antes daba dark:bg-gray-800 en oscuro — ver
   // --color-surface en index.css), así que no hace falta el dark: aparte.
@@ -75,7 +82,7 @@ export function Modal({
 
   return createPortal(
     <div className={backdropClass} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={label} className={`${panelClass} ${className}`}>
+      <div ref={dialogRef} role={role} aria-modal="true" aria-label={label} className={`${panelClass} ${className}`}>
         {children}
       </div>
     </div>,

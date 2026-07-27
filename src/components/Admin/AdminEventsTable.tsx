@@ -242,13 +242,14 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
         </>}
         table={<>
         <table className="w-full text-sm">
+          <caption className="sr-only">Lista de eventos</caption>
           {/* Header sunken + zebra + fila seleccionada (Design Memory) — solo
               en claro (dark:bg-transparent/dark:even:bg-transparent) para no
               tocar la apariencia oscura, que antes no tenía ninguno de los
               tres. */}
           <thead>
             <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
-              <th className="px-4 py-2 font-medium w-8">
+              <th scope="col" className="px-4 py-2 font-medium w-8">
                 <input
                   type="checkbox"
                   checked={allOnPageSelected}
@@ -258,11 +259,11 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
               </th>
               <SortableHeader label="Evento" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
               <SortableHeader label="Fecha" active={sortKey === 'date'} dir={sortDir} onClick={() => toggleSort('date')} />
-              <th className="px-4 py-2 font-medium">Organizador</th>
-              <th className="px-4 py-2 font-medium">Estado</th>
+              <th scope="col" className="px-4 py-2 font-medium">Organizador</th>
+              <th scope="col" className="px-4 py-2 font-medium">Estado</th>
               <SortableHeader label="Invitados" active={sortKey === 'guestCount'} dir={sortDir} onClick={() => toggleSort('guestCount')} />
               <SortableHeader label="Check-ins" active={sortKey === 'checkedInCount'} dir={sortDir} onClick={() => toggleSort('checkedInCount')} />
-              <th className="px-4 py-2 font-medium"></th>
+              <th scope="col" className="px-4 py-2 font-medium"><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -279,12 +280,12 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
                 <td className="px-4 py-2">
                   <input type="checkbox" checked={selected.has(event.id)} onChange={() => toggleSelect(event.id)} aria-label={`Seleccionar ${event.name}`} />
                 </td>
-                <td className="px-4 py-2">
+                <th scope="row" className="px-4 py-2 font-normal text-left">
                   <Link to={`/events/${event.id}`} className="text-primary font-medium hover:underline">
                     {event.name}
                   </Link>
                   <div className="text-xs text-gray-400 dark:text-gray-500">{event.location}</div>
-                </td>
+                </th>
                 <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{event.date}</td>
                 <td className="px-4 py-2 text-gray-600 dark:text-gray-300">
                   {usersById.get(event.ownerId)?.email || event.ownerId}
@@ -338,7 +339,7 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
 
 function SortableHeader({ label, active, dir, onClick }: { label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void }) {
   return (
-    <th className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <th scope="col" className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors">
         {label}
         {active && <span className="text-2xs">{dir === 'asc' ? '▲' : '▼'}</span>}

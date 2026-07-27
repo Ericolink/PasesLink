@@ -41,7 +41,7 @@ export function ConfirmDialog({
   }, [open])
 
   return (
-    <Modal open={open} onClose={onCancel} label={title}>
+    <Modal open={open} onClose={onCancel} label={title} role={danger ? 'alertdialog' : 'dialog'}>
       {/* Header + mensaje son la única región que scrollea — el mensaje
           puede ser largo (p.ej. la lista de cambios del "modo anti-tontos"
           de EditEventForm.tsx) y sin esto el diálogo simplemente se

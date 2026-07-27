@@ -424,11 +424,17 @@ export function EventWall() {
               {previewUrl && (
                 <div className="relative inline-block mt-2">
                   <img src={previewUrl} alt="" className="h-24 w-24 rounded-lg object-cover border border-gray-200 dark:border-gray-600" />
+                  {/* p-1.5 (no el min-w-11/min-h-11 de 44px que se usa en el
+                      resto de la app): esta insignia vive encima de una
+                      miniatura de 96×96 — forzar 44px la taparía casi por
+                      completo. 24×24 (icono 14px + 6px de padding por lado)
+                      ya cumple el mínimo real de WCAG 2.5.8 AA (24×24, no
+                      44×44 — eso es 2.5.5, nivel AAA). */}
                   <button
                     type="button"
                     onClick={removeImage}
                     aria-label="Quitar foto"
-                    className="absolute -top-2 -right-2 bg-gray-900/80 text-white rounded-full p-1 hover:bg-gray-900"
+                    className="absolute -top-2 -right-2 bg-gray-900/80 text-white rounded-full p-1.5 hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     <IconX className="w-3.5 h-3.5" />
                   </button>

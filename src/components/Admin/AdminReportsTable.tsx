@@ -144,12 +144,13 @@ export function AdminReportsTable({
         </>}
         table={<>
           <table className="w-full text-sm">
+            <caption className="sr-only">Lista de reportes</caption>
             <thead>
               <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
-                <th className="px-4 py-2 font-medium">Contenido reportado</th>
-                <th className="px-4 py-2 font-medium">Evento</th>
-                <th className="px-4 py-2 font-medium">Estado</th>
-                <th className="px-4 py-2 font-medium" aria-sort={sortDir === 'asc' ? 'ascending' : 'descending'}>
+                <th scope="col" className="px-4 py-2 font-medium">Contenido reportado</th>
+                <th scope="col" className="px-4 py-2 font-medium">Evento</th>
+                <th scope="col" className="px-4 py-2 font-medium">Estado</th>
+                <th scope="col" className="px-4 py-2 font-medium" aria-sort={sortDir === 'asc' ? 'ascending' : 'descending'}>
                   <button
                     onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
                     className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -158,7 +159,7 @@ export function AdminReportsTable({
                     <span className="text-2xs">{sortDir === 'asc' ? '▲' : '▼'}</span>
                   </button>
                 </th>
-                <th className="px-4 py-2 font-medium"></th>
+                <th scope="col" className="px-4 py-2 font-medium"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -169,7 +170,7 @@ export function AdminReportsTable({
                   onClick={() => onOpen(item)}
                   className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 even:bg-[var(--color-bg-subtle)] dark:even:bg-transparent"
                 >
-                  <td className="px-4 py-2 max-w-[280px]">
+                  <th scope="row" className="px-4 py-2 max-w-[280px] font-normal text-left">
                     <div className="flex items-center gap-2">
                       <IconFlag className="w-3.5 h-3.5 shrink-0 text-gray-400" />
                       <span className="truncate text-gray-900 dark:text-white">
@@ -177,7 +178,7 @@ export function AdminReportsTable({
                       </span>
                     </div>
                     <div className="text-xs font-normal text-gray-400 dark:text-gray-500 truncate">{item.reason}</div>
-                  </td>
+                  </th>
                   <td className="px-4 py-2 font-normal text-gray-600 dark:text-gray-300 max-w-[160px] truncate">{item.eventName}</td>
                   <td className="px-4 py-2">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${STATUS_PILL_CLASSES[item.status]}`}>

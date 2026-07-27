@@ -87,11 +87,16 @@ export function GuestSearchSheet({
             className="w-full border border-gray-200 dark:border-gray-600 rounded-lg pl-9 pr-9 py-2.5 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
           />
           {search && (
+            // p-1.5 (no el min-w-11/44px de IconButton): vive dentro de un
+            // input de una sola línea con solo pr-9 (36px) reservados para
+            // el ícono — 44px de ancho invadiría el texto escrito. 16px de
+            // ícono + 6px de padding por lado = 28×28, ya cumple el mínimo
+            // real de WCAG 2.5.8 AA (24×24).
             <button
               type="button"
               onClick={() => onSearchChange('')}
               aria-label="Limpiar búsqueda"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <IconX className="w-4 h-4" />
             </button>

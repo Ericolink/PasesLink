@@ -27,7 +27,7 @@ export function ExitConfirmDialog({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0" onClick={onCancel}>
       <div
         ref={dialogRef}
-        role="dialog"
+        role="alertdialog"
         aria-modal="true"
         aria-label="Registrar salida"
         className="bg-gray-800 text-white rounded-t-3xl sm:rounded-2xl shadow-xl max-w-sm w-full p-8 text-center animate-bounce-in"

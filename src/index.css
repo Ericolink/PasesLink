@@ -1295,6 +1295,30 @@ textarea:focus {
   text-decoration: underline;
 }
 
+/* Botón "Más reacciones" — único camino por teclado hacia el menú de
+   reacciones (antes solo abría con hover 400ms o long-press táctil, sin
+   ningún equivalente operable por teclado). Mismo target táctil que
+   .reaction-main-btn/.reaction-summary. */
+.reaction-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border-radius: 9999px;
+  color: #9ca3af;
+  background: none;
+  border: none;
+}
+.reaction-more-btn:hover {
+  color: var(--invite-accent, var(--color-primary));
+  background-color: color-mix(in srgb, var(--invite-accent, var(--color-primary)) 10%, transparent);
+}
+.reaction-more-btn:focus-visible {
+  outline: 2px solid var(--invite-accent, var(--color-primary));
+  outline-offset: 2px;
+}
+
 .reaction-popup {
   position: absolute;
   bottom: calc(100% + 6px);

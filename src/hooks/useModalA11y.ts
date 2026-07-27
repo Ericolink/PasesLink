@@ -10,6 +10,29 @@ import { useScrollLock } from './useScrollLock'
 const FOCUSABLE_SELECTOR =
   'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
+// `inert` en todo lo que NO contenga al diálogo — no se asume que el
+// diálogo llega por portal a document.body (Modal.tsx/PhotoViewer.tsx sí;
+// ExitConfirmDialog/ImageCropModal/ScanResultModal/ManualCodeEntryDialog
+// viven inline dentro de #root). Buscar cuál hijo directo de <body> contiene
+// al diálogo y dejar ESE fuera funciona para ambos casos por igual: si el
+// diálogo está en un portal, ese hijo es su propio div de backdrop (y #root
+// completo queda inert); si es inline, ese hijo ES #root (y no se toca a sí
+// mismo). Guarda el `inert` previo de cada hermano para restaurarlo al
+// cerrar — no simplemente `false` — así modales apilados (ej. un
+// ImageCropModal abierto sobre el wizard) no le quitan el `inert` al fondo
+// de más atrás cuando el de encima se cierra primero.
+function applyBackgroundInert(dialog: HTMLElement | null): () => void {
+  if (!dialog) return () => {}
+  const siblings = Array.from(document.body.children).filter(
+    (el): el is HTMLElement => el instanceof HTMLElement && !el.contains(dialog),
+  )
+  const previousInert = siblings.map((el) => el.inert)
+  siblings.forEach((el) => { el.inert = true })
+  return () => {
+    siblings.forEach((el, i) => { el.inert = previousInert[i] })
+  }
+}
+
 // Accesibilidad compartida para los modales del proyecto: focus trap (Tab
 // cíclico dentro del modal), Escape cierra, devolución de foco al elemento
 // que lo tenía antes de abrir, y bloqueo de scroll del fondo (useScrollLock)
@@ -45,6 +68,7 @@ export function useModalA11y<T extends HTMLElement>(open: boolean, onClose: () =
     if (!open) return
     const dialog = dialogRef.current
     previousActiveElement.current = document.activeElement as HTMLElement | null
+    const restoreBackgroundInert = applyBackgroundInert(dialog)
 
     if (dialog && !dialog.contains(document.activeElement)) {
       dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)?.focus()
@@ -72,6 +96,7 @@ export function useModalA11y<T extends HTMLElement>(open: boolean, onClose: () =
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+      restoreBackgroundInert()
       previousActiveElement.current?.focus()
     }
   }, [open])

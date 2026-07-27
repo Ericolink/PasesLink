@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { IconArrowLeft } from '../Icons'
 import { Button } from '../Button'
+import { useAnnouncer } from '../../contexts/AnnouncementContext'
+import { useFocusOnChange } from '../../hooks/useFocusOnChange'
 
 interface WizardContainerProps {
   currentStep: number
@@ -30,6 +32,24 @@ export function WizardContainer({
   savedLabel,
   children,
 }: WizardContainerProps) {
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null)
+  const { announce } = useAnnouncer()
+
+  // Foco al heading del paso nuevo (sin robarle el foco al montar la
+  // pantalla por primera vez, ver useFocusOnChange) — reemplaza el
+  // `window.scrollTo` como única señal de "cambiaste de paso": ese scroll no
+  // dice nada a un lector de pantalla ni mueve el foco lejos de "Siguiente"
+  // del paso anterior.
+  useFocusOnChange(currentStep, stepHeadingRef)
+
+  // El anuncio en cambio SÍ corre en el montaje inicial — a diferencia del
+  // foco, decirle a un lector de pantalla en qué paso arranca es información
+  // útil, no un robo de foco.
+  useEffect(() => {
+    announce(`Paso ${currentStep} de ${totalSteps}: ${stepLabels[currentStep - 1]}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep])
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 animate-fade-in">
       {/* Encabezado con progreso — a propósito no usa el patrón "← Volver"
@@ -53,7 +73,14 @@ export function WizardContainer({
         </div>
 
         {/* Barra de progreso segmentada */}
-        <div className="flex gap-1.5 mb-2">
+        <div
+          role="progressbar"
+          aria-valuenow={currentStep}
+          aria-valuemin={1}
+          aria-valuemax={totalSteps}
+          aria-valuetext={`Paso ${currentStep} de ${totalSteps}`}
+          className="flex gap-1.5 mb-2"
+        >
           {Array.from({ length: totalSteps }, (_, i) => (
             <div
               key={i}
@@ -65,7 +92,11 @@ export function WizardContainer({
         </div>
 
         <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-primary">{stepLabels[currentStep - 1]}</p>
+          {/* tabIndex=-1: foco programático (useFocusOnChange) sin sumarse
+              al orden de tabulación normal. */}
+          <h2 ref={stepHeadingRef} tabIndex={-1} className="text-sm font-medium text-primary rounded focus:outline-none focus:ring-2 focus:ring-primary">
+            {stepLabels[currentStep - 1]}
+          </h2>
           {savedLabel && <p className="text-xs text-gray-400">{savedLabel}</p>}
         </div>
       </div>

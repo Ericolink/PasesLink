@@ -217,7 +217,14 @@ export function Reports() {
             <span>Cupo recomendado del evento</span>
             <span className="font-semibold">{totalPeople} / {event.capacity}</span>
           </div>
-          <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+          <div
+            role="progressbar"
+            aria-valuenow={totalPeople}
+            aria-valuemin={0}
+            aria-valuemax={event.capacity}
+            aria-valuetext={`${totalPeople} de ${event.capacity}`}
+            className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden"
+          >
             <div
               className="h-full rounded-full bg-primary transition-all"
               style={{ width: `${attendancePercent(totalPeople, event.capacity)}%` }}
@@ -257,7 +264,20 @@ export function Reports() {
             {hourEntries.map(([hour, count]) => (
               <div key={hour} className="flex items-center gap-2 text-sm">
                 <span className="w-12 text-gray-500 dark:text-gray-400">{hour}</span>
-                <div className="flex-1 h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                {/* El conteo ya es texto visible y adyacente (línea de
+                    abajo) — a diferencia de EventAnalytics, esta lista SÍ es
+                    legible en orden por un lector de pantalla tal cual, así
+                    que no se envuelve en role="img" (eso ocultaría contenido
+                    que ya es accesible). role="progressbar" es solo un
+                    refuerzo semántico, no un reemplazo de texto. */}
+                <div
+                  role="progressbar"
+                  aria-valuenow={count}
+                  aria-valuemin={0}
+                  aria-valuemax={maxHourCount}
+                  aria-valuetext={`${count} check-ins a las ${hour}`}
+                  className="flex-1 h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden"
+                >
                   <div
                     className="h-full bg-primary rounded-full"
                     style={{ width: `${(count / maxHourCount) * 100}%` }}

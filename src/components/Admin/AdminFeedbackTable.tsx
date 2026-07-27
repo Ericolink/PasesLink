@@ -167,7 +167,12 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
               className="p-4 space-y-1.5 cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
             >
               <div className="flex items-start gap-2">
-                {!item.read && <span className="mt-1.5 block w-2 h-2 rounded-full bg-primary shrink-0" title="No leído" />}
+                {!item.read && (
+                  <span className="mt-1.5 flex shrink-0 items-center justify-center" title="No leído">
+                    <span className="block w-2 h-2 rounded-full bg-primary" aria-hidden="true" />
+                    <span className="sr-only">No leído</span>
+                  </span>
+                )}
                 <FeedbackCategoryIcon category={item.category} className="w-4 h-4 shrink-0 text-gray-400 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <p className={`text-gray-900 dark:text-white break-words ${!item.read ? 'font-semibold' : 'font-medium'}`}>{item.subject}</p>
@@ -216,15 +221,16 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
         </>}
         table={<>
           <table className="w-full text-sm">
+            <caption className="sr-only">Lista de mensajes del buzón de feedback</caption>
             <thead>
               <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
-                <th className="px-4 py-2 font-medium w-8"></th>
-                <th className="px-4 py-2 font-medium">Asunto</th>
-                <th className="px-4 py-2 font-medium">Remitente</th>
+                <th scope="col" className="px-4 py-2 font-medium w-8"><span className="sr-only">No leído</span></th>
+                <th scope="col" className="px-4 py-2 font-medium">Asunto</th>
+                <th scope="col" className="px-4 py-2 font-medium">Remitente</th>
                 <SortableHeader label="Estado" active={sortKey === 'status'} dir={sortDir} onClick={() => toggleSort('status')} />
                 <SortableHeader label="Prioridad" active={sortKey === 'priority'} dir={sortDir} onClick={() => toggleSort('priority')} />
                 <SortableHeader label="Fecha" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
-                <th className="px-4 py-2 font-medium"></th>
+                <th scope="col" className="px-4 py-2 font-medium"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -236,15 +242,20 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
                   className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 even:bg-[var(--color-bg-subtle)] dark:even:bg-transparent ${!item.read ? 'font-semibold' : ''}`}
                 >
                   <td className="px-4 py-2">
-                    {!item.read && <span className="block w-2 h-2 rounded-full bg-primary" title="No leído" />}
+                    {!item.read && (
+                      <span title="No leído">
+                        <span className="block w-2 h-2 rounded-full bg-primary" aria-hidden="true" />
+                        <span className="sr-only">No leído</span>
+                      </span>
+                    )}
                   </td>
-                  <td className="px-4 py-2 max-w-[280px]">
+                  <th scope="row" className={`px-4 py-2 max-w-[280px] text-left ${!item.read ? 'font-semibold' : 'font-normal'}`}>
                     <div className="flex items-center gap-2">
                       <FeedbackCategoryIcon category={item.category} className="w-4 h-4 shrink-0 text-gray-400" />
                       <span className="truncate text-gray-900 dark:text-white">{item.subject}</span>
                     </div>
                     <div className="text-xs font-normal text-gray-400 dark:text-gray-500 truncate">{item.message}</div>
-                  </td>
+                  </th>
                   <td className="px-4 py-2 font-normal text-gray-600 dark:text-gray-300">
                     {item.userEmail || item.userDisplayName || (item.userId ? 'Usuario registrado' : 'Anónimo')}
                   </td>
@@ -306,7 +317,7 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
 
 function SortableHeader({ label, active, dir, onClick }: { label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void }) {
   return (
-    <th className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <th scope="col" className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors">
         {label}
         {active && <span className="text-2xs">{dir === 'asc' ? '▲' : '▼'}</span>}

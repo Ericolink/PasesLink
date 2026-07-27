@@ -5,8 +5,7 @@ import { parseGuestsCsv } from '../utils/csvImport'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
-import { ScrollableTabs } from './ScrollableTabs'
-import { TabButton } from './TabButton'
+import { Tab, TabList, TabPanel, Tabs } from './Tabs'
 import { Button } from './Button'
 import { FieldError } from './FieldError'
 import { FormField } from './FormField'
@@ -248,16 +247,17 @@ export function GuestAddForm({
 
   return (
     <div ref={containerRef} className="border border-gray-200 rounded-lg p-4 bg-white">
-      <ScrollableTabs className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
-        <TabButton label="Agregar uno" active={mode === 'single'} onClick={() => setMode('single')} />
-        <TabButton label="Familia o grupo" active={mode === 'group'} onClick={() => setMode('group')} />
-        <TabButton label="Agregar lista" active={mode === 'bulk'} onClick={() => setMode('bulk')} />
-        <TabButton label="Importar CSV" active={mode === 'csv'} onClick={() => setMode('csv')} />
-      </ScrollableTabs>
+      <Tabs value={mode} onChange={setMode}>
+        <TabList aria-label="Formas de agregar invitados" className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
+          <Tab value="single" label="Agregar uno" />
+          <Tab value="group" label="Familia o grupo" />
+          <Tab value="bulk" label="Agregar lista" />
+          <Tab value="csv" label="Importar CSV" />
+        </TabList>
 
-      <div className="mb-3"><FieldError message={error} /></div>
+        <div className="mb-3"><FieldError message={error} /></div>
 
-      {mode === 'single' ? (
+        <TabPanel value="single">
         <form onSubmit={handleSingleSubmit} className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <InputField
@@ -324,7 +324,9 @@ export function GuestAddForm({
             {loading ? 'Agregando…' : 'Agregar invitado'}
           </Button>
         </form>
-      ) : mode === 'group' ? (
+        </TabPanel>
+
+        <TabPanel value="group">
         <form onSubmit={handleGroupSubmit} className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <InputField
@@ -383,7 +385,9 @@ export function GuestAddForm({
             {loading ? 'Agregando…' : 'Agregar familia o grupo'}
           </Button>
         </form>
-      ) : mode === 'bulk' ? (
+        </TabPanel>
+
+        <TabPanel value="bulk">
         <form onSubmit={handleBulkSubmit} className="space-y-3">
           <label htmlFor="guest-bulk-names" className="sr-only">Lista de nombres, uno por línea</label>
           <textarea
@@ -398,7 +402,9 @@ export function GuestAddForm({
             {loading ? 'Agregando…' : 'Agregar lista de invitados'}
           </Button>
         </form>
-      ) : (
+        </TabPanel>
+
+        <TabPanel value="csv">
         <div className="space-y-3">
           <p className="text-xs text-gray-500">
             Un archivo .csv con columnas Nombre, Apellido, Teléfono y Email (Apellido/Teléfono/Email son opcionales).
@@ -440,7 +446,8 @@ export function GuestAddForm({
             {loading ? 'Importando…' : `Importar ${csvRows.length || ''} invitado${csvRows.length === 1 ? '' : 's'}`}
           </Button>
         </div>
-      )}
+        </TabPanel>
+      </Tabs>
 
       <ConfirmDialog
         open={pendingDuplicate !== null}

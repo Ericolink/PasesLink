@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useFocusOnChange } from '../hooks/useFocusOnChange'
 import { getGuestContact } from '../firebase/guests'
 import { isGoogleProfileComplete, loginWithEmail, loginWithGoogle, registerWithEmail } from '../firebase/auth'
 import { recordLegalAcceptance } from '../firebase/legalAcceptance'
@@ -47,6 +48,13 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
   // enlaza a /login, navegando afuera del pase — ver el comentario de este
   // componente sobre nunca salir de acá) sino que cambia de paso inline.
   const [accountExistsHint, setAccountExistsHint] = useState(false)
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null)
+
+  // Mueve el foco al heading del paso nuevo (offer→form→login→success) —
+  // sin esto, el foco se queda en el botón del paso anterior aunque el
+  // contenido visible ya sea otro por completo (mismo problema que el
+  // wizard de creación de eventos, mismo hook compartido).
+  useFocusOnChange(step, stepHeadingRef)
 
   useEffect(() => {
     let cancelled = false
@@ -159,7 +167,7 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
 
       {step === 'offer' && (
         <div className="px-6 pt-7 pb-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center">¿Quieres crear una cuenta?</h2>
+          <h2 ref={stepHeadingRef} tabIndex={-1} className="text-xl font-bold text-gray-900 dark:text-white text-center rounded focus:outline-none focus:ring-2 focus:ring-primary">¿Quieres crear una cuenta?</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1.5 mb-5">
             Es opcional y toma un minuto. Con una cuenta en PaseLink obtienes:
           </p>
@@ -193,7 +201,7 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
 
       {step === 'form' && (
         <div className="px-6 pt-7 pb-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-5">Crea tu cuenta</h2>
+          <h2 ref={stepHeadingRef} tabIndex={-1} className="text-xl font-bold text-gray-900 dark:text-white text-center mb-5 rounded focus:outline-none focus:ring-2 focus:ring-primary">Crea tu cuenta</h2>
           <form onSubmit={handleEmailSubmit} className="space-y-3">
             <div className={guest.isGroup ? '' : 'grid grid-cols-2 gap-3'}>
               <div>
@@ -281,7 +289,7 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
 
       {step === 'login' && (
         <div className="px-6 pt-7 pb-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-1.5">Inicia sesión</h2>
+          <h2 ref={stepHeadingRef} tabIndex={-1} className="text-xl font-bold text-gray-900 dark:text-white text-center mb-1.5 rounded focus:outline-none focus:ring-2 focus:ring-primary">Inicia sesión</h2>
           {accountExistsHint && (
             <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-5">
               Ya existe una cuenta con este email — inicia sesión para guardar el pase ahí.
@@ -339,7 +347,7 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
       {step === 'success' && (
         <div className="px-6 py-10 flex flex-col items-center text-center">
           <IconCheckCircle className="w-12 h-12 text-green-500 mb-3" />
-          <p className="font-semibold text-gray-900 dark:text-white">¡Listo!</p>
+          <h2 ref={stepHeadingRef} tabIndex={-1} className="font-semibold text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-primary">¡Listo!</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Tu pase ya quedó guardado en tu cuenta.</p>
         </div>
       )}

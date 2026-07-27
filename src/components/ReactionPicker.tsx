@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { IconThumbsUp } from './Icons'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { IconChevronDown, IconThumbsUp } from './Icons'
 import { ReactionListSheet } from './ReactionListSheet'
 import { REACTIONS, REACTION_BY_TYPE, getMyReaction, setMyReaction } from '../utils/reactions'
 import type { InteractiveCollection } from '../firebase/interactions'
@@ -32,6 +32,14 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
   const containerRef = useRef<HTMLDivElement>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // El botón "Más reacciones" (único camino por teclado hacia el menú — ver
+  // más abajo) necesita recuperar el foco al cerrar el menú por teclado
+  // (Escape o al elegir una reacción), igual que un menú-botón estándar.
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
+  // Distingue "se abrió por teclado" (mover foco al menú, como pide el
+  // patrón Menu Button del APG) de "se abrió por hover/long-press" (mover el
+  // foco ahí sería robárselo a un usuario de mouse/touch sin motivo).
+  const openedViaKeyboardRef = useRef(false)
 
   // "Mi reacción" ya no viene del mapa `reactions` del mensaje/foto (ver
   // utils/reactions.ts) — se guarda por dispositivo en localStorage, igual
@@ -54,7 +62,13 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) setPickerOpen(false)
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setPickerOpen(false)
+      if (e.key === 'Escape') {
+        setPickerOpen(false)
+        // Devuelve el foco al trigger — sin esto, cerrar con Escape deja el
+        // foco en un botón que acaba de desmontarse (el navegador lo manda
+        // a <body>, sin equivalente para un lector de pantalla).
+        moreButtonRef.current?.focus()
+      }
     }
     document.addEventListener('mousedown', handleOutside)
     document.addEventListener('touchstart', handleOutside)
@@ -65,6 +79,32 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
       document.removeEventListener('keydown', handleKey)
     }
   }, [pickerOpen])
+
+  // Foco al menú SOLO cuando se abrió por teclado (botón "Más reacciones")
+  // — abrir por hover/long-press no debe robarle el foco a un usuario de
+  // mouse/touch que ni siquiera lo está usando.
+  useEffect(() => {
+    if (!pickerOpen || !openedViaKeyboardRef.current) return
+    openedViaKeyboardRef.current = false
+    const popup = containerRef.current?.querySelector<HTMLElement>('.reaction-popup')
+    ;(popup?.querySelector<HTMLElement>('[tabindex="0"]') ?? popup?.querySelector<HTMLElement>('[role="menuitem"]'))?.focus()
+  }, [pickerOpen])
+
+  // ArrowUp/Down/Left/Right + Home/End navegan entre las reacciones del menú
+  // (patrón Menu del APG) — Escape ya lo maneja el listener de arriba.
+  function handlePopupKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
+    const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+    if (items.length === 0) return
+    const currentIndex = Math.max(0, items.findIndex((i) => i === document.activeElement))
+    let nextIndex = currentIndex
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') nextIndex = (currentIndex + 1) % items.length
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + items.length) % items.length
+    else if (e.key === 'Home') nextIndex = 0
+    else if (e.key === 'End') nextIndex = items.length - 1
+    e.preventDefault()
+    items[nextIndex].focus()
+  }
 
   useEffect(() => () => {
     clearTimeout(hoverTimer.current)
@@ -95,11 +135,17 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
   function choose(type: ReactionType) {
     void react(mine === type ? null : type)
     setPickerOpen(false)
+    moreButtonRef.current?.focus()
   }
 
   function handleMainClick() {
     if (pickerOpen) return
     void react(mine ? null : 'like')
+  }
+
+  function openPickerViaKeyboard() {
+    openedViaKeyboardRef.current = true
+    setPickerOpen((v) => !v)
   }
 
   const mineConfig = mine ? REACTION_BY_TYPE.get(mine) : undefined
@@ -122,7 +168,7 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
       onMouseLeave={() => { clearTimeout(hoverTimer.current); setPickerOpen(false) }}
     >
       {pickerOpen && (
-        <div className="reaction-popup" role="menu">
+        <div className="reaction-popup" role="menu" aria-label="Elegir reacción" onKeyDown={handlePopupKeyDown}>
           {REACTIONS.map((r, i) => (
             <button
               key={r.type}
@@ -131,6 +177,10 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
               title={r.label}
               aria-label={r.label}
               aria-pressed={mine === r.type}
+              // Roving tabindex: un solo detenimiento en el orden de
+              // tabulación (la reacción activa, o la primera si no hay
+              // ninguna) — el resto se alcanza con las flechas, no con Tab.
+              tabIndex={(mine ? mine === r.type : i === 0) ? 0 : -1}
               className="reaction-popup-emoji"
               style={{ animationDelay: `${i * 25}ms` }}
               onClick={() => choose(r.type)}
@@ -149,8 +199,6 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
         onTouchCancel={() => { setPressing(false); clearTimeout(pressTimer.current) }}
         onContextMenu={(e) => e.preventDefault()}
         aria-label={mineConfig ? `Reacción: ${mineConfig.label}` : 'Reaccionar'}
-        aria-haspopup="menu"
-        aria-expanded={pickerOpen}
         data-active={!!mine}
         data-pressing={pressing}
         className="reaction-main-btn"
@@ -161,6 +209,22 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
           <IconThumbsUp className="w-4 h-4" />
         )}
         <span>{mineConfig ? mineConfig.label : 'Me gusta'}</span>
+      </button>
+
+      {/* Único trigger que abre el menú de forma operable por teclado — el
+          botón principal solo alterna la reacción por defecto (like), y el
+          hover/long-press (arriba) siguen abriendo el menú para mouse/touch
+          sin pasar por acá. */}
+      <button
+        ref={moreButtonRef}
+        type="button"
+        className="reaction-more-btn"
+        aria-label="Más reacciones"
+        aria-haspopup="menu"
+        aria-expanded={pickerOpen}
+        onClick={openPickerViaKeyboard}
+      >
+        <IconChevronDown className="w-3.5 h-3.5 rotate-180" />
       </button>
 
       {reactionCount > 0 && (

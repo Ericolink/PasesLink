@@ -29,6 +29,7 @@ import { deleteEvent, setEventStatus } from '../firebase/events'
 import { attendancePercent } from '../utils/attendance'
 import type { EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { Tab as TabButton, TabList, TabPanel, Tabs } from '../components/Tabs'
 import { MetricTile } from '../components/MetricTile'
 import { AdminActivityChart } from '../components/Admin/AdminActivityChart'
 import { AdminEventsTable } from '../components/Admin/AdminEventsTable'
@@ -38,8 +39,6 @@ import { AdminFeedbackTable } from '../components/Admin/AdminFeedbackTable'
 import { AdminFeedbackDetail } from '../components/Admin/AdminFeedbackDetail'
 import { AdminReportsTab } from '../components/Admin/AdminReportsTab'
 import { ScreenHeader } from '../components/ScreenHeader'
-import { ScrollableTabs } from '../components/ScrollableTabs'
-import { TabButton } from '../components/TabButton'
 import {
   IconBarChart,
   IconBarChart2,
@@ -400,67 +399,79 @@ export function AdminDashboard() {
         </div>
       )}
 
-      <ScrollableTabs className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
-        <TabButton label="Eventos" count={events.length} active={tab === 'events'} onClick={() => setTab('events')} />
-        <TabButton label="Clientes" count={users.length} active={tab === 'users'} onClick={() => setTab('users')} />
-        <TabButton label="Buzón" unreadCount={unreadFeedbackCount} active={tab === 'feedback'} onClick={() => setTab('feedback')} />
-        <TabButton label="Reportes" active={tab === 'reports'} onClick={() => setTab('reports')} />
-        <TabButton label="Actividad" active={tab === 'activity'} onClick={() => setTab('activity')} />
-      </ScrollableTabs>
+      <Tabs value={tab} onChange={setTab}>
+        <TabList aria-label="Secciones de administración" className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
+          <TabButton value="events" label="Eventos" count={events.length} />
+          <TabButton value="users" label="Clientes" count={users.length} />
+          <TabButton value="feedback" label="Buzón" unreadCount={unreadFeedbackCount} />
+          <TabButton value="reports" label="Reportes" />
+          <TabButton value="activity" label="Actividad" />
+        </TabList>
 
-      {/* events/users ya no son listeners en vivo (auditoría F10) — este
-          botón los refresca sin salir de la pantalla. Se actualizan solos
-          después de archivar/cancelar/borrar un evento desde este mismo
-          panel (ver setRefreshToken en esos handlers). */}
-      {(tab === 'events' || tab === 'users') && (
-        <div className="flex justify-end mb-2">
-          <button
-            onClick={() => setRefreshToken((n) => n + 1)}
-            disabled={loading}
-            className="text-sm text-primary font-medium disabled:opacity-50"
-          >
-            {loading ? 'Actualizando…' : 'Actualizar'}
-          </button>
-        </div>
-      )}
+        <TabPanel value="events">
+          {/* events/users ya no son listeners en vivo (auditoría F10) — este
+              botón los refresca sin salir de la pantalla. Se actualizan solos
+              después de archivar/cancelar/borrar un evento desde este mismo
+              panel (ver setRefreshToken en esos handlers). */}
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => setRefreshToken((n) => n + 1)}
+              disabled={loading}
+              className="text-sm text-primary font-medium disabled:opacity-50"
+            >
+              {loading ? 'Actualizando…' : 'Actualizar'}
+            </button>
+          </div>
+          <AdminEventsTable
+            events={events}
+            usersById={usersById}
+            loading={loading}
+            search={eventsSearch}
+            onSearchChange={setEventsSearch}
+            onStatusChange={handleStatusChange}
+            onRequestDelete={setDeletingEvent}
+            onRequestBulkAction={(evts, action) => setBulkAction({ events: evts, action })}
+          />
+        </TabPanel>
 
-      {tab === 'events' && (
-        <AdminEventsTable
-          events={events}
-          usersById={usersById}
-          loading={loading}
-          search={eventsSearch}
-          onSearchChange={setEventsSearch}
-          onStatusChange={handleStatusChange}
-          onRequestDelete={setDeletingEvent}
-          onRequestBulkAction={(evts, action) => setBulkAction({ events: evts, action })}
-        />
-      )}
+        <TabPanel value="users">
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => setRefreshToken((n) => n + 1)}
+              disabled={loading}
+              className="text-sm text-primary font-medium disabled:opacity-50"
+            >
+              {loading ? 'Actualizando…' : 'Actualizar'}
+            </button>
+          </div>
+          <AdminUsersTable
+            users={users}
+            loading={loading}
+            eventCountByUser={eventCountByUser}
+            onFilterEventsByOwner={handleFilterEventsByOwner}
+          />
+        </TabPanel>
 
-      {tab === 'users' && (
-        <AdminUsersTable
-          users={users}
-          loading={loading}
-          eventCountByUser={eventCountByUser}
-          onFilterEventsByOwner={handleFilterEventsByOwner}
-        />
-      )}
+        <TabPanel value="feedback">
+          <AdminFeedbackTable
+            items={feedback}
+            loading={feedbackLoading}
+            search={feedbackSearch}
+            onSearchChange={setFeedbackSearch}
+            onOpen={handleOpenFeedback}
+            onToggleFavorite={handleToggleFeedbackFavorite}
+            onRequestDelete={(item) => setDeletingFeedbackId(item.id)}
+          />
+        </TabPanel>
 
-      {tab === 'feedback' && (
-        <AdminFeedbackTable
-          items={feedback}
-          loading={feedbackLoading}
-          search={feedbackSearch}
-          onSearchChange={setFeedbackSearch}
-          onOpen={handleOpenFeedback}
-          onToggleFavorite={handleToggleFeedbackFavorite}
-          onRequestDelete={(item) => setDeletingFeedbackId(item.id)}
-        />
-      )}
+        <TabPanel value="reports">
+          <AdminReportsTab initialReportId={initialReportId} />
+        </TabPanel>
 
-      {tab === 'reports' && <AdminReportsTab initialReportId={initialReportId} />}
-
-      {tab === 'activity' && <ActivityTab />}
+        <TabPanel value="activity">
+          <ActivityTab />
+        </TabPanel>
+      </Tabs>
 
       <ConfirmDialog
         open={!!deletingEvent}

@@ -35,8 +35,19 @@ const ACCENT_CLASS: Record<MetricAccent, string> = {
 // index.css) es un no-op fuera de EventDetail/Reports — deja intacto el
 // borde de acento que ya aplica ahí vía [data-dash-template].
 export function MetricTile({ label, value, sub, icon: Icon, align = 'center', accent = 'gray' }: MetricTileProps) {
+  // role="group" + aria-label combinando label+valor+sub: sin esto, un
+  // lector de pantalla depende del orden del DOM (que además cambia según
+  // `align`, ver abajo) para asociar el número con lo que significa — con el
+  // grupo nombrado, "Escaneados: 42, 84% del total" se lee como una unidad
+  // sin importar el orden visual.
+  const groupLabel = `${label}: ${value}${sub ? `, ${sub}` : ''}`
+
   return (
-    <div className={`invite-stat-card border border-gray-200 dark:border-gray-700 rounded-xl p-3 sm:p-4 bg-white dark:bg-gray-800 ${align === 'center' ? 'text-center' : ''}`}>
+    <div
+      role="group"
+      aria-label={groupLabel}
+      className={`invite-stat-card border border-gray-200 dark:border-gray-700 rounded-xl p-3 sm:p-4 bg-white dark:bg-gray-800 ${align === 'center' ? 'text-center' : ''}`}
+    >
       {Icon ? (
         <>
           <div className="flex items-center gap-1.5 mb-1">

@@ -128,10 +128,11 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
         </>}
         table={<>
           <table className="w-full text-sm">
+            <caption className="sr-only">Lista de clientes</caption>
             <thead>
               <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
                 <SortableHeader label="Email" active={sortKey === 'email'} dir={sortDir} onClick={() => toggleSort('email')} />
-                <th className="px-4 py-2 font-medium">Nombre</th>
+                <th scope="col" className="px-4 py-2 font-medium">Nombre</th>
                 <SortableHeader label="Eventos" active={sortKey === 'eventCount'} dir={sortDir} onClick={() => toggleSort('eventCount')} />
                 <SortableHeader label="Registrado" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
               </tr>
@@ -146,7 +147,7 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
               ))}
               {!loading && pageItems.map((u) => (
                 <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 even:bg-[var(--color-bg-subtle)] dark:even:bg-transparent">
-                  <td className="px-4 py-2 text-gray-900 dark:text-white">{u.email || u.id}</td>
+                  <th scope="row" className="px-4 py-2 font-normal text-left text-gray-900 dark:text-white">{u.email || u.id}</th>
                   <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{u.displayName || '—'}</td>
                   <td className="px-4 py-2">
                     <button
@@ -177,7 +178,7 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
 
 function SortableHeader({ label, active, dir, onClick }: { label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void }) {
   return (
-    <th className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <th scope="col" className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors">
         {label}
         {active && <span className="text-2xs">{dir === 'asc' ? '▲' : '▼'}</span>}

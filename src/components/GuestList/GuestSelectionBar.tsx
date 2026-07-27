@@ -32,7 +32,7 @@ export function GuestSelectionBar({
               onClick={onMarkPaid}
               aria-label="Confirmar pago"
               title="Confirmar pago"
-              className="flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors w-10 h-10 sm:w-auto sm:h-auto sm:px-3 sm:py-2"
+              className="flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors w-11 h-11 sm:w-auto sm:h-auto sm:px-3 sm:py-2"
             >
               <IconCheck className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
               <span className="hidden sm:inline text-xs font-semibold">Confirmar pago</span>
@@ -44,7 +44,7 @@ export function GuestSelectionBar({
               onClick={onDelete}
               aria-label="Borrar"
               title="Borrar"
-              className="flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors w-10 h-10 sm:w-auto sm:h-auto sm:px-3 sm:py-2"
+              className="flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors w-11 h-11 sm:w-auto sm:h-auto sm:px-3 sm:py-2"
             >
               <IconTrash className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
               <span className="hidden sm:inline text-xs font-semibold">Borrar</span>
@@ -55,7 +55,7 @@ export function GuestSelectionBar({
             onClick={onCancel}
             aria-label="Cancelar selección"
             title="Cancelar selección"
-            className="flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors w-10 h-10 sm:w-auto sm:h-auto sm:p-2"
+            className="flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors w-11 h-11 sm:w-auto sm:h-auto sm:p-2"
           >
             <IconX className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
           </button>

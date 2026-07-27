@@ -6,6 +6,7 @@ import { Button } from './Button'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoOrganizerPermissionsEditor } from './CoOrganizerPermissionsEditor'
 import { IconX } from './Icons'
+import { IconButton } from './IconButton'
 
 interface Props {
   event: EventData
@@ -52,13 +53,13 @@ export function CoOrganizerPanel({ event, open, coOrg }: Props) {
                     >
                       {email}
                     </button>
-                    <button
+                    <IconButton
                       onClick={() => setRemovingCoOrg({ uid, email })}
                       aria-label={`Quitar a ${email} como co-organizador`}
-                      className="text-gray-400 hover:text-red-500 transition-colors shrink-0 ml-2"
+                      className="text-gray-400 hover:text-red-500 shrink-0 -my-2.5 -mr-2.5"
                     >
                       <IconX className="w-4 h-4" />
-                    </button>
+                    </IconButton>
                   </div>
                   {expanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-gray-200 dark:border-gray-600">
