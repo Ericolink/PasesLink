@@ -7,6 +7,8 @@ import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { attendancePercent } from '../utils/attendance'
+import { formatDateTimeMedium } from '../utils/time'
+import { useLoadingAnnouncement } from '../hooks/useLoadingAnnouncement'
 import type { CheckinLog, GuestData } from '../types'
 import { PAYMENT_STATUS_LABELS, RSVP_LABELS } from '../types'
 import { IconCheck, IconCornerUpLeft } from '../components/Icons'
@@ -41,6 +43,8 @@ export function Reports() {
   const [guests, setGuests] = useState<GuestData[]>([])
   const [guestsLoading, setGuestsLoading] = useState(true)
   const [guestsError, setGuestsError] = useState(false)
+  useLoadingAnnouncement(checkinsLoading, 'Check-ins cargados')
+  useLoadingAnnouncement(guestsLoading, 'Invitados cargados')
   const [visibleGuestCount, setVisibleGuestCount] = useState(GUEST_DETAIL_PAGE_SIZE)
   // Incrementarlo vuelve a disparar los efectos de abajo sin depender de
   // eventId — es el botón "Actualizar", refresca checkins Y guests juntos
@@ -154,7 +158,7 @@ export function Reports() {
         guest.name,
         guest.lastName || '',
         guest.status === 'checked_in' ? 'Confirmado' : 'Pendiente',
-        guest.checkedInAt ? new Date(guest.checkedInAt).toLocaleString() : '',
+        guest.checkedInAt ? formatDateTimeMedium(guest.checkedInAt) : '',
       ]
       if (event!.requiresPayment) row.push(PAYMENT_STATUS_LABELS[guest.paymentStatus])
       rows.push(row)
@@ -338,9 +342,9 @@ export function Reports() {
                   <span className="text-gray-500 dark:text-gray-400 text-xs w-full sm:w-auto sm:text-right shrink-0">
                     {guest.status === 'checked_in' && guest.checkedInAt ? (
                       <>
-                        Entró {new Date(guest.checkedInAt).toLocaleTimeString()}
+                        Entró {new Date(guest.checkedInAt).toLocaleTimeString('es-MX')}
                         {guest.checkedOutAt && (
-                          <> · {guest.exitType === 'final' ? 'Salió (definitivo)' : 'Salió (temporal)'} {new Date(guest.checkedOutAt).toLocaleTimeString()}</>
+                          <> · {guest.exitType === 'final' ? 'Salió (definitivo)' : 'Salió (temporal)'} {new Date(guest.checkedOutAt).toLocaleTimeString('es-MX')}</>
                         )}
                       </>
                     ) : (
@@ -420,7 +424,7 @@ export function Reports() {
                     {c.scannedByEmail && <span className="text-gray-400 dark:text-gray-500"> · {c.scannedByEmail}</span>}
                   </span>
                 </span>
-                <span className="text-gray-400 dark:text-gray-500 shrink-0">{new Date(c.timestamp).toLocaleTimeString()}</span>
+                <span className="text-gray-400 dark:text-gray-500 shrink-0">{new Date(c.timestamp).toLocaleTimeString('es-MX')}</span>
               </li>
             ))}
             </ul>

@@ -4,6 +4,7 @@ import type { Feedback, FeedbackPriority, FeedbackStatus } from '../../types'
 import { FEEDBACK_CATEGORY_LABELS, FEEDBACK_PRIORITY_LABELS, FEEDBACK_STATUS_LABELS } from '../../types'
 import { FeedbackCategoryIcon } from '../FeedbackCategoryIcon'
 import { IconStar, IconTrash, IconX } from '../Icons'
+import { formatDateTimeMedium } from '../../utils/time'
 
 interface Props {
   feedback: Feedback | null
@@ -74,7 +75,7 @@ export function AdminFeedbackDetail({
       <div className="px-6 py-4 space-y-4 overflow-y-auto">
           <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-4 gap-y-1">
             <span>{feedback.userEmail || feedback.userDisplayName || (feedback.userId ? 'Usuario registrado' : 'Anónimo')}</span>
-            <span>{new Date(feedback.createdAt).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+            <span>{formatDateTimeMedium(feedback.createdAt)}</span>
           </div>
 
           <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">

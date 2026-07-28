@@ -12,6 +12,7 @@ import type {
 } from '../../types'
 import { REPORT_CONTENT_TYPE_LABELS, REPORT_STATUS_LABELS, SANCTION_TYPE_LABELS } from '../../types'
 import { optimizedImageUrl } from '../../utils/cloudinary'
+import { formatDateTimeMedium } from '../../utils/time'
 import { IconBan, IconFlag, IconShield, IconTrash, IconX } from '../Icons'
 import { FieldError } from '../FieldError'
 
@@ -184,7 +185,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
       <div className="px-6 py-4 space-y-4 overflow-y-auto">
           <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-4 gap-y-1">
             <span>Reportado por: {report.anonymous ? 'Anónimo' : (report.reporterName || report.reporterEmail || 'Usuario')}</span>
-            <span>{new Date(report.createdAt).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+            <span>{formatDateTimeMedium(report.createdAt)}</span>
             <span>
               {contentReportCount === null ? 'Contando reportes…' : `${contentReportCount} reporte${contentReportCount === 1 ? '' : 's'} sobre este contenido`}
             </span>

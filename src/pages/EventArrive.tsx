@@ -9,6 +9,7 @@ import { EventCountdown } from '../components/EventCountdown'
 import { formatTime12h } from '../utils/time'
 import { IconBan } from '../components/Icons'
 import { CrownLoader } from '../components/CrownLoader'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import type { EventData } from '../types'
 
 type State = 'loading' | 'ready' | 'not_found' | 'error'
@@ -16,6 +17,7 @@ type State = 'loading' | 'ready' | 'not_found' | 'error'
 export function EventArrive() {
   const { id } = useParams<{ id: string }>()
   const [event, setEvent] = useState<EventData | null>(null)
+  useDocumentTitle(event ? `Ingreso · ${event.name}` : 'Ingreso')
   const [state, setState] = useState<State>('loading')
   const canvasRef = useRef<HTMLCanvasElement>(null)
 

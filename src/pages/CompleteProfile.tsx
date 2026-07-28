@@ -4,6 +4,7 @@ import { updateProfile } from 'firebase/auth'
 import { saveUserProfile } from '../firebase/userProfile'
 import { recordLegalAcceptance, type LegalAcceptanceMethod } from '../firebase/legalAcceptance'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { uploadImage } from '../utils/cloudinary'
 import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
@@ -13,6 +14,7 @@ import { Button } from '../components/Button'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
 export function CompleteProfile() {
+  useDocumentTitle('Completa tu perfil')
   const { user } = useAuth()
   const navigate = useNavigate()
 

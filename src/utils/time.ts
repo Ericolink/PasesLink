@@ -5,6 +5,19 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('es-MX', {
   year: 'numeric',
 })
 
+const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+const DATE_TIME_MEDIUM_FORMATTER = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
+
+/** Convierte una fecha/timestamp a "31 dic 2025" — usado en tablas admin (feedback, reportes). */
+export function formatShortDate(date: Date | number): string {
+  return SHORT_DATE_FORMATTER.format(date)
+}
+
+/** Convierte una fecha/timestamp a "31 dic 2025, 3:45 p.m." — usado en detalle admin y notificaciones. */
+export function formatDateTimeMedium(date: Date | number): string {
+  return DATE_TIME_MEDIUM_FORMATTER.format(date)
+}
+
 /** Convierte una fecha ISO 'YYYY-MM-DD' o un Date a "Sábado 31 de diciembre, 2025". */
 export function formatDate(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : date

@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import { IconHome, IconCalendar } from '../components/Icons'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 export function NotFound() {
+  useDocumentTitle('Página no encontrada')
   return (
     <div className="max-w-md mx-auto px-4 py-24 text-center">
       <p className="text-8xl font-black text-gray-200 dark:text-gray-800 select-none mb-6 leading-none">

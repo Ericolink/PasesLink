@@ -12,6 +12,7 @@ function formatTimestamp(ms: number): string {
 export function ScanResultModal({
   feedback,
   onClose,
+  onInteract,
   onRequestCheckout,
   onConfirmPayment,
   confirmingPayment,
@@ -21,6 +22,11 @@ export function ScanResultModal({
 }: {
   feedback: ScanFeedback
   onClose: () => void
+  // Se dispara al primer toque/foco/hover sobre el diálogo — el padre lo usa
+  // para pausar el auto-cierre (ver AUTO_CLOSE_MS en Scanner.tsx): alguien
+  // que está leyendo el resultado con más tiempo no debería competir contra
+  // un timer mientras lo hace.
+  onInteract?: () => void
   onRequestCheckout?: () => void
   onConfirmPayment?: () => void
   confirmingPayment?: boolean
@@ -66,6 +72,11 @@ export function ScanResultModal({
   // El padre monta/desmonta este componente (`{feedback && <ScanResultModal .../>}`)
   // en vez de un flag `open` interno — el montaje ya equivale a "abierto".
   const dialogRef = useModalA11y<HTMLDivElement>(true, onClose)
+  // aria-label incluye guestName/detail (no solo el título) — es el payload
+  // que realmente importa ("Bienvenido/a" solo no dice de quién se trata) y
+  // un lector de pantalla anuncia el nombre accesible completo al enfocar el
+  // diálogo, sin depender de que el usuario explore el contenido a mano.
+  const accessibleLabel = [styles.title, feedback.guestName, feedback.detail].filter(Boolean).join(' — ')
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0" onClick={onClose}>
@@ -73,9 +84,18 @@ export function ScanResultModal({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={styles.title}
+        aria-label={accessibleLabel}
         className={`${styles.bg} text-white rounded-t-3xl sm:rounded-2xl shadow-xl max-w-sm w-full p-8 text-center animate-bounce-in`}
         onClick={(e) => e.stopPropagation()}
+        onMouseEnter={onInteract}
+        onTouchStart={onInteract}
+        // No se usa onFocus: useModalA11y ya mueve el foco al primer control
+        // del diálogo al montar (ver ahí), y ese foco inicial programático
+        // burbujearía como un focus "de interacción" acá, pausando el
+        // auto-cierre en TODOS los resultados en vez de solo cuando alguien
+        // realmente lo necesita. Tab sí es inequívocamente una acción del
+        // usuario (el foco inicial no dispara keydown).
+        onKeyDown={(e) => { if (e.key === 'Tab') onInteract?.() }}
       >
         <Icon className="w-14 h-14 mb-3 mx-auto" />
         <h2 className="text-2xl font-semibold mb-2">{styles.title}</h2>

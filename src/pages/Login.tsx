@@ -8,11 +8,13 @@ import { PasswordInput } from '../components/PasswordInput'
 import { Button } from '../components/Button'
 import { IconGoogle } from '../components/Icons'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { captureException } from '../lib/sentry'
 
 export function Login() {
   const { user } = useAuth()
+  useDocumentTitle('Iniciar sesión')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)

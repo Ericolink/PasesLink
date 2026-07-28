@@ -43,7 +43,7 @@ export const TemplatePicker = memo(function TemplatePicker({ selected, onSelect,
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3">
+      <div role="group" aria-label="Plantilla de invitación" className="grid grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-3">
         {visibleTemplates.map((tpl) => (
           <TemplateIconButton key={tpl.id} template={tpl} isSelected={selected === tpl.id} onSelect={onSelect} />
         ))}

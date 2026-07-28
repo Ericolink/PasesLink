@@ -6,6 +6,7 @@ import { Pagination } from './Pagination'
 import { ResponsiveTable } from './ResponsiveTable'
 import { SkeletonBlock } from '../Skeleton'
 import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
+import { formatShortDate } from '../../utils/time'
 
 type SortKey = 'email' | 'createdAt' | 'eventCount'
 
@@ -117,7 +118,7 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
                   {eventCountByUser.get(u.id) || 0} evento(s)
                 </button>
                 <span className="text-xs text-gray-400 dark:text-gray-500">
-                  {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                  {u.createdAt ? formatShortDate(u.createdAt) : '—'}
                 </span>
               </div>
             </div>
@@ -159,7 +160,7 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
                     </button>
                   </td>
                   <td className="px-4 py-2 text-gray-400 dark:text-gray-500">
-                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                    {u.createdAt ? formatShortDate(u.createdAt) : '—'}
                   </td>
                 </tr>
               ))}

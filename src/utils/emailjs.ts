@@ -2,6 +2,7 @@ import emailjs from '@emailjs/browser'
 import { emitEmailNotification } from './emailNotifications'
 import { captureException } from '../lib/sentry'
 import { cleanEnv } from './env'
+import { formatDateTimeMedium } from './time'
 
 const SERVICE_ID = cleanEnv(import.meta.env.VITE_EMAILJS_SERVICE_ID)
 const WELCOME_TEMPLATE_ID = cleanEnv(import.meta.env.VITE_EMAILJS_TEMPLATE_ID_WELCOME)
@@ -104,7 +105,7 @@ export async function sendReportNotificationEmail(input: {
       {
         to_email: REPORT_ADMIN_EMAIL,
         event_name: input.eventName,
-        reported_at: new Date().toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }),
+        reported_at: formatDateTimeMedium(new Date()),
         reported_user: input.reportedUser,
         reporter: input.reporter,
         content_type: input.contentTypeLabel,

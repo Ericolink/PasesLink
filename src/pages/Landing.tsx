@@ -1,5 +1,6 @@
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { IconBarChart, IconCamera, IconCheck, IconCheckCircle, IconTicket } from '../components/Icons'
 
 const FEATURES = [
@@ -51,6 +52,7 @@ const STEPS = [
 
 export function Landing() {
   const { user, loading } = useAuth()
+  useDocumentTitle('Gestión de invitados para eventos')
 
   if (!loading && user) {
     return <Navigate to="/dashboard" replace />

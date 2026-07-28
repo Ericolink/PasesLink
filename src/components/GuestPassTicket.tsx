@@ -93,7 +93,7 @@ export const GuestPassTicket = forwardRef<HTMLDivElement, GuestPassTicketProps>(
             className="invite-qr-frame p-4 border rounded-xl inline-flex items-center justify-center"
             style={{ borderColor: 'var(--invite-border)', background: 'var(--invite-surface)' }}
           >
-            <QRCodeSVG value={passUrl} size={260} marginSize={QR_QUIET_ZONE_MODULES} />
+            <QRCodeSVG value={passUrl} size={260} marginSize={QR_QUIET_ZONE_MODULES} title={`Código QR del pase de ${guest.name}`} />
           </div>
         </div>
 

@@ -8,8 +8,10 @@ import { IconCheckCircle, IconXCircle } from '../components/Icons'
 import { Button } from '../components/Button'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 export function ResetPassword() {
+  useDocumentTitle('Restablecer contraseña')
   const [searchParams] = useSearchParams()
   const oobCode = searchParams.get('oobCode') || ''
   const navigate = useNavigate()

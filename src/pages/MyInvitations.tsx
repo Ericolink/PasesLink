@@ -5,6 +5,7 @@ import { reclaimInvitationsByEmail } from '../firebase/invitationRecovery'
 import { checkEmailVerified, resendVerificationEmail } from '../firebase/auth'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useLoadingAnnouncement } from '../hooks/useLoadingAnnouncement'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { QRCodeCanvas } from 'qrcode.react'
 import type { UserInvitation } from '../types'
@@ -25,6 +26,7 @@ export function MyInvitations() {
   const { user } = useAuth()
   const [invitations, setInvitations] = useState<UserInvitation[]>([])
   const [loading, setLoading] = useState(true)
+  useLoadingAnnouncement(loading, 'Invitaciones cargadas')
   const [confirmDelete, setConfirmDelete] = useState<UserInvitation | null>(null)
   const [deleting, setDeleting] = useState(false)
   // null = todavía no se chequeó. Solo importa para mostrar el aviso de
@@ -154,7 +156,7 @@ export function MyInvitations() {
                     }
                     <p className="flex-1 min-w-0 text-xs text-[var(--invite-text-muted,#6b7280)] truncate">Como: {inv.guestName}</p>
                     <div className="shrink-0 flex flex-col items-center">
-                      <QRCodeCanvas value={inv.qrToken} size={52} marginSize={QR_QUIET_ZONE_MODULES} className="rounded" />
+                      <QRCodeCanvas value={inv.qrToken} size={52} marginSize={QR_QUIET_ZONE_MODULES} className="rounded" title={`Código QR de tu pase para ${inv.eventName}`} />
                       <p className="text-2xs text-[var(--invite-accent,#FF1464)] text-center mt-1 font-medium">Ver pase</p>
                     </div>
                   </div>

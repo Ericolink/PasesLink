@@ -133,7 +133,7 @@ export function OrganizerPassView({
               className="invite-qr-frame p-4 border rounded-lg max-w-[250px] max-h-[250px] overflow-hidden flex items-center justify-center"
               style={{ borderColor: 'var(--invite-border)' }}
             >
-              <QRCodeCanvas value={passUrl} size={200} marginSize={QR_QUIET_ZONE_MODULES} />
+              <QRCodeCanvas value={passUrl} size={200} marginSize={QR_QUIET_ZONE_MODULES} title={`Código QR del pase de ${guest.name}`} />
             </div>
           </div>
         )}

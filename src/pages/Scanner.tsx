@@ -4,9 +4,11 @@ import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useEventOnly } from '../hooks/useEventOnly'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useLoadingAnnouncement } from '../hooks/useLoadingAnnouncement'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useIsLandscape } from '../hooks/useIsLandscape'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { useLiveRef } from '../hooks/useLiveRef'
 import { useWalkInCounter } from '../hooks/useWalkInCounter'
 import { useQrScanner } from '../hooks/useQrScanner'
@@ -58,6 +60,7 @@ export function Scanner() {
   const { user } = useAuth()
   const { event, loading: eventLoading, error: eventError } = useEventOnly(eventId)
   useDocumentTitle(event ? `Escanear · ${event.name}` : 'Escanear')
+  useLoadingAnnouncement(eventLoading, 'Evento cargado')
   // Mismo hook que el resto del dashboard (botones/links/badges toman el
   // acento del tema) — Scanner no usa StatCard/invite-card-accent, así que
   // no hereda ningún borde de tarjeta temático. El recoloreo ambiental de
@@ -68,6 +71,7 @@ export function Scanner() {
   useDashboardTheme(event?.templateId, event?.accentColor)
   const perms = useEventPermissions(event, user)
   const isLandscape = useIsLandscape()
+  const prefersReducedMotion = usePrefersReducedMotion()
   const [feedback, setFeedback] = useState<ScanFeedback | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
   const [manualValue, setManualValue] = useState('')
@@ -98,6 +102,17 @@ export function Scanner() {
     closeTimerRef.current = AUTO_CLOSE_TYPES.includes(value.type)
       ? setTimeout(() => setFeedback(null), AUTO_CLOSE_MS)
       : null
+  }
+
+  // WCAG 2.2.1 (Timing Adjustable): quien necesite más de AUTO_CLOSE_MS para
+  // leer el resultado (lector de pantalla, baja visión) solo necesita tocar
+  // o enfocar el diálogo una vez — no hace falta reabrir nada ni hay que
+  // "correr" contra el cierre automático mientras lo está leyendo.
+  function pauseAutoClose() {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
   }
 
   const { walkInMsg, handleWalkIn, handleWalkOut } = useWalkInCounter(eventId, (detail) => showFeedback({ type: 'error', detail }))
@@ -140,7 +155,7 @@ export function Scanner() {
       try {
         const result = await walkIn(eventId)
         if (result === 'success') {
-          confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+          if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
           showFeedback({ type: 'success', detail: 'Ingreso registrado' })
         } else {
           showFeedback({ type: 'full', detail: 'No quedan lugares disponibles para este evento.' })
@@ -160,7 +175,7 @@ export function Scanner() {
     try {
       const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
       if (result.status === 'success') {
-        confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+        if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = eventRef.current?.welcomeMessage || undefined
         const companions = result.guest.isGroup
           ? `${partySize(result.guest)} integrantes`
@@ -318,7 +333,7 @@ export function Scanner() {
     try {
       const result = await confirmPaymentAndCheckIn(eventId, qrToken, user.uid, user.email, method)
       if (result.status === 'success') {
-        confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+        if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = ev?.welcomeMessage || undefined
         const companions = result.guest.isGroup
           ? `${partySize(result.guest)} integrantes`
@@ -476,7 +491,7 @@ export function Scanner() {
                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-white rounded-bl" />
                   <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-white rounded-br" />
                 </div>
-                <div className="text-center">
+                <div className="text-center" role="status">
                   <p className="text-sm text-gray-400">Iniciando cámara…</p>
                   <button
                     onClick={startScanning}
@@ -560,6 +575,7 @@ export function Scanner() {
         <ScanResultModal
           feedback={feedback}
           onClose={() => { setConfirmError(null); setFeedback(null) }}
+          onInteract={pauseAutoClose}
           onRequestCheckout={feedback.type === 'already' && feedback.qrToken ? handleRequestCheckoutFromModal : undefined}
           onConfirmPayment={feedback.type === 'payment_required' && perms.confirmPayments ? () => { void handleConfirmPayment() } : undefined}
           confirmingPayment={confirmingPayment}

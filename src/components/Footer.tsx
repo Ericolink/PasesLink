@@ -43,7 +43,7 @@ export function Footer() {
           <div className="flex gap-12 sm:gap-16">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-3">Enlaces</p>
-              <nav className="flex flex-col gap-2">
+              <nav aria-label="Enlaces del pie de página" className="flex flex-col gap-2">
                 <Link to="/" className="text-gray-400 hover:text-primary transition-colors">
                   Inicio
                 </Link>

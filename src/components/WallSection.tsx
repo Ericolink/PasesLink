@@ -7,6 +7,7 @@ import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { useWallComposer } from '../hooks/useWallComposer'
 import { IconRotateCcw, IconCamera, IconX } from './Icons'
+import { IconButton } from './IconButton'
 import { Avatar } from './Avatar'
 import { PhotoFeedCard } from './PhotoFeedCard'
 import { PhotoViewer } from './PhotoViewer'
@@ -265,16 +266,15 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
                 </div>
               )}
             </div>
-            <button
-              type="button"
+            <IconButton
               onClick={openPicker}
               disabled={photoBlocked}
               aria-label="Adjuntar foto"
-              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center disabled:opacity-40 transition-colors text-[var(--invite-text-muted)]"
+              className="shrink-0 disabled:opacity-40 text-[var(--invite-text-muted)]"
               style={{ background: 'var(--invite-page-bg, rgba(255,255,255,0.06))' }}
             >
               <IconCamera className="w-4 h-4" />
-            </button>
+            </IconButton>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
           </div>
           <div className="flex items-center justify-between">

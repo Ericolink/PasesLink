@@ -5,6 +5,7 @@ import { appendReportSanctionAction } from './moderation'
 import { withListenerReporting } from '../lib/sentry'
 import type { SanctionHistoryEntry, SanctionScope, SanctionType, UserSanctionScopeState, UserSanctionSummary } from '../types'
 import { SANCTION_TYPE_LABELS } from '../types'
+import { formatDateTimeMedium } from '../utils/time'
 
 // Sentinel para "sin vencimiento" — se usa en vez de null para que las
 // reglas de Firestore (y el resto del código) puedan comparar siempre con un
@@ -84,7 +85,7 @@ export function isPhotoRestricted(summary: UserSanctionSummary, eventId?: string
 // para mostrarle al usuario un mensaje claro sin exponerle el modelo interno.
 export function activeRestrictionUntilLabel(until: number): string {
   if (until >= PERMANENT_SANCTION_MS) return 'de forma permanente'
-  return `hasta el ${new Date(until).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}`
+  return `hasta el ${formatDateTimeMedium(until)}`
 }
 
 export interface ApplySanctionInput {

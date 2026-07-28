@@ -6,9 +6,11 @@ import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { IconCheckCircle } from '../components/Icons'
 import { Button } from '../components/Button'
 import { TextField } from '../components/TextField'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
 export function ForgotPassword() {
+  useDocumentTitle('Recuperar contraseña')
   const [email, setEmail] = useState('')
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const [loading, setLoading] = useState(false)

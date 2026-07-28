@@ -8,6 +8,7 @@ import { Pagination } from './Pagination'
 import { ResponsiveTable } from './ResponsiveTable'
 import { SkeletonBlock } from '../Skeleton'
 import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
+import { formatShortDate } from '../../utils/time'
 
 const STATUS_PILL_CLASSES: Record<FeedbackStatus, string> = {
   new: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
@@ -192,7 +193,7 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
               </div>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-xs text-gray-400 dark:text-gray-500">
-                  {new Date(item.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {formatShortDate(item.createdAt)}
                 </span>
                 <div className="flex items-center gap-1 -my-2 -mx-2">
                   <button
@@ -270,7 +271,7 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
                     </span>
                   </td>
                   <td className="px-4 py-2 font-normal text-gray-600 dark:text-gray-300">
-                    {new Date(item.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {formatShortDate(item.createdAt)}
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-2 justify-end">

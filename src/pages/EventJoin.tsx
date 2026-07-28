@@ -33,6 +33,7 @@ import { IconBan } from '../components/Icons'
 import { FieldError } from '../components/FieldError'
 import { FormField } from '../components/FormField'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import type { EventData, PaymentMethod } from '../types'
 import { buildPassUrl } from '../utils/qrUrl'
 import { customFieldInputProps } from '../utils/customFieldInput'
@@ -60,6 +61,7 @@ export function EventJoin() {
   const { user } = useAuth()
   const { profile } = useUserProfile()
   const [event, setEvent] = useState<EventData | null>(null)
+  useDocumentTitle(event ? `Unirme · ${event.name}` : 'Unirme al evento')
   const [state, setState] = useState<State>('loading')
   const [name, setName] = useState('')
   const [lastName, setLastName] = useState('')

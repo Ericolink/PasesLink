@@ -2,6 +2,7 @@ import { useState } from 'react'
 import confetti from 'canvas-confetti'
 import { walkIn, walkOut } from '../firebase/capacity'
 import { captureException } from '../lib/sentry'
+import { usePrefersReducedMotion } from './usePrefersReducedMotion'
 
 // Extraído de Scanner.tsx (auditoría de escalabilidad, hallazgo F13): el
 // contador de walk-in/walk-out (eventos open/hybrid, altas sin QR previo)
@@ -10,13 +11,14 @@ import { captureException } from '../lib/sentry'
 // feedback visual que ya usa el resto de la pantalla (ScanResultModal).
 export function useWalkInCounter(eventId: string | undefined, onError: (detail: string) => void) {
   const [walkInMsg, setWalkInMsg] = useState<'success' | 'full' | null>(null)
+  const prefersReducedMotion = usePrefersReducedMotion()
 
   async function handleWalkIn() {
     if (!eventId) return
     try {
       const result = await walkIn(eventId)
       setWalkInMsg(result)
-      if (result === 'success') confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } })
+      if (result === 'success' && !prefersReducedMotion) confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } })
       setTimeout(() => setWalkInMsg(null), 2000)
     } catch (err) {
       console.error('Error registrando walk-in:', err)

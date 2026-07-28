@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import { IconBarChart2 } from './Icons'
 import { LoadingInline } from './LoadingInline'
 import { partySize } from '../firebase/guests'
+import { useLoadingAnnouncement } from '../hooks/useLoadingAnnouncement'
 import type { GuestData } from '../types'
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export const EventAnalytics = memo(function EventAnalytics({ guests, loading = false }: Props) {
+  useLoadingAnnouncement(loading, 'Analytics cargados')
   // Único cálculo costoso del componente (recorre todos los guests para
   // agrupar por hora) — se memoiza para no repetirlo si el padre
   // re-renderiza por otra razón mientras `guests` sigue siendo la misma referencia.

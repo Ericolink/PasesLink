@@ -10,6 +10,7 @@ import { PasswordInput } from '../components/PasswordInput'
 import { Button } from '../components/Button'
 import { IconGoogle } from '../components/Icons'
 import { useAuth } from '../hooks/useAuth'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { uploadImage } from '../utils/cloudinary'
 import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
@@ -21,6 +22,7 @@ const DEV_AUTO_SKIP_MS = 30000
 
 export function Register() {
   const { user } = useAuth()
+  useDocumentTitle('Crear cuenta')
   const navigate = useNavigate()
   const location = useLocation()
 

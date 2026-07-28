@@ -62,31 +62,33 @@ function GuestSection({
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => !alwaysExpanded && setCollapsed((c) => !c)}
-        className={`w-full flex items-center justify-between gap-2 px-1 py-2 ${alwaysExpanded ? 'cursor-default' : ''}`}
-      >
-        <span
-          className={`text-xs font-bold uppercase tracking-wide ${
-            sectionKey === 'attention'
-              ? 'text-amber-600 dark:text-amber-400'
-              : sectionKey === 'confirmed_unpaid'
-                ? 'text-violet-600 dark:text-violet-400'
-                : 'text-gray-400 dark:text-gray-500'
-          }`}
+      <h3 className="contents">
+        <button
+          type="button"
+          onClick={() => !alwaysExpanded && setCollapsed((c) => !c)}
+          className={`w-full flex items-center justify-between gap-2 px-1 py-2 ${alwaysExpanded ? 'cursor-default' : ''}`}
         >
-          {title}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5">
-            {guests.length}
+          <span
+            className={`text-xs font-bold uppercase tracking-wide ${
+              sectionKey === 'attention'
+                ? 'text-amber-600 dark:text-amber-400'
+                : sectionKey === 'confirmed_unpaid'
+                  ? 'text-violet-600 dark:text-violet-400'
+                  : 'text-gray-400 dark:text-gray-500'
+            }`}
+          >
+            {title}
           </span>
-          {!alwaysExpanded && (
-            <IconChevronDown className={`w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
-          )}
-        </span>
-      </button>
+          <span className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5">
+              {guests.length}
+            </span>
+            {!alwaysExpanded && (
+              <IconChevronDown className={`w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+            )}
+          </span>
+        </button>
+      </h3>
       {expanded && (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
           {visible.map((guest) => (

@@ -80,7 +80,7 @@ export function InvitationPreview({
         <p className="text-lg font-medium mt-6">{sample.guestName}</p>
         <div className="flex justify-center my-6">
           <div className="invite-qr-frame p-3 border rounded-lg inline-block" style={{ borderColor: 'var(--invite-border)' }}>
-            <QRCodeCanvas value="https://paselink.app/vista-previa" size={180} marginSize={QR_QUIET_ZONE_MODULES} />
+            <QRCodeCanvas value="https://paselink.app/vista-previa" size={180} marginSize={QR_QUIET_ZONE_MODULES} title="Código QR de ejemplo" />
           </div>
         </div>
         <p className="text-sm text-[var(--invite-text-muted)]">Presenta este código QR en la entrada</p>

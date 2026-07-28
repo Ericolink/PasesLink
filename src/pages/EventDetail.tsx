@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useLoadingAnnouncement } from '../hooks/useLoadingAnnouncement'
 import { useCheckinToast } from '../hooks/useCheckinToast'
 import { Toast } from '../components/Toast'
 import { useEventExport } from '../hooks/useEventExport'
@@ -50,6 +51,7 @@ export function EventDetail() {
   const location = useLocation()
   const { event, guests, loading, error, guestsError, guestsTruncated, showAllGuests } = useEvent(eventId)
   useDocumentTitle(event?.name || 'Evento')
+  useLoadingAnnouncement(loading, 'Evento cargado')
   useDashboardTheme(event?.templateId, event?.accentColor)
   const eventActions = useEventLifecycleActions(eventId)
   const [actionError, setActionError] = useState('')
@@ -249,7 +251,7 @@ export function EventDetail() {
                 descarga. */}
             <img
               src={optimizedImageUrl(event.coverImage, 800)}
-              alt="Portada del evento"
+              alt={`Portada de ${event.name}`}
               fetchPriority="high"
               crossOrigin="anonymous"
               className="w-full h-full object-cover"
@@ -265,9 +267,13 @@ export function EventDetail() {
           {/* Nombre + botón editar */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight break-words">
+              {/* El h1 de la página ya lleva este mismo texto (ver ScreenHeader
+                  arriba) — acá es visual/decorativo, no un heading nuevo, para
+                  no duplicar la navegación por encabezados de lectores de
+                  pantalla. */}
+              <p className="text-2xl font-bold text-gray-900 dark:text-white leading-tight break-words">
                 {event.name}
-              </h2>
+              </p>
               <ThemeOrnament templateId={event.templateId} className="w-10 h-4 mt-1 text-[var(--invite-accent)]" />
             </div>
             {(perms.editEvent || perms.manageCoOrganizers) && (
@@ -640,7 +646,7 @@ function PublicLink({ label, desc, path }: { label: string; desc: string; path: 
           onClick={copy}
           aria-label="Copiar enlace"
           title="Copiar enlace"
-          className="p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition-colors"
+          className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition-colors"
         >
           {copied ? <IconCheck className="w-4 h-4 text-primary" /> : <IconCopy className="w-4 h-4" />}
         </button>
@@ -648,7 +654,7 @@ function PublicLink({ label, desc, path }: { label: string; desc: string; path: 
           onClick={share}
           aria-label="Compartir enlace"
           title="Compartir enlace"
-          className="p-2.5 rounded-lg bg-primary text-white hover:opacity-90 transition-colors"
+          className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-lg bg-primary text-white hover:opacity-90 transition-colors"
         >
           <IconShare className="w-4 h-4" />
         </button>

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { LEGAL_DOCS, formatLegalDocDate } from '../legal/documents'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 // Contenido separado del layout de página para poder reusarlo dentro de
 // LegalDocumentSheet (el modal que se abre desde el registro) sin duplicar texto.
@@ -72,6 +73,7 @@ export function PrivacyContent() {
 }
 
 export function Privacy() {
+  useDocumentTitle('Política de privacidad')
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 animate-fade-in">
       <PrivacyContent />

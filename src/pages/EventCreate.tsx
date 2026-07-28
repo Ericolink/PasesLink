@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { createEvent } from '../firebase/events'
 import { DEFAULT_PHONE_COUNTRY } from '../components/CountryCodeSelect'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormDraft } from '../hooks/useFormDraft'
 import { isNetworkError } from '../utils/network'
 import { isEventPast } from '../utils/time'
@@ -75,6 +76,7 @@ const ALL_STEP_DEFS: { key: StepKey; label: string }[] = [
 ]
 
 export function EventCreate() {
+  useDocumentTitle('Crear evento')
   const { user } = useAuth()
   const navigate = useNavigate()
 

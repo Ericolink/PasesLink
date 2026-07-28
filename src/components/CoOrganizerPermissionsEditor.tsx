@@ -63,10 +63,10 @@ export function CoOrganizerPermissionsEditor({
   return (
     <div className="space-y-3">
       {GROUPS.map((group) => (
-        <div key={group.title}>
-          <h4 className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5">
+        <fieldset key={group.title} className="border-0 p-0 m-0">
+          <legend className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1.5 p-0">
             {group.title}
-          </h4>
+          </legend>
           <div className="space-y-1">
             {group.items.map((item) => (
               <label
@@ -78,7 +78,7 @@ export function CoOrganizerPermissionsEditor({
               </label>
             ))}
           </div>
-        </div>
+        </fieldset>
       ))}
     </div>
   )

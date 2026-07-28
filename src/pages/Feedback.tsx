@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { submitFeedback } from '../firebase/feedback'
 import { FEEDBACK_CATEGORY_LABELS } from '../types'
 import type { FeedbackCategory } from '../types'
@@ -31,6 +32,7 @@ export function Feedback() {
   useDocumentTitle('Buzón de sugerencias')
   const { user } = useAuth()
   const { profile } = useUserProfile()
+  const prefersReducedMotion = usePrefersReducedMotion()
   const backTo = user ? '/profile' : '/'
 
   const [subject, setSubject] = useState('')
@@ -70,7 +72,7 @@ export function Feedback() {
         category,
         honeypot: website,
       })
-      confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+      if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
       setSent(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo enviar tu comentario. Intenta de nuevo.')

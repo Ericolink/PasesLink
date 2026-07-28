@@ -4,6 +4,7 @@ import { Button } from './Button'
 import { Modal } from './Modal'
 import { DialogFooter } from './DialogFooter'
 import { Logo } from './Logo'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import {
   IconBarChart2,
   IconCalendar,
@@ -76,12 +77,13 @@ interface Props {
 export function WelcomeModal({ open, variant, firstName, onClose }: Props) {
   const isWelcome = variant === 'welcome'
   const items = isWelcome ? WELCOME_ITEMS : NOVEDADES_ITEMS
+  const prefersReducedMotion = usePrefersReducedMotion()
 
   useEffect(() => {
-    if (open && isWelcome) {
+    if (open && isWelcome && !prefersReducedMotion) {
       confetti({ particleCount: 80, spread: 70, origin: { y: 0.3 } })
     }
-  }, [open, isWelcome])
+  }, [open, isWelcome, prefersReducedMotion])
 
   return (
     <Modal open={open} onClose={onClose} label={isWelcome ? 'Bienvenido a PaseLink' : 'Novedades de PaseLink'}>

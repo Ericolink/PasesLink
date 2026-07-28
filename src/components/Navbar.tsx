@@ -49,7 +49,7 @@ export function Navbar() {
         </Link>
 
         {user ? (
-          <div className="flex items-center gap-1 text-sm">
+          <nav aria-label="Navegación principal" className="flex items-center gap-1 text-sm">
             <Link to="/dashboard" className={desktopLinkClass('/dashboard')}>
               Inicio
             </Link>
@@ -84,7 +84,7 @@ export function Navbar() {
             >
               Salir
             </button>
-          </div>
+          </nav>
         ) : (
           <div className="flex items-center gap-2 text-sm">
             <Link

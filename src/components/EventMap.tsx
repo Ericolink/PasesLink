@@ -17,6 +17,12 @@ export function EventMap({ mapsUrl }: Props) {
 
   if (!mapsUrl) return null
 
+  // Si el organizador no pegó una URL http(s) válida (ej. texto libre mal
+  // pegado), no hay a dónde llevar al invitado — mejor no mostrar nada que un
+  // botón "Cómo llegar" roto (href="#").
+  const isValidUrl = /^https?:\/\//i.test(mapsUrl)
+  if (!isValidUrl) return null
+
   const showMap = !!coords && !mapError
 
   return (
@@ -47,7 +53,7 @@ export function EventMap({ mapsUrl }: Props) {
       )}
 
       <a
-        href={/^https?:\/\//i.test(mapsUrl) ? mapsUrl : '#'}
+        href={mapsUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center justify-center gap-2 w-full text-white font-semibold py-3 text-sm hover:opacity-90 active:scale-[.98] transition-all shadow-sm bg-[var(--invite-accent)] [border-radius:var(--invite-radius)]"

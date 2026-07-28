@@ -37,6 +37,9 @@ import { GuestPassTicket } from '../components/GuestPassTicket'
 import { OrganizerPassView, type CheckInState } from '../components/OrganizerPassView'
 import { PaymentProofForm } from '../components/PaymentProofForm'
 import { usePaymentProof } from '../hooks/usePaymentProof'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useLoadingAnnouncement } from '../hooks/useLoadingAnnouncement'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { formatDate, formatTime12h, isEventPast } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadPassImage } from '../utils/downloadPass'
@@ -70,13 +73,16 @@ function GuestPassInner() {
   const location = useLocation()
   const { user, loading: authLoading } = useAuth()
   const [event, setEvent] = useState<EventData | null>(null)
+  useDocumentTitle(event ? `Tu pase · ${event.name}` : 'Tu pase')
   const [guest, setGuest] = useState<GuestData | null>(null)
   const [loading, setLoading] = useState(true)
+  useLoadingAnnouncement(loading, 'Pase cargado')
   const [error, setError] = useState(false)
   const [deviceToken, setDeviceToken] = useState<string | null>(null)
   const [multiDevice, setMultiDevice] = useState(false)
   const [multiDeviceDismissed, setMultiDeviceDismissed] = useState(false)
   const inAppBrowserNotice = useInAppBrowserNotice()
+  const prefersReducedMotion = usePrefersReducedMotion()
   const showMultiDeviceNotice = multiDevice && !multiDeviceDismissed
   // Cuando ambos avisos pueden mostrarse a la vez, se agrupan en un solo
   // contenedor (NoticeStack) para no duplicar borde/fondo/margen y comerse
@@ -278,13 +284,15 @@ function GuestPassInner() {
       setGuest((g) => g ? { ...g, status: 'checked_in' } : g)
       setCheckInState('done')
       const tpl = getTemplate(event!.templateId).vars
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.5 },
-        colors: [event!.accentColor || tpl.accent, tpl.accentDark, tpl.accentSoft],
-        shapes: tpl.confettiShape ? [tpl.confettiShape] : undefined,
-      })
+      if (!prefersReducedMotion) {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.5 },
+          colors: [event!.accentColor || tpl.accent, tpl.accentDark, tpl.accentSoft],
+          shapes: tpl.confettiShape ? [tpl.confettiShape] : undefined,
+        })
+      }
     } else if (result.status === 'already_checked_in') {
       setCheckInState('already')
     } else if (result.status === 'payment_required') {
@@ -624,7 +632,7 @@ function GuestPassInner() {
                     background: 'var(--invite-surface)',
                   }}
                 >
-                  <QRCodeCanvas value={passUrl} size={200} marginSize={QR_QUIET_ZONE_MODULES} />
+                  <QRCodeCanvas value={passUrl} size={200} marginSize={QR_QUIET_ZONE_MODULES} title="Código QR de tu pase" />
                 </div>
               </div>
 
@@ -689,8 +697,8 @@ function GuestPassInner() {
 
               {/* RSVP — solo si pendiente */}
               {guest.rsvpStatus === 'pending' && !showMaybeMessage && (
-                <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--invite-border)' }}>
-                  <p className="text-sm font-medium mb-3">¿Asistirás a este evento?</p>
+                <fieldset className="mt-4 pt-4 border-0 border-t p-0 m-0" style={{ borderColor: 'var(--invite-border)' }}>
+                  <legend className="text-sm font-medium mb-3 p-0">¿Asistirás a este evento?</legend>
                   <div className="flex flex-col gap-2">
                     <button
                       onClick={() => handleRsvp('yes')}
@@ -745,7 +753,7 @@ function GuestPassInner() {
                       </button>
                     </div>
                   </Modal>
-                </div>
+                </fieldset>
               )}
 
               {guest.rsvpStatus === 'pending' && showMaybeMessage && (

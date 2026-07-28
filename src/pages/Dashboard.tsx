@@ -2,6 +2,7 @@ import { useMemo, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useLoadingAnnouncement } from '../hooks/useLoadingAnnouncement'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { setEventStatus, subscribeToUserEvents } from '../firebase/events'
 import type { EventData } from '../types'
@@ -44,6 +45,7 @@ export function Dashboard() {
   const { profile } = useUserProfile()
   const [events, setEvents] = useState<EventData[]>([])
   const [loading, setLoading] = useState(true)
+  useLoadingAnnouncement(loading, 'Eventos cargados')
   const [showPast, setShowPast] = useState(false)
   const [showCancelled, setShowCancelled] = useState(false)
   const [onboardingModal, setOnboardingModal] = useState<'welcome' | 'novedades' | null>(null)

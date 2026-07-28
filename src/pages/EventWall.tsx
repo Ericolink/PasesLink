@@ -17,6 +17,7 @@ import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { useWallComposer } from '../hooks/useWallComposer'
 import { markWallSeen } from '../hooks/useWallActivity'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { WALL_NAME_MAX } from '../utils/validation'
 import { mergeWallFeed } from '../utils/wallFeed'
@@ -29,6 +30,7 @@ import {
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Button } from '../components/Button'
+import { IconButton } from '../components/IconButton'
 import { FieldError } from '../components/FieldError'
 import { Avatar } from '../components/Avatar'
 import { AuthorName } from '../components/AuthorName'
@@ -71,6 +73,7 @@ export function EventWall() {
   const { profile } = useUserProfile()
   const { photoBlocked, commentBlockedMessage, photoBlockedMessage } = useSanctionStatus(id)
   const [event, setEvent]           = useState<EventData | null>(null)
+  useDocumentTitle(event ? `Muro · ${event.name}` : 'Muro')
   const [messages, setMessages]     = useState<WallMessage[]>([])
   const [photos, setPhotos]         = useState<PhotoData[]>([])
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
@@ -441,15 +444,14 @@ export function EventWall() {
                 </div>
               )}
             </div>
-            <button
-              type="button"
+            <IconButton
               onClick={openPicker}
               disabled={photoBlocked}
               aria-label="Adjuntar foto"
-              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors"
+              className="shrink-0 text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 disabled:opacity-40"
             >
               <IconCamera className="w-4 h-4" />
-            </button>
+            </IconButton>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
           </div>
           <div className="flex items-center justify-between">
