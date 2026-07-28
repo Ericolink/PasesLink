@@ -1,9 +1,8 @@
 import type { CountryCode } from 'libphonenumber-js/min'
-import { useAnnouncer } from '../../../contexts/AnnouncementContext'
+import { useAnnouncer } from '../../accessibility/LiveRegion'
 import { EntryModeSelector } from '../EntryModeSelector'
-import { Checkbox } from '../../Checkbox'
+import { AccessibleField, Checkbox, FieldError } from '../../accessibility/AccessibleField'
 import { CountryCodeSelect } from '../../CountryCodeSelect'
-import { FieldError } from '../../FieldError'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/paymentMethods'
 import { sanitizeDecimalInput } from '../../../utils/validationRules'
 import { GUEST_MAX_COMPANIONS } from '../../../utils/validation'
@@ -194,82 +193,82 @@ export function StepInvitationMethod({
             </fieldset>
 
             <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
-                <label htmlFor="event-ticket-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Precio por persona
-                </label>
-                <input
-                  id="event-ticket-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={ticketPrice}
-                  onChange={(e) => onTicketPriceChange(sanitizeDecimalInput(e.target.value))}
-                  placeholder="Ej: 5000"
-                  aria-invalid={!(parseFloat(ticketPrice) > 0)}
-                  aria-describedby={!(parseFloat(ticketPrice) > 0) ? 'event-ticket-price-error' : undefined}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                {!(parseFloat(ticketPrice) > 0) && <FieldError id="event-ticket-price-error" message="Ingresá un precio mayor a 0." />}
-              </div>
-              <div>
-                <label htmlFor="event-currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Moneda
-                </label>
-                <input
-                  id="event-currency"
-                  type="text"
-                  value={currency}
-                  onChange={(e) => onCurrencyChange(e.target.value)}
-                  placeholder="$"
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
+              <AccessibleField
+                label="Precio por persona"
+                id="event-ticket-price"
+                className="col-span-2"
+                error={!(parseFloat(ticketPrice) > 0) ? 'Ingresá un precio mayor a 0.' : null}
+              >
+                {(fieldProps) => (
+                  <input
+                    {...fieldProps}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={ticketPrice}
+                    onChange={(e) => onTicketPriceChange(sanitizeDecimalInput(e.target.value))}
+                    placeholder="Ej: 5000"
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                )}
+              </AccessibleField>
+              <AccessibleField label="Moneda" id="event-currency">
+                {(fieldProps) => (
+                  <input
+                    {...fieldProps}
+                    type="text"
+                    value={currency}
+                    onChange={(e) => onCurrencyChange(e.target.value)}
+                    placeholder="$"
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                )}
+              </AccessibleField>
             </div>
 
             {paymentMethods.includes('transfer') && (
-              <div>
-                <label htmlFor="event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Datos para transferencia
-                </label>
-                <textarea
-                  id="event-payment-instructions"
-                  value={paymentInstructions}
-                  onChange={(e) => onPaymentInstructionsChange(e.target.value)}
-                  rows={3}
-                  placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://..."
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Los invitados verán esto en su pase junto al monto a pagar.
-                </p>
-              </div>
+              <AccessibleField
+                label="Datos para transferencia"
+                id="event-payment-instructions"
+                helperText="Los invitados verán esto en su pase junto al monto a pagar."
+              >
+                {(fieldProps) => (
+                  <textarea
+                    {...fieldProps}
+                    value={paymentInstructions}
+                    onChange={(e) => onPaymentInstructionsChange(e.target.value)}
+                    rows={3}
+                    placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://..."
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                )}
+              </AccessibleField>
             )}
 
-            <div>
-              <label htmlFor="event-organizer-contact" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Tu WhatsApp para pagos
-              </label>
-              <div className="flex items-center gap-1.5">
-                <CountryCodeSelect
-                  value={organizerContactPhoneCountry as CountryCode}
-                  onChange={onOrganizerContactPhoneCountryChange}
-                  aria-label="País del WhatsApp de contacto"
-                  className="border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <input
-                  id="event-organizer-contact"
-                  type="tel"
-                  value={organizerContactPhone}
-                  onChange={(e) => onOrganizerContactPhoneChange(e.target.value)}
-                  placeholder="Ej: 55 1234 5678"
-                  className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución.
-              </p>
-            </div>
+            <AccessibleField
+              label="Tu WhatsApp para pagos"
+              id="event-organizer-contact"
+              helperText="Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución."
+            >
+              {(fieldProps) => (
+                <div className="flex items-center gap-1.5">
+                  <CountryCodeSelect
+                    value={organizerContactPhoneCountry as CountryCode}
+                    onChange={onOrganizerContactPhoneCountryChange}
+                    aria-label="País del WhatsApp de contacto"
+                    className="border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <input
+                    {...fieldProps}
+                    type="tel"
+                    value={organizerContactPhone}
+                    onChange={(e) => onOrganizerContactPhoneChange(e.target.value)}
+                    placeholder="Ej: 55 1234 5678"
+                    className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              )}
+            </AccessibleField>
           </>
         )}
       </div>

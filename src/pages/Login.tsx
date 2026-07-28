@@ -5,8 +5,8 @@ import { loginWithEmail, loginWithGoogle } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { PasswordInput } from '../components/PasswordInput'
-import { Button } from '../components/Button'
-import { IconGoogle } from '../components/Icons'
+import { AccessibleButton } from '../components/accessibility/AccessibleButton'
+import { IconGoogle } from '../components/accessibility/AccessibleIcon'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
@@ -101,9 +101,9 @@ export function Login() {
           />
         </div>
         {errorInfo && <AuthErrorMessage info={errorInfo} />}
-        <Button type="submit" disabled={loading} className="w-full">
+        <AccessibleButton type="submit" disabled={loading} className="w-full">
           {loading ? 'Ingresando…' : 'Ingresar'}
-        </Button>
+        </AccessibleButton>
       </form>
       <div className="my-4 flex items-center gap-2">
         <div className="flex-1 h-px bg-gray-200" />

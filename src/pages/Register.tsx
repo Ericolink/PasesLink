@@ -7,8 +7,8 @@ import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { LegalConsentCheckbox } from '../components/LegalConsentCheckbox'
 import { PasswordInput } from '../components/PasswordInput'
-import { Button } from '../components/Button'
-import { IconGoogle } from '../components/Icons'
+import { AccessibleButton } from '../components/accessibility/AccessibleButton'
+import { IconGoogle } from '../components/accessibility/AccessibleIcon'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { uploadImage } from '../utils/cloudinary'
@@ -142,9 +142,9 @@ export function Register() {
         </p>
         {verifyHint && <p className="text-sm text-amber-600 text-center mb-4">{verifyHint}</p>}
         <div className="space-y-2">
-          <Button onClick={handleCheckVerified} disabled={checking} className="w-full">
+          <AccessibleButton onClick={handleCheckVerified} disabled={checking} className="w-full">
             {checking ? 'Comprobando…' : 'Ya verifiqué mi correo'}
-          </Button>
+          </AccessibleButton>
           <button
             onClick={handleResend}
             disabled={resending}

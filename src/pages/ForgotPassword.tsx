@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom'
 import { resetPassword } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
-import { IconCheckCircle } from '../components/Icons'
-import { Button } from '../components/Button'
-import { TextField } from '../components/TextField'
+import { IconCheckCircle } from '../components/accessibility/AccessibleIcon'
+import { AccessibleButton } from '../components/accessibility/AccessibleButton'
+import { TextField } from '../components/accessibility/AccessibleField'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
@@ -58,9 +58,9 @@ export function ForgotPassword() {
               onChange={(e) => setEmail(e.target.value)}
             />
             {errorInfo && <AuthErrorMessage info={errorInfo} />}
-            <Button type="submit" disabled={loading} className="w-full">
+            <AccessibleButton type="submit" disabled={loading} className="w-full">
               {loading ? 'Enviando…' : 'Enviar enlace'}
-            </Button>
+            </AccessibleButton>
           </form>
         </>
       )}

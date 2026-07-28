@@ -1,7 +1,7 @@
 import { TermsContent } from '../pages/Terms'
 import { PrivacyContent } from '../pages/Privacy'
 import type { LegalDocId } from '../legal/documents'
-import { Modal } from './Modal'
+import { AccessibleModal } from './accessibility/AccessibleModal'
 import { DialogHeader } from './DialogHeader'
 
 interface Props {
@@ -17,11 +17,11 @@ export function LegalDocumentSheet({ docId, onClose }: Props) {
   const title = docId === 'terms' ? 'Términos y condiciones' : 'Política de privacidad'
 
   return (
-    <Modal open={!!docId} onClose={onClose} label={title} maxWidth="sm:max-w-lg">
+    <AccessibleModal open={!!docId} onClose={onClose} label={title} maxWidth="sm:max-w-lg">
       <DialogHeader title={title} onClose={onClose} />
       <div className="px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 pt-2 overflow-y-auto">
         {docId === 'terms' ? <TermsContent /> : <PrivacyContent />}
       </div>
-    </Modal>
+    </AccessibleModal>
   )
 }

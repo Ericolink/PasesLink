@@ -1,4 +1,4 @@
-import { IconGlobe } from './Icons'
+import { IconGlobe } from './accessibility/AccessibleIcon'
 import { InlineNotice } from './InlineNotice'
 import { useInAppBrowserNotice } from '../hooks/useInAppBrowserNotice'
 

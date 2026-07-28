@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { IconX } from './Icons'
-import { useAnnouncer } from '../contexts/AnnouncementContext'
+import { IconX } from './accessibility/AccessibleIcon'
+import { useAnnouncer } from './accessibility/LiveRegion'
 
 interface Props {
   message: string

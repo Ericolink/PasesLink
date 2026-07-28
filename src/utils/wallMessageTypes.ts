@@ -1,4 +1,4 @@
-import { IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb } from '../components/Icons'
+import { IconMessageSquare, IconHelpCircle, IconMusic, IconLightbulb } from '../components/accessibility/AccessibleIcon'
 import type { WallMessageType } from '../types'
 
 export interface WallTypeConfig {

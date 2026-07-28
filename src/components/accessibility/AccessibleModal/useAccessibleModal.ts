@@ -46,7 +46,7 @@ function applyBackgroundInert(dialog: HTMLElement | null): () => void {
 // `open` puede pasarse como `true` fijo en modales que el padre monta/
 // desmonta condicionalmente (en vez de mantenerlos montados con un flag
 // `open` interno) — el montaje ya equivale a "abierto".
-export function useModalA11y<T extends HTMLElement>(open: boolean, onClose: () => void) {
+export function useAccessibleModal<T extends HTMLElement>(open: boolean, onClose: () => void) {
   const dialogRef = useRef<T>(null)
   const previousActiveElement = useRef<HTMLElement | null>(null)
   // Callers casi siempre pasan `onClose` como arrow function inline, con

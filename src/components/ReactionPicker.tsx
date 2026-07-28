@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { IconChevronDown, IconThumbsUp } from './Icons'
+import { IconChevronDown, IconThumbsUp } from './accessibility/AccessibleIcon'
 import { ReactionListSheet } from './ReactionListSheet'
 import { REACTIONS, REACTION_BY_TYPE, getMyReaction, setMyReaction } from '../utils/reactions'
 import type { InteractiveCollection } from '../firebase/interactions'

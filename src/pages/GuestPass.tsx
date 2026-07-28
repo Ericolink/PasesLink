@@ -13,7 +13,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { resolveEventPermissions } from '../types/coOrganizerPermissions'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
-import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconUserPlus, IconWhatsApp } from '../components/Icons'
+import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconUserPlus, IconWhatsApp } from '../components/accessibility/AccessibleIcon'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
@@ -28,7 +28,7 @@ import { InAppBrowserBanner } from '../components/InAppBrowserBanner'
 import { InlineNotice } from '../components/InlineNotice'
 import { NoticeStack } from '../components/NoticeStack'
 import { useInAppBrowserNotice } from '../hooks/useInAppBrowserNotice'
-import { Modal } from '../components/Modal'
+import { AccessibleModal } from '../components/accessibility/AccessibleModal'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { SkeletonBlock } from '../components/Skeleton'
 import { PerforatedDivider } from '../components/PerforatedDivider'
@@ -725,7 +725,7 @@ function GuestPassInner() {
                   </div>
                   {rsvpError && <p className="text-sm text-red-500 mt-3">{rsvpError}</p>}
 
-                  <Modal
+                  <AccessibleModal
                     open={showDeclineModal}
                     onClose={() => setShowDeclineModal(false)}
                     label="¿Seguro que no podrás asistir?"
@@ -752,7 +752,7 @@ function GuestPassInner() {
                         Sí, no asistiré
                       </button>
                     </div>
-                  </Modal>
+                  </AccessibleModal>
                 </fieldset>
               )}
 

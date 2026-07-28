@@ -9,7 +9,7 @@ import {
   unlockGuestPass,
 } from '../../firebase/guests'
 import type { CustomField, GuestData, PaymentMethod } from '../../types'
-import { IconChevronDown, IconInbox } from '../Icons'
+import { IconChevronDown, IconInbox } from '../accessibility/AccessibleIcon'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../Empty/EmptyState'
 import { FormError } from '../FormError'
@@ -19,7 +19,7 @@ import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
 import { GuestSelectionBar } from './GuestSelectionBar'
 import { SECTION_ORDER, groupGuestsByUrgency, type GuestUrgency } from './guestGrouping'
-import { useAnnouncer } from '../../contexts/AnnouncementContext'
+import { useAnnouncer } from '../accessibility/LiveRegion'
 
 // Paginación de RENDERIZADO, no de datos: `guests` ya llega completo a este
 // componente (EventDetail lo carga entero vía useEvent/subscribeToGuests,

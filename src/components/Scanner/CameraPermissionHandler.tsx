@@ -1,4 +1,4 @@
-import { IconAlertTriangle } from '../Icons'
+import { IconAlertTriangle } from '../accessibility/AccessibleIcon'
 
 interface Props {
   onRetry: () => void

@@ -170,5 +170,6 @@ export default defineConfig({
     // Los tests de src/firebase/__tests__ necesitan el emulador de Firestore corriendo;
     // se ejecutan aparte con `npm run test:firebase` (ver vitest.firebase.config.ts).
     exclude: [...configDefaults.exclude, 'src/firebase/__tests__/**'],
+    setupFiles: ['./src/test/setup.ts'],
   },
 })

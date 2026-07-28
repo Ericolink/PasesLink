@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { IconX } from './Icons'
+import { IconX } from './accessibility/AccessibleIcon'
 
 interface Props {
   icon: ReactNode

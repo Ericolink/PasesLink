@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 import { optimizedImageUrl } from '../utils/cloudinary'
-import { FieldError } from './FieldError'
+import { FieldError } from './accessibility/AccessibleField'
 
 interface Props {
   id: string

@@ -12,11 +12,11 @@ import { parseCapacity, parseMaxCompanions } from '../utils/validationRules'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DraftRecoveryModal } from '../components/DraftRecoveryModal'
-import { Modal } from '../components/Modal'
-import { Button } from '../components/Button'
-import { FieldError } from '../components/FieldError'
+import { AccessibleModal } from '../components/accessibility/AccessibleModal'
+import { AccessibleButton } from '../components/accessibility/AccessibleButton'
+import { FieldError } from '../components/accessibility/AccessibleField'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
-import { IconCheckCircle } from '../components/Icons'
+import { IconCheckCircle } from '../components/accessibility/AccessibleIcon'
 import { WizardContainer, WizardStep } from '../components/Wizard'
 import { StepBasicInfo } from '../components/EventCreation/steps/StepBasicInfo'
 import { StepInvitationMethod } from '../components/EventCreation/steps/StepInvitationMethod'
@@ -315,24 +315,24 @@ export function EventCreate() {
         />
       )}
 
-      {/* Modal de éxito — sin onClose real (no hay forma de "cancelar" un
+      {/* AccessibleModal de éxito — sin onClose real (no hay forma de "cancelar" un
           evento ya creado): el backdrop/Escape no hacen nada, las dos únicas
           salidas son los botones. */}
-      <Modal open={!!createdEventId} onClose={() => {}} label="Evento creado" variant="dialog" maxWidth="max-w-sm">
+      <AccessibleModal open={!!createdEventId} onClose={() => {}} label="Evento creado" variant="dialog" maxWidth="max-w-sm">
         <div className="p-6 text-center">
           <IconCheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">¡Evento creado!</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">{form.name} ya está listo.</p>
           <div className="flex flex-col gap-2">
-            <Button onClick={() => navigate(`/events/${createdEventId}#${form.entryMode === 'open' ? 'open-entry-links' : 'add-guests'}`)}>
+            <AccessibleButton onClick={() => navigate(`/events/${createdEventId}#${form.entryMode === 'open' ? 'open-entry-links' : 'add-guests'}`)}>
               Próximo paso: {form.entryMode === 'open' ? 'Compartir enlace de registro' : 'Agregar invitados'}
-            </Button>
-            <Button variant="secondary" onClick={() => navigate(`/events/${createdEventId}`)}>
+            </AccessibleButton>
+            <AccessibleButton variant="secondary" onClick={() => navigate(`/events/${createdEventId}`)}>
               Ir al evento
-            </Button>
+            </AccessibleButton>
           </div>
         </div>
-      </Modal>
+      </AccessibleModal>
 
       {coverRawImage && (
         <ImageCropModal

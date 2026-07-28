@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconMapPin } from './Icons'
+import { IconMapPin } from './accessibility/AccessibleIcon'
 import { extractCoords } from '../utils/extractCoords'
 
 interface Props {

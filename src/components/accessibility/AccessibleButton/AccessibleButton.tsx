@@ -4,16 +4,6 @@ import type { ButtonHTMLAttributes } from 'react'
 type ButtonVariant = 'primary' | 'secondary' | 'tonal' | 'danger' | 'danger-outline' | 'text'
 type ButtonSize = 'md' | 'sm'
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant
-  size?: ButtonSize
-  /** Fuerza `disabled` sin duplicar la condición en el caller — el texto
-      del botón durante la carga sigue siendo responsabilidad del caller
-      (ej. `{saving ? 'Guardando…' : 'Guardar'}`), Button no inventa un
-      label genérico. */
-  loading?: boolean
-}
-
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
   primary: 'bg-primary text-white hover:bg-primary-dark',
   // Superficie + borde marcado (Design Memory: "secundario = surface + borde
@@ -43,22 +33,52 @@ const SIZE_CLASS: Record<ButtonSize, string> = {
   sm: 'min-h-11 px-3 py-1.5 text-sm rounded-lg',
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
-  variant = 'primary',
-  size = 'md',
-  loading = false,
-  disabled,
-  className = '',
-  children,
-  ...rest
-}, ref) {
-  const boxClass = variant === 'text' ? '' : SIZE_CLASS[size]
+// icon-only siempre 44×44 (WCAG 2.5.5/2.5.8) y circular — el tamaño ya no
+// depende de `size`, mismo trato que tenía IconButton por separado.
+const ICON_ONLY_CLASS = 'min-w-11 min-h-11 inline-flex items-center justify-center rounded-full'
+
+type CommonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'> & {
+  variant?: ButtonVariant
+  size?: ButtonSize
+  /** Fuerza `disabled` sin duplicar la condición en el caller — el texto
+      del botón durante la carga sigue siendo responsabilidad del caller
+      (ej. `{saving ? 'Guardando…' : 'Guardar'}`), AccessibleButton no
+      inventa un label genérico. */
+  loading?: boolean
+}
+
+export type AccessibleButtonProps =
+  | (CommonProps & {
+      /** Botón normal, con contenido visible (texto y/o ícono). */
+      iconOnly?: false
+      'aria-label'?: string
+    })
+  | (CommonProps & {
+      /** Solo ícono, sin texto visible — `aria-label` pasa a ser
+          OBLIGATORIO a nivel de tipo: sin esto, tsc no compila. Evita el gap
+          real que tenían varios botones icon-only antes de IconButton (sin
+          nombre accesible). */
+      iconOnly: true
+      'aria-label': string
+    })
+
+// Fusiona lo que antes eran Button.tsx + IconButton.tsx en una sola API —
+// un botón normal y uno icon-only son la MISMA primitiva con distinto
+// tamaño/forma, no dos sistemas de clases paralelos. `focus-visible` vive acá
+// una sola vez para las 6 variantes (antes solo lo traía IconButton; Button
+// no lo tenía explícito).
+export const AccessibleButton = forwardRef<HTMLButtonElement, AccessibleButtonProps>(function AccessibleButton(
+  { variant = 'primary', size = 'md', loading = false, iconOnly = false, disabled, className = '', type, children, ...rest },
+  ref,
+) {
+  const boxClass = iconOnly ? ICON_ONLY_CLASS : variant === 'text' ? '' : SIZE_CLASS[size]
   return (
     <button
       ref={ref}
+      type={type ?? 'button'}
       disabled={disabled || loading}
       aria-busy={loading}
-      className={`${boxClass} font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${VARIANT_CLASS[variant]} ${className}`}
+      className={`${boxClass} font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed ${VARIANT_CLASS[variant]} ${className}`}
       {...rest}
     >
       {children}

@@ -1,4 +1,5 @@
-import { IconGlobe, IconShuffle, IconUsers } from '../Icons'
+import { IconGlobe, IconShuffle, IconUsers } from '../accessibility/AccessibleIcon'
+import { RadioGroup, RadioGroupOption } from '../accessibility/AccessibleField'
 import type { ComponentType } from 'react'
 import type { EntryMode } from '../../types'
 
@@ -41,14 +42,12 @@ interface EntryModeSelectorProps {
 
 export function EntryModeSelector({ value, onChange }: EntryModeSelectorProps) {
   return (
-    <div role="radiogroup" aria-label="Modo de ingreso" className="space-y-3">
+    <RadioGroup label="Modo de ingreso" className="space-y-3">
       {MODES.map((mode) => (
-        <button
+        <RadioGroupOption
           key={mode.id}
-          type="button"
-          role="radio"
-          aria-checked={value === mode.id}
-          onClick={() => onChange(mode.id)}
+          selected={value === mode.id}
+          onSelect={() => onChange(mode.id)}
           className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
             value === mode.id
               ? 'border-primary ring-2 ring-primary/20 bg-primary/5 dark:bg-primary/10'
@@ -82,8 +81,8 @@ export function EntryModeSelector({ value, onChange }: EntryModeSelectorProps) {
               {value === mode.id && <div className="w-2 h-2 bg-white rounded-full" />}
             </div>
           </div>
-        </button>
+        </RadioGroupOption>
       ))}
-    </div>
+    </RadioGroup>
   )
 }

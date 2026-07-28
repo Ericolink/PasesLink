@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { IconEye, IconEyeOff } from './Icons'
+import { IconEye, IconEyeOff } from './accessibility/AccessibleIcon'
 
 interface Props {
   id?: string

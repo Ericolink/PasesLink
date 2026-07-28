@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import Cropper, { type Area } from 'react-easy-crop'
-import { useModalA11y } from '../hooks/useModalA11y'
+import { useAccessibleModal } from './accessibility/AccessibleModal'
 import { cropImageToBlob } from '../utils/imageCrop'
 
 interface Props {
@@ -22,7 +22,7 @@ export function ImageCropModal({ imageSrc, aspect, cropShape = 'rect', maxOutput
   const [processing, setProcessing] = useState(false)
   // El padre monta/desmonta este componente en vez de pasar un flag `open`
   // interno — el montaje ya equivale a "abierto", por eso `true` fijo.
-  const dialogRef = useModalA11y<HTMLDivElement>(true, onCancel)
+  const dialogRef = useAccessibleModal<HTMLDivElement>(true, onCancel)
 
   const onCropComplete = useCallback((_: Area, areaPixels: Area) => {
     setCroppedArea(areaPixels)

@@ -17,11 +17,11 @@ import {
 import { saveUserProfile } from '../firebase/userProfile'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
-import { Modal } from '../components/Modal'
+import { AccessibleModal } from '../components/accessibility/AccessibleModal'
 import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
-import { Button } from '../components/Button'
-import { FieldError } from '../components/FieldError'
+import { AccessibleButton } from '../components/accessibility/AccessibleButton'
+import { FieldError } from '../components/accessibility/AccessibleField'
 import { PasswordInput } from '../components/PasswordInput'
 import { useTheme, type ThemePreference } from '../hooks/useTheme'
 import {
@@ -37,7 +37,7 @@ import {
   IconSun,
   IconUsers,
   IconX,
-} from '../components/Icons'
+} from '../components/accessibility/AccessibleIcon'
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; Icon: typeof IconSun }[] = [
   { value: 'light', label: 'Claro', Icon: IconSun },
@@ -45,7 +45,7 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; Icon: typeof IconS
   { value: 'system', label: 'Automático', Icon: IconMonitor },
 ]
 
-/* ── Edit Name Modal ── */
+/* ── Edit Name AccessibleModal ── */
 function EditNameModal({
   initial,
   onSave,
@@ -76,7 +76,7 @@ function EditNameModal({
   }
 
   return (
-    <Modal open onClose={onClose} label="Editar nombre" variant="dialog" maxWidth="max-w-sm">
+    <AccessibleModal open onClose={onClose} label="Editar nombre" variant="dialog" maxWidth="max-w-sm">
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">Editar nombre</h3>
@@ -111,16 +111,16 @@ function EditNameModal({
           </div>
           <FieldError message={error} />
           <div className="flex gap-2 pt-1">
-            <Button type="button" variant="secondary" size="sm" onClick={onClose} className="flex-1">
+            <AccessibleButton type="button" variant="secondary" size="sm" onClick={onClose} className="flex-1">
               Cancelar
-            </Button>
-            <Button type="submit" size="sm" disabled={saving} className="flex-1">
+            </AccessibleButton>
+            <AccessibleButton type="submit" size="sm" disabled={saving} className="flex-1">
               {saving ? 'Guardando…' : 'Guardar'}
-            </Button>
+            </AccessibleButton>
           </div>
         </form>
       </div>
-    </Modal>
+    </AccessibleModal>
   )
 }
 
@@ -511,9 +511,9 @@ export function Profile() {
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md pl-3 pr-11 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <FieldError message={linkPasswordError} />
-                <Button type="submit" size="sm" disabled={linkPasswordSaving} className="w-full">
+                <AccessibleButton type="submit" size="sm" disabled={linkPasswordSaving} className="w-full">
                   {linkPasswordSaving ? 'Guardando…' : 'Guardar contraseña'}
-                </Button>
+                </AccessibleButton>
               </form>
             )}
             {linkPasswordMsg && (
@@ -554,9 +554,9 @@ export function Profile() {
                 <IconCheckCircle className="w-4 h-4" /> {passwordMessage}
               </p>
             )}
-            <Button type="submit" disabled={passwordSaving}>
+            <AccessibleButton type="submit" disabled={passwordSaving}>
               {passwordSaving ? 'Guardando…' : 'Cambiar contraseña'}
-            </Button>
+            </AccessibleButton>
           </form>
         </section>
       )}

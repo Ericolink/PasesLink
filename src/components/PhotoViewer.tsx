@@ -4,8 +4,8 @@ import type { PhotoData } from '../firebase/photos'
 import type { ReactionType } from '../types'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { WALL_TEXT_MAX } from '../utils/validation'
-import { useModalA11y } from '../hooks/useModalA11y'
-import { IconX, IconArrowLeft } from './Icons'
+import { useAccessibleModal } from './accessibility/AccessibleModal'
+import { IconX, IconArrowLeft } from './accessibility/AccessibleIcon'
 import { ProgressiveImage } from './ProgressiveImage'
 import { ReactionPicker } from './ReactionPicker'
 
@@ -135,7 +135,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
   }, [isStory, index, photos.length])
 
   // Solo flechas acá — Escape, focus trap, restauración de foco y scroll-lock
-  // ahora los cubre useModalA11y (ver más abajo), el mismo hook que usa el
+  // ahora los cubre useAccessibleModal (ver más abajo), el mismo hook que usa el
   // resto de overlays de la app. Antes este visor era el único que no lo
   // usaba: no atrapaba Tab y el foco podía "salirse" hacia el contenido de
   // fondo detrás del overlay opaco.
@@ -151,8 +151,8 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
 
   // `true` fijo (no un `open` interno): el padre monta/desmonta este
   // componente condicionalmente, así que el montaje ya equivale a "abierto"
-  // (mismo patrón documentado en useModalA11y para este caso).
-  const dialogRef = useModalA11y<HTMLDivElement>(true, onClose)
+  // (mismo patrón documentado en useAccessibleModal para este caso).
+  const dialogRef = useAccessibleModal<HTMLDivElement>(true, onClose)
 
   if (!photo) return null
 

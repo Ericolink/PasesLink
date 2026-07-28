@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
-import { useModalA11y } from '../hooks/useModalA11y'
+import { useAccessibleModal } from './useAccessibleModal'
 
 type ModalVariant = 'sheet' | 'dialog'
 
@@ -40,7 +40,7 @@ interface ModalProps {
 // hasta este PR, el mismo bloque `fixed inset-0 z-[200] flex items-end
 // sm:items-center ... bg-black/50 backdrop-blur-sm` estaba copiado letra por
 // letra en 11 archivos. Incluye accesibilidad (foco/Escape) y bloqueo de
-// scroll vía useModalA11y (ver PR 02). El click en el backdrop cierra el
+// scroll vía useAccessibleModal (ver PR 02). El click en el backdrop cierra el
 // modal — si un caller necesita una decisión forzada sin salida por click
 // afuera (ver DraftRecoveryModal), puede pasar un `onClose` que no haga nada.
 //
@@ -48,7 +48,7 @@ interface ModalProps {
 // a diferencia de colores/spacing/tipografía, --z-* no genera clases, se
 // probó y confirmó vacío en el build) — la consistencia entre overlays
 // ahora viene de que todos pasan por este único componente, no de un token.
-export function Modal({
+export function AccessibleModal({
   open,
   onClose,
   children,
@@ -62,7 +62,7 @@ export function Modal({
   surfaceClassName = 'bg-surface',
   className = '',
 }: ModalProps) {
-  const dialogRef = useModalA11y<HTMLDivElement>(open, onClose)
+  const dialogRef = useAccessibleModal<HTMLDivElement>(open, onClose)
 
   if (!open) return null
 

@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { IconAlertTriangle } from './Icons'
+import { IconAlertTriangle } from './accessibility/AccessibleIcon'
 import { captureException } from '../lib/sentry'
-import { Button } from './Button'
+import { AccessibleButton } from './accessibility/AccessibleButton'
 
 interface Props {
   children: ReactNode
@@ -66,12 +66,12 @@ export class ErrorBoundary extends Component<Props, State> {
           )}
 
           <div className="flex gap-2 mt-4">
-            <Button size="sm" onClick={() => window.location.reload()}>
+            <AccessibleButton size="sm" onClick={() => window.location.reload()}>
               Recargar
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => { window.location.href = '/' }}>
+            </AccessibleButton>
+            <AccessibleButton variant="secondary" size="sm" onClick={() => { window.location.href = '/' }}>
               Ir a inicio
-            </Button>
+            </AccessibleButton>
           </div>
         </div>
       )

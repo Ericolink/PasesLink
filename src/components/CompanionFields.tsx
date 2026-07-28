@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import type { CompanionData } from '../types'
-import { IconTrash } from './Icons'
+import { IconTrash } from './accessibility/AccessibleIcon'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
-import { FormField } from './FormField'
+import { AccessibleField } from './accessibility/AccessibleField'
 
 const COMPANION_INPUT_CLASS =
   'w-full border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary'
@@ -77,7 +77,7 @@ export function CompanionFieldsEditor({
         const humanIndex = index + 1
         return (
         <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-gray-50 dark:bg-gray-700/50 rounded-md p-2">
-          <FormField label={`Nombre del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
+          <AccessibleField label={`Nombre del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
             {(fieldProps) => (
               <input
                 {...fieldProps}
@@ -88,8 +88,8 @@ export function CompanionFieldsEditor({
                 className={COMPANION_INPUT_CLASS}
               />
             )}
-          </FormField>
-          <FormField label={`Apellido del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
+          </AccessibleField>
+          <AccessibleField label={`Apellido del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
             {(fieldProps) => (
               <input
                 {...fieldProps}
@@ -100,7 +100,7 @@ export function CompanionFieldsEditor({
                 className={COMPANION_INPUT_CLASS}
               />
             )}
-          </FormField>
+          </AccessibleField>
           <div className="flex items-center gap-1">
             <CountryCodeSelect
               value={(companion.phoneCountry as CountryCode) || DEFAULT_PHONE_COUNTRY}
@@ -108,7 +108,7 @@ export function CompanionFieldsEditor({
               aria-label={`País del teléfono del acompañante ${humanIndex}`}
               className="border border-gray-300 dark:border-gray-600 rounded-md px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <FormField label={`Teléfono del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only" className="flex-1 min-w-0">
+            <AccessibleField label={`Teléfono del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only" className="flex-1 min-w-0">
               {(fieldProps) => (
                 <input
                   {...fieldProps}
@@ -119,7 +119,7 @@ export function CompanionFieldsEditor({
                   className={COMPANION_INPUT_CLASS}
                 />
               )}
-            </FormField>
+            </AccessibleField>
             {allowAddRemove && (
               <button
                 type="button"

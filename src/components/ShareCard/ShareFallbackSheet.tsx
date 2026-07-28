@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { ShareCardContent } from '../../utils/share/types'
-import { IconCheck, IconCopy, IconDownload, IconFacebook, IconTelegram, IconTwitterX, IconWhatsApp } from '../Icons'
-import { Modal } from '../Modal'
+import { IconCheck, IconCopy, IconDownload, IconFacebook, IconTelegram, IconTwitterX, IconWhatsApp } from '../accessibility/AccessibleIcon'
+import { AccessibleModal } from '../accessibility/AccessibleModal'
 import { DialogHeader } from '../DialogHeader'
-import { Button } from '../Button'
+import { AccessibleButton } from '../accessibility/AccessibleButton'
 
 // Respaldo para cuando Web Share API no existe (típicamente desktop) o el
 // usuario quiere ver más opciones aunque el share nativo sí esté disponible:
@@ -41,7 +41,7 @@ export function ShareFallbackSheet({
   }
 
   return (
-    <Modal open={open} onClose={onClose} label="Compartir evento">
+    <AccessibleModal open={open} onClose={onClose} label="Compartir evento">
       <DialogHeader title="Compartir evento" onClose={onClose} />
 
       <div className="px-5 pb-5 pt-4 overflow-y-auto">
@@ -79,11 +79,11 @@ export function ShareFallbackSheet({
           ))}
         </div>
 
-        <Button variant="secondary" onClick={handleCopy} className="w-full flex items-center justify-center gap-2">
+        <AccessibleButton variant="secondary" onClick={handleCopy} className="w-full flex items-center justify-center gap-2">
           {copied ? <IconCheck className="w-4 h-4" /> : <IconCopy className="w-4 h-4" />}
           {copied ? 'Copiado ✓' : 'Copiar enlace'}
-        </Button>
+        </AccessibleButton>
       </div>
-    </Modal>
+    </AccessibleModal>
   )
 }

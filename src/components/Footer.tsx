@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Logo } from './Logo'
-import { IconGithub, IconInstagram } from './Icons'
+import { IconGithub, IconInstagram } from './accessibility/AccessibleIcon'
 
 const GITHUB_URL = 'https://github.com/Ericolink'
 const INSTAGRAM_URL = 'https://www.instagram.com/paselink/'

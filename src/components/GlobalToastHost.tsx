@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { onEmailNotification } from '../utils/emailNotifications'
-import { IconAlertTriangle } from './Icons'
+import { IconAlertTriangle } from './accessibility/AccessibleIcon'
 import { Toast } from './Toast'
 
 const DISPLAY_MS = 6000

@@ -2,11 +2,10 @@ import { useState } from 'react'
 import type { EventData } from '../types'
 import type { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { LEGACY_COORG_DEFAULTS } from '../types/coOrganizerPermissions'
-import { Button } from './Button'
+import { AccessibleButton } from './accessibility/AccessibleButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoOrganizerPermissionsEditor } from './CoOrganizerPermissionsEditor'
-import { IconX } from './Icons'
-import { IconButton } from './IconButton'
+import { IconX } from './accessibility/AccessibleIcon'
 
 interface Props {
   event: EventData
@@ -53,13 +52,14 @@ export function CoOrganizerPanel({ event, open, coOrg }: Props) {
                     >
                       {email}
                     </button>
-                    <IconButton
+                    <AccessibleButton
+                      iconOnly
                       onClick={() => setRemovingCoOrg({ uid, email })}
                       aria-label={`Quitar a ${email} como co-organizador`}
                       className="text-gray-400 hover:text-red-500 shrink-0 -my-2.5 -mr-2.5"
                     >
                       <IconX className="w-4 h-4" />
-                    </IconButton>
+                    </AccessibleButton>
                   </div>
                   {expanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-gray-200 dark:border-gray-600">
@@ -82,9 +82,9 @@ export function CoOrganizerPanel({ event, open, coOrg }: Props) {
             placeholder="email@ejemplo.com"
             className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
           />
-          <Button type="submit" size="sm" disabled={coOrgLoading || !coOrgEmail.trim()}>
+          <AccessibleButton type="submit" size="sm" disabled={coOrgLoading || !coOrgEmail.trim()}>
             {coOrgLoading ? '…' : 'Agregar'}
-          </Button>
+          </AccessibleButton>
         </form>
         {coOrgError && <p className="text-xs text-red-500 mt-1.5">{coOrgError}</p>}
       </div>

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { IconBarChart, IconCamera, IconTicket } from './Icons'
+import { IconBarChart, IconCamera, IconTicket } from './accessibility/AccessibleIcon'
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (

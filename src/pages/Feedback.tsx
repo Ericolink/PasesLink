@@ -8,10 +8,10 @@ import { submitFeedback } from '../firebase/feedback'
 import { FEEDBACK_CATEGORY_LABELS } from '../types'
 import type { FeedbackCategory } from '../types'
 import { FEEDBACK_EMAIL_MAX, FEEDBACK_MESSAGE_MAX, FEEDBACK_MESSAGE_MIN, FEEDBACK_SUBJECT_MAX } from '../utils/validation'
-import { IconCheckCircle } from '../components/Icons'
+import { IconCheckCircle } from '../components/accessibility/AccessibleIcon'
 import { FeedbackCategoryIcon } from '../components/FeedbackCategoryIcon'
 import { ScreenHeader } from '../components/ScreenHeader'
-import { Button } from '../components/Button'
+import { AccessibleButton } from '../components/accessibility/AccessibleButton'
 
 // Orden pensado para la grilla del formulario, no el orden de FeedbackCategory
 // en src/types/index.ts (ahí van agrupados con sus labels).
@@ -93,9 +93,9 @@ export function Feedback() {
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           Lo recibimos y el equipo de PaseLink lo va a revisar pronto.
         </p>
-        <Button onClick={resetForm}>
+        <AccessibleButton onClick={resetForm}>
           Enviar otro comentario
-        </Button>
+        </AccessibleButton>
         </div>
       </div>
     )
@@ -211,9 +211,9 @@ export function Feedback() {
           </p>
         )}
 
-        <Button type="submit" disabled={submitting} className="w-full">
+        <AccessibleButton type="submit" disabled={submitting} className="w-full">
           {submitting ? 'Enviando…' : 'Enviar comentario'}
-        </Button>
+        </AccessibleButton>
       </form>
     </div>
   )

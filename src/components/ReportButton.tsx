@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ReportModal } from './ReportModal'
-import { IconFlag } from './Icons'
+import { IconFlag } from './accessibility/AccessibleIcon'
 import type { ReportedContentType } from '../types'
 
 interface Props {

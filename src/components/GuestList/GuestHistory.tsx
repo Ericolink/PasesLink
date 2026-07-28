@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { getGuestCheckins } from '../../firebase/reports'
 import type { CheckinLog } from '../../types'
-import { IconClock } from '../Icons'
-import { FieldError } from '../FieldError'
+import { IconClock } from '../accessibility/AccessibleIcon'
+import { FieldError } from '../accessibility/AccessibleField'
 
 function formatCheckinEntryLabel(c: CheckinLog): string {
   if (c.type === 'check_out') return c.exitKind === 'final' ? 'Salida definitiva' : 'Salida temporal'

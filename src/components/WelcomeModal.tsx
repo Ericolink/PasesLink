@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import confetti from 'canvas-confetti'
-import { Button } from './Button'
-import { Modal } from './Modal'
+import { AccessibleButton } from './accessibility/AccessibleButton'
+import { AccessibleModal } from './accessibility/AccessibleModal'
 import { DialogFooter } from './DialogFooter'
 import { Logo } from './Logo'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
@@ -12,7 +12,7 @@ import {
   IconSparkles,
   IconTicket,
   IconUserPlus,
-} from './Icons'
+} from './accessibility/AccessibleIcon'
 
 interface ListItem {
   icon: React.ReactNode
@@ -86,7 +86,7 @@ export function WelcomeModal({ open, variant, firstName, onClose }: Props) {
   }, [open, isWelcome, prefersReducedMotion])
 
   return (
-    <Modal open={open} onClose={onClose} label={isWelcome ? 'Bienvenido a PaseLink' : 'Novedades de PaseLink'}>
+    <AccessibleModal open={open} onClose={onClose} label={isWelcome ? 'Bienvenido a PaseLink' : 'Novedades de PaseLink'}>
       <div className="overflow-y-auto">
         <div className="flex flex-col items-center px-6 pt-7 pb-2 text-center">
           <Logo className="h-8 mb-4" />
@@ -127,10 +127,10 @@ export function WelcomeModal({ open, variant, firstName, onClose }: Props) {
       </div>
 
       <DialogFooter>
-        <Button variant="primary" onClick={onClose} className="w-full">
+        <AccessibleButton variant="primary" onClick={onClose} className="w-full">
           {isWelcome ? 'Empezar' : 'Entendido'}
-        </Button>
+        </AccessibleButton>
       </DialogFooter>
-    </Modal>
+    </AccessibleModal>
   )
 }

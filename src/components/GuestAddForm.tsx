@@ -5,16 +5,14 @@ import { parseGuestsCsv } from '../utils/csvImport'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
-import { Tab, TabList, TabPanel, Tabs } from './Tabs'
-import { Button } from './Button'
-import { FieldError } from './FieldError'
-import { FormField } from './FormField'
-import { InputField } from './InputField'
+import { Tab, TabList, TabPanel, Tabs } from './accessibility/AccessibleTabs'
+import { AccessibleButton } from './accessibility/AccessibleButton'
+import { AccessibleField, FieldError, InputField } from './accessibility/AccessibleField'
 import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
 import { customFieldInputProps } from '../utils/customFieldInput'
 import { captureException } from '../lib/sentry'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
-import { useAnnouncer } from '../contexts/AnnouncementContext'
+import { useAnnouncer } from './accessibility/LiveRegion'
 import type { CompanionData, CustomField, GuestData } from '../types'
 
 function normalizeName(value: string): string {
@@ -303,7 +301,7 @@ export function GuestAddForm({
           {customFields.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {customFields.map((field) => (
-                <FormField key={field.id} label={field.label} required={field.required} labelClassName="sr-only">
+                <AccessibleField key={field.id} label={field.label} required={field.required} labelClassName="sr-only">
                   {(fieldProps) => (
                     <input
                       {...fieldProps}
@@ -315,14 +313,14 @@ export function GuestAddForm({
                       className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   )}
-                </FormField>
+                </AccessibleField>
               ))}
             </div>
           )}
 
-          <Button type="submit" size="sm" disabled={loading} className="w-full">
+          <AccessibleButton type="submit" size="sm" disabled={loading} className="w-full">
             {loading ? 'Agregando…' : 'Agregar invitado'}
-          </Button>
+          </AccessibleButton>
         </form>
         </TabPanel>
 
@@ -364,7 +362,7 @@ export function GuestAddForm({
           {customFields.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {customFields.map((field) => (
-                <FormField key={field.id} label={field.label} required={field.required} labelClassName="sr-only">
+                <AccessibleField key={field.id} label={field.label} required={field.required} labelClassName="sr-only">
                   {(fieldProps) => (
                     <input
                       {...fieldProps}
@@ -376,14 +374,14 @@ export function GuestAddForm({
                       className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   )}
-                </FormField>
+                </AccessibleField>
               ))}
             </div>
           )}
 
-          <Button type="submit" size="sm" disabled={loading} className="w-full">
+          <AccessibleButton type="submit" size="sm" disabled={loading} className="w-full">
             {loading ? 'Agregando…' : 'Agregar familia o grupo'}
-          </Button>
+          </AccessibleButton>
         </form>
         </TabPanel>
 
@@ -398,9 +396,9 @@ export function GuestAddForm({
             rows={5}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <Button type="submit" size="sm" disabled={loading} className="w-full">
+          <AccessibleButton type="submit" size="sm" disabled={loading} className="w-full">
             {loading ? 'Agregando…' : 'Agregar lista de invitados'}
-          </Button>
+          </AccessibleButton>
         </form>
         </TabPanel>
 
@@ -442,9 +440,9 @@ export function GuestAddForm({
             </div>
           )}
 
-          <Button type="button" size="sm" onClick={handleCsvImport} disabled={loading || csvRows.length === 0} className="w-full">
+          <AccessibleButton type="button" size="sm" onClick={handleCsvImport} disabled={loading || csvRows.length === 0} className="w-full">
             {loading ? 'Importando…' : `Importar ${csvRows.length || ''} invitado${csvRows.length === 1 ? '' : 's'}`}
-          </Button>
+          </AccessibleButton>
         </div>
         </TabPanel>
       </Tabs>

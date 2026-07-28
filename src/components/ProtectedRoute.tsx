@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { logout } from '../firebase/auth'
-import { IconBan } from './Icons'
+import { IconBan } from './accessibility/AccessibleIcon'
 import { CrownLoader } from './CrownLoader'
 
 // Único punto de bloqueo "de app completa" para un baneo/suspensión global

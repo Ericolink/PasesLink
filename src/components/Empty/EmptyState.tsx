@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import { Link } from 'react-router-dom'
-import { Button } from '../Button'
+import { AccessibleButton } from '../accessibility/AccessibleButton'
 
 type EmptyStateTone = 'default' | 'hero'
 
@@ -55,9 +55,9 @@ export function EmptyState({ icon: Icon, title, description, ctaText, to, onActi
         </Link>
       )}
       {onAction && ctaText && (
-        <Button onClick={onAction} size="sm">
+        <AccessibleButton onClick={onAction} size="sm">
           {ctaText}
-        </Button>
+        </AccessibleButton>
       )}
     </div>
   )

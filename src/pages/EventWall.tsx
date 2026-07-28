@@ -26,12 +26,11 @@ import {
   IconArrowLeft,
   IconCamera,
   IconX,
-} from '../components/Icons'
+} from '../components/accessibility/AccessibleIcon'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { Button } from '../components/Button'
-import { IconButton } from '../components/IconButton'
-import { FieldError } from '../components/FieldError'
+import { AccessibleButton } from '../components/accessibility/AccessibleButton'
+import { FieldError } from '../components/accessibility/AccessibleField'
 import { Avatar } from '../components/Avatar'
 import { AuthorName } from '../components/AuthorName'
 import { PhotoFeedCard } from '../components/PhotoFeedCard'
@@ -334,9 +333,9 @@ export function EventWall() {
             autoFocus
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <Button type="submit" className="w-full font-semibold">
+          <AccessibleButton type="submit" className="w-full font-semibold">
             Entrar al muro
-          </Button>
+          </AccessibleButton>
         </form>
       </div>
     )
@@ -444,14 +443,15 @@ export function EventWall() {
                 </div>
               )}
             </div>
-            <IconButton
+            <AccessibleButton
+              iconOnly
               onClick={openPicker}
               disabled={photoBlocked}
               aria-label="Adjuntar foto"
               className="shrink-0 text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 disabled:opacity-40"
             >
               <IconCamera className="w-4 h-4" />
-            </IconButton>
+            </AccessibleButton>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
           </div>
           <div className="flex items-center justify-between">
@@ -459,9 +459,9 @@ export function EventWall() {
               Como: <AuthorName name={postLabel} role={isOwner ? 'owner' : 'guest'} />
             </span>
             <span className="text-xs text-gray-400">{text.length}/{maxLength}</span>
-            <Button type="submit" size="sm" disabled={posting || (!text.trim() && !attachedFile)}>
+            <AccessibleButton type="submit" size="sm" disabled={posting || (!text.trim() && !attachedFile)}>
               {posting ? 'Publicando…' : 'Publicar'}
-            </Button>
+            </AccessibleButton>
           </div>
           <FieldError message={postError} />
         </form>

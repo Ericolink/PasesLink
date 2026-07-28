@@ -1,5 +1,5 @@
 import type { FeedbackCategory } from '../types'
-import { IconBan, IconBug, IconHelpCircle, IconLightbulb, IconMessageSquare, IconSparkles, IconStar } from './Icons'
+import { IconBan, IconBug, IconHelpCircle, IconLightbulb, IconMessageSquare, IconSparkles, IconStar } from './accessibility/AccessibleIcon'
 
 // Único mapeo categoría → ícono, compartido por el formulario público
 // (Feedback.tsx) y el panel de administración (AdminFeedbackTable/Detail) —

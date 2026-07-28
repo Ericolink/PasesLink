@@ -6,10 +6,9 @@ import { CompanionFieldsEditor } from '../CompanionFields'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../CountryCodeSelect'
 import { CustomFieldsEditRow } from '../CustomFieldsEditor'
 import { GUEST_GROUP_MAX_MEMBERS } from '../../utils/validation'
-import { Button } from '../Button'
-import { FieldError } from '../FieldError'
-import { InputField } from '../InputField'
+import { AccessibleButton } from '../accessibility/AccessibleButton'
 import { useFocusFirstInvalidField } from '../../hooks/useFocusFirstInvalidField'
+import { FieldError, InputField } from '../accessibility/AccessibleField'
 
 const EDIT_ROW_INPUT_CLASS =
   'border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary'
@@ -108,12 +107,12 @@ function EditGuestRow({
         <CompanionFieldsEditor companions={companions} onChange={setCompanions} maxCompanions={maxCompanions} />
         <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />
         <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={saving} className="flex-1">
+          <AccessibleButton type="submit" size="sm" disabled={saving} className="flex-1">
             Guardar
-          </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={onDone} className="flex-1">
+          </AccessibleButton>
+          <AccessibleButton type="button" variant="secondary" size="sm" onClick={onDone} className="flex-1">
             Cancelar
-          </Button>
+          </AccessibleButton>
         </div>
       </div>
     </form>
@@ -202,12 +201,12 @@ function EditGroupRow({
         />
         <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />
         <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={saving} className="flex-1">
+          <AccessibleButton type="submit" size="sm" disabled={saving} className="flex-1">
             Guardar
-          </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={onDone} className="flex-1">
+          </AccessibleButton>
+          <AccessibleButton type="button" variant="secondary" size="sm" onClick={onDone} className="flex-1">
             Cancelar
-          </Button>
+          </AccessibleButton>
         </div>
       </div>
     </form>

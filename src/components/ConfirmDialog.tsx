@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { Modal } from './Modal'
+import { AccessibleModal } from './accessibility/AccessibleModal'
 import { DialogFooter } from './DialogFooter'
-import { Button } from './Button'
+import { AccessibleButton } from './accessibility/AccessibleButton'
 
 interface Props {
   open: boolean
@@ -31,8 +31,8 @@ export function ConfirmDialog({
   const confirmRef = useRef<HTMLButtonElement>(null)
 
   // Foco intencional en "Confirmar" (no en "Cancelar", que aparece primero
-  // en el DOM). Este efecto vive en el padre de <Modal>, así que corre
-  // DESPUÉS del useModalA11y interno de Modal (los efectos de hijos corren
+  // en el DOM). Este efecto vive en el padre de <AccessibleModal>, así que corre
+  // DESPUÉS del useAccessibleModal interno de AccessibleModal (los efectos de hijos corren
   // antes que los del padre en el mismo commit) — el resultado es el mismo
   // que antes: el fallback del hook enfoca "Cancelar" por un instante sin
   // pintar, y este efecto le roba el foco a "Confirmar" en el mismo commit.
@@ -41,7 +41,7 @@ export function ConfirmDialog({
   }, [open])
 
   return (
-    <Modal open={open} onClose={onCancel} label={title} role={danger ? 'alertdialog' : 'dialog'}>
+    <AccessibleModal open={open} onClose={onCancel} label={title} role={danger ? 'alertdialog' : 'dialog'}>
       {/* Header + mensaje son la única región que scrollea — el mensaje
           puede ser largo (p.ej. la lista de cambios del "modo anti-tontos"
           de EditEventForm.tsx) y sin esto el diálogo simplemente se
@@ -51,7 +51,7 @@ export function ConfirmDialog({
           <div className="flex items-center justify-center pt-6 pb-2">
             {/* dark:bg-red-900/30 — antes sin variante oscura, quedaba un
                 círculo rojo claro sobre fondo oscuro. Mismo idiom que ya usa
-                Button.tsx variant="danger-outline". */}
+                AccessibleButton.tsx variant="danger-outline". */}
             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
               <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
@@ -68,13 +68,13 @@ export function ConfirmDialog({
           pensada para reducir el riesgo de tocar el botón equivocado en una
           acción destructiva. */}
       <DialogFooter className="gap-4">
-        <Button variant="secondary" onClick={onCancel} className="flex-1">
+        <AccessibleButton variant="secondary" onClick={onCancel} className="flex-1">
           {cancelLabel}
-        </Button>
-        <Button ref={confirmRef} variant={danger ? 'danger' : 'primary'} onClick={onConfirm} className="flex-1">
+        </AccessibleButton>
+        <AccessibleButton ref={confirmRef} variant={danger ? 'danger' : 'primary'} onClick={onConfirm} className="flex-1">
           {confirmLabel}
-        </Button>
+        </AccessibleButton>
       </DialogFooter>
-    </Modal>
+    </AccessibleModal>
   )
 }

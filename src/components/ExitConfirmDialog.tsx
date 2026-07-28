@@ -1,5 +1,5 @@
-import { IconLogOut, IconRotateCcw, IconXCircle } from './Icons'
-import { useModalA11y } from '../hooks/useModalA11y'
+import { IconLogOut, IconRotateCcw, IconXCircle } from './accessibility/AccessibleIcon'
+import { useAccessibleModal } from './accessibility/AccessibleModal'
 
 export type PendingExit = {
   qrToken: string
@@ -21,7 +21,7 @@ export function ExitConfirmDialog({
   onCancel: () => void
   submitting: boolean
 }) {
-  const dialogRef = useModalA11y<HTMLDivElement>(true, onCancel)
+  const dialogRef = useAccessibleModal<HTMLDivElement>(true, onCancel)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0" onClick={onCancel}>

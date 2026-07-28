@@ -1,0 +1,1 @@
+export { AccessibleChart } from './AccessibleChart'

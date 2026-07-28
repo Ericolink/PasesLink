@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { BottomTabBar } from './BottomTabBar'
-import { IconArrowLeft } from './Icons'
+import { IconArrowLeft } from './accessibility/AccessibleIcon'
 import { useAuth } from '../hooks/useAuth'
+import { SkipLink } from './accessibility/SkipLink'
 
 type AppShellMode = 'browse' | 'focus' | 'kiosk'
 
@@ -64,7 +65,7 @@ export function AppShell({ mode = 'browse', guestExit = false, children }: AppSh
 
   return (
     <>
-      <a href="#main-content" className="skip-link">Saltar al contenido</a>
+      <SkipLink />
       {showKioskExit && <KioskExitBar />}
       {/* pb-16 alcanzaba para la altura "normal" de BottomTabBar, pero esa
           barra suma env(safe-area-inset-bottom) (~34px en iPhones con Home

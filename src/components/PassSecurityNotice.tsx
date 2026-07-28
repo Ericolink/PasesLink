@@ -1,4 +1,4 @@
-import { IconShield } from './Icons'
+import { IconShield } from './accessibility/AccessibleIcon'
 
 // Aviso discreto de seguridad: vive dentro de la boarding-pass card (mismas
 // variables --invite-* que el resto del tema), así que aparece tanto en la

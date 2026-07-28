@@ -1,6 +1,6 @@
 import type { WallMessageType } from '../types'
 import { WALL_TYPE_CONFIG } from '../utils/wallMessageTypes'
-import { RadioGroup, RadioGroupOption } from './RadioButtonGroup'
+import { RadioGroup, RadioGroupOption } from './accessibility/AccessibleField'
 
 interface Props {
   value: WallMessageType

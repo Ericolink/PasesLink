@@ -10,7 +10,7 @@ import { PerforatedDivider } from './PerforatedDivider'
 import { PassInfoCell } from './PassInfoCell'
 import { PassSecurityNotice } from './PassSecurityNotice'
 import { Logo } from './Logo'
-import { IconCheckCircle } from './Icons'
+import { IconCheckCircle } from './accessibility/AccessibleIcon'
 
 interface GuestPassTicketProps {
   event: EventData

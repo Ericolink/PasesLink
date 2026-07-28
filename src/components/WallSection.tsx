@@ -6,15 +6,15 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { useWallComposer } from '../hooks/useWallComposer'
-import { IconRotateCcw, IconCamera, IconX } from './Icons'
-import { IconButton } from './IconButton'
+import { IconRotateCcw, IconCamera, IconX } from './accessibility/AccessibleIcon'
+import { AccessibleButton } from './accessibility/AccessibleButton'
 import { Avatar } from './Avatar'
 import { PhotoFeedCard } from './PhotoFeedCard'
 import { PhotoViewer } from './PhotoViewer'
 import { StoriesBar } from './StoriesBar'
 import { WallSectionMessageCard } from './WallSectionMessageCard'
 import { WallTypeChipSelector } from './WallTypeChipSelector'
-import { FieldError } from './FieldError'
+import { FieldError } from './accessibility/AccessibleField'
 import { FormError } from './FormError'
 import { WALL_TYPE_CONFIG } from '../utils/wallMessageTypes'
 import { mergeWallFeed } from '../utils/wallFeed'
@@ -266,7 +266,8 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
                 </div>
               )}
             </div>
-            <IconButton
+            <AccessibleButton
+              iconOnly
               onClick={openPicker}
               disabled={photoBlocked}
               aria-label="Adjuntar foto"
@@ -274,7 +275,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
               style={{ background: 'var(--invite-page-bg, rgba(255,255,255,0.06))' }}
             >
               <IconCamera className="w-4 h-4" />
-            </IconButton>
+            </AccessibleButton>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
           </div>
           <div className="flex items-center justify-between">

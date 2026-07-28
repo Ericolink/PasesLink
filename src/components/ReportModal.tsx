@@ -7,9 +7,9 @@ import { sendReportNotificationEmail } from '../utils/emailjs'
 import { REPORT_REASON_MAX } from '../utils/validation'
 import { REPORT_CONTENT_TYPE_LABELS } from '../types'
 import type { ReportedContentType } from '../types'
-import { IconFlag } from './Icons'
-import { Button } from './Button'
-import { Modal } from './Modal'
+import { IconFlag } from './accessibility/AccessibleIcon'
+import { AccessibleButton } from './accessibility/AccessibleButton'
+import { AccessibleModal } from './accessibility/AccessibleModal'
 import { DialogHeader } from './DialogHeader'
 import { DialogFooter } from './DialogFooter'
 import { FormError } from './FormError'
@@ -27,7 +27,7 @@ interface Props {
   contentAuthorToken: string
 }
 
-// Modal de reporte, compartido por comentarios y fotos del muro (ver
+// AccessibleModal de reporte, compartido por comentarios y fotos del muro (ver
 // ReportButton). Requiere sesión iniciada — si no hay usuario, se muestra un
 // aviso con link a /login en vez del formulario, para no dejar el botón
 // "Reportar" como un callejón sin salida silencioso.
@@ -99,7 +99,7 @@ export function ReportModal({
   }
 
   return (
-    <Modal open={open} onClose={handleClose} label="Reportar contenido">
+    <AccessibleModal open={open} onClose={handleClose} label="Reportar contenido">
       <DialogHeader
         title={`Reportar ${contentType === 'comment' ? 'comentario' : 'foto'}`}
         icon={<IconFlag className="w-4 h-4 text-red-500" />}
@@ -125,9 +125,9 @@ export function ReportModal({
           </div>
           <p className="text-sm font-medium text-gray-900 dark:text-white">¡Gracias! Tu reporte fue recibido.</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">Nuestro equipo lo va a revisar lo antes posible.</p>
-          <Button variant="text" onClick={handleClose} className="mt-2 text-sm">
+          <AccessibleButton variant="text" onClick={handleClose} className="mt-2 text-sm">
             Cerrar
-          </Button>
+          </AccessibleButton>
         </div>
       ) : (
         // Formulario partido en región scrolleable (textarea/radios) +
@@ -169,15 +169,15 @@ export function ReportModal({
           </div>
 
           <DialogFooter padding="compact">
-            <Button type="button" variant="secondary" onClick={handleClose} className="flex-1">
+            <AccessibleButton type="button" variant="secondary" onClick={handleClose} className="flex-1">
               Cancelar
-            </Button>
-            <Button type="submit" variant="danger" disabled={submitting || !reason.trim()} className="flex-1">
+            </AccessibleButton>
+            <AccessibleButton type="submit" variant="danger" disabled={submitting || !reason.trim()} className="flex-1">
               {submitting ? 'Enviando…' : 'Enviar reporte'}
-            </Button>
+            </AccessibleButton>
           </DialogFooter>
         </form>
       )}
-    </Modal>
+    </AccessibleModal>
   )
 }

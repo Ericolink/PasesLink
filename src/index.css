@@ -213,28 +213,6 @@ textarea {
   border: 0;
 }
 
-/* Skip link: mismo truco de .sr-only, pero visible al recibir foco de
-   teclado — se monta una sola vez por layout (PublicLayout/AppShell), sin
-   depender de más CSS que este bloque. */
-.skip-link {
-  position: absolute;
-  top: -40px;
-  left: 0.5rem;
-  z-index: 300;
-  padding: 0.5rem 1rem;
-  border-radius: 0 0 0.5rem 0.5rem;
-  background: var(--color-primary, #e91e63);
-  color: #fff;
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: top 150ms ease-out;
-}
-
-.skip-link:focus {
-  top: 0;
-}
-
 /* RouteAnnouncer mueve el foco acá programáticamente en cada cambio de
    ruta (no por Tab) — sin esto, el navegador dibuja un contorno alrededor
    de todo el bloque <main> en cada navegación, que se ve como un parpadeo

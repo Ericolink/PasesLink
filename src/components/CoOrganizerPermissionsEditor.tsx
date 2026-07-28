@@ -1,5 +1,5 @@
 import type { CoOrganizerPermissions } from '../types/coOrganizerPermissions'
-import { Checkbox } from './Checkbox'
+import { Checkbox } from './accessibility/AccessibleField'
 
 type PermissionKey = keyof CoOrganizerPermissions
 

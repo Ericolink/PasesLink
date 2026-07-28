@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { IconHome, IconTicket, IconUser } from './Icons'
+import { IconHome, IconTicket, IconUser } from './accessibility/AccessibleIcon'
 
 type Tab = {
   to: string

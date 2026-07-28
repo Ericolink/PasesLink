@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { LEGAL_DOCS, type LegalDocId } from '../legal/documents'
 import { LegalDocumentSheet } from './LegalDocumentSheet'
-import { Checkbox } from './Checkbox'
+import { Checkbox } from './accessibility/AccessibleField'
 
 interface Props {
   id: string

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import type { GuestData } from '../types'
 import type { EventData } from '../types'
-import { IconBell, IconCheckCircle, IconWhatsApp } from './Icons'
+import { IconBell, IconCheckCircle, IconWhatsApp } from './accessibility/AccessibleIcon'
 import { buildPassUrl } from '../utils/qrUrl'
 import { toWhatsAppPhone } from '../utils/phone'
 

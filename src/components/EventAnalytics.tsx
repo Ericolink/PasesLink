@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react'
-import { IconBarChart2 } from './Icons'
+import { IconBarChart2 } from './accessibility/AccessibleIcon'
+import { AccessibleChart } from './accessibility/AccessibleChart'
 import { LoadingInline } from './LoadingInline'
 import { partySize } from '../firebase/guests'
 import { useLoadingAnnouncement } from '../hooks/useLoadingAnnouncement'
@@ -95,34 +96,30 @@ export const EventAnalytics = memo(function EventAnalytics({ guests, loading = f
           alternativo. Los números por barra (línea de abajo) siguen
           visibles para quien sí ve el gráfico, esto es un agregado, no un
           reemplazo. */}
-      <figure className="m-0">
-        <div
-          role="img"
-          aria-label={`Llegadas por hora: ${totalPeople} personas en total, pico de ${maxCount} a las ${peakHour}:00, promedio de ${avgPerHour} por hora.`}
-          className="overflow-x-auto -mx-1 px-1"
-        >
-          <div className="flex items-end gap-1.5 h-24 min-w-full" aria-hidden="true">
-            {allHours.map((h) => {
-              const count = hourCounts[h] || 0
-              const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0
-              const isPeak = h === peakHour && count > 0
-              return (
-                <div key={h} className="flex-1 min-w-[28px] flex flex-col items-center gap-0.5">
-                  <span className="h-3 text-2xs text-gray-500 dark:text-gray-400">{count > 0 ? count : ''}</span>
-                  <div className="w-full flex items-end" style={{ height: '80px' }}>
-                    <div
-                      className={`w-full rounded-t transition-all ${isPeak ? 'bg-primary' : 'bg-primary/40'}`}
-                      style={{ height: `${Math.max(heightPct, count > 0 ? 4 : 0)}%` }}
-                    />
-                  </div>
-                  <span className="text-2xs text-gray-400">{h}</span>
+      <AccessibleChart
+        summary={`Llegadas por hora: ${totalPeople} personas en total, pico de ${maxCount} a las ${peakHour}:00, promedio de ${avgPerHour} por hora.`}
+        caption="Hora del día (check-ins)"
+      >
+        <div className="flex items-end gap-1.5 h-24 min-w-full" aria-hidden="true">
+          {allHours.map((h) => {
+            const count = hourCounts[h] || 0
+            const heightPct = maxCount > 0 ? (count / maxCount) * 100 : 0
+            const isPeak = h === peakHour && count > 0
+            return (
+              <div key={h} className="flex-1 min-w-[28px] flex flex-col items-center gap-0.5">
+                <span className="h-3 text-2xs text-gray-500 dark:text-gray-400">{count > 0 ? count : ''}</span>
+                <div className="w-full flex items-end" style={{ height: '80px' }}>
+                  <div
+                    className={`w-full rounded-t transition-all ${isPeak ? 'bg-primary' : 'bg-primary/40'}`}
+                    style={{ height: `${Math.max(heightPct, count > 0 ? 4 : 0)}%` }}
+                  />
                 </div>
-              )
-            })}
-          </div>
+                <span className="text-2xs text-gray-400">{h}</span>
+              </div>
+            )
+          })}
         </div>
-        <figcaption className="text-2xs text-gray-400 text-center mt-1">Hora del día (check-ins)</figcaption>
-      </figure>
+      </AccessibleChart>
     </div>
   )
 })

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useAnnouncer } from '../contexts/AnnouncementContext'
+import { useAnnouncer } from '../components/accessibility/LiveRegion'
 
 // Anuncia "Carga completa" cuando `loading` pasa de true a false — sin esto,
 // un lector de pantalla no tiene ninguna señal de que los skeletons

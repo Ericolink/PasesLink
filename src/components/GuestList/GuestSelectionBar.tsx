@@ -1,4 +1,4 @@
-import { IconCheck, IconTrash, IconX } from '../Icons'
+import { IconCheck, IconTrash, IconX } from '../accessibility/AccessibleIcon'
 
 export function GuestSelectionBar({
   count,

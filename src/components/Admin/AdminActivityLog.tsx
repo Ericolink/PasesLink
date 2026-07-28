@@ -1,6 +1,6 @@
 import type { AdminAuditLogEntry } from '../../firebase/admin'
 import { EmptyState } from '../Empty/EmptyState'
-import { IconClock, IconTrash, IconRotateCcw } from '../Icons'
+import { IconClock, IconTrash, IconRotateCcw } from '../accessibility/AccessibleIcon'
 import { SkeletonBlock } from '../Skeleton'
 
 const ACTION_LABELS: Record<AdminAuditLogEntry['action'], string> = {

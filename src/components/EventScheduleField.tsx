@@ -1,4 +1,4 @@
-import { IconCalendar, IconClock } from './Icons'
+import { IconCalendar, IconClock } from './accessibility/AccessibleIcon'
 
 interface Props {
   date: string

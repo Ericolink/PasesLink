@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Modal } from '../Modal'
+import { AccessibleModal } from '../accessibility/AccessibleModal'
 import { guestPresence, partySize } from '../../firebase/guests'
 import type { CustomField, GuestData, PaymentMethod } from '../../types'
 import {
@@ -16,7 +16,7 @@ import {
   IconTrash,
   IconWhatsApp,
   IconX,
-} from '../Icons'
+} from '../accessibility/AccessibleIcon'
 import { GuestAvatar } from './GuestAvatar'
 import { GuestEditForm } from './GuestEditForm'
 import { GuestHistory } from './GuestHistory'
@@ -136,7 +136,7 @@ export function GuestDetailSheet({
   const amount = ticketPrice * partySize(guest)
 
   return (
-    <Modal open={!!guest} onClose={handleClose} label={`Detalle de ${guestDisplayName(guest)}`} maxWidth="sm:max-w-md">
+    <AccessibleModal open={!!guest} onClose={handleClose} label={`Detalle de ${guestDisplayName(guest)}`} maxWidth="sm:max-w-md">
       <div className="flex items-center gap-3 px-5 pt-5 pb-4 shrink-0 border-b border-gray-100 dark:border-gray-700">
         <GuestAvatar guest={guest} size={46} />
         <div className="min-w-0 flex-1">
@@ -316,6 +316,6 @@ export function GuestDetailSheet({
             </>
           )}
         </div>
-    </Modal>
+    </AccessibleModal>
   )
 }

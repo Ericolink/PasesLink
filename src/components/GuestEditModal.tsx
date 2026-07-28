@@ -6,10 +6,9 @@ import { CompanionFieldsEditor } from './CompanionFields'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { CustomFieldsEditRow } from './CustomFieldsEditor'
 import { labelClass, inputClass } from '../pages/EventJoin'
-import { Modal } from './Modal'
-import { FieldError } from './FieldError'
-import { FormField } from './FormField'
+import { AccessibleModal } from './accessibility/AccessibleModal'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
+import { FieldError, AccessibleField } from './accessibility/AccessibleField'
 
 export function GuestEditModal({
   eventId,
@@ -85,7 +84,7 @@ export function GuestEditModal({
   }
 
   return (
-    <Modal
+    <AccessibleModal
       open
       onClose={onClose}
       label="Editar mis datos"
@@ -110,7 +109,7 @@ export function GuestEditModal({
               <p className="text-sm text-[var(--invite-text-muted)]">Cargando…</p>
             ) : (
               <>
-                <FormField label="Nombre" required labelClassName={labelClass}>
+                <AccessibleField label="Nombre" required labelClassName={labelClass}>
                   {(fieldProps) => (
                     <input
                       {...fieldProps}
@@ -122,8 +121,8 @@ export function GuestEditModal({
                       className={inputClass}
                     />
                   )}
-                </FormField>
-                <FormField label="Apellido" labelClassName={labelClass}>
+                </AccessibleField>
+                <AccessibleField label="Apellido" labelClassName={labelClass}>
                   {(fieldProps) => (
                     <input
                       {...fieldProps}
@@ -135,8 +134,8 @@ export function GuestEditModal({
                       className={inputClass}
                     />
                   )}
-                </FormField>
-                <FormField label="Teléfono" labelClassName={labelClass}>
+                </AccessibleField>
+                <AccessibleField label="Teléfono" labelClassName={labelClass}>
                   {(fieldProps) => (
                     <div className="flex items-center gap-1.5">
                       <CountryCodeSelect
@@ -156,8 +155,8 @@ export function GuestEditModal({
                       />
                     </div>
                   )}
-                </FormField>
-                <FormField label="Email" labelClassName={labelClass}>
+                </AccessibleField>
+                <AccessibleField label="Email" labelClassName={labelClass}>
                   {(fieldProps) => (
                     <input
                       {...fieldProps}
@@ -169,7 +168,7 @@ export function GuestEditModal({
                       className={inputClass}
                     />
                   )}
-                </FormField>
+                </AccessibleField>
                 {event.customFields && event.customFields.length > 0 && (
                   // <fieldset>/<legend> en vez de un <label> suelto: agrupa
                   // varios campos (no un control único), así que un <label>
@@ -219,6 +218,6 @@ export function GuestEditModal({
             </div>
           </form>
         )}
-    </Modal>
+    </AccessibleModal>
   )
 }

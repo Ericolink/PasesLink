@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { AdminUser } from '../../firebase/admin'
 import { EmptyState } from '../Empty/EmptyState'
-import { IconDownload, IconUsers } from '../Icons'
+import { IconDownload, IconUsers } from '../accessibility/AccessibleIcon'
 import { Pagination } from './Pagination'
-import { ResponsiveTable } from './ResponsiveTable'
+import { AccessibleTable, EmptyRow, ResponsiveTable, SortableTh } from '../accessibility/AccessibleTable'
 import { SkeletonBlock } from '../Skeleton'
 import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
 import { formatShortDate } from '../../utils/time'
@@ -123,19 +123,16 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
               </div>
             </div>
           ))}
-          {!loading && pageItems.length === 0 && (
-            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay clientes que coincidan con la búsqueda.</p>
-          )}
+          {!loading && pageItems.length === 0 && <EmptyRow message="No hay clientes que coincidan con la búsqueda." />}
         </>}
         table={<>
-          <table className="w-full text-sm">
-            <caption className="sr-only">Lista de clientes</caption>
+          <AccessibleTable caption="Lista de clientes">
             <thead>
               <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
-                <SortableHeader label="Email" active={sortKey === 'email'} dir={sortDir} onClick={() => toggleSort('email')} />
+                <SortableTh label="Email" active={sortKey === 'email'} dir={sortDir} onClick={() => toggleSort('email')} />
                 <th scope="col" className="px-4 py-2 font-medium">Nombre</th>
-                <SortableHeader label="Eventos" active={sortKey === 'eventCount'} dir={sortDir} onClick={() => toggleSort('eventCount')} />
-                <SortableHeader label="Registrado" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
+                <SortableTh label="Eventos" active={sortKey === 'eventCount'} dir={sortDir} onClick={() => toggleSort('eventCount')} />
+                <SortableTh label="Registrado" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -165,25 +162,12 @@ export function AdminUsersTable({ users, loading, eventCountByUser, onFilterEven
                 </tr>
               ))}
             </tbody>
-          </table>
-          {!loading && pageItems.length === 0 && (
-            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay clientes que coincidan con la búsqueda.</p>
-          )}
+          </AccessibleTable>
+          {!loading && pageItems.length === 0 && <EmptyRow message="No hay clientes que coincidan con la búsqueda." />}
         </>}
       />
 
       <Pagination page={currentPage} pageCount={pageCount} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
     </div>
-  )
-}
-
-function SortableHeader({ label, active, dir, onClick }: { label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void }) {
-  return (
-    <th scope="col" className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors">
-        {label}
-        {active && <span className="text-2xs">{dir === 'asc' ? '▲' : '▼'}</span>}
-      </button>
-    </th>
   )
 }

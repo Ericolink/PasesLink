@@ -1,4 +1,4 @@
-import { IconCrown } from './Icons'
+import { IconCrown } from './accessibility/AccessibleIcon'
 
 // Extraído de EventWall.tsx (donde vivía como función local no exportada) —
 // mismo render exacto, ahora compartido con PhotoFeedCard.tsx y cualquier

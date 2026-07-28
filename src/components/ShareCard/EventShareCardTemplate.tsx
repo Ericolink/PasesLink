@@ -1,7 +1,7 @@
 import type { CSSProperties, RefObject } from 'react'
 import type { ShareCardContent } from '../../utils/share/types'
 import { ThemeOrnament } from '../ThemeOrnament'
-import { IconMapPin } from '../Icons'
+import { IconMapPin } from '../accessibility/AccessibleIcon'
 import type { TemplateId } from '../../types'
 
 // Tamaño CSS del nodo capturado — junto al pixelRatio:4 de

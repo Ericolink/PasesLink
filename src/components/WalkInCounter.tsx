@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react'
 import type { EventData } from '../types'
+import { useAnnouncer } from './accessibility/LiveRegion'
 
 interface Props {
   event: EventData | null
@@ -12,6 +14,20 @@ interface Props {
 // 'list'` (solo eventos open/hybrid aceptan altas sin QR previo) — el
 // llamador puede renderizarlo incondicionalmente.
 export function WalkInCounter({ event, walkInMsg, onWalkIn, onWalkOut }: Props) {
+  const { announce } = useAnnouncer()
+  // El <p role="status" aria-live="polite"> anterior competía con las 2
+  // regiones fijas de AnnouncementProvider (doble canal para el mismo tipo
+  // de anuncio) — se consolida acá, con guard de ref para no re-anunciar el
+  // mismo mensaje si el componente vuelve a renderizar sin que walkInMsg
+  // cambie de valor.
+  const previousMsg = useRef<'success' | 'full' | null>(null)
+  useEffect(() => {
+    if (walkInMsg && walkInMsg !== previousMsg.current) {
+      announce(walkInMsg === 'full' ? '¡Cupo máximo alcanzado!' : 'Ingreso registrado')
+    }
+    previousMsg.current = walkInMsg
+  }, [walkInMsg, announce])
+
   if (!event || event.entryMode === 'list') return null
 
   return (
@@ -26,7 +42,7 @@ export function WalkInCounter({ event, walkInMsg, onWalkIn, onWalkOut }: Props) 
         <button onClick={onWalkIn} aria-label="Registrar entrada" className="min-h-12 flex-1 bg-primary hover:bg-primary-dark text-white rounded-md py-3 text-lg font-bold transition-colors">+</button>
       </div>
       {walkInMsg && (
-        <p role="status" aria-live="polite" className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>
+        <p className={`text-sm text-center mt-2 font-medium ${walkInMsg === 'full' ? 'text-red-400' : 'text-green-400'}`}>
           {walkInMsg === 'full' ? '¡Cupo máximo alcanzado!' : 'Ingreso registrado'}
         </p>
       )}

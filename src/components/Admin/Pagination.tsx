@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useAnnouncer } from '../../contexts/AnnouncementContext'
+import { useAnnouncer } from '../accessibility/LiveRegion'
 
 interface Props {
   page: number

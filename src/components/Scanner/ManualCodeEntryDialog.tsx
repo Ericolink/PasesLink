@@ -1,4 +1,4 @@
-import { useModalA11y } from '../../hooks/useModalA11y'
+import { useAccessibleModal } from '../accessibility/AccessibleModal'
 
 interface Props {
   value: string
@@ -17,7 +17,7 @@ interface Props {
 // ScanResultModal) queda fuera de ese recuadro: el teclado empuja el layout
 // normal del documento y el input enfocado siempre es alcanzable.
 export function ManualCodeEntryDialog({ value, onChange, onSubmit, onCancel }: Props) {
-  const dialogRef = useModalA11y<HTMLDivElement>(true, onCancel)
+  const dialogRef = useAccessibleModal<HTMLDivElement>(true, onCancel)
 
   return (
     <div

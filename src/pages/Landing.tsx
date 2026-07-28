@@ -1,7 +1,7 @@
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { IconBarChart, IconCamera, IconCheck, IconCheckCircle, IconTicket } from '../components/Icons'
+import { IconBarChart, IconCamera, IconCheck, IconCheckCircle, IconTicket } from '../components/accessibility/AccessibleIcon'
 
 const FEATURES = [
   {

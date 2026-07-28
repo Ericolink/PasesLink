@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ScanFeedback } from '../pages/Scanner'
-import { IconAlertTriangle, IconBan, IconCheck, IconCheckCircle, IconCopy, IconHelpCircle, IconLogOut, IconUsers, IconX, IconXCircle } from './Icons'
-import { useModalA11y } from '../hooks/useModalA11y'
+import { IconAlertTriangle, IconBan, IconCheck, IconCheckCircle, IconCopy, IconHelpCircle, IconLogOut, IconUsers, IconX, IconXCircle } from './accessibility/AccessibleIcon'
+import { useAccessibleModal } from './accessibility/AccessibleModal'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import type { PaymentMethod } from '../types'
 
@@ -71,7 +71,7 @@ export function ScanResultModal({
   const Icon = styles.icon
   // El padre monta/desmonta este componente (`{feedback && <ScanResultModal .../>}`)
   // en vez de un flag `open` interno — el montaje ya equivale a "abierto".
-  const dialogRef = useModalA11y<HTMLDivElement>(true, onClose)
+  const dialogRef = useAccessibleModal<HTMLDivElement>(true, onClose)
   // aria-label incluye guestName/detail (no solo el título) — es el payload
   // que realmente importa ("Bienvenido/a" solo no dice de quién se trata) y
   // un lector de pantalla anuncia el nombre accesible completo al enfocar el
@@ -89,7 +89,7 @@ export function ScanResultModal({
         onClick={(e) => e.stopPropagation()}
         onMouseEnter={onInteract}
         onTouchStart={onInteract}
-        // No se usa onFocus: useModalA11y ya mueve el foco al primer control
+        // No se usa onFocus: useAccessibleModal ya mueve el foco al primer control
         // del diálogo al montar (ver ahí), y ese foco inicial programático
         // burbujearía como un focus "de interacción" acá, pausando el
         // auto-cierre en TODOS los resultados en vez de solo cuando alguien

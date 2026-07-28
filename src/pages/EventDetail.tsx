@@ -42,7 +42,7 @@ import {
   IconSearch,
   IconShare,
   IconUserPlus,
-} from '../components/Icons'
+} from '../components/accessibility/AccessibleIcon'
 
 export function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>()

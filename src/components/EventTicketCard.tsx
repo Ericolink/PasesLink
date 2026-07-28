@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { EventStatus, TemplateId } from '../types'
 import { buildTicketThemeStyle } from '../templates/ticketTheme'
-import { IconStar, IconTicket } from './Icons'
+import { IconStar, IconTicket } from './accessibility/AccessibleIcon'
 
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 

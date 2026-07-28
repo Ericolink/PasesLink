@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import type { ContentReport, ReportedContentType, ReportStatus } from '../../types'
 import { REPORT_CONTENT_TYPE_LABELS, REPORT_STATUS_LABELS } from '../../types'
 import { EmptyState } from '../Empty/EmptyState'
-import { IconEye, IconFlag } from '../Icons'
-import { ResponsiveTable } from './ResponsiveTable'
+import { IconEye, IconFlag } from '../accessibility/AccessibleIcon'
+import { AccessibleTable, EmptyRow, ResponsiveTable, SortableTh } from '../accessibility/AccessibleTable'
 import { SkeletonBlock } from '../Skeleton'
 import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
 import { formatShortDate } from '../../utils/time'
@@ -139,27 +139,16 @@ export function AdminReportsTable({
               </div>
             </button>
           ))}
-          {!loading && filtered.length === 0 && (
-            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay reportes que coincidan con la búsqueda.</p>
-          )}
+          {!loading && filtered.length === 0 && <EmptyRow message="No hay reportes que coincidan con la búsqueda." />}
         </>}
         table={<>
-          <table className="w-full text-sm">
-            <caption className="sr-only">Lista de reportes</caption>
+          <AccessibleTable caption="Lista de reportes">
             <thead>
               <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
                 <th scope="col" className="px-4 py-2 font-medium">Contenido reportado</th>
                 <th scope="col" className="px-4 py-2 font-medium">Evento</th>
                 <th scope="col" className="px-4 py-2 font-medium">Estado</th>
-                <th scope="col" className="px-4 py-2 font-medium" aria-sort={sortDir === 'asc' ? 'ascending' : 'descending'}>
-                  <button
-                    onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-                    className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors"
-                  >
-                    Fecha
-                    <span className="text-2xs">{sortDir === 'asc' ? '▲' : '▼'}</span>
-                  </button>
-                </th>
+                <SortableTh label="Fecha" active dir={sortDir} onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))} />
                 <th scope="col" className="px-4 py-2 font-medium"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>
@@ -202,10 +191,8 @@ export function AdminReportsTable({
                 </tr>
               ))}
             </tbody>
-          </table>
-          {!loading && filtered.length === 0 && (
-            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay reportes que coincidan con la búsqueda.</p>
-          )}
+          </AccessibleTable>
+          {!loading && filtered.length === 0 && <EmptyRow message="No hay reportes que coincidan con la búsqueda." />}
         </>}
       />
 

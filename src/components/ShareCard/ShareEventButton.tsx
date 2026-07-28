@@ -6,7 +6,7 @@ import { shareEventCard } from '../../utils/share/shareEngine'
 import { EventShareCardTemplate } from './EventShareCardTemplate'
 import { ShareFallbackSheet } from './ShareFallbackSheet'
 import { Toast } from '../Toast'
-import { IconInstagram } from '../Icons'
+import { IconInstagram } from '../accessibility/AccessibleIcon'
 
 // Punto de entrada para difundir el evento en redes (organizador, hoy;
 // GuestPass podrá montar el mismo componente más adelante sin cambios acá).

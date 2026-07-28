@@ -1,7 +1,7 @@
 import { memo, useRef, useState } from 'react'
 import { partySize } from '../../firebase/guests'
 import type { GuestData } from '../../types'
-import { IconCheck, IconTrash } from '../Icons'
+import { IconCheck, IconTrash } from '../accessibility/AccessibleIcon'
 import { GuestAvatar } from './GuestAvatar'
 import { getGuestSubtitle, guestDisplayName, guestIndicator } from './guestGrouping'
 

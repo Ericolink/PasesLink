@@ -4,8 +4,8 @@ import { confirmPasswordReset, verifyPasswordResetCode } from '../firebase/auth'
 import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { PasswordInput } from '../components/PasswordInput'
-import { IconCheckCircle, IconXCircle } from '../components/Icons'
-import { Button } from '../components/Button'
+import { IconCheckCircle, IconXCircle } from '../components/accessibility/AccessibleIcon'
+import { AccessibleButton } from '../components/accessibility/AccessibleButton'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -104,9 +104,9 @@ export function ResetPassword() {
               />
             </div>
             {errorInfo && <AuthErrorMessage info={errorInfo} />}
-            <Button type="submit" disabled={loading} className="w-full">
+            <AccessibleButton type="submit" disabled={loading} className="w-full">
               {loading ? 'Guardando…' : 'Restablecer contraseña'}
-            </Button>
+            </AccessibleButton>
           </form>
         </>
       )}
@@ -115,9 +115,9 @@ export function ResetPassword() {
         <div className="text-center py-4">
           <IconCheckCircle className="w-10 h-10 mx-auto mb-3 text-green-600" />
           <p className="text-sm text-gray-700 mb-4">Tu contraseña fue actualizada correctamente.</p>
-          <Button onClick={() => navigate('/login')}>
+          <AccessibleButton onClick={() => navigate('/login')}>
             Ir a iniciar sesión
-          </Button>
+          </AccessibleButton>
         </div>
       )}
     </AuthLayout>

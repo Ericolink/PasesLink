@@ -8,9 +8,9 @@ import { reclaimInvitationsByEmail } from '../firebase/invitationRecovery'
 import { AuthErrorMessage } from './AuthErrorMessage'
 import { LegalConsentCheckbox } from './LegalConsentCheckbox'
 import { PasswordInput } from './PasswordInput'
-import { Button } from './Button'
-import { Modal } from './Modal'
-import { IconCalendar, IconCheckCircle, IconGoogle, IconTicket, IconUserPlus, IconX } from './Icons'
+import { AccessibleButton } from './accessibility/AccessibleButton'
+import { AccessibleModal } from './accessibility/AccessibleModal'
+import { IconCalendar, IconCheckCircle, IconGoogle, IconTicket, IconUserPlus, IconX } from './accessibility/AccessibleIcon'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 import type { GuestData } from '../types'
@@ -148,7 +148,7 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
   }
 
   return (
-    <Modal
+    <AccessibleModal
       open
       onClose={() => { if (step !== 'success') onDismiss() }}
       label="Crear cuenta en PaseLink"
@@ -182,12 +182,12 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
             ))}
           </ul>
           <div className="flex flex-col gap-2">
-            <Button onClick={() => setStep('form')} className="w-full">
+            <AccessibleButton onClick={() => setStep('form')} className="w-full">
               Crear cuenta
-            </Button>
-            <Button variant="text" onClick={onDismiss} className="w-full rounded-xl py-3">
+            </AccessibleButton>
+            <AccessibleButton variant="text" onClick={onDismiss} className="w-full rounded-xl py-3">
               Ahora no
-            </Button>
+            </AccessibleButton>
           </div>
           <button
             type="button"
@@ -260,9 +260,9 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
             </div>
             <LegalConsentCheckbox id="signup-prompt-legal-consent" checked={legalAccepted} onChange={setLegalAccepted} />
             {errorInfo && <AuthErrorMessage info={errorInfo} />}
-            <Button type="submit" disabled={loading !== null || !legalAccepted} className="w-full">
+            <AccessibleButton type="submit" disabled={loading !== null || !legalAccepted} className="w-full">
               {loading === 'email' ? 'Creando cuenta…' : 'Crear cuenta'}
-            </Button>
+            </AccessibleButton>
           </form>
 
           <div className="my-4 flex items-center gap-2">
@@ -270,10 +270,10 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
             <span className="text-xs text-gray-400">o</span>
             <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
           </div>
-          <Button variant="secondary" onClick={handleGoogle} disabled={loading !== null || !legalAccepted} className="w-full flex items-center justify-center gap-2">
+          <AccessibleButton variant="secondary" onClick={handleGoogle} disabled={loading !== null || !legalAccepted} className="w-full flex items-center justify-center gap-2">
             <IconGoogle />
             {loading === 'google' ? 'Conectando…' : 'Continuar con Google'}
-          </Button>
+          </AccessibleButton>
           {!legalAccepted && (
             <p className="text-xs text-gray-400 text-center mt-2">Acepta los términos para continuar</p>
           )}
@@ -320,9 +320,9 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
               />
             </div>
             {errorInfo && <AuthErrorMessage info={errorInfo} />}
-            <Button type="submit" disabled={loading !== null} className="w-full">
+            <AccessibleButton type="submit" disabled={loading !== null} className="w-full">
               {loading === 'login' ? 'Iniciando sesión…' : 'Iniciar sesión'}
-            </Button>
+            </AccessibleButton>
           </form>
 
           <div className="my-4 flex items-center gap-2">
@@ -330,10 +330,10 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
             <span className="text-xs text-gray-400">o</span>
             <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
           </div>
-          <Button variant="secondary" onClick={handleGoogle} disabled={loading !== null} className="w-full flex items-center justify-center gap-2">
+          <AccessibleButton variant="secondary" onClick={handleGoogle} disabled={loading !== null} className="w-full flex items-center justify-center gap-2">
             <IconGoogle />
             {loading === 'google' ? 'Conectando…' : 'Continuar con Google'}
-          </Button>
+          </AccessibleButton>
           <button
             type="button"
             onClick={() => { setErrorInfo(null); setStep('form') }}
@@ -351,6 +351,6 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Tu pase ya quedó guardado en tu cuenta.</p>
         </div>
       )}
-    </Modal>
+    </AccessibleModal>
   )
 }

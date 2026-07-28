@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Modal } from '../Modal'
+import { AccessibleModal } from '../accessibility/AccessibleModal'
 import { getReportCountForContent, getReportsAboutUser, saveReportNotes } from '../../firebase/moderation'
 import { applySanction, getUserSanctionHistory, getUserSanctionSummary, PERMANENT_SANCTION_MS, revokeSanction } from '../../firebase/sanctions'
 import type {
@@ -13,8 +13,8 @@ import type {
 import { REPORT_CONTENT_TYPE_LABELS, REPORT_STATUS_LABELS, SANCTION_TYPE_LABELS } from '../../types'
 import { optimizedImageUrl } from '../../utils/cloudinary'
 import { formatDateTimeMedium } from '../../utils/time'
-import { IconBan, IconFlag, IconShield, IconTrash, IconX } from '../Icons'
-import { FieldError } from '../FieldError'
+import { IconBan, IconFlag, IconShield, IconTrash, IconX } from '../accessibility/AccessibleIcon'
+import { FieldError } from '../accessibility/AccessibleField'
 
 const STATUS_ORDER: ReportStatus[] = ['pending', 'in_review', 'resolved', 'rejected']
 const SANCTION_TYPES: SanctionType[] = ['warning', 'comment_restriction', 'photo_restriction', 'suspension', 'ban']
@@ -162,7 +162,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
   const activeRestrictions = sanctionSummary ? collectActiveRestrictions(sanctionSummary) : []
 
   return (
-    <Modal
+    <AccessibleModal
       open={!!report}
       onClose={onClose}
       label={`Reporte de ${REPORT_CONTENT_TYPE_LABELS[report.contentType]}`}
@@ -394,7 +394,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
             </div>
           )}
         </div>
-    </Modal>
+    </AccessibleModal>
   )
 }
 

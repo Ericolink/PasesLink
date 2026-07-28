@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { TemplateId } from '../types'
 import { ThemeOrnament } from './ThemeOrnament'
-import { IconArrowLeft } from './Icons'
+import { IconArrowLeft } from './accessibility/AccessibleIcon'
 
 type ScreenHeaderProps = {
   /** Título de la sección — siempre visible, nunca depende de recordar dónde tocaste. */

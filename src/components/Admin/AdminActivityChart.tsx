@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { EventData } from '../../types'
+import { AccessibleChart } from '../accessibility/AccessibleChart'
 
 const MONTHS = 6
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -13,10 +14,13 @@ function lastNMonthKeys(n: number): { key: string; label: string }[] {
 }
 
 export function AdminActivityChart({ events }: { events: EventData[] }) {
-  const { months, counts, maxCount } = useMemo(() => {
+  const { months, counts, maxCount, totalEvents, peakLabel } = useMemo(() => {
     const months = lastNMonthKeys(MONTHS)
     const counts = months.map(({ key }) => events.filter((e) => e.date.startsWith(key)).length)
-    return { months, counts, maxCount: Math.max(1, ...counts) }
+    const maxCount = Math.max(1, ...counts)
+    const totalEvents = counts.reduce((sum, c) => sum + c, 0)
+    const peakIndex = counts.indexOf(Math.max(...counts))
+    return { months, counts, maxCount, totalEvents, peakLabel: months[peakIndex]?.label ?? '' }
   }, [events])
 
   return (
@@ -26,21 +30,29 @@ export function AdminActivityChart({ events }: { events: EventData[] }) {
       </p>
       {/* Conteo siempre visible (antes solo con hover, inutilizable en
           touch) con una altura reservada (h-3) para no saltar de layout
-          entre meses con/sin eventos — mismo patrón que EventAnalytics.tsx. */}
-      <div className="flex items-end gap-2 h-20">
-        {months.map(({ key, label }, i) => (
-          <div key={key} className="flex-1 flex flex-col items-center gap-1">
-            <span className="h-3 text-2xs text-gray-500 dark:text-gray-400">{counts[i] > 0 ? counts[i] : ''}</span>
-            <div className="w-full flex items-end" style={{ height: '60px' }}>
-              <div
-                className="w-full rounded-t bg-primary/70 transition-colors"
-                style={{ height: counts[i] > 0 ? `${Math.max(8, (counts[i] / maxCount) * 100)}%` : '2px' }}
-              />
+          entre meses con/sin eventos — mismo patrón que EventAnalytics.tsx.
+          Antes sin ninguna alternativa textual (a diferencia de
+          EventAnalytics): AccessibleChart agrega el resumen (pico, total)
+          que un lector de pantalla necesita para esta forma de barras. */}
+      <AccessibleChart
+        summary={`Eventos por mes: ${totalEvents} en total en los últimos ${MONTHS} meses, pico de ${Math.max(...counts)} en ${peakLabel}.`}
+        caption="Eventos por mes"
+      >
+        <div className="flex items-end gap-2 h-20" aria-hidden="true">
+          {months.map(({ key, label }, i) => (
+            <div key={key} className="flex-1 flex flex-col items-center gap-1">
+              <span className="h-3 text-2xs text-gray-500 dark:text-gray-400">{counts[i] > 0 ? counts[i] : ''}</span>
+              <div className="w-full flex items-end" style={{ height: '60px' }}>
+                <div
+                  className="w-full rounded-t bg-primary/70 transition-colors"
+                  style={{ height: counts[i] > 0 ? `${Math.max(8, (counts[i] / maxCount) * 100)}%` : '2px' }}
+                />
+              </div>
+              <span className="text-2xs text-gray-400 dark:text-gray-500">{label}</span>
             </div>
-            <span className="text-2xs text-gray-400 dark:text-gray-500">{label}</span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </AccessibleChart>
     </div>
   )
 }

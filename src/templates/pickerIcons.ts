@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import type { TemplateId } from '../types'
-import { IconTicket, IconHeart, IconCactus, IconGraduationCap, IconCrown, IconCake, IconParty } from '../components/Icons'
+import { IconTicket, IconHeart, IconCactus, IconGraduationCap, IconCrown, IconCake, IconParty } from '../components/accessibility/AccessibleIcon'
 
 interface IconProps {
   className?: string

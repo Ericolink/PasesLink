@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import type { GuestData } from '../types'
 import type { usePaymentProof } from '../hooks/usePaymentProof'
 import { canSubmitPaymentProof } from '../firebase/guests'
-import { FormField } from './FormField'
+import { AccessibleField } from './accessibility/AccessibleField'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 
 interface Props {
@@ -33,13 +33,13 @@ export function PaymentProofForm({ guest, proof }: Props) {
         </button>
       ) : (
         <div className="space-y-2">
-          <FormField
+          <AccessibleField
             label="Número de referencia de tu transferencia"
             required
-            hint="Lo va a ver el organizador para poder cotejarlo con su resumen bancario."
+            helperText="Lo va a ver el organizador para poder cotejarlo con su resumen bancario."
             error={proofError}
             labelClassName="block text-xs font-medium text-[var(--invite-text-muted)]"
-            hintClassName="text-xs text-[var(--invite-text-muted)]"
+            helperClassName="text-xs text-[var(--invite-text-muted)]"
           >
             {(fieldProps) => (
               <input
@@ -53,7 +53,7 @@ export function PaymentProofForm({ guest, proof }: Props) {
                 style={{ borderColor: 'var(--invite-border)' }}
               />
             )}
-          </FormField>
+          </AccessibleField>
           <div className="flex gap-2">
             <button
               onClick={handleSubmitProof}

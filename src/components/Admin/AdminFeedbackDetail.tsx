@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Modal } from '../Modal'
+import { AccessibleModal } from '../accessibility/AccessibleModal'
 import type { Feedback, FeedbackPriority, FeedbackStatus } from '../../types'
 import { FEEDBACK_CATEGORY_LABELS, FEEDBACK_PRIORITY_LABELS, FEEDBACK_STATUS_LABELS } from '../../types'
 import { FeedbackCategoryIcon } from '../FeedbackCategoryIcon'
-import { IconStar, IconTrash, IconX } from '../Icons'
+import { IconStar, IconTrash, IconX } from '../accessibility/AccessibleIcon'
 import { formatDateTimeMedium } from '../../utils/time'
 
 interface Props {
@@ -58,7 +58,7 @@ export function AdminFeedbackDetail({
   const notesChanged = notesDraft !== feedback.adminNotes
 
   return (
-    <Modal open={!!feedback} onClose={onClose} label={feedback.subject} variant="dialog" maxWidth="max-w-lg">
+    <AccessibleModal open={!!feedback} onClose={onClose} label={feedback.subject} variant="dialog" maxWidth="max-w-lg">
       <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700 shrink-0">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -171,6 +171,6 @@ export function AdminFeedbackDetail({
           Eliminar
         </button>
       </div>
-    </Modal>
+    </AccessibleModal>
   )
 }

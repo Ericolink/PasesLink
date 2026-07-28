@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { IconArrowLeft } from './Icons'
+import { IconArrowLeft } from './accessibility/AccessibleIcon'
 
 interface Props {
   message: string

@@ -3,9 +3,9 @@ import type { Feedback, FeedbackCategory, FeedbackPriority, FeedbackStatus } fro
 import { FEEDBACK_CATEGORY_LABELS, FEEDBACK_PRIORITY_LABELS, FEEDBACK_STATUS_LABELS } from '../../types'
 import { EmptyState } from '../Empty/EmptyState'
 import { FeedbackCategoryIcon } from '../FeedbackCategoryIcon'
-import { IconEye, IconInbox, IconStar, IconTrash } from '../Icons'
+import { IconEye, IconInbox, IconStar, IconTrash } from '../accessibility/AccessibleIcon'
 import { Pagination } from './Pagination'
-import { ResponsiveTable } from './ResponsiveTable'
+import { AccessibleTable, EmptyRow, ResponsiveTable, SortableTh } from '../accessibility/AccessibleTable'
 import { SkeletonBlock } from '../Skeleton'
 import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
 import { formatShortDate } from '../../utils/time'
@@ -216,21 +216,18 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
               </div>
             </div>
           ))}
-          {!loading && pageItems.length === 0 && (
-            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay mensajes que coincidan con la búsqueda.</p>
-          )}
+          {!loading && pageItems.length === 0 && <EmptyRow message="No hay mensajes que coincidan con la búsqueda." />}
         </>}
         table={<>
-          <table className="w-full text-sm">
-            <caption className="sr-only">Lista de mensajes del buzón de feedback</caption>
+          <AccessibleTable caption="Lista de mensajes del buzón de feedback">
             <thead>
               <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 bg-[var(--color-surface-sunken)] dark:bg-transparent">
                 <th scope="col" className="px-4 py-2 font-medium w-8"><span className="sr-only">No leído</span></th>
                 <th scope="col" className="px-4 py-2 font-medium">Asunto</th>
                 <th scope="col" className="px-4 py-2 font-medium">Remitente</th>
-                <SortableHeader label="Estado" active={sortKey === 'status'} dir={sortDir} onClick={() => toggleSort('status')} />
-                <SortableHeader label="Prioridad" active={sortKey === 'priority'} dir={sortDir} onClick={() => toggleSort('priority')} />
-                <SortableHeader label="Fecha" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
+                <SortableTh label="Estado" active={sortKey === 'status'} dir={sortDir} onClick={() => toggleSort('status')} />
+                <SortableTh label="Prioridad" active={sortKey === 'priority'} dir={sortDir} onClick={() => toggleSort('priority')} />
+                <SortableTh label="Fecha" active={sortKey === 'createdAt'} dir={sortDir} onClick={() => toggleSort('createdAt')} />
                 <th scope="col" className="px-4 py-2 font-medium"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>
@@ -304,26 +301,13 @@ export function AdminFeedbackTable({ items, loading, search, onSearchChange, onO
                 </tr>
               ))}
             </tbody>
-          </table>
-          {!loading && pageItems.length === 0 && (
-            <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay mensajes que coincidan con la búsqueda.</p>
-          )}
+          </AccessibleTable>
+          {!loading && pageItems.length === 0 && <EmptyRow message="No hay mensajes que coincidan con la búsqueda." />}
         </>}
       />
 
       <Pagination page={currentPage} pageCount={pageCount} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
     </div>
-  )
-}
-
-function SortableHeader({ label, active, dir, onClick }: { label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void }) {
-  return (
-    <th scope="col" className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors">
-        {label}
-        {active && <span className="text-2xs">{dir === 'asc' ? '▲' : '▼'}</span>}
-      </button>
-    </th>
   )
 }
 

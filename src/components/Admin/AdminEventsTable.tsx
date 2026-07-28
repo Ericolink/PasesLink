@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom'
 import type { AdminUser } from '../../firebase/admin'
 import type { EventData, EventStatus } from '../../types'
 import { EmptyState } from '../Empty/EmptyState'
-import { IconCalendar, IconDownload, IconEye, IconBarChart2, IconTrash } from '../Icons'
+import { IconCalendar, IconDownload, IconEye, IconBarChart2, IconTrash } from '../accessibility/AccessibleIcon'
 import { Pagination } from './Pagination'
-import { ResponsiveTable } from './ResponsiveTable'
+import { AccessibleTable, EmptyRow, ResponsiveTable, SortableTh } from '../accessibility/AccessibleTable'
 import { SkeletonBlock } from '../Skeleton'
 import { useLoadingAnnouncement } from '../../hooks/useLoadingAnnouncement'
 
@@ -236,13 +236,10 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
             </div>
           </div>
         ))}
-        {!loading && pageItems.length === 0 && (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay eventos que coincidan con la búsqueda.</p>
-        )}
+        {!loading && pageItems.length === 0 && <EmptyRow message="No hay eventos que coincidan con la búsqueda." />}
         </>}
         table={<>
-        <table className="w-full text-sm">
-          <caption className="sr-only">Lista de eventos</caption>
+        <AccessibleTable caption="Lista de eventos">
           {/* Header sunken + zebra + fila seleccionada (Design Memory) — solo
               en claro (dark:bg-transparent/dark:even:bg-transparent) para no
               tocar la apariencia oscura, que antes no tenía ninguno de los
@@ -257,12 +254,12 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
                   aria-label="Seleccionar todos los eventos de esta página"
                 />
               </th>
-              <SortableHeader label="Evento" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
-              <SortableHeader label="Fecha" active={sortKey === 'date'} dir={sortDir} onClick={() => toggleSort('date')} />
+              <SortableTh label="Evento" active={sortKey === 'name'} dir={sortDir} onClick={() => toggleSort('name')} />
+              <SortableTh label="Fecha" active={sortKey === 'date'} dir={sortDir} onClick={() => toggleSort('date')} />
               <th scope="col" className="px-4 py-2 font-medium">Organizador</th>
               <th scope="col" className="px-4 py-2 font-medium">Estado</th>
-              <SortableHeader label="Invitados" active={sortKey === 'guestCount'} dir={sortDir} onClick={() => toggleSort('guestCount')} />
-              <SortableHeader label="Check-ins" active={sortKey === 'checkedInCount'} dir={sortDir} onClick={() => toggleSort('checkedInCount')} />
+              <SortableTh label="Invitados" active={sortKey === 'guestCount'} dir={sortDir} onClick={() => toggleSort('guestCount')} />
+              <SortableTh label="Check-ins" active={sortKey === 'checkedInCount'} dir={sortDir} onClick={() => toggleSort('checkedInCount')} />
               <th scope="col" className="px-4 py-2 font-medium"><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
@@ -325,26 +322,13 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
               </tr>
             ))}
           </tbody>
-        </table>
-        {!loading && pageItems.length === 0 && (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No hay eventos que coincidan con la búsqueda.</p>
-        )}
+        </AccessibleTable>
+        {!loading && pageItems.length === 0 && <EmptyRow message="No hay eventos que coincidan con la búsqueda." />}
         </>}
       />
 
       <Pagination page={currentPage} pageCount={pageCount} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
     </div>
-  )
-}
-
-function SortableHeader({ label, active, dir, onClick }: { label: string; active: boolean; dir: 'asc' | 'desc'; onClick: () => void }) {
-  return (
-    <th scope="col" className="px-4 py-2 font-medium" aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button onClick={onClick} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white transition-colors">
-        {label}
-        {active && <span className="text-2xs">{dir === 'asc' ? '▲' : '▼'}</span>}
-      </button>
-    </th>
   )
 }
 

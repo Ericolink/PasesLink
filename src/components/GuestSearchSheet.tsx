@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import { IconSearch, IconX } from './Icons'
-import { Modal } from './Modal'
+import { IconSearch, IconX } from './accessibility/AccessibleIcon'
+import { AccessibleModal } from './accessibility/AccessibleModal'
 import { DialogHeader } from './DialogHeader'
-import { Button } from './Button'
+import { AccessibleButton } from './accessibility/AccessibleButton'
 
 type StatusFilter = 'all' | 'confirmed' | 'scanned' | 'declined' | 'pending'
 type SortBy = 'newest' | 'oldest' | 'az' | 'za'
@@ -67,7 +67,7 @@ export function GuestSearchSheet({
   }
 
   return (
-    <Modal open={open} onClose={onClose} label="Buscar y filtrar invitados" maxWidth="sm:max-w-md">
+    <AccessibleModal open={open} onClose={onClose} label="Buscar y filtrar invitados" maxWidth="sm:max-w-md">
       <DialogHeader title="Buscar y filtrar" onClose={onClose} />
 
       <div className="px-5 pb-4 pt-4 overflow-y-auto">
@@ -77,7 +77,7 @@ export function GuestSearchSheet({
               el teclado nativo de inmediato en móvil, tapando los chips de
               filtro antes de que el usuario llegue a verlos. Sin esto, el
               sheet abre con el teclado cerrado y el usuario lo abre solo
-              si realmente va a escribir; useModalA11y enfoca el botón
+              si realmente va a escribir; useAccessibleModal enfoca el botón
               "Cerrar" como respaldo de accesibilidad, sin disparar teclado. */}
           <input
             type="text"
@@ -123,13 +123,13 @@ export function GuestSearchSheet({
       </div>
 
       <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-gray-100 dark:border-gray-700 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 shrink-0">
-        <Button type="button" variant="text" onClick={clearFilters} disabled={!hasActiveFilters} className="text-xs">
+        <AccessibleButton type="button" variant="text" onClick={clearFilters} disabled={!hasActiveFilters} className="text-xs">
           Restablecer filtros
-        </Button>
-        <Button type="button" size="sm" onClick={onClose}>
+        </AccessibleButton>
+        <AccessibleButton type="button" size="sm" onClick={onClose}>
           Ver {resultCount} {resultCount === 1 ? 'invitado' : 'invitados'}
-        </Button>
+        </AccessibleButton>
       </div>
-    </Modal>
+    </AccessibleModal>
   )
 }

@@ -29,15 +29,15 @@ import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { EventCountdown } from '../components/EventCountdown'
 import { formatTime12h } from '../utils/time'
-import { IconBan } from '../components/Icons'
-import { FieldError } from '../components/FieldError'
-import { FormField } from '../components/FormField'
+import { IconBan } from '../components/accessibility/AccessibleIcon'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useAnnouncer } from '../components/accessibility/LiveRegion'
 import type { EventData, PaymentMethod } from '../types'
 import { buildPassUrl } from '../utils/qrUrl'
 import { customFieldInputProps } from '../utils/customFieldInput'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
+import { FieldError, AccessibleField } from '../components/accessibility/AccessibleField'
 
 type State = 'loading' | 'form' | 'submitting' | 'not_found' | 'error'
 
@@ -75,6 +75,22 @@ export function EventJoin() {
   const [regErrorAttempt, setRegErrorAttempt] = useState(0)
   const formRef = useRef<HTMLFormElement>(null)
   useFocusFirstInvalidField(formRef, regErrorAttempt)
+
+  const { announce } = useAnnouncer()
+  // Un stepper personalizado no anuncia su cambio de valor por sí solo como
+  // lo haría un <input type=number> nativo — sin esto, un lector de pantalla
+  // no confirma el nuevo total al presionar +/-. `previousPartySize` (no un
+  // booleano) evita anunciar en el montaje inicial, incluida la doble
+  // invocación de StrictMode (mismo patrón que RouteAnnouncer).
+  const previousPartySize = useRef<number | null>(null)
+  useEffect(() => {
+    if (previousPartySize.current === null || previousPartySize.current === partySize) {
+      previousPartySize.current = partySize
+      return
+    }
+    previousPartySize.current = partySize
+    announce(`${partySize} ${partySize === 1 ? 'persona' : 'personas'} en total`)
+  }, [partySize, announce])
 
   // Un único listener cubre tanto la decisión de estado inicial
   // (not_found/error/form, resuelta con su primer snapshot) como las
@@ -261,7 +277,7 @@ export function EventJoin() {
 
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-3 text-left">
             <div className="grid grid-cols-2 gap-2">
-              <FormField label="Tu nombre" required labelClassName={labelClass}>
+              <AccessibleField label="Tu nombre" required labelClassName={labelClass}>
                 {(fieldProps) => (
                   <input
                     {...fieldProps}
@@ -274,8 +290,8 @@ export function EventJoin() {
                     className={inputClass}
                   />
                 )}
-              </FormField>
-              <FormField label="Apellido" required labelClassName={labelClass}>
+              </AccessibleField>
+              <AccessibleField label="Apellido" required labelClassName={labelClass}>
                 {(fieldProps) => (
                   <input
                     {...fieldProps}
@@ -288,7 +304,7 @@ export function EventJoin() {
                     className={inputClass}
                   />
                 )}
-              </FormField>
+              </AccessibleField>
             </div>
             <fieldset className="border-0 p-0 m-0">
               <legend className={labelClass}>¿Cuántos vienen? <span className="font-normal normal-case">(incluyéndote)</span></legend>
@@ -302,11 +318,7 @@ export function EventJoin() {
                 >
                   −
                 </button>
-                {/* aria-live: un stepper personalizado no anuncia su cambio
-                    de valor por sí solo como lo haría un <input type=number>
-                    nativo — sin esto, un lector de pantalla no confirma el
-                    nuevo total al presionar +/-. */}
-                <span aria-live="polite" className="text-base font-semibold text-[var(--invite-text)] tabular-nums">{partySize}</span>
+                <span className="text-base font-semibold text-[var(--invite-text)] tabular-nums">{partySize}</span>
                 <button
                   type="button"
                   onClick={() => setPartySize(Math.min(partySize + 1, maxPartySize))}
@@ -325,7 +337,7 @@ export function EventJoin() {
                 </p>
               )}
             </fieldset>
-            <FormField label={<>Teléfono <span className="font-normal normal-case">(opcional)</span></>} labelClassName={labelClass}>
+            <AccessibleField label={<>Teléfono <span className="font-normal normal-case">(opcional)</span></>} labelClassName={labelClass}>
               {(fieldProps) => (
                 <div className="flex items-center gap-1.5">
                   <CountryCodeSelect
@@ -346,8 +358,8 @@ export function EventJoin() {
                   />
                 </div>
               )}
-            </FormField>
-            <FormField
+            </AccessibleField>
+            <AccessibleField
               label={<>Email <span className="font-normal normal-case">(opcional, para recibir tu pase por correo)</span></>}
               labelClassName={labelClass}
             >
@@ -364,10 +376,10 @@ export function EventJoin() {
                   className={inputClass}
                 />
               )}
-            </FormField>
+            </AccessibleField>
 
             {customFields.map((field) => (
-              <FormField key={field.id} label={field.label} required={field.required} labelClassName={labelClass}>
+              <AccessibleField key={field.id} label={field.label} required={field.required} labelClassName={labelClass}>
                 {(fieldProps) => (
                   <input
                     {...fieldProps}
@@ -378,7 +390,7 @@ export function EventJoin() {
                     className={inputClass}
                   />
                 )}
-              </FormField>
+              </AccessibleField>
             ))}
 
             {event?.requiresPayment && (

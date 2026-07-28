@@ -1,4 +1,5 @@
 import { EventScheduleField } from '../../EventScheduleField'
+import { AccessibleField } from '../../accessibility/AccessibleField'
 import { EVENT_NAME_MAX } from '../../../utils/validationRules'
 
 interface StepBasicInfoProps {
@@ -35,37 +36,33 @@ export function StepBasicInfo({
       </p>
 
       <div className="space-y-5">
-        <div>
-          <label htmlFor="event-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Nombre del evento *
-          </label>
-          <input
-            id="event-name"
-            type="text"
-            required
-            value={name}
-            onChange={(e) => onNameChange(e.target.value)}
-            placeholder="Mi graduación, Boda de Ana y Luis…"
-            maxLength={EVENT_NAME_MAX}
-            autoFocus
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
+        <AccessibleField label="Nombre del evento" id="event-name" required>
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="text"
+              value={name}
+              onChange={(e) => onNameChange(e.target.value)}
+              placeholder="Mi graduación, Boda de Ana y Luis…"
+              maxLength={EVENT_NAME_MAX}
+              autoFocus
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          )}
+        </AccessibleField>
 
-        <div>
-          <label htmlFor="event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Lugar *
-          </label>
-          <input
-            id="event-location"
-            type="text"
-            required
-            value={location}
-            onChange={(e) => onLocationChange(e.target.value)}
-            placeholder="Salón Los Olivos"
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
+        <AccessibleField label="Lugar" id="event-location" required>
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="text"
+              value={location}
+              onChange={(e) => onLocationChange(e.target.value)}
+              placeholder="Salón Los Olivos"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          )}
+        </AccessibleField>
 
         <div>
           <p className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useAnnouncer } from '../contexts/AnnouncementContext'
+import { useAnnouncer } from '../LiveRegion'
 
 // Montado una sola vez en App.tsx, dentro de <BrowserRouter> — en cada
 // cambio de ruta mueve el foco a <main id="main-content"> (PublicLayout/

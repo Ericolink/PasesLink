@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { EventData } from '../types'
 import type { useEventLifecycleActions } from '../hooks/useEventLifecycleActions'
-import { Button } from './Button'
+import { AccessibleButton } from './accessibility/AccessibleButton'
 import { ConfirmDialog } from './ConfirmDialog'
 
 function statusLabel(status: string) {
@@ -93,9 +93,9 @@ export function EventManagementPanel({ event, actions }: Props) {
                 {actionError}
               </p>
             )}
-            <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)} disabled={deleting}>
+            <AccessibleButton variant="danger" size="sm" onClick={() => setConfirmDelete(true)} disabled={deleting}>
               {deleting ? 'Eliminando…' : 'Eliminar evento definitivamente'}
-            </Button>
+            </AccessibleButton>
           </div>
         </div>
       </details>

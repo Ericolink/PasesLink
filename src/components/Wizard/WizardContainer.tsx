@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { IconArrowLeft } from '../Icons'
-import { Button } from '../Button'
-import { useAnnouncer } from '../../contexts/AnnouncementContext'
+import { IconArrowLeft } from '../accessibility/AccessibleIcon'
+import { AccessibleButton } from '../accessibility/AccessibleButton'
+import { useAnnouncer } from '../accessibility/LiveRegion'
 import { useFocusOnChange } from '../../hooks/useFocusOnChange'
 
 interface WizardContainerProps {
@@ -124,7 +124,7 @@ export function WizardContainer({
             Atrás
           </button>
 
-          <Button type="button" variant="primary" onClick={onNext} disabled={!canProceed || isSubmitting} className="px-7 font-semibold">
+          <AccessibleButton type="button" variant="primary" onClick={onNext} disabled={!canProceed || isSubmitting} className="px-7 font-semibold">
             {isSubmitting
               ? 'Creando…'
               : nextLabel
@@ -132,7 +132,7 @@ export function WizardContainer({
               : currentStep === totalSteps
               ? 'Crear evento'
               : 'Siguiente →'}
-          </Button>
+          </AccessibleButton>
         </div>
       </div>
     </div>

@@ -29,7 +29,7 @@ import { deleteEvent, setEventStatus } from '../firebase/events'
 import { attendancePercent } from '../utils/attendance'
 import type { EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { Tab as TabButton, TabList, TabPanel, Tabs } from '../components/Tabs'
+import { Tab as TabButton, TabList, TabPanel, Tabs } from '../components/accessibility/AccessibleTabs'
 import { MetricTile } from '../components/MetricTile'
 import { AdminActivityChart } from '../components/Admin/AdminActivityChart'
 import { AdminEventsTable } from '../components/Admin/AdminEventsTable'
@@ -47,7 +47,7 @@ import {
   IconTicket,
   IconUserPlus,
   IconUsers,
-} from '../components/Icons'
+} from '../components/accessibility/AccessibleIcon'
 
 const STATUS_LABELS: Record<EventStatus, string> = {
   active: 'Activo',

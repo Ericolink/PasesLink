@@ -5,7 +5,7 @@ import { Avatar } from './Avatar'
 import { REACTIONS, REACTION_BY_TYPE } from '../utils/reactions'
 import type { InteractiveCollection } from '../firebase/interactions'
 import type { ReactionType, WallReaction } from '../types'
-import { Modal } from './Modal'
+import { AccessibleModal } from './accessibility/AccessibleModal'
 import { DialogHeader } from './DialogHeader'
 
 // Auditoría de escalabilidad (F14): tope duro de lectura — sin esto, un post
@@ -72,7 +72,7 @@ export function ReactionListSheet({ eventId, collectionName, docId, total, count
   const truncated = entries !== null && entries.length >= REACTION_LIST_PAGE_SIZE && entries.length < total
 
   return (
-    <Modal open onClose={onClose} label="Personas que reaccionaron">
+    <AccessibleModal open onClose={onClose} label="Personas que reaccionaron">
       <DialogHeader title={`Reacciones (${total})`} onClose={onClose} />
 
       {typesPresent.length > 1 && (
@@ -132,6 +132,6 @@ export function ReactionListSheet({ eventId, collectionName, docId, total, count
           </li>
         )}
       </ul>
-    </Modal>
+    </AccessibleModal>
   )
 }

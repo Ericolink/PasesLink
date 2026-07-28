@@ -8,7 +8,7 @@ interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'si
   id?: string
   required?: boolean
   size?: TextFieldSize
-  helper?: string
+  helperText?: string
   error?: string | null
   containerClassName?: string
 }
@@ -25,7 +25,7 @@ const SIZE_CLASS: Record<TextFieldSize, string> = {
 export function TextField({
   label,
   size = 'md',
-  helper,
+  helperText,
   error,
   id,
   required,
@@ -39,7 +39,7 @@ export function TextField({
       id={id}
       required={required}
       error={error}
-      hint={helper}
+      helperText={helperText}
       containerClassName={containerClassName}
       className={`dark:bg-gray-900 dark:text-white px-3 ${SIZE_CLASS[size]} ${className}`}
       {...rest}

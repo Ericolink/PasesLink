@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { IconHome, IconCalendar } from '../components/Icons'
+import { IconHome, IconCalendar } from '../components/accessibility/AccessibleIcon'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 export function NotFound() {

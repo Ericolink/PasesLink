@@ -16,9 +16,8 @@ import { TemplatePicker } from './TemplatePicker'
 import { CoverImagePicker } from './CoverImagePicker'
 import { DraftRecoveryModal } from './DraftRecoveryModal'
 import { ConfirmDialog } from './ConfirmDialog'
-import { Button } from './Button'
-import { Checkbox } from './Checkbox'
-import { FieldError } from './FieldError'
+import { AccessibleButton } from './accessibility/AccessibleButton'
+import { AccessibleField, Checkbox, FieldError } from './accessibility/AccessibleField'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { EventScheduleField } from './EventScheduleField'
 import { getTemplate } from '../templates/registry'
@@ -429,24 +428,30 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       <h2 className="font-medium text-gray-900 dark:text-white">Editar evento</h2>
 
       <EditSection title="Lo esencial" defaultOpen>
-        <div>
-          <label htmlFor="edit-event-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del evento</label>
-          <input
-            id="edit-event-name"
-            type="text"
-            required
-            value={form.name}
-            onChange={(e) => updateField('name', e.target.value)}
-            maxLength={EVENT_NAME_MAX}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
+        <AccessibleField label="Nombre del evento" id="edit-event-name" required>
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="text"
+              value={form.name}
+              onChange={(e) => updateField('name', e.target.value)}
+              maxLength={EVENT_NAME_MAX}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          )}
+        </AccessibleField>
 
-        <div>
-          <label htmlFor="edit-event-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
-          <input id="edit-event-location" type="text" required value={form.location} onChange={(e) => updateField('location', e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-        </div>
+        <AccessibleField label="Lugar" id="edit-event-location" required>
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="text"
+              value={form.location}
+              onChange={(e) => updateField('location', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          )}
+        </AccessibleField>
 
         <div>
           <p className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha y hora</p>
@@ -465,30 +470,49 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       </EditSection>
 
       <EditSection title="Detalles" subtitle="Descripción, vestimenta y ubicación en el mapa">
-        <div>
-          <label htmlFor="edit-event-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
-          <textarea id="edit-event-description" value={form.description} onChange={(e) => updateField('description', e.target.value)} rows={2}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-        </div>
-        <div>
-          <label htmlFor="edit-event-dress-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Vestimenta <span className="text-gray-400 font-normal">(opcional)</span>
-          </label>
-          <input id="edit-event-dress-code" type="text" value={form.dressCode} onChange={(e) => updateField('dressCode', e.target.value)}
-            maxLength={100} placeholder="Ej: Formal, Casual, Todo de blanco…"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-        </div>
-        <div>
-          <label htmlFor="edit-event-maps-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span>
-          </label>
-          <input id="edit-event-maps-url" type="url" value={form.mapsUrl} onChange={(e) => updateField('mapsUrl', e.target.value)}
-            placeholder="https://maps.google.com/maps?q=..."
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-          <p className="text-xs text-gray-500 mt-1">
-            Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado, pega el link <strong>completo</strong> de Google Maps (desde el navegador, no el link corto).
-          </p>
-        </div>
+        <AccessibleField label="Descripción (opcional)" id="edit-event-description">
+          {(fieldProps) => (
+            <textarea
+              {...fieldProps}
+              value={form.description}
+              onChange={(e) => updateField('description', e.target.value)}
+              rows={2}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          )}
+        </AccessibleField>
+        <AccessibleField
+          label={<>Vestimenta <span className="text-gray-400 font-normal">(opcional)</span></>}
+          id="edit-event-dress-code"
+        >
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="text"
+              value={form.dressCode}
+              onChange={(e) => updateField('dressCode', e.target.value)}
+              maxLength={100}
+              placeholder="Ej: Formal, Casual, Todo de blanco…"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          )}
+        </AccessibleField>
+        <AccessibleField
+          label={<>Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span></>}
+          id="edit-event-maps-url"
+          helperText={'Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado, pega el link completo de Google Maps (desde el navegador, no el link corto).'}
+        >
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="url"
+              value={form.mapsUrl}
+              onChange={(e) => updateField('mapsUrl', e.target.value)}
+              placeholder="https://maps.google.com/maps?q=..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          )}
+        </AccessibleField>
       </EditSection>
 
       <EditSection title="Plantilla y estilo del pase" subtitle="Tema visual, portada, color de acento y mensaje de bienvenida">
@@ -515,19 +539,32 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="edit-event-accent-color" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color de acento</label>
-              <div className="flex items-center gap-2">
-                <input id="edit-event-accent-color" type="color" value={form.accentColor || getTemplate(form.templateId).vars.accent} onChange={(e) => updateField('accentColor', e.target.value)}
-                  className="h-9 w-12 border border-gray-300 rounded-lg cursor-pointer" />
-                <span className="text-sm text-gray-500">{form.accentColor || `${getTemplate(form.templateId).vars.accent} (de la plantilla)`}</span>
-              </div>
-            </div>
-            <div>
-              <label htmlFor="edit-event-welcome-message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mensaje de bienvenida</label>
-              <input id="edit-event-welcome-message" type="text" value={form.welcomeMessage} onChange={(e) => updateField('welcomeMessage', e.target.value)}
-                placeholder="¡Te esperamos!" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-            </div>
+            <AccessibleField label="Color de acento" id="edit-event-accent-color">
+              {(fieldProps) => (
+                <div className="flex items-center gap-2">
+                  <input
+                    {...fieldProps}
+                    type="color"
+                    value={form.accentColor || getTemplate(form.templateId).vars.accent}
+                    onChange={(e) => updateField('accentColor', e.target.value)}
+                    className="h-9 w-12 border border-gray-300 rounded-lg cursor-pointer"
+                  />
+                  <span className="text-sm text-gray-500">{form.accentColor || `${getTemplate(form.templateId).vars.accent} (de la plantilla)`}</span>
+                </div>
+              )}
+            </AccessibleField>
+            <AccessibleField label="Mensaje de bienvenida" id="edit-event-welcome-message">
+              {(fieldProps) => (
+                <input
+                  {...fieldProps}
+                  type="text"
+                  value={form.welcomeMessage}
+                  onChange={(e) => updateField('welcomeMessage', e.target.value)}
+                  placeholder="¡Te esperamos!"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              )}
+            </AccessibleField>
           </div>
         </div>
       </EditSection>
@@ -562,35 +599,43 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             </div>
           ))}
         </div>
-        <div>
-          <label htmlFor="edit-event-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Límite de invitados</label>
-          <input
-            id="edit-event-capacity" type="number" required min="1" value={form.capacity} onChange={(e) => updateField('capacity', e.target.value)}
-            placeholder="Ej: 200"
-            aria-describedby={capacityError ? 'edit-event-capacity-error' : 'edit-event-capacity-hint'}
-            aria-invalid={!!capacityError}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <p id="edit-event-capacity-hint" className="text-xs text-gray-400 mt-1">
-            Total de personas recomendado (invitados + acompañantes) — informativo, no bloquea nuevos registros si
-            se supera.
-          </p>
-          <FieldError id="edit-event-capacity-error" message={capacityError} />
-        </div>
-        <div>
-          <label htmlFor="edit-event-max-companions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Acompañantes por invitado</label>
-          <input
-            id="edit-event-max-companions" type="number" min="0" max={GUEST_MAX_COMPANIONS} value={form.maxCompanions} onChange={(e) => updateField('maxCompanions', e.target.value)}
-            aria-describedby={maxCompanionsError ? 'edit-event-max-companions-error' : 'edit-event-max-companions-hint'}
-            aria-invalid={!!maxCompanionsError}
-            className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <p id="edit-event-max-companions-hint" className="text-xs text-gray-400 mt-1">
-            Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten
-            acompañantes. No aplica a "Familia o grupo", que tiene su propio límite de integrantes.
-          </p>
-          <FieldError id="edit-event-max-companions-error" message={maxCompanionsError} />
-        </div>
+        <AccessibleField
+          label="Límite de invitados"
+          id="edit-event-capacity"
+          required
+          error={capacityError || null}
+          helperText="Total de personas recomendado (invitados + acompañantes) — informativo, no bloquea nuevos registros si se supera."
+        >
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="number"
+              min="1"
+              value={form.capacity}
+              onChange={(e) => updateField('capacity', e.target.value)}
+              placeholder="Ej: 200"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          )}
+        </AccessibleField>
+        <AccessibleField
+          label="Acompañantes por invitado"
+          id="edit-event-max-companions"
+          error={maxCompanionsError || null}
+          helperText='Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten acompañantes. No aplica a "Familia o grupo", que tiene su propio límite de integrantes.'
+        >
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="number"
+              min="0"
+              max={GUEST_MAX_COMPANIONS}
+              value={form.maxCompanions}
+              onChange={(e) => updateField('maxCompanions', e.target.value)}
+              className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          )}
+        </AccessibleField>
       </EditSection>
 
       <EditSection
@@ -626,66 +671,71 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
               {form.paymentMethods.length === 0 && <FieldError message="Elegí al menos un método." />}
             </fieldset>
             <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
-                <label htmlFor="edit-event-ticket-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio por persona</label>
-                <input
-                  id="edit-event-ticket-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.ticketPrice}
-                  onChange={(e) => updateField('ticketPrice', sanitizeDecimalInput(e.target.value))}
-                  placeholder="Ej: 5000"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label htmlFor="edit-event-currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Moneda</label>
-                <input
-                  id="edit-event-currency"
-                  type="text"
-                  value={form.currency}
-                  onChange={(e) => updateField('currency', e.target.value)}
-                  placeholder="$"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
+              <AccessibleField label="Precio por persona" id="edit-event-ticket-price" className="col-span-2">
+                {(fieldProps) => (
+                  <input
+                    {...fieldProps}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.ticketPrice}
+                    onChange={(e) => updateField('ticketPrice', sanitizeDecimalInput(e.target.value))}
+                    placeholder="Ej: 5000"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                )}
+              </AccessibleField>
+              <AccessibleField label="Moneda" id="edit-event-currency">
+                {(fieldProps) => (
+                  <input
+                    {...fieldProps}
+                    type="text"
+                    value={form.currency}
+                    onChange={(e) => updateField('currency', e.target.value)}
+                    placeholder="$"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                )}
+              </AccessibleField>
             </div>
             {form.paymentMethods.includes('transfer') && (
-              <div>
-                <label htmlFor="edit-event-payment-instructions" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Datos para transferencia</label>
-                <textarea
-                  id="edit-event-payment-instructions"
-                  value={form.paymentInstructions}
-                  onChange={(e) => updateField('paymentInstructions', e.target.value)}
-                  rows={3}
-                  placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
+              <AccessibleField label="Datos para transferencia" id="edit-event-payment-instructions">
+                {(fieldProps) => (
+                  <textarea
+                    {...fieldProps}
+                    value={form.paymentInstructions}
+                    onChange={(e) => updateField('paymentInstructions', e.target.value)}
+                    rows={3}
+                    placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                )}
+              </AccessibleField>
             )}
-            <div>
-              <label htmlFor="edit-event-organizer-contact" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tu WhatsApp para pagos</label>
-              <div className="flex items-center gap-1.5">
-                <CountryCodeSelect
-                  value={form.organizerContactPhoneCountry as CountryCode}
-                  onChange={(v) => updateField('organizerContactPhoneCountry', v)}
-                  aria-label="País del WhatsApp de contacto"
-                  className="border border-gray-300 rounded-lg px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <input
-                  id="edit-event-organizer-contact"
-                  type="tel"
-                  value={form.organizerContactPhone}
-                  onChange={(e) => updateField('organizerContactPhone', e.target.value)}
-                  placeholder="Ej: 55 1234 5678"
-                  className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución.
-              </p>
-            </div>
+            <AccessibleField
+              label="Tu WhatsApp para pagos"
+              id="edit-event-organizer-contact"
+              helperText="Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución."
+            >
+              {(fieldProps) => (
+                <div className="flex items-center gap-1.5">
+                  <CountryCodeSelect
+                    value={form.organizerContactPhoneCountry as CountryCode}
+                    onChange={(v) => updateField('organizerContactPhoneCountry', v)}
+                    aria-label="País del WhatsApp de contacto"
+                    className="border border-gray-300 rounded-lg px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <input
+                    {...fieldProps}
+                    type="tel"
+                    value={form.organizerContactPhone}
+                    onChange={(e) => updateField('organizerContactPhone', e.target.value)}
+                    placeholder="Ej: 55 1234 5678"
+                    className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              )}
+            </AccessibleField>
           </>
         )}
       </EditSection>
@@ -702,12 +752,12 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       )}
 
       <div className="flex gap-2 pt-1">
-        <Button type="submit" size="sm" disabled={saving || coverUploading}>
+        <AccessibleButton type="submit" size="sm" disabled={saving || coverUploading}>
           {saving ? 'Guardando…' : 'Guardar cambios'}
-        </Button>
-        <Button type="button" variant="secondary" size="sm" onClick={onDone}>
+        </AccessibleButton>
+        <AccessibleButton type="button" variant="secondary" size="sm" onClick={onDone}>
           Cancelar
-        </Button>
+        </AccessibleButton>
       </div>
     </form>
     </>
