@@ -8,10 +8,11 @@ import { ShareFallbackSheet } from './ShareFallbackSheet'
 import { Toast } from '../Toast'
 import { IconInstagram } from '../accessibility/AccessibleIcon'
 
-// Punto de entrada para difundir el evento en redes (organizador, hoy;
-// GuestPass podrá montar el mismo componente más adelante sin cambios acá).
-// Solo tiene sentido cuando existe un link público de auto-registro — el
-// padre ya gatea el render con `event.entryMode !== 'list'`.
+// Punto de entrada para difundir el evento en redes — montado tanto en
+// EventDetail.tsx (organizador) como en GuestPass.tsx (invitado, Feature 4)
+// sin ningún cambio a este componente, como estaba previsto. Solo tiene
+// sentido cuando existe un link público de auto-registro — cada padre gatea
+// el render con `event.entryMode !== 'list'`.
 export function ShareEventButton({ event }: { event: EventData }) {
   // Ruta corta (/e/:id, ver App.tsx) en vez de /events/:id/join — mismo
   // destino (EventJoin), solo un alias más legible dentro de la imagen y al

@@ -37,6 +37,8 @@ interface EventDraftFields {
   dressCode: string
   templateId: TemplateId
   accentColor: string
+  secondaryFontFamily: string
+  buttonVariant: 'solid' | 'outline'
   welcomeMessage: string
   mapsUrl: string
   entryMode: EntryMode
@@ -105,6 +107,8 @@ export function EventCreate() {
     dressCode: '',
     templateId: 'default',
     accentColor: '',
+    secondaryFontFamily: '',
+    buttonVariant: 'solid',
     welcomeMessage: '',
     mapsUrl: '',
     entryMode: 'list',
@@ -275,6 +279,12 @@ export function EventCreate() {
         coverImage,
         accentColor: form.accentColor,
         templateId: form.templateId,
+        themeOverrides: (form.secondaryFontFamily || form.buttonVariant !== 'solid')
+          ? {
+            ...(form.secondaryFontFamily ? { secondaryFontFamily: form.secondaryFontFamily } : {}),
+            ...(form.buttonVariant !== 'solid' ? { buttonVariant: form.buttonVariant } : {}),
+          }
+          : undefined,
         welcomeMessage: form.welcomeMessage,
         mapsUrl: form.mapsUrl.trim() || undefined,
         entryMode: form.entryMode,
@@ -428,6 +438,10 @@ export function EventCreate() {
             accentColor={form.accentColor}
             onAccentColorChange={(v) => updateField('accentColor', v)}
             templateId={form.templateId}
+            secondaryFontFamily={form.secondaryFontFamily}
+            onSecondaryFontFamilyChange={(v) => updateField('secondaryFontFamily', v)}
+            buttonVariant={form.buttonVariant}
+            onButtonVariantChange={(v) => updateField('buttonVariant', v)}
           />
         </WizardStep>
 
@@ -464,6 +478,8 @@ export function EventCreate() {
             currency={form.currency}
             coverImage={coverImage}
             accentColor={form.accentColor}
+            secondaryFontFamily={form.secondaryFontFamily}
+            buttonVariant={form.buttonVariant}
             description={form.description}
             dressCode={form.dressCode}
             mapsUrl={form.mapsUrl}

@@ -18,7 +18,7 @@ import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
 import { compareEventsByRelevance } from '../utils/time'
 import { GUEST_MAX_COMPANIONS } from '../utils/validation'
-import type { CustomField, EntryMode, EventData, EventStatus, FaqEntry, PaymentMethod, ReminderRule, TemplateId, TimelineEntry, TransportInfo } from '../types'
+import type { CustomField, DietaryRestriction, EntryMode, EventData, EventStatus, FaqEntry, GuestSegmentTag, MenuOption, PaymentMethod, ReminderRule, TemplateId, ThemeOverrides, TimelineEntry, TransportInfo, VisibilitySection } from '../types'
 
 // Clampea a [0, GUEST_MAX_COMPANIONS] — defensa además de la validación de
 // UI (EventCreate/EditEventForm) y de firestore.rules (isValidMaxCompanions).
@@ -39,6 +39,7 @@ export interface NewEventInput {
   coverImage?: string
   accentColor?: string
   templateId?: TemplateId
+  themeOverrides?: ThemeOverrides
   welcomeMessage?: string
   mapsUrl?: string
   entryMode?: EntryMode
@@ -58,6 +59,10 @@ export interface NewEventInput {
   rsvpDeadline?: string
   remindersEnabled?: boolean
   reminderRules?: ReminderRule[]
+  guestTags?: GuestSegmentTag[]
+  sectionVisibility?: EventData['sectionVisibility']
+  sections?: VisibilitySection[]
+  menu?: { options: MenuOption[]; restrictions: DietaryRestriction[] }
 }
 
 export async function createEvent(ownerId: string, input: NewEventInput) {
@@ -73,6 +78,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     coverImage: input.coverImage || '',
     accentColor: input.accentColor || '',
     templateId: input.templateId || 'default',
+    themeOverrides: input.themeOverrides || {},
     welcomeMessage: input.welcomeMessage || '',
     mapsUrl: input.mapsUrl || '',
     entryMode: input.entryMode || 'list',
@@ -92,6 +98,10 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     rsvpDeadline: input.rsvpDeadline || '',
     remindersEnabled: input.remindersEnabled || false,
     reminderRules: input.reminderRules || [],
+    guestTags: input.guestTags || [],
+    sectionVisibility: input.sectionVisibility || {},
+    sections: input.sections || [],
+    menu: input.menu || { options: [], restrictions: [] },
     // Premium gratis mientras se da a conocer el servicio — sin plan a elegir
     // ni pago que confirmar. Cuando se reintroduzcan pagos, esto vuelve a
     // depender de la elección del organizador.
@@ -241,6 +251,7 @@ export interface UpdateEventInput {
   coverImage?: string
   accentColor?: string
   templateId?: TemplateId
+  themeOverrides?: ThemeOverrides
   welcomeMessage?: string
   mapsUrl?: string
   entryMode?: EntryMode
@@ -260,6 +271,10 @@ export interface UpdateEventInput {
   rsvpDeadline?: string
   remindersEnabled?: boolean
   reminderRules?: ReminderRule[]
+  guestTags?: GuestSegmentTag[]
+  sectionVisibility?: EventData['sectionVisibility']
+  sections?: VisibilitySection[]
+  menu?: { options: MenuOption[]; restrictions: DietaryRestriction[] }
 }
 
 export async function updateEventDetails(eventId: string, input: UpdateEventInput) {
@@ -274,6 +289,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     coverImage: input.coverImage ?? '',
     accentColor: input.accentColor ?? '',
     templateId: input.templateId || 'default',
+    themeOverrides: input.themeOverrides || {},
     welcomeMessage: input.welcomeMessage ?? '',
     mapsUrl: input.mapsUrl ?? '',
     entryMode: input.entryMode || 'list',
@@ -293,6 +309,10 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     rsvpDeadline: input.rsvpDeadline || '',
     remindersEnabled: input.remindersEnabled || false,
     reminderRules: input.reminderRules || [],
+    guestTags: input.guestTags || [],
+    sectionVisibility: input.sectionVisibility || {},
+    sections: input.sections || [],
+    menu: input.menu || { options: [], restrictions: [] },
     updatedAt: serverTimestamp(),
   })
 }
@@ -428,6 +448,7 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     coverImage: (data.coverImage as string) || '',
     accentColor: (data.accentColor as string) || '',
     templateId: (data.templateId as TemplateId) || 'default',
+    themeOverrides: (data.themeOverrides as ThemeOverrides) || undefined,
     welcomeMessage: (data.welcomeMessage as string) || '',
     mapsUrl: (data.mapsUrl as string) || '',
     entryMode: (data.entryMode as EntryMode) || 'list',
@@ -457,6 +478,10 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     rsvpDeadline: (data.rsvpDeadline as string) || undefined,
     remindersEnabled: (data.remindersEnabled as boolean) || false,
     reminderRules: (data.reminderRules as ReminderRule[]) || [],
+    guestTags: (data.guestTags as GuestSegmentTag[]) || [],
+    sectionVisibility: (data.sectionVisibility as EventData['sectionVisibility']) || undefined,
+    sections: (data.sections as VisibilitySection[]) || [],
+    menu: (data.menu as EventData['menu']) || undefined,
     plan: data.plan as EventData['plan'],
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],
     status: data.status as EventStatus,

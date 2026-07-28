@@ -1303,3 +1303,41 @@
 [data-template='houseparty'] .invite-map-frame iframe {
   filter: contrast(1.05) saturate(1.15) brightness(.92);
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   COMPARTIDO ENTRE TEMAS — Feature 2 (personalización de plantillas)
+   ════════════════════════════════════════════════════════════════════
+   A diferencia de todo lo de arriba (un bloque [data-template='x'] por
+   tema, deliberadamente sin compartir entre sí — ver el contrato al
+   inicio de este archivo), esto se define UNA sola vez y aplica a los 7
+   temas por igual: es la variante 'outline' del botón primario
+   (InvitationThemeRoot aplica data-button-variant desde
+   registry.ts/buildInviteThemeStyle), no una decoración exclusiva de un
+   tema. Cualquier tema nuevo la hereda gratis sin escribir CSS propia.
+   `.invite-btn-primary` es la clase que deben usar los CTAs principales
+   de cara al invitado para participar de esto — hoy adoptada por el
+   botón de confirmación de RSVP en GuestPass; extenderla al resto de los
+   botones que hoy usan bg-[var(--invite-accent)] a mano queda pendiente
+   como un pase de consistencia aparte. */
+.invite-btn-primary {
+  background: var(--invite-accent);
+  /* --invite-btn-text lo fija el componente inline (contraste calculado
+     contra el accent efectivo, ver utils/contrastColor.ts) — variable, no
+     la propiedad `color` directa, para que la regla 'outline' de abajo
+     pueda seguir pisándola sin pelear con la especificidad de un inline
+     style. */
+  color: var(--invite-btn-text, #fff);
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.invite-btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+[data-button-variant='outline'] .invite-btn-primary {
+  background: transparent;
+  color: var(--invite-accent);
+  border: 1.5px solid var(--invite-accent);
+}
+[data-button-variant='outline'] .invite-btn-primary:hover:not(:disabled) {
+  background: var(--invite-accent-soft);
+  opacity: 1;
+}

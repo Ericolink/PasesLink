@@ -65,6 +65,50 @@ const ReminderRuleSchema = z.object({
   daysBeforeDeadline: z.number().int().min(0).max(60),
 })
 
+const GuestSegmentTagSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  color: z.string().optional(),
+})
+
+const SectionVisibilityRuleSchema = z.object({
+  tags: z.array(z.string()).optional(),
+  rsvpStatus: z.array(z.enum(['pending', 'yes', 'no'])).optional(),
+  paymentStatus: z.array(z.enum(['unpaid', 'pending_confirmation', 'paid', 'expired'])).optional(),
+  hasCompanion: z.boolean().optional(),
+})
+
+const VisibilitySectionSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  body: z.string().optional(),
+  visibility: SectionVisibilityRuleSchema.optional(),
+})
+
+const ThemeOverridesSchema = z.object({
+  accent: z.string().optional(),
+  secondaryFontFamily: z.string().optional(),
+  buttonVariant: z.enum(['solid', 'outline']).optional(),
+})
+
+const MenuOptionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+})
+
+const DietaryRestrictionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  requiresNote: z.boolean().optional(),
+})
+
+const MenuSelectionSchema = z.object({
+  optionId: z.string().optional(),
+  restrictionIds: z.array(z.string()).optional(),
+  note: z.string().optional(),
+})
+
 // Espeja CoOrganizerPermissions (src/types/coOrganizerPermissions.ts).
 // Optional a nivel de mapa: un evento/co-org de antes de este campo
 // simplemente no lo tiene, resuelto con LEGACY_COORG_DEFAULTS en el cliente.
@@ -98,6 +142,7 @@ export const EventSchema = z.object({
   coverImage: z.string(),
   accentColor: z.string(),
   templateId: z.enum(templateIds),
+  themeOverrides: ThemeOverridesSchema.optional(),
   welcomeMessage: z.string(),
   mapsUrl: z.string(),
   entryMode: z.enum(['list', 'open', 'hybrid']),
@@ -117,6 +162,10 @@ export const EventSchema = z.object({
   rsvpDeadline: z.string().optional(),
   remindersEnabled: z.boolean().optional(),
   reminderRules: z.array(ReminderRuleSchema).optional(),
+  guestTags: z.array(GuestSegmentTagSchema).optional(),
+  sectionVisibility: z.record(z.string(), SectionVisibilityRuleSchema).optional(),
+  sections: z.array(VisibilitySectionSchema).optional(),
+  menu: z.object({ options: z.array(MenuOptionSchema), restrictions: z.array(DietaryRestrictionSchema) }).optional(),
   plan: z.enum(['premium']),
   paymentStatus: z.enum(['pending', 'paid', 'free_trial']),
   status: z.enum(['active', 'cancelled', 'archived']),
@@ -143,6 +192,7 @@ const CompanionDataSchema = z.object({
   lastName: z.string().optional(),
   phone: z.string().optional(),
   phoneCountry: z.string().optional(),
+  menuSelection: MenuSelectionSchema.optional(),
 })
 
 export const GuestSchema = z.object({
@@ -166,6 +216,8 @@ export const GuestSchema = z.object({
   lockToken: z.string().nullable(),
   lockTokens: z.array(z.string()).optional(),
   customData: z.record(z.string(), z.string()).optional(),
+  tags: z.array(z.string()).optional(),
+  menuSelection: MenuSelectionSchema.optional(),
   paymentStatus: z.enum(['unpaid', 'pending_confirmation', 'paid', 'expired']),
   paymentMethod: z.enum(['transfer', 'cash']).nullable(),
   paymentNote: z.string().optional(),

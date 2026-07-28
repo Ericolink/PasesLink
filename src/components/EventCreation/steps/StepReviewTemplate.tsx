@@ -21,6 +21,8 @@ interface StepReviewTemplateProps {
   currency: string
   coverImage: string
   accentColor: string
+  secondaryFontFamily: string
+  buttonVariant: 'solid' | 'outline'
   description: string
   dressCode: string
   mapsUrl: string
@@ -62,6 +64,8 @@ export function StepReviewTemplate({
   currency,
   coverImage,
   accentColor,
+  secondaryFontFamily,
+  buttonVariant,
   description,
   dressCode,
   mapsUrl,
@@ -96,12 +100,16 @@ export function StepReviewTemplate({
       mapsUrl,
       coverImage,
       accentColor,
+      themeOverrides: {
+        ...(secondaryFontFamily ? { secondaryFontFamily } : {}),
+        ...(buttonVariant !== 'solid' ? { buttonVariant } : {}),
+      },
       welcomeMessage,
       description,
       dressCode,
       timeline,
     }),
-    [name, formattedDate, location, mapsUrl, coverImage, accentColor, welcomeMessage, description, dressCode, timeline],
+    [name, formattedDate, location, mapsUrl, coverImage, accentColor, secondaryFontFamily, buttonVariant, welcomeMessage, description, dressCode, timeline],
   )
 
   return (

@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { INVITATION_TEMPLATES } from '../templates/registry'
 import { useIsAdmin } from '../hooks/useIsAdmin'
-import type { TemplateId, TimelineEntry } from '../types'
+import type { TemplateId, ThemeOverrides, TimelineEntry } from '../types'
 import { InvitationPreview } from './InvitationPreview'
 import { TemplateIconButton } from './TemplateIconButton'
 
@@ -12,6 +12,7 @@ interface PreviewData {
   mapsUrl?: string
   coverImage?: string
   accentColor?: string
+  themeOverrides?: Omit<ThemeOverrides, 'accent'>
   welcomeMessage?: string
   description?: string
   dressCode?: string

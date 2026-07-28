@@ -14,6 +14,9 @@ import { CustomFieldsBuilder } from './CustomFieldsBuilder'
 import { TimelineEditor } from './TimelineEditor'
 import { FaqEditor } from './FaqEditor'
 import { TransportEditor } from './TransportEditor'
+import { GuestTagsEditor } from './GuestTagsEditor'
+import { SectionsEditor } from './SectionsEditor'
+import { MenuEditor } from './MenuEditor'
 import { ReminderRulesEditor } from './ReminderRulesEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { CoverImagePicker } from './CoverImagePicker'
@@ -23,9 +26,9 @@ import { AccessibleButton } from './accessibility/AccessibleButton'
 import { AccessibleField, Checkbox, FieldError } from './accessibility/AccessibleField'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { EventScheduleField } from './EventScheduleField'
-import { getTemplate } from '../templates/registry'
+import { getTemplate, SECONDARY_FONT_OPTIONS } from '../templates/registry'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
-import type { CustomField, EntryMode, EventData, FaqEntry, PaymentMethod, ReminderRule, TemplateId, TimelineEntry, TransportInfo } from '../types'
+import type { CustomField, EntryMode, EventData, FaqEntry, GuestSegmentTag, PaymentMethod, ReminderRule, TemplateId, TimelineEntry, TransportInfo, VisibilitySection } from '../types'
 
 interface EventEditDraftFields {
   name: string
@@ -37,6 +40,8 @@ interface EventEditDraftFields {
   dressCode: string
   templateId: TemplateId
   accentColor: string
+  secondaryFontFamily: string
+  buttonVariant: 'solid' | 'outline'
   welcomeMessage: string
   mapsUrl: string
   capacity: string
@@ -56,6 +61,10 @@ interface EventEditDraftFields {
   rsvpDeadline: string
   remindersEnabled: boolean
   reminderRules: ReminderRule[]
+  guestTags: GuestSegmentTag[]
+  sections: VisibilitySection[]
+  sectionVisibility: EventData['sectionVisibility']
+  menu: EventData['menu']
 }
 
 // Auditoría de escalabilidad (F19): todos los campos del formulario en un
@@ -132,6 +141,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     templateId: event.templateId || 'default',
     // Vacío = "sin override manual", usa el acento propio de la plantilla.
     accentColor: event.accentColor || '',
+    secondaryFontFamily: event.themeOverrides?.secondaryFontFamily || '',
+    buttonVariant: event.themeOverrides?.buttonVariant || 'solid',
     welcomeMessage: event.welcomeMessage || '',
     mapsUrl: event.mapsUrl || '',
     capacity: event.capacity ? String(event.capacity) : '',
@@ -153,6 +164,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     rsvpDeadline: event.rsvpDeadline || '',
     remindersEnabled: event.remindersEnabled || false,
     reminderRules: event.reminderRules || [],
+    guestTags: event.guestTags || [],
+    sections: event.sections || [],
+    sectionVisibility: event.sectionVisibility || undefined,
+    menu: event.menu || undefined,
   })
 
   function updateField<K extends keyof FormFields>(field: K, value: FormFields[K]) {
@@ -271,6 +286,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if ((event.accentColor || '') !== form.accentColor) {
       changes.push({ label: 'Color de acento', detail: form.accentColor ? 'Color personalizado' : 'Vuelve al color de la plantilla' })
     }
+    if ((event.themeOverrides?.secondaryFontFamily || '') !== form.secondaryFontFamily
+      || (event.themeOverrides?.buttonVariant || 'solid') !== form.buttonVariant) {
+      changes.push({ label: 'Personalización del tema', detail: 'Actualizada' })
+    }
     if ((event.welcomeMessage || '') !== trimmedWelcome) changes.push({ label: 'Mensaje de bienvenida', detail: 'Actualizado' })
     if ((event.coverImage || '') !== coverImage) {
       changes.push({ label: 'Imagen de portada', detail: coverImage ? 'Actualizada' : 'Quitada' })
@@ -292,6 +311,16 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     }
     if (JSON.stringify(event.transport || {}) !== JSON.stringify(form.transport)) {
       changes.push({ label: 'Transporte y estacionamiento', detail: 'Actualizado' })
+    }
+    if (JSON.stringify(event.guestTags || []) !== JSON.stringify(form.guestTags)) {
+      changes.push({ label: 'Segmentos de invitado', detail: `${(event.guestTags || []).length} → ${form.guestTags.length} segmento(s)` })
+    }
+    if (JSON.stringify(event.sections || []) !== JSON.stringify(form.sections)
+      || JSON.stringify(event.sectionVisibility || {}) !== JSON.stringify(form.sectionVisibility || {})) {
+      changes.push({ label: 'Secciones y visibilidad', detail: 'Actualizadas' })
+    }
+    if (JSON.stringify(event.menu || {}) !== JSON.stringify(form.menu || {})) {
+      changes.push({ label: 'Menú y restricciones alimenticias', detail: 'Actualizado' })
     }
     if (
       (event.remindersEnabled || false) !== form.remindersEnabled
@@ -350,6 +379,12 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         coverImage,
         accentColor: form.accentColor,
         templateId: form.templateId,
+        themeOverrides: (form.secondaryFontFamily || form.buttonVariant !== 'solid')
+          ? {
+            ...(form.secondaryFontFamily ? { secondaryFontFamily: form.secondaryFontFamily } : {}),
+            ...(form.buttonVariant !== 'solid' ? { buttonVariant: form.buttonVariant } : {}),
+          }
+          : undefined,
         welcomeMessage: form.welcomeMessage.trim(),
         mapsUrl: form.mapsUrl.trim() || undefined,
         entryMode,
@@ -369,6 +404,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         rsvpDeadline: form.rsvpDeadline || undefined,
         remindersEnabled: form.remindersEnabled,
         reminderRules: form.reminderRules,
+        guestTags: form.guestTags,
+        sections: form.sections,
+        sectionVisibility: form.sectionVisibility,
+        menu: form.menu,
       })
       clearDraft()
       onDone()
@@ -557,7 +596,19 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <TemplatePicker
             selected={form.templateId}
             onSelect={(v) => updateField('templateId', v)}
-            previewData={{ eventName: form.name, date: form.date, location: form.location, mapsUrl: form.mapsUrl, coverImage, accentColor: form.accentColor, welcomeMessage: form.welcomeMessage }}
+            previewData={{
+              eventName: form.name,
+              date: form.date,
+              location: form.location,
+              mapsUrl: form.mapsUrl,
+              coverImage,
+              accentColor: form.accentColor,
+              themeOverrides: {
+                ...(form.secondaryFontFamily ? { secondaryFontFamily: form.secondaryFontFamily } : {}),
+                ...(form.buttonVariant !== 'solid' ? { buttonVariant: form.buttonVariant } : {}),
+              },
+              welcomeMessage: form.welcomeMessage,
+            }}
           />
         </div>
 
@@ -602,6 +653,43 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
               )}
             </AccessibleField>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <AccessibleField label="Tipografía secundaria" id="edit-event-secondary-font">
+              {(fieldProps) => (
+                <select
+                  {...fieldProps}
+                  value={form.secondaryFontFamily}
+                  onChange={(e) => updateField('secondaryFontFamily', e.target.value)}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {SECONDARY_FONT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              )}
+            </AccessibleField>
+            <div>
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Estilo del botón principal</span>
+              <div className="flex gap-2">
+                {(['solid', 'outline'] as const).map((variant) => (
+                  <button
+                    key={variant}
+                    type="button"
+                    onClick={() => updateField('buttonVariant', variant)}
+                    aria-pressed={form.buttonVariant === variant}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      form.buttonVariant === variant
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    {variant === 'solid' ? 'Relleno' : 'Contorno'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </EditSection>
 
@@ -621,6 +709,24 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
 
       <EditSection title="Transporte y estacionamiento" subtitle="Cómo llegar, dónde estacionar e indicaciones especiales">
         <TransportEditor transport={form.transport} onChange={(v) => updateField('transport', v)} />
+      </EditSection>
+
+      <EditSection title="Segmentos de invitado" subtitle="Grupos para mostrar contenido exclusivo (ej. VIP, Familia)">
+        <GuestTagsEditor tags={form.guestTags} onChange={(v) => updateField('guestTags', v)} />
+      </EditSection>
+
+      <EditSection title="Menú y restricciones alimenticias" subtitle="El invitado elige su platillo al confirmar asistencia">
+        <MenuEditor menu={form.menu} onChange={(v) => updateField('menu', v)} />
+      </EditSection>
+
+      <EditSection title="Secciones y visibilidad" subtitle="Contenido exclusivo por segmento (After Party, Cena VIP, Hospedaje...)">
+        <SectionsEditor
+          guestTags={form.guestTags}
+          sections={form.sections}
+          onChangeSections={(v) => updateField('sections', v)}
+          sectionVisibility={form.sectionVisibility}
+          onChangeSectionVisibility={(v) => updateField('sectionVisibility', v)}
+        />
       </EditSection>
 
       <EditSection title="Recordatorios automáticos" subtitle="Email a quien no haya confirmado, cerca del cierre de RSVP">

@@ -1,7 +1,29 @@
 import { useState } from 'react'
 import { AccessibleModal } from '../accessibility/AccessibleModal'
 import { guestPresence, partySize } from '../../firebase/guests'
-import type { CustomField, GuestData, PaymentMethod } from '../../types'
+import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, MenuSelection, PaymentMethod } from '../../types'
+import { TagMultiSelect } from '../TagMultiSelect'
+
+// Solo lectura (Feature 6) — la selección la hace el propio invitado desde
+// "Editar mis datos" (GuestEditModal); acá el organizador solo consulta
+// para catering, no edita.
+function MenuSummary({ menu, selection, label }: { menu: { options: MenuOption[]; restrictions: DietaryRestriction[] }; selection: MenuSelection | undefined; label: string }) {
+  if (!selection?.optionId && !selection?.restrictionIds?.length) return null
+  const optionName = menu.options.find((o) => o.id === selection.optionId)?.name
+  const restrictionLabels = (selection.restrictionIds || [])
+    .map((id) => menu.restrictions.find((r) => r.id === id)?.label)
+    .filter(Boolean)
+  return (
+    <div className="text-sm">
+      <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
+      <dd className="text-gray-900 dark:text-white">
+        {optionName || 'Sin platillo elegido'}
+        {restrictionLabels.length > 0 && ` · ${restrictionLabels.join(', ')}`}
+        {selection.note && <span className="block text-xs text-gray-500 dark:text-gray-400">{selection.note}</span>}
+      </dd>
+    </div>
+  )
+}
 import {
   IconCheck,
   IconCheckCircle,
@@ -82,6 +104,8 @@ export function GuestDetailSheet({
   ticketPrice,
   currency,
   customFields = [],
+  guestTags = [],
+  menu,
   maxCompanions,
   copiedId,
   canEditGuests = true,
@@ -92,6 +116,7 @@ export function GuestDetailSheet({
   onResend,
   onMarkPaid,
   onMarkUnpaid,
+  onSetTags,
   onRequestDelete,
   onRequestUnlock,
   onRequestReentry,
@@ -104,6 +129,8 @@ export function GuestDetailSheet({
   ticketPrice: number
   currency: string
   customFields?: CustomField[]
+  guestTags?: GuestSegmentTag[]
+  menu?: { options: MenuOption[]; restrictions: DietaryRestriction[] }
   maxCompanions: number
   copiedId: string | null
   // Defaults en `true` para no romper a ningún caller que todavía no pasa
@@ -117,6 +144,7 @@ export function GuestDetailSheet({
   onResend: (guest: GuestData, channel: 'whatsapp' | 'email') => void
   onMarkPaid: (guest: GuestData, method?: PaymentMethod) => void
   onMarkUnpaid: (guest: GuestData) => void
+  onSetTags: (guest: GuestData, tagIds: string[]) => void
   onRequestDelete: (guest: GuestData) => void
   onRequestUnlock: (guest: GuestData) => void
   onRequestReentry: (guest: GuestData) => void
@@ -202,6 +230,31 @@ export function GuestDetailSheet({
                 )}
                 {historyOpen && <GuestHistory eventId={eventId} guestId={guest.id} />}
               </section>
+
+              {guestTags.length > 0 && canEditGuests && (
+                <section className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Segmentos</p>
+                  <TagMultiSelect
+                    tags={guestTags}
+                    selected={guest.tags || []}
+                    onChange={(ids) => onSetTags(guest, ids)}
+                  />
+                </section>
+              )}
+
+              {menu && (menu.options.length > 0 || menu.restrictions.length > 0)
+                && (guest.menuSelection?.optionId || guest.menuSelection?.restrictionIds?.length
+                  || guest.companions.some((c) => c.menuSelection?.optionId || c.menuSelection?.restrictionIds?.length)) && (
+                <section className="space-y-1">
+                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Menú</p>
+                  <dl className="space-y-1.5">
+                    <MenuSummary menu={menu} selection={guest.menuSelection} label={guestDisplayName(guest)} />
+                    {guest.companions.map((c, i) => (
+                      <MenuSummary key={i} menu={menu} selection={c.menuSelection} label={c.name || `Acompañante ${i + 1}`} />
+                    ))}
+                  </dl>
+                </section>
+              )}
 
               {customFields.some((field) => guest.customData?.[field.id]) && (
                 <section className="space-y-1">

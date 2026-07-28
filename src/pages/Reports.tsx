@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getCheckins } from '../firebase/reports'
 import { getAllGuests, partySize } from '../firebase/guests'
@@ -69,6 +69,31 @@ export function Reports() {
   // tamaño del evento, no necesita useMemo (a lo sumo 24 claves).
   const hourEntries = Object.entries(event?.checkinsByHour ?? {}).sort(([a], [b]) => a.localeCompare(b))
   const maxHourCount = Math.max(1, ...hourEntries.map(([, count]) => count))
+
+  // Conteo por platillo/restricción (Feature 6) — agregado en cliente sobre
+  // `guests` (ya cargado entero para EventAnalytics/Detalle por invitado,
+  // ver comentario de esa carga más abajo), sin ninguna lectura extra a
+  // Firestore. Cuenta PERSONAS (invitado + cada acompañante), no
+  // invitaciones — mismo criterio que peopleCount vs. guestCount.
+  const menu = event?.menu
+  const menuCounts = useMemo(() => {
+    if (!menu || (menu.options.length === 0 && menu.restrictions.length === 0)) return null
+    const byOption = new Map<string, number>()
+    const byRestriction = new Map<string, number>()
+    for (const g of guests) {
+      for (const selection of [g.menuSelection, ...g.companions.map((c) => c.menuSelection)]) {
+        if (!selection) continue
+        if (selection.optionId) byOption.set(selection.optionId, (byOption.get(selection.optionId) || 0) + 1)
+        for (const rId of selection.restrictionIds || []) {
+          byRestriction.set(rId, (byRestriction.get(rId) || 0) + 1)
+        }
+      }
+    }
+    return {
+      options: menu.options.map((o) => ({ label: o.name, count: byOption.get(o.id) || 0 })),
+      restrictions: menu.restrictions.map((r) => ({ label: r.label, count: byRestriction.get(r.id) || 0 })),
+    }
+  }, [menu, guests])
 
   // Carga puntual (no en vivo, ver getCheckins) — se repite al cambiar de
   // evento y cada vez que se pide "Actualizar". Las tarjetas de "Escaneados"/
@@ -254,6 +279,36 @@ export function Reports() {
       {/* ── ACTIVIDAD DE LLEGADA ── (extraído de EventDetail.tsx, mismo
           componente reutilizado, sin cambios en su lógica interna) */}
       <EventAnalytics guests={guests} loading={guestsLoading} />
+
+      {menuCounts && !guestsLoading && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
+          <h2 className="font-medium text-gray-900 dark:text-white mb-3">Menú y restricciones alimenticias</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {menuCounts.options.length > 0 && (
+              <dl className="space-y-1.5">
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Platillos</p>
+                {menuCounts.options.map((o) => (
+                  <div key={o.label} className="flex justify-between text-sm">
+                    <dt className="text-gray-600 dark:text-gray-300">{o.label}</dt>
+                    <dd className="text-gray-900 dark:text-white font-medium">{o.count}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {menuCounts.restrictions.length > 0 && (
+              <dl className="space-y-1.5">
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Restricciones</p>
+                {menuCounts.restrictions.map((r) => (
+                  <div key={r.label} className="flex justify-between text-sm">
+                    <dt className="text-gray-600 dark:text-gray-300">{r.label}</dt>
+                    <dd className="text-gray-900 dark:text-white font-medium">{r.count}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 mb-4">
         <h2 className="font-medium text-gray-900 dark:text-white mb-3">Llegadas por hora</h2>

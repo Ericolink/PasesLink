@@ -246,6 +246,7 @@ export function EventJoin() {
     <InvitationThemeRoot
       templateId={event?.templateId}
       accentOverride={event?.accentColor}
+      themeOverrides={event?.themeOverrides}
       className="min-h-dvh flex items-center justify-center text-center p-4"
     >
       <div className="w-full max-w-sm">

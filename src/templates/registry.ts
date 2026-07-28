@@ -6,6 +6,17 @@ import type { TemplateId } from '../types'
 // No agrega CSS nuevo, solo elige cuál de las existentes usa cada tema.
 export type EnterAnimation = 'animate-fade-in-up' | 'animate-fade-in' | 'animate-bounce-in' | 'animate-slide-in-up'
 
+// Opciones curadas para EventData.themeOverrides.secondaryFontFamily (Feature
+// 2) — deliberadamente 3 nomás (no un font picker libre, ver el pedido de
+// "no generar configuraciones arbitrarias difíciles de mantener"), todas ya
+// cargadas en index.html (ver el <link> de Google Fonts) para no sumar una
+// request nueva por elegirlas.
+export const SECONDARY_FONT_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'De la plantilla' },
+  { value: "'EB Garamond', Georgia, serif", label: 'Serif editorial' },
+  { value: "'Space Grotesk', system-ui, sans-serif", label: 'Sans moderna' },
+]
+
 export interface InvitationTemplate {
   id: TemplateId
   label: string
@@ -36,6 +47,20 @@ export interface InvitationTemplate {
     // nativas). Opcional: sin este campo se usa la mezcla por defecto de la
     // librería (círculos/cuadrados).
     confettiShape?: 'star' | 'square'
+    // Tipografía para texto secundario (cuerpo largo: FAQ, transporte,
+    // secciones custom) distinta de `fontFamily` (que hoy también hace de
+    // base). Ausente = usa `fontFamily` para todo, igual que antes de este
+    // campo — ningún tema pierde su tipografía actual por default.
+    secondaryFontFamily?: string
+    // Variante del botón primario. 'solid' (default si ausente) es el
+    // comportamiento actual sin cambios; 'outline' es la única variante
+    // nueva pedida — ver el bloque compartido al final de templates.css que
+    // la implementa UNA vez para los 7 temas, no por tema.
+    buttonVariant?: 'solid' | 'outline'
+    // Densidad de espaciado — FIJA por plantilla, nunca editable por el
+    // organizador (ver ThemeOverrides): varios temas tienen decoraciones
+    // con medidas absolutas que un spacing distinto rompería.
+    spacingScale?: 'compact' | 'cozy' | 'relaxed'
   }
 }
 
@@ -284,21 +309,29 @@ export function getTemplate(id?: TemplateId | string): InvitationTemplate {
 
 export interface InviteThemeStyle {
   dataTemplate: TemplateId
+  // Atributo hermano de dataTemplate (mismo mecanismo: lo aplica
+  // InvitationThemeRoot como `data-button-variant` en el mismo nodo raíz).
+  // Siempre presente ('solid' si el tema no define buttonVariant) para que
+  // el selector compartido de templates.css tenga un valor determinístico
+  // contra el cual matchear.
+  dataButtonVariant: 'solid' | 'outline'
   style: CSSProperties
 }
 
 type TemplateVars = InvitationTemplate['vars']
 
 // Único punto que traduce "qué tema eligió el anfitrión" a variables CSS.
-// `overrides` es un subconjunto cualquiera de los tokens del tema — hoy solo
-// se usa para pisar `accent` con event.accentColor, pero el mismo mecanismo
-// sirve para futuras personalizaciones por evento (fuente, animación, etc.)
-// sin tener que tocar esta función ni InvitationThemeRoot otra vez.
+// `overrides` es un subconjunto cualquiera de los tokens del tema — hoy se
+// usa para pisar accent/secondaryFontFamily/buttonVariant con
+// EventData.accentColor/themeOverrides, pero el mismo mecanismo sirve para
+// futuras personalizaciones por evento sin tener que tocar esta función ni
+// InvitationThemeRoot otra vez.
 export function buildInviteThemeStyle(templateId?: TemplateId | string, overrides?: Partial<TemplateVars>): InviteThemeStyle {
   const template = getTemplate(templateId)
   const v = { ...template.vars, ...overrides }
   return {
     dataTemplate: template.id,
+    dataButtonVariant: v.buttonVariant ?? 'solid',
     style: {
       '--invite-accent': v.accent,
       '--invite-accent-dark': v.accentDark,
@@ -309,6 +342,7 @@ export function buildInviteThemeStyle(templateId?: TemplateId | string, override
       '--invite-text-muted': v.textMuted,
       '--invite-border': v.border,
       '--invite-font': v.fontFamily,
+      '--invite-font-secondary': v.secondaryFontFamily ?? v.fontFamily,
       '--invite-radius': v.borderRadius,
       '--invite-shadow': v.shadow,
     } as CSSProperties,

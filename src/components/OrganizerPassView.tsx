@@ -49,6 +49,7 @@ export function OrganizerPassView({
     <InvitationThemeRoot
       templateId={event.templateId}
       accentOverride={event.accentColor}
+      themeOverrides={event.themeOverrides}
       className="max-w-sm mx-auto px-4 py-12 text-center"
     >
       <InvitationCard>

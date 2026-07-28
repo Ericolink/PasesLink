@@ -542,6 +542,8 @@ export function EventDetail() {
             ticketPrice={event.ticketPrice}
             currency={event.currency}
             customFields={event.customFields}
+            guestTags={event.guestTags}
+            menu={event.menu}
             maxCompanions={resolveMaxCompanions(event)}
             hasActiveFilters={Boolean(search.trim()) || statusFilter !== 'all'}
             hasSearchText={Boolean(search.trim())}

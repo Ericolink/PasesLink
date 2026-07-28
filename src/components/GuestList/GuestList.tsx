@@ -3,12 +3,13 @@ import {
   allowGuestReentry,
   bulkDeleteGuests,
   bulkSetGuestPaymentStatus,
+  bulkSetGuestTags,
   deleteGuest,
   resetGuestRsvp,
   setGuestPaymentStatus,
   unlockGuestPass,
 } from '../../firebase/guests'
-import type { CustomField, GuestData, PaymentMethod } from '../../types'
+import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, PaymentMethod } from '../../types'
 import { IconChevronDown, IconInbox } from '../accessibility/AccessibleIcon'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../Empty/EmptyState'
@@ -112,6 +113,8 @@ export const GuestList = memo(function GuestList({
   ticketPrice = 0,
   currency = '',
   customFields = [],
+  guestTags = [],
+  menu,
   maxCompanions = 0,
   hasActiveFilters = false,
   hasSearchText = false,
@@ -130,6 +133,8 @@ export const GuestList = memo(function GuestList({
   ticketPrice?: number
   currency?: string
   customFields?: CustomField[]
+  guestTags?: GuestSegmentTag[]
+  menu?: { options: MenuOption[]; restrictions: DietaryRestriction[] }
   maxCompanions?: number
   // true cuando `guests` ya viene reducido por búsqueda/filtro de estado (no
   // por el orden, que nunca produce cero resultados) — distingue "todavía no
@@ -233,6 +238,12 @@ export const GuestList = memo(function GuestList({
       console.error('Error marking guest as unpaid:', err)
       setActionError('No se pudo actualizar el estado de pago. Intenta de nuevo.')
     }
+  }
+
+  async function handleSetGuestTags(guest: GuestData, tagIds: string[]) {
+    setActionError('')
+    const { failed } = await bulkSetGuestTags(eventId, [guest.id], tagIds)
+    if (failed > 0) setActionError('No se pudieron actualizar los segmentos. Intenta de nuevo.')
   }
 
   async function handleReactivate(guest: GuestData) {
@@ -423,6 +434,8 @@ export const GuestList = memo(function GuestList({
         ticketPrice={ticketPrice}
         currency={currency}
         customFields={customFields}
+        guestTags={guestTags}
+        menu={menu}
         maxCompanions={maxCompanions}
         copiedId={copiedId}
         canEditGuests={canEditGuests}
@@ -433,6 +446,7 @@ export const GuestList = memo(function GuestList({
         onResend={handleResend}
         onMarkPaid={handleMarkPaid}
         onMarkUnpaid={handleMarkUnpaid}
+        onSetTags={handleSetGuestTags}
         onRequestDelete={(guest) => { setDetailGuest(null); setDeletingGuest(guest) }}
         onRequestUnlock={(guest) => { setDetailGuest(null); setUnlockingGuest(guest) }}
         onRequestReentry={(guest) => { setDetailGuest(null); setReentryGuest(guest) }}

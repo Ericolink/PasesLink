@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
@@ -23,6 +24,10 @@ import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { toWhatsAppPhone } from '../utils/phone'
+import { getAccentContrastText } from '../utils/contrastColor'
+import { isSectionVisibleToGuest } from '../utils/sectionVisibility'
+import { CustomSectionCard } from '../components/CustomSectionCard'
+import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { TimelineDisplay } from '../components/TimelineDisplay'
@@ -480,6 +485,7 @@ function GuestPassInner() {
     <InvitationThemeRoot
       templateId={event.templateId}
       accentOverride={event.accentColor}
+      themeOverrides={event.themeOverrides}
       className="max-w-sm mx-auto px-4 py-12 text-center"
     >
       {/* ── BOARDING PASS CARD ───────────────────────────────────────────
@@ -611,6 +617,23 @@ function GuestPassInner() {
                 </button>
               )}
 
+              {/* Feature 6 (menú y restricciones alimenticias): la selección
+                  vive en el mismo modal de "Editar mis datos" (reusa
+                  updateGuestSelf, sin un flujo de escritura nuevo) — este
+                  aviso solo asoma cuando el evento ofrece menú Y el invitado
+                  todavía no eligió, para no interrumpir el RSVP con un paso
+                  obligatorio. */}
+              {!guest.isGroup && guest.rsvpStatus === 'yes' && !guest.menuSelection
+                && event.menu && (event.menu.options.length > 0 || event.menu.restrictions.length > 0) && (
+                <button
+                  data-pass-exclude="true"
+                  onClick={() => setEditOpen(true)}
+                  className="w-full text-left mb-3 px-3 py-2.5 rounded-lg text-sm bg-[var(--invite-accent-soft)] text-[var(--invite-accent)]"
+                >
+                  Todavía no elegiste tu menú — tocá acá para elegirlo.
+                </button>
+              )}
+
               {/* Antes el QR se mostraba blur(6px) como "incentivo" para
                   confirmar la asistencia — pero un QR borroso deja de ser
                   legible para un lector en la puerta, así que en la práctica
@@ -706,7 +729,8 @@ function GuestPassInner() {
                     <button
                       onClick={() => handleRsvp('yes')}
                       disabled={rsvpSaving}
-                      className="text-white rounded-md px-4 py-3 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
+                      className="invite-btn-primary rounded-md px-4 py-3 text-sm font-medium transition-opacity disabled:opacity-50"
+                      style={{ '--invite-btn-text': getAccentContrastText(event.accentColor || getTemplate(event.templateId).vars.accent) } as CSSProperties}
                     >
                       Sí, asistiré
                     </button>
@@ -835,13 +859,13 @@ function GuestPassInner() {
             </div>
           )}
 
-          {event.timeline && event.timeline.length > 0 && (
+          {event.timeline && event.timeline.length > 0 && isSectionVisibleToGuest(event.sectionVisibility?.timeline, guest) && (
             <div className="mt-4 pt-4 text-left border-t" style={{ borderColor: 'var(--invite-border)' }}>
               <TimelineDisplay entries={event.timeline} />
             </div>
           )}
 
-          {event.welcomeMessage && (
+          {event.welcomeMessage && isSectionVisibleToGuest(event.sectionVisibility?.welcomeMessage, guest) && (
             <p className="mt-4 pt-4 text-sm font-medium italic border-t text-[var(--invite-accent)]" style={{ borderColor: 'var(--invite-border)' }}>
               {event.welcomeMessage}
             </p>
@@ -887,6 +911,18 @@ function GuestPassInner() {
           )}
         </div>
       </div>
+      {/* Compartir en redes (Feature 4: completar Instagram Stories) — mismo
+          componente que ya usa el organizador en EventDetail.tsx, sin
+          ningún cambio (ShareEventButton ya estaba preparado para esto, ver
+          comentario en ese archivo). Mismo gate: solo tiene sentido cuando
+          hay auto-registro público abierto. El deep link nativo
+          `instagram-stories://` queda deliberadamente sin implementar — ver
+          nota en src/utils/share/shareEngine.ts. */}
+      {event.entryMode !== 'list' && (
+        <div className="mt-3">
+          <ShareEventButton event={event} />
+        </div>
+      )}
       {/* Boleto exclusivo para exportar (GuestPassTicket) — montado siempre
           que el botón "Descargar pase" existe (mismo gate), fuera de
           pantalla vía position:fixed (nunca display:none/visibility:hidden,
@@ -899,23 +935,35 @@ function GuestPassInner() {
         </div>
       )}
       {/* ── Secciones externas al boarding pass ── */}
-      {event.mapsUrl && (
+      {event.mapsUrl && isSectionVisibleToGuest(event.sectionVisibility?.map, guest) && (
         <>
           <InviteDivider templateId={event.templateId} />
           <EventMap mapsUrl={event.mapsUrl} />
           <EventWeather event={event} />
         </>
       )}
-      {!!(event.transport?.options?.length || event.transport?.parkingInfo?.trim() || event.transport?.specialInstructions?.length) && (
+      {!!(event.transport?.options?.length || event.transport?.parkingInfo?.trim() || event.transport?.specialInstructions?.length) && isSectionVisibleToGuest(event.sectionVisibility?.transport, guest) && (
         <>
           <InviteDivider templateId={event.templateId} />
           <TransportSection transport={event.transport!} />
         </>
       )}
-      {!!event.faq?.length && (
+      {!!event.faq?.length && isSectionVisibleToGuest(event.sectionVisibility?.faq, guest) && (
         <>
           <InviteDivider templateId={event.templateId} />
           <FaqAccordion entries={event.faq} />
+        </>
+      )}
+      {!!event.sections?.length && (
+        <>
+          {event.sections
+            .filter((s) => isSectionVisibleToGuest(s.visibility, guest))
+            .map((s) => (
+              <div key={s.id}>
+                <InviteDivider templateId={event.templateId} />
+                <CustomSectionCard section={s} />
+              </div>
+            ))}
         </>
       )}
       {/* Muro del evento — Historias + fotos ya viven dentro de WallSection */}

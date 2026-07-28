@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { getGuestContact, resolveMaxCompanions, updateGuestSelf } from '../firebase/guests'
-import type { CompanionData, EventData, GuestData } from '../types'
+import type { CompanionData, EventData, GuestData, MenuSelection } from '../types'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { CustomFieldsEditRow } from './CustomFieldsEditor'
+import { MenuSelectionInput } from './MenuSelectionInput'
 import { labelClass, inputClass } from '../pages/EventJoin'
 import { AccessibleModal } from './accessibility/AccessibleModal'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
@@ -23,7 +24,7 @@ export function GuestEditModal({
   guest: GuestData
   lockToken: string | null
   onClose: () => void
-  onSaved: (patch: Pick<GuestData, 'name' | 'lastName' | 'companions' | 'customData'>) => void
+  onSaved: (patch: Pick<GuestData, 'name' | 'lastName' | 'companions' | 'customData' | 'menuSelection'>) => void
 }) {
   const [loadingContact, setLoadingContact] = useState(true)
   const [name, setName] = useState(guest.name)
@@ -33,6 +34,7 @@ export function GuestEditModal({
   const [email, setEmail] = useState('')
   const [companions, setCompanions] = useState<CompanionData[]>(guest.companions)
   const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
+  const [menuSelection, setMenuSelection] = useState<MenuSelection | undefined>(guest.menuSelection)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [errorAttempt, setErrorAttempt] = useState(0)
@@ -67,12 +69,12 @@ export function GuestEditModal({
         eventId,
         guest.id,
         lockToken,
-        { name, lastName, phone, phoneCountry, email, companions, customData: customValues },
+        { name, lastName, phone, phoneCountry, email, companions, customData: customValues, menuSelection },
         event.customFields || [],
       )
       const trimmedName = name.trim()
       const trimmedLastName = lastName.trim()
-      onSaved({ name: trimmedName, lastName: trimmedLastName, companions, customData: customValues })
+      onSaved({ name: trimmedName, lastName: trimmedLastName, companions, customData: customValues, menuSelection })
       setSaved(true)
     } catch (err) {
       console.error('Error al guardar la edición del invitado:', err)
@@ -193,6 +195,26 @@ export function GuestEditModal({
                       allowAddRemove={false}
                       maxCompanions={resolveMaxCompanions(event)}
                     />
+                  </fieldset>
+                )}
+                {event.menu && (event.menu.options.length > 0 || event.menu.restrictions.length > 0) && (
+                  <fieldset className="border-0 p-0 m-0 space-y-3">
+                    <legend className={labelClass}>Menú</legend>
+                    <MenuSelectionInput
+                      menu={event.menu}
+                      value={menuSelection}
+                      onChange={setMenuSelection}
+                      personLabel={companions.length > 0 ? `Tu menú (${name || 'invitado principal'})` : undefined}
+                    />
+                    {companions.map((companion, i) => (
+                      <MenuSelectionInput
+                        key={i}
+                        menu={event.menu!}
+                        value={companion.menuSelection}
+                        onChange={(v) => setCompanions((prev) => prev.map((c, idx) => (idx === i ? { ...c, menuSelection: v } : c)))}
+                        personLabel={`Menú de ${companion.name || `acompañante ${i + 1}`}`}
+                      />
+                    ))}
                   </fieldset>
                 )}
               </>

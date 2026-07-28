@@ -1,0 +1,27 @@
+name: Envío de notificaciones
+
+on:
+  schedule:
+    # Mismo cadence que mass-messages.yml/uptime-check.yml — piso práctico
+    # de "lo más rápido que un cron gratis de GitHub Actions permite" sin
+    # gastar minutos en una cola casi siempre vacía.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - run: npm ci
+
+      - name: Procesar cola de notificaciones
+        run: node scripts/send-notifications.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7 }}

@@ -340,7 +340,7 @@ export function EventWall() {
       </div>
     )
     return event?.templateId === 'cowboy' || event?.templateId === 'graduation' ? (
-      <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="min-h-dvh flex items-center justify-center p-4">
+      <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} themeOverrides={event.themeOverrides} className="min-h-dvh flex items-center justify-center p-4">
         {nameGateContent}
       </InvitationThemeRoot>
     ) : (
@@ -570,7 +570,7 @@ export function EventWall() {
   )
 
   return event?.templateId === 'cowboy' || event?.templateId === 'graduation' ? (
-    <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} className="max-w-xl mx-auto px-4 py-6 min-h-dvh">
+    <InvitationThemeRoot templateId={event.templateId} accentOverride={event.accentColor} themeOverrides={event.themeOverrides} className="max-w-xl mx-auto px-4 py-6 min-h-dvh">
       {content}
     </InvitationThemeRoot>
   ) : (

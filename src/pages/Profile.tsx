@@ -15,6 +15,7 @@ import {
   uploadProfilePhoto,
 } from '../firebase/auth'
 import { saveUserProfile } from '../firebase/userProfile'
+import { requestPushPermission } from '../firebase/messaging'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 import { AccessibleModal } from '../components/accessibility/AccessibleModal'
@@ -25,6 +26,7 @@ import { FieldError } from '../components/accessibility/AccessibleField'
 import { PasswordInput } from '../components/PasswordInput'
 import { useTheme, type ThemePreference } from '../hooks/useTheme'
 import {
+  IconBell,
   IconCheckCircle,
   IconEdit,
   IconGoogle,
@@ -133,6 +135,21 @@ export function Profile() {
   const unreadFeedback = useUnreadFeedbackCount()
   const navigate = useNavigate()
   const { preference, setPreference } = useTheme()
+
+  /* Push notifications (Feature 5) — alcance v1: solo organizadores/
+     coanfitriones, activado a mano desde acá (nunca ofrecido a invitados). */
+  const [pushSaving, setPushSaving] = useState(false)
+  const [pushError, setPushError] = useState('')
+  const pushEnabled = (profile?.fcmTokens?.length || 0) > 0
+
+  async function handleEnablePush() {
+    if (!user) return
+    setPushSaving(true)
+    setPushError('')
+    const result = await requestPushPermission(user.uid)
+    if (!result.ok) setPushError(result.error)
+    setPushSaving(false)
+  }
 
   /* Photo */
   const [photoURL, setPhotoURL]         = useState('')
@@ -311,6 +328,25 @@ export function Profile() {
               </button>
             ))}
           </div>
+        </div>
+        <div className="flex items-center gap-3 px-4 py-3.5">
+          <IconBell className="w-5 h-5 text-gray-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="block text-sm font-medium text-gray-900 dark:text-white">Notificaciones push</span>
+            {pushError && <span className="block text-xs text-red-500 mt-0.5">{pushError}</span>}
+          </div>
+          {pushEnabled ? (
+            <span className="text-xs font-medium text-green-600 dark:text-green-400 shrink-0">Activadas</span>
+          ) : (
+            <button
+              type="button"
+              onClick={handleEnablePush}
+              disabled={pushSaving}
+              className="text-xs font-semibold text-primary hover:underline disabled:opacity-50 shrink-0"
+            >
+              {pushSaving ? 'Activando…' : 'Activar'}
+            </button>
+          )}
         </div>
         {isAdmin && (
           <Link

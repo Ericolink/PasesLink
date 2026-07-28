@@ -115,6 +115,86 @@ export interface ReminderRule {
   daysBeforeDeadline: number
 }
 
+// Catálogo de segmentos que el organizador define para su evento (ej. "VIP",
+// "Familia", "Staff") — libre, no un enum cerrado, porque cada evento arma
+// los suyos. `id` es estable (no el `label`, que puede renombrarse sin
+// romper referencias ya guardadas en GuestData.tags/VisibilitySection.visibility,
+// mismo criterio que CustomFieldOption.id vs .label).
+export interface GuestSegmentTag {
+  id: string
+  label: string
+  color?: string
+}
+
+// Motor de visibilidad de secciones (invitado, no organizador — para
+// permisos de organizador ver coOrganizerPermissions.ts). Cada campo
+// presente es una condición en AND con las demás; dentro de un campo, los
+// valores están en OR entre sí. Sin condiciones (objeto vacío/ausente) =
+// visible para cualquier invitado. Deliberadamente sin operadores OR/NOT a
+// nivel de regla: nadie pidió combinaciones booleanas arbitrarias todavía, y
+// agregarlas ahora sería sobre-diseño — este shape deja lugar para sumar
+// campos futuros (rol, rango de fecha) sin romper los ya guardados.
+export interface SectionVisibilityRule {
+  tags?: string[]
+  rsvpStatus?: RsvpStatus[]
+  paymentStatus?: GuestPaymentStatus[]
+  hasCompanion?: boolean
+}
+
+// Sección nueva y libre (After Party, Cena VIP, Hospedaje...) que el
+// organizador arma desde cero, con gating opcional. Las secciones YA
+// existentes del evento (transport/faq/timeline/welcomeMessage) NO se
+// migran a este modelo — conservan sus propios tipos y componentes ya
+// probados en producción; su gating opcional vive en
+// EventData.sectionVisibility, no acá. `body` es texto libre (no HTML) para
+// no abrir una superficie de XSS nueva en GuestPass. Sin campo `order`
+// separado: el orden es la posición dentro del array
+// EventData.sections, mismo criterio que FaqEntry/TimelineEntry (reordenar
+// = mover dentro del array, ver useReorderableList).
+export interface VisibilitySection {
+  id: string
+  title: string
+  body?: string
+  visibility?: SectionVisibilityRule
+}
+
+// Subconjunto de InvitationTemplate['vars'] (src/templates/registry.ts) que
+// el organizador puede pisar por evento — no se importa el tipo completo
+// acá para evitar un ciclo de imports (registry.ts ya importa TemplateId
+// desde este archivo). Debe seguir siendo un subconjunto ESTRUCTURALMENTE
+// compatible con TemplateVars: buildInviteThemeStyle lo recibe como
+// Partial<TemplateVars> gracias al tipado estructural de TS, sin cast.
+export interface ThemeOverrides {
+  accent?: string
+  secondaryFontFamily?: string
+  buttonVariant?: 'solid' | 'outline'
+}
+
+export interface MenuOption {
+  id: string
+  name: string
+  description?: string
+}
+
+// requiresNote: la opción exige detalle en texto libre al elegirla (ej.
+// "Alergia" sin especificar a qué no le sirve al organizador para catering).
+export interface DietaryRestriction {
+  id: string
+  label: string
+  requiresNote?: boolean
+}
+
+// Selección por PERSONA (invitado o cada acompañante), no por invitación —
+// es lo que permite un conteo real por platillo cuando un grupo tiene
+// necesidades distintas. Mismo criterio de "id, no label" que
+// CustomFieldOption: renombrar una opción de menú no huérfana selecciones
+// ya guardadas.
+export interface MenuSelection {
+  optionId?: string
+  restrictionIds?: string[]
+  note?: string
+}
+
 export interface EventData {
   id: string
   ownerId: string
@@ -128,10 +208,31 @@ export interface EventData {
   coverImage?: string
   accentColor?: string
   templateId?: TemplateId
+  // Subconjunto de tokens de la plantilla que el organizador pisó a mano
+  // (ver ThemeOverrides) — 'accent' duplica accentColor en la práctica; se
+  // deja igual por compatibilidad con el mecanismo `overrides` ya existente
+  // en buildInviteThemeStyle, que hoy solo recibe accentColor por separado.
+  themeOverrides?: ThemeOverrides
   welcomeMessage?: string
   mapsUrl?: string
   entryMode: EntryMode
   capacity: number
+  // Catálogo de segmentos del evento (ver GuestSegmentTag) — definidos acá,
+  // asignados por invitado en GuestData.tags. Ausente = el evento no usa
+  // segmentación todavía.
+  guestTags?: GuestSegmentTag[]
+  // Gating opcional de las secciones YA existentes de más abajo (transport/
+  // faq/timeline/welcomeMessage) — no se migran a un modelo de bloques, solo
+  // ganan una condición de visibilidad adicional. Clave ausente = visible
+  // para cualquier invitado, igual que antes de que existiera este campo.
+  sectionVisibility?: Partial<Record<'transport' | 'faq' | 'timeline' | 'welcomeMessage' | 'map', SectionVisibilityRule>>
+  // Secciones nuevas y libres (After Party, Cena VIP, Hospedaje...) — ver
+  // VisibilitySection.
+  sections?: VisibilitySection[]
+  // Menú y restricciones alimenticias estructuradas — ver MenuOption/
+  // DietaryRestriction. Ausente = el evento no ofrece selección de menú (el
+  // paso correspondiente no se muestra en el RSVP).
+  menu?: { options: MenuOption[]; restrictions: DietaryRestriction[] }
   // Tope de acompañantes que puede sumar UN invitado individual (autoregistro
   // público o alta/edición manual del organizador) — ver GUEST_MAX_COMPANIONS
   // en utils/validation.ts (techo 20) y resolveMaxCompanions en
@@ -330,6 +431,9 @@ export interface CompanionData {
   phone?: string
   // País del teléfono de arriba — ver el mismo campo en GuestData.
   phoneCountry?: string
+  // Selección de menú propia del acompañante — un grupo puede tener
+  // necesidades de catering distintas por persona (ver MenuSelection).
+  menuSelection?: MenuSelection
 }
 
 export interface GuestData {
@@ -381,6 +485,14 @@ export interface GuestData {
   lockToken: string | null
   lockTokens?: string[]
   customData?: Record<string, string>
+  // Ids de EventData.guestTags asignados a este invitado (segmentación) —
+  // solo lo escribe el organizador (bulkSetGuestTags), nunca el propio
+  // invitado. Ausente = sin segmento asignado.
+  tags?: string[]
+  // Selección de menú propia del invitado (no de sus acompañantes, ver
+  // CompanionData.menuSelection) — se completa junto con la confirmación de
+  // RSVP cuando EventData.menu existe.
+  menuSelection?: MenuSelection
   paymentStatus: GuestPaymentStatus
   // Método elegido al autoregistrarse (o fijado por el organizador al
   // marcar el pago) — null en eventos gratuitos y en invitados agregados
@@ -440,6 +552,11 @@ export interface UserProfile {
   displayName: string      // firstName + ' ' + lastName
   birthDate: string        // 'YYYY-MM-DD'
   photoURL?: string
+  // Tokens FCM de los dispositivos donde este usuario activó push
+  // notifications (Feature 5) — más de uno posible (celular + notebook).
+  // Escrito directo por src/firebase/messaging.ts (arrayUnion/arrayRemove),
+  // no pasa por updateUserProfile. Ausente = nunca activó push.
+  fcmTokens?: string[]
   createdAt: number
 }
 

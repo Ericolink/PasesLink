@@ -9,7 +9,7 @@ import { TimelineDisplay } from './TimelineDisplay'
 import { IconDownload, IconWhatsApp } from './accessibility/AccessibleIcon'
 import { PREVIEW_CONTENT, PREVIEW_WALL_MESSAGES } from '../templates/previewContent'
 import { QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
-import type { TemplateId, TimelineEntry } from '../types'
+import type { TemplateId, ThemeOverrides, TimelineEntry } from '../types'
 
 interface InvitationPreviewProps {
   templateId: TemplateId
@@ -19,6 +19,7 @@ interface InvitationPreviewProps {
   mapsUrl?: string
   coverImage?: string
   accentColor?: string
+  themeOverrides?: Omit<ThemeOverrides, 'accent'>
   welcomeMessage?: string
   description?: string
   dressCode?: string
@@ -41,6 +42,7 @@ export function InvitationPreview({
   mapsUrl,
   coverImage,
   accentColor,
+  themeOverrides,
   welcomeMessage,
   description,
   dressCode,
@@ -59,6 +61,7 @@ export function InvitationPreview({
     <InvitationThemeRoot
       templateId={templateId}
       accentOverride={accentColor}
+      themeOverrides={themeOverrides}
       className="max-w-sm mx-auto px-4 py-8 text-center"
     >
       <InvitationCard coverImage={coverImage} coverAlt={name}>

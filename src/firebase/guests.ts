@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteField,
   doc,
   documentId,
   getDoc,
@@ -17,6 +18,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
+import { enqueueNotification } from './notifications'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
 import type { CompanionData, CustomField, EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { GuestSchema, warnIfInvalidShape } from '../types/schemas'
@@ -344,6 +346,10 @@ export interface GuestSelfEditInput {
   email: string
   companions: CompanionData[]
   customData: Record<string, string>
+  // Selección de menú propia (Feature 6) — la de cada acompañante ya viaja
+  // dentro de `companions[i].menuSelection`, sin necesidad de un campo
+  // aparte.
+  menuSelection?: GuestData['menuSelection']
 }
 
 // Lee email/phone actuales para precargar el formulario de auto-edición
@@ -390,6 +396,12 @@ export async function updateGuestSelf(
     lastName: requireMaxLength((c.lastName || '').trim(), GUEST_NAME_PART_MAX, `El apellido del acompañante ${i + 1}`),
     phone: requireMaxLength((c.phone || '').trim(), GUEST_PHONE_MAX, `El teléfono del acompañante ${i + 1}`),
     phoneCountry: (c.phoneCountry || '').trim(),
+    // Passthrough sin validar (mismo criterio que customData abajo: solo se
+    // limita tamaño, no forma) — optionId/restrictionIds siempre vienen de
+    // MenuSelectionInput, nunca tecleados a mano. Clave OMITIDA (no
+    // `undefined`) cuando el acompañante no eligió menú — Firestore rechaza
+    // `undefined` como valor de campo, incluso anidado dentro de un array.
+    ...(c.menuSelection !== undefined ? { menuSelection: c.menuSelection } : {}),
   }))
 
   // Solo se guardan claves que correspondan a un customField vigente del
@@ -411,6 +423,7 @@ export async function updateGuestSelf(
     lastName,
     companions,
     customData,
+    menuSelection: input.menuSelection ?? deleteField(),
     lockToken,
   })
   batch.set(contactRef(eventId, guestId), { email, phone, phoneCountry, lockToken }, { merge: true })
@@ -607,6 +620,38 @@ export async function bulkSetGuestPaymentStatus(
   return { ok, failed }
 }
 
+// Asignación masiva de segmentos (Feature 1: visibilidad de secciones por
+// tipo de invitado) — a diferencia de bulkSetGuestPaymentStatus/
+// bulkDeleteGuests, tags no alimenta ningún contador denormalizado del
+// evento, así que alcanza con writeBatch simple (sin transacción ni delta
+// agregado): cada lote es un solo commit de hasta 450 documentos (tope de
+// Firestore), no 50 — no hay partySize que trocear de por medio.
+const GUEST_TAG_WRITE_BATCH_SIZE = 450
+
+export async function bulkSetGuestTags(
+  eventId: string,
+  guestIds: string[],
+  tagIds: string[],
+): Promise<BulkResult> {
+  let ok = 0
+  let failed = 0
+  for (let i = 0; i < guestIds.length; i += GUEST_TAG_WRITE_BATCH_SIZE) {
+    const chunk = guestIds.slice(i, i + GUEST_TAG_WRITE_BATCH_SIZE)
+    try {
+      const batch = writeBatch(db)
+      for (const guestId of chunk) {
+        batch.update(doc(db, 'events', eventId, 'guests', guestId), { tags: tagIds })
+      }
+      await batch.commit()
+      ok += chunk.length
+    } catch (err) {
+      console.error('Error en bulkSetGuestTags para un lote:', err)
+      failed += chunk.length
+    }
+  }
+  return { ok, failed }
+}
+
 // El organizador necesita el teléfono (y, si existe, el email) junto con el
 // resto del invitado (lista, exportación), pero esos campos viven en
 // `guestContacts` (ver buildNewGuestPayload). Se suscribe a ambas colecciones
@@ -782,18 +827,39 @@ export async function setGuestRsvp(eventId: string, qrToken: string, rsvpStatus:
   const guestRef = await findGuestRefByToken(eventId, qrToken)
   if (!guestRef) return
   const eventRef = doc(db, 'events', eventId)
-  await runTransaction(db, async (transaction) => {
-    const guestSnap = await transaction.get(guestRef)
-    if (!guestSnap.exists()) return
+  const notify = await runTransaction(db, async (transaction) => {
+    const [guestSnap, eventSnap] = await Promise.all([transaction.get(guestRef), transaction.get(eventRef)])
+    if (!guestSnap.exists()) return null
     const oldRsvp = (guestSnap.data().rsvpStatus as RsvpStatus) || 'pending'
     transaction.update(guestRef, { rsvpStatus })
+    let notifyResult: { ownerId: string; eventName: string; guestName: string } | null = null
     if (oldRsvp !== rsvpStatus) {
       transaction.update(eventRef, {
         [rsvpCountField(oldRsvp)]: increment(-1),
         [rsvpCountField(rsvpStatus)]: increment(1),
       })
+      // Solo 'pending' -> 'yes'/'no' notifica (una respuesta nueva, de
+      // verdad accionable) — un invitado que cambia de 'yes' a 'no' o
+      // viceversa ya había notificado una vez, y evita duplicar avisos por
+      // cada ida y vuelta.
+      if (oldRsvp === 'pending' && rsvpStatus !== 'pending') {
+        const eventData = eventSnap.data()
+        if (eventData?.ownerId) {
+          notifyResult = { ownerId: eventData.ownerId as string, eventName: (eventData.name as string) || '', guestName: (guestSnap.data().name as string) || '' }
+        }
+      }
     }
+    return notifyResult
   })
+  if (notify) {
+    const verb = rsvpStatus === 'yes' ? 'confirmó su asistencia a' : 'avisó que no podrá asistir a'
+    enqueueNotification({
+      eventId,
+      type: 'rsvp_new',
+      recipientUid: notify.ownerId,
+      payload: { title: 'Nueva respuesta de RSVP', body: `${notify.guestName} ${verb} ${notify.eventName}.`, deepLink: `/events/${eventId}` },
+    }).catch((err) => console.error('Error encolando notificación de RSVP:', err))
+  }
 }
 
 // Mismo motivo de transacción que setGuestRsvp — necesita el rsvpStatus
@@ -847,17 +913,31 @@ export async function setGuestPaymentStatus(
   const guestRef = doc(db, 'events', eventId, 'guests', guestId)
   const eventRef = doc(db, 'events', eventId)
 
-  await runTransaction(db, async (transaction) => {
-    const guestSnap = await transaction.get(guestRef)
-    if (!guestSnap.exists()) return
+  // El valor de retorno del callback de runTransaction (no una variable
+  // externa reasignada dentro del closure) porque TypeScript no estrecha el
+  // tipo de una `let` de afuera cuando la única asignación real ocurre
+  // dentro de una función anidada — termina viendo "siempre null" fuera del
+  // closure. Devolverlo evita el problema de raíz.
+  const notify = await runTransaction(db, async (transaction) => {
+    // Lectura del evento agregada acá (antes esta transacción no lo leía)
+    // solo para poder encolar la notificación de pago confirmado con
+    // ownerId/nombre reales — Firestore cachea reads al mismo path, así que
+    // no es una lectura extra si algo más en la misma transacción ya lo pide.
+    const [guestSnap, eventSnap] = await Promise.all([transaction.get(guestRef), transaction.get(eventRef)])
+    if (!guestSnap.exists()) return null
     const guest = mapGuest(guestSnap.id, guestSnap.data())
     const wasPaid = guest.paymentStatus === 'paid'
 
     const updates: Record<string, unknown> = { paymentStatus }
     if (method !== undefined) updates.paymentMethod = method
 
+    let notifyResult: { ownerId: string; eventName: string; guestName: string } | null = null
     if (paymentStatus === 'paid' && !wasPaid) {
       transaction.update(eventRef, { paidCount: increment(partySize(guest)) })
+      const eventData = eventSnap.data()
+      if (eventData?.ownerId) {
+        notifyResult = { ownerId: eventData.ownerId as string, eventName: (eventData.name as string) || '', guestName: guest.name }
+      }
     } else if (paymentStatus === 'unpaid' && wasPaid) {
       transaction.update(eventRef, { paidCount: increment(-partySize(guest)) })
     }
@@ -865,7 +945,17 @@ export async function setGuestPaymentStatus(
     // legacy 'expired') -> unpaid: no-op sobre paidCount.
 
     transaction.update(guestRef, updates)
+    return notifyResult
   })
+
+  if (notify) {
+    enqueueNotification({
+      eventId,
+      type: 'payment_confirmed',
+      recipientUid: notify.ownerId,
+      payload: { title: 'Pago confirmado', body: `${notify.guestName} pagó su entrada a ${notify.eventName}.`, deepLink: `/events/${eventId}` },
+    }).catch((err) => console.error('Error encolando notificación de pago confirmado:', err))
+  }
 }
 
 // Acción del INVITADO: "Ya pagué / Comprobante enviado" (GuestPass). Solo
@@ -1266,6 +1356,7 @@ function normalizeCompanions(value: unknown): CompanionData[] {
       lastName: (c as CompanionData)?.lastName || '',
       phone: (c as CompanionData)?.phone || '',
       phoneCountry: (c as CompanionData)?.phoneCountry || '',
+      menuSelection: (c as CompanionData)?.menuSelection || undefined,
     }))
   }
   if (typeof value === 'number' && value > 0) {
@@ -1308,6 +1399,8 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     lockToken: (data.lockToken as string) || null,
     lockTokens: Array.isArray(data.lockTokens) ? (data.lockTokens as string[]) : undefined,
     customData: (data.customData as Record<string, string>) || undefined,
+    tags: Array.isArray(data.tags) ? (data.tags as string[]) : undefined,
+    menuSelection: (data.menuSelection as GuestData['menuSelection']) || undefined,
     paymentStatus: (data.paymentStatus as GuestData['paymentStatus']) || 'unpaid',
     paymentMethod: (data.paymentMethod as GuestData['paymentMethod']) || null,
     paymentNote: (data.paymentNote as string) || undefined,
