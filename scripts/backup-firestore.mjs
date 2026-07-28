@@ -32,6 +32,7 @@ const TOP_LEVEL_COLLECTIONS = [
   'reportDedup',
   'sanctions',
   'adminAuditLog',
+  'sendBudget',
 ]
 
 // Subcolecciones anidadas bajo distintos padres (events/{id}/guests,
@@ -46,6 +47,8 @@ const SUBCOLLECTION_GROUPS = [
   'photos',
   'history',
   'targets',
+  'sendLog',
+  'messageCampaigns',
 ]
 
 function initFirestore() {

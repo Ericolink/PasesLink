@@ -5,6 +5,7 @@ import { partySize } from '../firebase/guests'
 import { PAYMENT_METHOD_LABELS } from './paymentMethods'
 import { getExportPalette } from './exportTheme'
 import { formatDate } from './time'
+import { formatCustomFieldValue } from './customFieldInput'
 
 export interface ExportExcelOptions {
   onProgress?: (done: number, total: number) => void
@@ -50,7 +51,7 @@ function buildColumns(event: EventData): ExcelColumn[] {
     const seen = (labelCount.get(field.label) || 0) + 1
     labelCount.set(field.label, seen)
     const header = seen > 1 ? `${field.label} (${seen})` : field.label
-    columns.push({ header, get: (g) => g.customData?.[field.id] || '' })
+    columns.push({ header, get: (g) => formatCustomFieldValue(field, g.customData?.[field.id] || '') })
   }
 
   columns.push(

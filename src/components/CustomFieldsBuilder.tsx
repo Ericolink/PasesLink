@@ -3,6 +3,7 @@ import type { CustomField, CustomFieldType } from '../types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { AccessibleField, Checkbox } from './accessibility/AccessibleField'
 import { AccessibleButton } from './accessibility/AccessibleButton'
+import { CustomFieldOptionsEditor } from './CustomFieldOptionsEditor'
 import { EVENT_CUSTOM_FIELDS_MAX_COUNT } from '../utils/validation'
 
 const TYPE_LABELS: Record<CustomFieldType, string> = {
@@ -10,6 +11,7 @@ const TYPE_LABELS: Record<CustomFieldType, string> = {
   number: 'Número',
   email: 'Email',
   phone: 'Teléfono',
+  select: 'Lista de opciones',
 }
 
 interface Props {
@@ -50,7 +52,8 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
       {fields.map((field, index) => {
         const humanIndex = index + 1
         return (
-        <div key={field.id} className="flex flex-wrap items-center gap-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
+        <div key={field.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
           <AccessibleField
             label={`Nombre del campo personalizado ${humanIndex}`}
             labelClassName="sr-only"
@@ -72,7 +75,16 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
               <select
                 {...fieldProps}
                 value={field.type}
-                onChange={(e) => updateField(field.id, { type: e.target.value as CustomFieldType })}
+                onChange={(e) => {
+                  const nextType = e.target.value as CustomFieldType
+                  const needsInitialOptions = nextType === 'select' && !field.options?.length
+                  updateField(field.id, {
+                    type: nextType,
+                    ...(needsInitialOptions
+                      ? { options: [{ id: crypto.randomUUID(), label: '' }, { id: crypto.randomUUID(), label: '' }] }
+                      : {}),
+                  })
+                }}
                 className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-800"
               >
                 {(Object.keys(TYPE_LABELS) as CustomFieldType[]).map((t) => (
@@ -97,6 +109,13 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
           >
             ×
           </AccessibleButton>
+        </div>
+        {field.type === 'select' && (
+          <CustomFieldOptionsEditor
+            options={field.options || []}
+            onChange={(options) => updateField(field.id, { options })}
+          />
+        )}
         </div>
         )
       })}

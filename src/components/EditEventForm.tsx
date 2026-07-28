@@ -12,6 +12,9 @@ import { GUEST_MAX_COMPANIONS } from '../utils/validation'
 import { ImageCropModal } from './ImageCropModal'
 import { CustomFieldsBuilder } from './CustomFieldsBuilder'
 import { TimelineEditor } from './TimelineEditor'
+import { FaqEditor } from './FaqEditor'
+import { TransportEditor } from './TransportEditor'
+import { ReminderRulesEditor } from './ReminderRulesEditor'
 import { TemplatePicker } from './TemplatePicker'
 import { CoverImagePicker } from './CoverImagePicker'
 import { DraftRecoveryModal } from './DraftRecoveryModal'
@@ -22,7 +25,7 @@ import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { EventScheduleField } from './EventScheduleField'
 import { getTemplate } from '../templates/registry'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
-import type { CustomField, EntryMode, EventData, PaymentMethod, TemplateId, TimelineEntry } from '../types'
+import type { CustomField, EntryMode, EventData, FaqEntry, PaymentMethod, ReminderRule, TemplateId, TimelineEntry, TransportInfo } from '../types'
 
 interface EventEditDraftFields {
   name: string
@@ -48,6 +51,11 @@ interface EventEditDraftFields {
   organizerContactPhoneCountry: string
   coverImage: string
   timeline: TimelineEntry[]
+  faq: FaqEntry[]
+  transport: TransportInfo
+  rsvpDeadline: string
+  remindersEnabled: boolean
+  reminderRules: ReminderRule[]
 }
 
 // Auditoría de escalabilidad (F19): todos los campos del formulario en un
@@ -140,6 +148,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     organizerContactPhone: event.organizerContactPhone || '',
     organizerContactPhoneCountry: event.organizerContactPhoneCountry || DEFAULT_PHONE_COUNTRY,
     timeline: event.timeline || [],
+    faq: event.faq || [],
+    transport: event.transport || {},
+    rsvpDeadline: event.rsvpDeadline || '',
+    remindersEnabled: event.remindersEnabled || false,
+    reminderRules: event.reminderRules || [],
   })
 
   function updateField<K extends keyof FormFields>(field: K, value: FormFields[K]) {
@@ -181,6 +194,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       organizerContactPhone: rest.organizerContactPhone || '',
       organizerContactPhoneCountry: rest.organizerContactPhoneCountry || DEFAULT_PHONE_COUNTRY,
       timeline: rest.timeline || [],
+      faq: rest.faq || [],
+      transport: rest.transport || {},
+      rsvpDeadline: rest.rsvpDeadline || '',
+      remindersEnabled: rest.remindersEnabled || false,
+      reminderRules: rest.reminderRules || [],
     })
     if (draftCoverImage) setCoverImage(draftCoverImage)
   }
@@ -269,6 +287,19 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if (JSON.stringify(event.timeline || []) !== JSON.stringify(form.timeline)) {
       changes.push({ label: 'Programa del evento', detail: `${(event.timeline || []).length} → ${form.timeline.length} actividad(es)` })
     }
+    if (JSON.stringify(event.faq || []) !== JSON.stringify(form.faq)) {
+      changes.push({ label: 'Preguntas frecuentes', detail: `${(event.faq || []).length} → ${form.faq.length} pregunta(s)` })
+    }
+    if (JSON.stringify(event.transport || {}) !== JSON.stringify(form.transport)) {
+      changes.push({ label: 'Transporte y estacionamiento', detail: 'Actualizado' })
+    }
+    if (
+      (event.remindersEnabled || false) !== form.remindersEnabled
+      || (event.rsvpDeadline || '') !== form.rsvpDeadline
+      || JSON.stringify(event.reminderRules || []) !== JSON.stringify(form.reminderRules)
+    ) {
+      changes.push({ label: 'Recordatorios automáticos', detail: form.remindersEnabled ? 'Activados' : 'Desactivados' })
+    }
     if ((event.requiresPayment || false) !== form.requiresPayment) {
       changes.push({ label: 'Cobro de entrada', detail: form.requiresPayment ? 'Activado' : 'Desactivado' })
     }
@@ -333,6 +364,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         organizerContactPhone: form.requiresPayment ? form.organizerContactPhone.trim() : '',
         organizerContactPhoneCountry: form.requiresPayment ? form.organizerContactPhoneCountry : '',
         timeline: form.timeline,
+        faq: form.faq,
+        transport: form.transport,
+        rsvpDeadline: form.rsvpDeadline || undefined,
+        remindersEnabled: form.remindersEnabled,
+        reminderRules: form.reminderRules,
       })
       clearDraft()
       onDone()
@@ -500,7 +536,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <AccessibleField
           label={<>Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span></>}
           id="edit-event-maps-url"
-          helperText={'Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado, pega el link completo de Google Maps (desde el navegador, no el link corto).'}
+          helperText={'Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado y el pronóstico del clima, pega el link completo de Google Maps (desde el navegador, no el link corto).'}
         >
           {(fieldProps) => (
             <input
@@ -577,6 +613,25 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       <EditSection title="Programa del evento" subtitle="Orden del día visible en el pase del invitado">
         <p className="text-xs text-gray-400 -mt-1">Ej: 19:00 Recepción, 21:00 Cena…</p>
         <TimelineEditor entries={form.timeline} onChange={(v) => updateField('timeline', v)} />
+      </EditSection>
+
+      <EditSection title="Preguntas frecuentes" subtitle="Dudas comunes que ven los invitados en su pase">
+        <FaqEditor entries={form.faq} onChange={(v) => updateField('faq', v)} />
+      </EditSection>
+
+      <EditSection title="Transporte y estacionamiento" subtitle="Cómo llegar, dónde estacionar e indicaciones especiales">
+        <TransportEditor transport={form.transport} onChange={(v) => updateField('transport', v)} />
+      </EditSection>
+
+      <EditSection title="Recordatorios automáticos" subtitle="Email a quien no haya confirmado, cerca del cierre de RSVP">
+        <ReminderRulesEditor
+          enabled={form.remindersEnabled}
+          deadline={form.rsvpDeadline}
+          rules={form.reminderRules}
+          onChangeEnabled={(v) => updateField('remindersEnabled', v)}
+          onChangeDeadline={(v) => updateField('rsvpDeadline', v)}
+          onChangeRules={(v) => updateField('reminderRules', v)}
+        />
       </EditSection>
 
       <EditSection title="Modo de ingreso y cupo" subtitle={`Cupo actual: ${form.capacity || '0'} personas`}>

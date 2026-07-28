@@ -18,7 +18,7 @@ import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
 import { compareEventsByRelevance } from '../utils/time'
 import { GUEST_MAX_COMPANIONS } from '../utils/validation'
-import type { CustomField, EntryMode, EventData, EventStatus, PaymentMethod, TemplateId, TimelineEntry } from '../types'
+import type { CustomField, EntryMode, EventData, EventStatus, FaqEntry, PaymentMethod, ReminderRule, TemplateId, TimelineEntry, TransportInfo } from '../types'
 
 // Clampea a [0, GUEST_MAX_COMPANIONS] — defensa además de la validación de
 // UI (EventCreate/EditEventForm) y de firestore.rules (isValidMaxCompanions).
@@ -53,6 +53,11 @@ export interface NewEventInput {
   organizerContactPhone?: string
   organizerContactPhoneCountry?: string
   timeline?: TimelineEntry[]
+  faq?: FaqEntry[]
+  transport?: TransportInfo
+  rsvpDeadline?: string
+  remindersEnabled?: boolean
+  reminderRules?: ReminderRule[]
 }
 
 export async function createEvent(ownerId: string, input: NewEventInput) {
@@ -82,6 +87,11 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     organizerContactPhone: input.organizerContactPhone?.trim() || '',
     organizerContactPhoneCountry: input.organizerContactPhoneCountry || '',
     timeline: input.timeline || [],
+    faq: input.faq || [],
+    transport: input.transport || {},
+    rsvpDeadline: input.rsvpDeadline || '',
+    remindersEnabled: input.remindersEnabled || false,
+    reminderRules: input.reminderRules || [],
     // Premium gratis mientras se da a conocer el servicio — sin plan a elegir
     // ni pago que confirmar. Cuando se reintroduzcan pagos, esto vuelve a
     // depender de la elección del organizador.
@@ -245,6 +255,11 @@ export interface UpdateEventInput {
   organizerContactPhone?: string
   organizerContactPhoneCountry?: string
   timeline?: TimelineEntry[]
+  faq?: FaqEntry[]
+  transport?: TransportInfo
+  rsvpDeadline?: string
+  remindersEnabled?: boolean
+  reminderRules?: ReminderRule[]
 }
 
 export async function updateEventDetails(eventId: string, input: UpdateEventInput) {
@@ -273,6 +288,11 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     organizerContactPhone: input.organizerContactPhone?.trim() ?? '',
     organizerContactPhoneCountry: input.organizerContactPhoneCountry ?? '',
     timeline: input.timeline || [],
+    faq: input.faq || [],
+    transport: input.transport || {},
+    rsvpDeadline: input.rsvpDeadline || '',
+    remindersEnabled: input.remindersEnabled || false,
+    reminderRules: input.reminderRules || [],
     updatedAt: serverTimestamp(),
   })
 }
@@ -432,6 +452,11 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     organizerContactPhone: (data.organizerContactPhone as string) || '',
     organizerContactPhoneCountry: (data.organizerContactPhoneCountry as string) || '',
     timeline: (data.timeline as TimelineEntry[]) || [],
+    faq: (data.faq as FaqEntry[]) || [],
+    transport: (data.transport as TransportInfo) || undefined,
+    rsvpDeadline: (data.rsvpDeadline as string) || undefined,
+    remindersEnabled: (data.remindersEnabled as boolean) || false,
+    reminderRules: (data.reminderRules as ReminderRule[]) || [],
     plan: data.plan as EventData['plan'],
     paymentStatus: data.paymentStatus as EventData['paymentStatus'],
     status: data.status as EventStatus,

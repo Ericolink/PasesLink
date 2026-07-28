@@ -23,6 +23,10 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { SkeletonBlock } from '../components/Skeleton'
 import { ReminderSection } from '../components/ReminderSection'
+import { SendHistoryPanel } from '../components/SendHistoryPanel'
+import { MassMessageComposer } from '../components/MassMessageComposer'
+import { MassMessageHistory } from '../components/MassMessageHistory'
+import { AccessibleButton } from '../components/accessibility/AccessibleButton'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { EventCountdown } from '../components/EventCountdown'
@@ -61,6 +65,7 @@ export function EventDetail() {
   const [guestSearchSheetOpen, setGuestSearchSheetOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(false)
   const [manageCoOrgOpen, setManageCoOrgOpen] = useState(false)
+  const [massMessageOpen, setMassMessageOpen] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [checkinToast, dismissCheckinToast] = useCheckinToast(eventId)
@@ -551,6 +556,22 @@ export function EventDetail() {
       {/* ── RECORDATORIOS ── */}
       {perms.viewGuestList && guests.length > 0 && (
         <ReminderSection event={event} guests={guests} />
+      )}
+
+      {perms.viewReports && <SendHistoryPanel eventId={event.id} />}
+
+      {/* ── MENSAJERÍA MASIVA ── */}
+      {perms.exportLists && (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 mb-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Mensajería masiva</p>
+            <AccessibleButton size="sm" onClick={() => setMassMessageOpen(true)}>Enviar mensaje</AccessibleButton>
+          </div>
+          <MassMessageHistory eventId={event.id} />
+        </div>
+      )}
+      {massMessageOpen && (
+        <MassMessageComposer event={event} open={massMessageOpen} onClose={() => setMassMessageOpen(false)} />
       )}
 
       {/* ── GESTIÓN DEL EVENTO (solo propietario, colapsable) ── */}

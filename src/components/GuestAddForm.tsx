@@ -9,7 +9,7 @@ import { Tab, TabList, TabPanel, Tabs } from './accessibility/AccessibleTabs'
 import { AccessibleButton } from './accessibility/AccessibleButton'
 import { AccessibleField, FieldError, InputField } from './accessibility/AccessibleField'
 import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
-import { customFieldInputProps } from '../utils/customFieldInput'
+import { CustomFieldInput } from './CustomFieldInput'
 import { captureException } from '../lib/sentry'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { useAnnouncer } from './accessibility/LiveRegion'
@@ -303,13 +303,13 @@ export function GuestAddForm({
               {customFields.map((field) => (
                 <AccessibleField key={field.id} label={field.label} required={field.required} labelClassName="sr-only">
                   {(fieldProps) => (
-                    <input
-                      {...fieldProps}
-                      {...customFieldInputProps(field)}
+                    <CustomFieldInput
+                      field={field}
+                      fieldProps={fieldProps}
                       placeholder={field.label}
                       maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
                       value={customValues[field.id] || ''}
-                      onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                      onChange={(v) => setCustomValues((cv) => ({ ...cv, [field.id]: v }))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   )}
@@ -364,13 +364,13 @@ export function GuestAddForm({
               {customFields.map((field) => (
                 <AccessibleField key={field.id} label={field.label} required={field.required} labelClassName="sr-only">
                   {(fieldProps) => (
-                    <input
-                      {...fieldProps}
-                      {...customFieldInputProps(field)}
+                    <CustomFieldInput
+                      field={field}
+                      fieldProps={fieldProps}
                       placeholder={field.label}
                       maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
                       value={groupCustomValues[field.id] || ''}
-                      onChange={(e) => setGroupCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                      onChange={(v) => setGroupCustomValues((cv) => ({ ...cv, [field.id]: v }))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   )}

@@ -398,6 +398,17 @@ export function IconMapPin({ className = 'w-5 h-5' }: IconProps) {
   )
 }
 
+export function IconCar({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11" />
+      <path d="M3 11h18v5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5z" />
+      <circle cx="7.5" cy="14.5" r="1.2" />
+      <circle cx="16.5" cy="14.5" r="1.2" />
+    </svg>
+  )
+}
+
 export function IconBell({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg className={className} {...base}>

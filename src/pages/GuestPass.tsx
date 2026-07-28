@@ -16,6 +16,9 @@ import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconUserPlus, IconWhatsApp } from '../components/accessibility/AccessibleIcon'
 import { WallSection } from '../components/WallSection'
 import { EventMap } from '../components/EventMap'
+import { FaqAccordion } from '../components/FaqAccordion'
+import { TransportSection } from '../components/TransportSection'
+import { EventWeather } from '../components/EventWeather'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
@@ -900,6 +903,19 @@ function GuestPassInner() {
         <>
           <InviteDivider templateId={event.templateId} />
           <EventMap mapsUrl={event.mapsUrl} />
+          <EventWeather event={event} />
+        </>
+      )}
+      {!!(event.transport?.options?.length || event.transport?.parkingInfo?.trim() || event.transport?.specialInstructions?.length) && (
+        <>
+          <InviteDivider templateId={event.templateId} />
+          <TransportSection transport={event.transport!} />
+        </>
+      )}
+      {!!event.faq?.length && (
+        <>
+          <InviteDivider templateId={event.templateId} />
+          <FaqAccordion entries={event.faq} />
         </>
       )}
       {/* Muro del evento — Historias + fotos ya viven dentro de WallSection */}

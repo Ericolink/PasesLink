@@ -134,7 +134,11 @@ service cloud.firestore {
       let d = request.resource.data;
       return d.get('customFields', []).size() <= 30
         && d.get('timeline', []).size() <= 20
-        && d.get('coOrganizersMap', {}).size() <= 20;
+        && d.get('coOrganizersMap', {}).size() <= 20
+        && d.get('faq', []).size() <= 20
+        && d.get('transport', {}).get('options', []).size() <= 20
+        && d.get('transport', {}).get('specialInstructions', []).size() <= 20
+        && d.get('reminderRules', []).size() <= 5;
     }
 
     // Valida el delta de un contador de "gente adentro" (checkedInCount /
@@ -719,6 +723,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Presupuesto diario compartido de envíos de email (recordatorios +
+    // mensajería masiva), consumido por los scripts Node vía firebase-admin
+    // para no exceder el tope diario del proveedor (Brevo). Uso puramente
+    // interno entre scripts — ni el cliente ni siquiera el admin necesitan
+    // leerlo.
+    match /sendBudget/{dateKey} {
+      allow read, write: if false;
+    }
+
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
       // El admin puede listar todos los usuarios (AdminDashboard). Cualquier otro usuario
@@ -1103,6 +1116,33 @@ service cloud.firestore {
         allow create: if canDo(eventId, 'scanQr', true) || isAdmin();
         allow delete: if isOwner(eventId) || isAdmin();
         allow update: if false;
+      }
+
+      // Bitácora de envíos automáticos (recordatorios de RSVP + mensajería
+      // masiva) — escrita ÚNICAMENTE por los scripts Node de GitHub Actions
+      // vía firebase-admin (bypassa rules), nunca desde el cliente. El
+      // organizador solo lee, para ver el historial de qué se envió.
+      match /sendLog/{logId} {
+        allow read: if canDo(eventId, 'viewReports', true) || isAdmin();
+        allow write: if false;
+      }
+
+      // Mensajería masiva — el navegador solo ENCOLA (create, status
+      // siempre 'queued', guestIds ya resuelto/congelado por el composer);
+      // el script Node (scripts/send-mass-messages.mjs) es el único que
+      // transiciona status a processing/sent/partial/failed. Gateado por
+      // exportLists (misma acción masiva ya usada para exportar listas) en
+      // vez de un permiso granular nuevo.
+      match /messageCampaigns/{campaignId} {
+        allow read: if canDo(eventId, 'exportLists', true) || isAdmin();
+        allow create: if (canDo(eventId, 'exportLists', true) || isAdmin())
+          && request.resource.data.eventId == eventId
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.status == 'queued'
+          && request.resource.data.guestIds.size() >= 1 && request.resource.data.guestIds.size() <= 2000
+          && request.resource.data.subject is string && request.resource.data.subject.size() <= 150
+          && request.resource.data.bodyText is string && request.resource.data.bodyText.size() <= 5000;
+        allow update, delete: if false;
       }
 
       // Funcionalidad eliminada (ver src/firebase/waitlist.ts, borrado). Ya

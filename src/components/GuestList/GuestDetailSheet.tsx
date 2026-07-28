@@ -21,6 +21,7 @@ import { GuestAvatar } from './GuestAvatar'
 import { GuestEditForm } from './GuestEditForm'
 import { GuestHistory } from './GuestHistory'
 import { PAYMENT_METHOD_LABELS, guestDisplayName } from './guestGrouping'
+import { formatCustomFieldValue } from '../../utils/customFieldInput'
 
 function Pill({ tone, icon, children }: { tone: 'amber' | 'green' | 'gray' | 'red' | 'blue'; icon?: React.ReactNode; children: React.ReactNode }) {
   const classes: Record<string, string> = {
@@ -212,7 +213,7 @@ export function GuestDetailSheet({
                       return (
                         <div key={field.id} className="flex justify-between gap-3 text-sm">
                           <dt className="text-gray-500 dark:text-gray-400">{field.label}</dt>
-                          <dd className="text-gray-900 dark:text-white font-medium text-right truncate">{value}</dd>
+                          <dd className="text-gray-900 dark:text-white font-medium text-right truncate">{formatCustomFieldValue(field, value)}</dd>
                         </div>
                       )
                     })}

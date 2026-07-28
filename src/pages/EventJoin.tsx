@@ -35,7 +35,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useAnnouncer } from '../components/accessibility/LiveRegion'
 import type { EventData, PaymentMethod } from '../types'
 import { buildPassUrl } from '../utils/qrUrl'
-import { customFieldInputProps } from '../utils/customFieldInput'
+import { CustomFieldInput } from '../components/CustomFieldInput'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import { FieldError, AccessibleField } from '../components/accessibility/AccessibleField'
 
@@ -381,12 +381,12 @@ export function EventJoin() {
             {customFields.map((field) => (
               <AccessibleField key={field.id} label={field.label} required={field.required} labelClassName={labelClass}>
                 {(fieldProps) => (
-                  <input
-                    {...fieldProps}
-                    {...customFieldInputProps(field)}
+                  <CustomFieldInput
+                    field={field}
+                    fieldProps={fieldProps}
                     maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
                     value={customValues[field.id] || ''}
-                    onChange={(e) => setCustomValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                    onChange={(v) => setCustomValues((cv) => ({ ...cv, [field.id]: v }))}
                     className={inputClass}
                   />
                 )}

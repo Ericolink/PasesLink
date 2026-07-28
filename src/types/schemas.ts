@@ -24,16 +24,45 @@ import type { TemplateId } from './index'
 // mensaje o una plantilla nueva ya no requiere recordar actualizar este archivo.
 const templateIds = INVITATION_TEMPLATES.map((t) => t.id) as [TemplateId, ...TemplateId[]]
 
+const CustomFieldOptionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+})
+
 const CustomFieldSchema = z.object({
   id: z.string(),
   label: z.string(),
-  type: z.enum(['text', 'number', 'email', 'phone']),
+  type: z.enum(['text', 'number', 'email', 'phone', 'select']),
   required: z.boolean(),
+  options: z.array(CustomFieldOptionSchema).optional(),
 })
 
 const TimelineEntrySchema = z.object({
   time: z.string(),
   label: z.string().min(1),
+})
+
+const FaqEntrySchema = z.object({
+  id: z.string(),
+  question: z.string().min(1),
+  answer: z.string().min(1),
+})
+
+const TransportOptionSchema = z.object({
+  id: z.string(),
+  label: z.string().min(1),
+  description: z.string().optional(),
+})
+
+const TransportInfoSchema = z.object({
+  options: z.array(TransportOptionSchema).optional(),
+  parkingInfo: z.string().optional(),
+  specialInstructions: z.array(z.string()).optional(),
+})
+
+const ReminderRuleSchema = z.object({
+  id: z.string(),
+  daysBeforeDeadline: z.number().int().min(0).max(60),
 })
 
 // Espeja CoOrganizerPermissions (src/types/coOrganizerPermissions.ts).
@@ -83,6 +112,11 @@ export const EventSchema = z.object({
   organizerContactPhone: z.string().optional(),
   organizerContactPhoneCountry: z.string().optional(),
   timeline: z.array(TimelineEntrySchema).optional(),
+  faq: z.array(FaqEntrySchema).optional(),
+  transport: TransportInfoSchema.optional(),
+  rsvpDeadline: z.string().optional(),
+  remindersEnabled: z.boolean().optional(),
+  reminderRules: z.array(ReminderRuleSchema).optional(),
   plan: z.enum(['premium']),
   paymentStatus: z.enum(['pending', 'paid', 'free_trial']),
   status: z.enum(['active', 'cancelled', 'archived']),

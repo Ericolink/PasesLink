@@ -1,0 +1,30 @@
+name: Recordatorios de RSVP
+
+on:
+  schedule:
+    # 13:00 UTC ≈ 7-8am en México/Centroamérica — una sola corrida diaria
+    # para toda la flota de eventos (ver ReminderRule en src/types/index.ts:
+    # sin hora configurable por evento a propósito, correr cada hora costaría
+    # 12-24x más minutos de GitHub Actions sin beneficio real a esta escala).
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - run: npm ci
+
+      - name: Enviar recordatorios de RSVP pendientes
+        run: node scripts/send-rsvp-reminders.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7 }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          BREVO_SENDER_EMAIL: ${{ secrets.BREVO_SENDER_EMAIL }}

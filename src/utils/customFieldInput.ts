@@ -6,11 +6,15 @@ import type { CustomField, CustomFieldType } from '../types'
 // tenía bien) mientras GuestAddForm.tsx y CustomFieldsEditor.tsx hardcodeaban
 // type="text" sin importar el tipo configurado, así que el teclado numérico/
 // email/teléfono nunca aparecía para esos dos flujos.
+// 'select' no se usa nunca acá (CustomFieldInput.tsx renderiza un <select>
+// propio antes de llegar a esta función) — entries presentes solo para que
+// el Record sea exhaustivo a nivel de tipos.
 const HTML_TYPE_BY_FIELD_TYPE: Record<CustomFieldType, string> = {
   text: 'text',
   number: 'number',
   email: 'email',
   phone: 'tel',
+  select: 'text',
 }
 
 const INPUT_MODE_BY_FIELD_TYPE: Record<CustomFieldType, 'text' | 'numeric' | 'email' | 'tel'> = {
@@ -18,6 +22,7 @@ const INPUT_MODE_BY_FIELD_TYPE: Record<CustomFieldType, 'text' | 'numeric' | 'em
   number: 'numeric',
   email: 'email',
   phone: 'tel',
+  select: 'text',
 }
 
 // Recibe el CustomField completo (no solo el `type`) para devolver también
@@ -31,4 +36,15 @@ export function customFieldInputProps(field: Pick<CustomField, 'type' | 'require
     inputMode: INPUT_MODE_BY_FIELD_TYPE[field.type],
     required: field.required,
   }
+}
+
+// Un campo `select` guarda en GuestData.customData el `id` de la opción
+// elegida, no su label (ver CustomField.options en types/index.ts) — quien
+// muestre el valor a un organizador (export a Excel, ficha del invitado) debe
+// pasar por acá en vez de mostrar el id crudo.
+export function formatCustomFieldValue(field: CustomField, rawValue: string): string {
+  if (field.type === 'select') {
+    return field.options?.find((o) => o.id === rawValue)?.label || rawValue
+  }
+  return rawValue
 }

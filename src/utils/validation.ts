@@ -57,10 +57,34 @@ export const GUEST_GROUP_MAX_MEMBERS = 50
 // campos que los que un invitado puede llenar, así que reutiliza el mismo
 // techo. Debe coincidir con eventContentCapsOk() en firestore.rules.
 export const EVENT_CUSTOM_FIELDS_MAX_COUNT = GUEST_CUSTOM_FIELD_MAX_COUNT
+// Opciones de un campo personalizado type:'select' (CustomFieldOptionsEditor).
+// Solo se aplica en el cliente — firestore.rules no puede validar el tamaño
+// de un array anidado dentro de cada elemento de customFields (no hay
+// .map()/.filter() en el lenguaje de rules), mismo límite que ya tiene hoy
+// CustomField.label (sin cap server-side, solo el array externo).
+export const EVENT_CUSTOM_FIELD_OPTIONS_MAX_COUNT = 20
+export const EVENT_CUSTOM_FIELD_OPTIONS_MIN_COUNT = 2
 // Momentos del programa del evento (EventData.timeline, ver
 // TimelineEditor.tsx). Debe coincidir con eventContentCapsOk() en
 // firestore.rules.
 export const EVENT_TIMELINE_MAX_ENTRIES = 20
+// Preguntas frecuentes (EventData.faq, ver FaqEditor.tsx). Debe coincidir con
+// eventContentCapsOk() en firestore.rules.
+export const EVENT_FAQ_MAX_ENTRIES = 20
+// Transporte y estacionamiento (EventData.transport, ver TransportEditor.tsx).
+// Debe coincidir con eventContentCapsOk() en firestore.rules.
+export const EVENT_TRANSPORT_OPTIONS_MAX = 20
+export const EVENT_SPECIAL_INSTRUCTIONS_MAX = 20
+// Reglas de recordatorio automático de RSVP (EventData.reminderRules, ver
+// ReminderRulesEditor.tsx). Debe coincidir con eventContentCapsOk() en
+// firestore.rules.
+export const EVENT_REMINDER_RULES_MAX = 5
+
+// Mensajería masiva (MessageCampaign, ver src/firebase/messageCampaigns.ts).
+// Espejados en firestore.rules (validación de `create`).
+export const MASS_MESSAGE_SUBJECT_MAX = 150
+export const MASS_MESSAGE_BODY_MAX = 5000
+export const MASS_MESSAGE_MAX_RECIPIENTS = 2000
 // Co-organizadores por evento (EventData.coOrganizersMap/
 // coOrganizerPermissions, ver useCoOrganizers.ts). Debe coincidir con
 // eventContentCapsOk() en firestore.rules.

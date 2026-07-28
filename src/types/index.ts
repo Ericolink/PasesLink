@@ -41,7 +41,7 @@ export type GuestPaymentStatus = 'unpaid' | 'pending_confirmation' | 'paid' | 'e
 // vez — ver `paymentMethods` en EventData.
 export type PaymentMethod = 'transfer' | 'cash'
 
-export type CustomFieldType = 'text' | 'number' | 'email' | 'phone'
+export type CustomFieldType = 'text' | 'number' | 'email' | 'phone' | 'select'
 
 // Unión cerrada (no string suelto) para que agregar una plantilla nueva sea
 // un error de tipos hasta que también se agregue su entrada en
@@ -56,16 +56,63 @@ export type TemplateId =
   | 'kids'
   | 'houseparty'
 
+export interface CustomFieldOption {
+  id: string
+  label: string
+}
+
 export interface CustomField {
   id: string
   label: string
   type: CustomFieldType
   required: boolean
+  // Solo tiene sentido cuando type === 'select'. La respuesta del invitado se
+  // guarda en GuestData.customData como el `id` de la opción elegida (no su
+  // label), igual que customData ya se indexa por field.id y no por
+  // field.label — así, renombrar una opción no huérfana las respuestas ya
+  // guardadas. Quien muestre el valor a un humano debe resolverlo con
+  // formatCustomFieldValue (utils/customFieldInput.ts).
+  options?: CustomFieldOption[]
 }
 
 export interface TimelineEntry {
   time: string   // 'HH:MM' (formato 24h, igual que startTime/endTime)
   label: string
+}
+
+export interface FaqEntry {
+  id: string
+  question: string
+  answer: string
+}
+
+export interface TransportOption {
+  id: string
+  label: string          // ej. "Shuttle desde el hotel X", "Uber recomendado"
+  description?: string
+}
+
+// Agrupado en un solo objeto anidado (no 3 campos top-level en EventData):
+// las 3 piezas siempre se editan/muestran juntas ("cómo llegar"), y así un
+// solo `event.transport` presente/ausente gatea toda la sección de cara al
+// invitado. `parkingInfo` es un párrafo libre (no una lista estructurada)
+// porque el estacionamiento suele ser una sola nota ("gratis en el lugar"),
+// no varias opciones — a diferencia de `options`, que sí son alternativas
+// entre las que el invitado elige.
+export interface TransportInfo {
+  options?: TransportOption[]
+  parkingInfo?: string
+  specialInstructions?: string[]
+}
+
+// Cuántos días antes de rsvpDeadline se dispara un recordatorio (0 = el
+// mismo día del cierre). Sin `hour`: el cron corre una sola vez al día para
+// toda la flota de eventos (ver scripts/send-rsvp-reminders.mjs) — respetar
+// un horario por evento costaría correr el workflow cada hora, 12-24x más
+// minutos de GitHub Actions sin beneficio real a esta escala.
+export interface ReminderRule {
+  id: string
+  daysBeforeDeadline: number
 }
 
 export interface EventData {
@@ -119,6 +166,21 @@ export interface EventData {
   // y cae a México como último recurso.
   organizerContactPhoneCountry?: string
   timeline?: TimelineEntry[]
+  // Preguntas frecuentes configurables por el organizador (FaqEditor.tsx),
+  // mostradas al invitado en su pase como acordeón (FaqAccordion.tsx) fuera
+  // del boarding pass, junto al mapa. Ausente = sin sección de FAQ.
+  faq?: FaqEntry[]
+  // Transporte, estacionamiento e indicaciones especiales (TransportEditor.tsx),
+  // mostrado al invitado como TransportSection.tsx. Ausente = sin sección.
+  transport?: TransportInfo
+  // Recordatorios automáticos de RSVP por email (distinto del panel manual
+  // de WhatsApp en ReminderSection.tsx) — enviados por
+  // scripts/send-rsvp-reminders.mjs (GitHub Actions cron diario) solo a
+  // invitados con rsvpStatus 'pending'. 'YYYY-MM-DD', sin hora: el cierre de
+  // RSVP es un día, no un instante.
+  rsvpDeadline?: string
+  remindersEnabled?: boolean
+  reminderRules?: ReminderRule[]
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus

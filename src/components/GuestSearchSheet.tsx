@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react'
 import { IconSearch, IconX } from './accessibility/AccessibleIcon'
 import { AccessibleModal } from './accessibility/AccessibleModal'
 import { DialogHeader } from './DialogHeader'
 import { AccessibleButton } from './accessibility/AccessibleButton'
+import { FilterChip } from './FilterChip'
 
 type StatusFilter = 'all' | 'confirmed' | 'scanned' | 'declined' | 'pending'
 type SortBy = 'newest' | 'oldest' | 'az' | 'za'
@@ -21,22 +21,6 @@ const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'az', label: 'A–Z' },
   { value: 'za', label: 'Z–A' },
 ]
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-        active
-          ? 'bg-primary border-primary text-white'
-          : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
 
 export function GuestSearchSheet({
   open,
@@ -106,18 +90,18 @@ export function GuestSearchSheet({
         <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Estado</p>
         <div className="flex flex-wrap gap-2 mb-5">
           {STATUS_OPTIONS.map((opt) => (
-            <Chip key={opt.value} active={statusFilter === opt.value} onClick={() => onStatusFilterChange(opt.value)}>
+            <FilterChip key={opt.value} active={statusFilter === opt.value} onClick={() => onStatusFilterChange(opt.value)}>
               {opt.label}
-            </Chip>
+            </FilterChip>
           ))}
         </div>
 
         <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Orden</p>
         <div className="flex flex-wrap gap-2">
           {SORT_OPTIONS.map((opt) => (
-            <Chip key={opt.value} active={sortBy === opt.value} onClick={() => onSortByChange(opt.value)}>
+            <FilterChip key={opt.value} active={sortBy === opt.value} onClick={() => onSortByChange(opt.value)}>
               {opt.label}
-            </Chip>
+            </FilterChip>
           ))}
         </div>
       </div>
