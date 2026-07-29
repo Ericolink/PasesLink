@@ -13,6 +13,7 @@ const BUILTIN_SECTIONS: { key: BuiltinSectionKey; label: string }[] = [
   { key: 'timeline', label: 'Programa del evento' },
   { key: 'welcomeMessage', label: 'Mensaje de bienvenida' },
   { key: 'map', label: 'Mapa y clima' },
+  { key: 'departureReminder', label: 'Hora de salida recomendada' },
   { key: 'transport', label: 'Cómo llegar' },
   { key: 'faq', label: 'Preguntas frecuentes' },
 ]

@@ -670,6 +670,60 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Plantillas comunitarias (feature de innovación): diseñadores externos
+    // proponen una plantilla (colores/tipografía/etc, ver TemplateVars en
+    // registry.ts) que un admin revisa antes de publicarla. Mismo patrón que
+    // /reports (requiere auth, a diferencia de /feedback que admite envío
+    // anónimo) — acá no tiene sentido un envío anónimo porque el autor debe
+    // poder ver el estado de sus propios envíos después.
+    //
+    // get/list con 3 perspectivas simultáneas (isAdmin ve todo, el autor ve
+    // lo propio en cualquier estado, cualquier usuario logueado ve las
+    // aprobadas para elegirlas en TemplatePicker) — Firestore evalúa esta
+    // regla por CADA documento que la query podría devolver, así que el
+    // cliente debe consultar con un where() que ya acote a uno de estos 3
+    // casos (ver src/firebase/communityTemplates.ts) para que la query entera
+    // no sea rechazada.
+    function isValidCommunityTemplateCreate() {
+      let d = request.resource.data;
+      return request.auth != null
+        && d.authorUid == request.auth.uid
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.description is string && d.description.size() <= 500
+        && d.category is string && d.category.size() > 0
+        && d.status in ['draft', 'in_review']
+        && d.version == 1
+        && !('reviewerUid' in d) && !('reviewNotes' in d) && !('publishedAt' in d);
+    }
+
+    // El autor solo puede tocar su propio envío mientras está en borrador o
+    // fue rechazado (reenvío), y solo puede moverlo a 'draft'/'in_review' —
+    // nunca a 'approved'/'archived', y nunca puede tocar los campos que
+    // gestiona el admin (reviewerUid/reviewNotes/publishedAt deben llegar
+    // exactamente iguales a como estaban).
+    function isValidCommunityTemplateAuthorUpdate() {
+      let d = request.resource.data;
+      let before = resource.data;
+      return request.auth != null
+        && before.authorUid == request.auth.uid
+        && before.status in ['draft', 'rejected']
+        && d.authorUid == before.authorUid
+        && d.status in ['draft', 'in_review']
+        && d.get('reviewerUid', null) == before.get('reviewerUid', null)
+        && d.get('reviewNotes', null) == before.get('reviewNotes', null)
+        && d.get('publishedAt', null) == before.get('publishedAt', null);
+    }
+
+    match /communityTemplates/{templateId} {
+      allow get, list: if isAdmin()
+        || (request.auth != null && resource.data.authorUid == request.auth.uid)
+        || (request.auth != null && resource.data.status == 'approved');
+      allow create: if isValidCommunityTemplateCreate();
+      allow update: if isAdmin() || isValidCommunityTemplateAuthorUpdate();
+      allow delete: if isAdmin()
+        || (request.auth != null && resource.data.authorUid == request.auth.uid && resource.data.status == 'draft');
+    }
+
     // Sanciones de moderación (src/firebase/sanctions.ts). El resumen en
     // sanctions/{uid} es lo que consultan estas mismas reglas para bloquear
     // comentarios/fotos de una cuenta sancionada (ver isBanned/commentsBlocked/
@@ -976,6 +1030,14 @@ service cloud.firestore {
             canDoData(eventDataFor(eventId), 'confirmPayments', true) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentMethod'])
           ) ||
+          // assignGuestToTable (Seating Chart, src/firebase/seating.ts): un
+          // coanfitrión con SOLO manageSeating (sin editGuests) puede mover
+          // invitados de mesa sin heredar edición completa del invitado —
+          // mismo principio que las 2 ramas de campo acotado de arriba.
+          (
+            canDoData(eventDataFor(eventId), 'manageSeating', true) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tableId'])
+          ) ||
           // Botón "Sí, ya pagó" del escáner (confirmPaymentAndCheckIn): marca
           // el pago Y registra el check-in en una sola escritura, así que
           // necesita AMBOS permisos a la vez (no alcanza con tener solo uno,
@@ -1124,6 +1186,22 @@ service cloud.firestore {
         allow create: if canDo(eventId, 'scanQr', true) || isAdmin();
         allow delete: if isOwner(eventId) || isAdmin();
         allow update: if false;
+      }
+
+      // Mesas del Seating Chart (src/firebase/seating.ts). También lectura
+      // para viewReports: Reports/Anfitrión en Vivo pueden mostrar ocupación
+      // por mesa sin requerir manageSeating.
+      match /tables/{tableId} {
+        allow read: if canDo(eventId, 'manageSeating', true) || canDo(eventId, 'viewReports', true) || isAdmin();
+        allow create, update: if (canDo(eventId, 'manageSeating', true) || isAdmin())
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 60
+          && request.resource.data.capacity is int
+          && request.resource.data.capacity > 0
+          && request.resource.data.shape in ['round', 'rectangular', 'square', 'custom']
+          && request.resource.data.sortOrder is number;
+        allow delete: if canDo(eventId, 'manageSeating', true) || isAdmin();
       }
 
       // Bitácora de envíos automáticos (recordatorios de RSVP + mensajería

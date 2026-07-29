@@ -307,6 +307,42 @@ export function getTemplate(id?: TemplateId | string): InvitationTemplate {
   return INVITATION_TEMPLATES.find((t) => t.id === id) ?? INVITATION_TEMPLATES[0]
 }
 
+// Opciones curadas para el formulario de envío de plantillas comunitarias
+// (SubmitCommunityTemplate.tsx) — reusa los mismos enums que ya definen las
+// plantillas curadas de arriba, así un envío de la comunidad no puede tener
+// un valor que el resto del sistema (templates.css, canvas-confetti) no sepa
+// interpretar.
+export const ENTER_ANIMATION_OPTIONS: { value: EnterAnimation; label: string }[] = [
+  { value: 'animate-fade-in-up', label: 'Aparece y sube' },
+  { value: 'animate-fade-in', label: 'Aparece (fade)' },
+  { value: 'animate-bounce-in', label: 'Rebote' },
+  { value: 'animate-slide-in-up', label: 'Desliza hacia arriba' },
+]
+
+export const BUTTON_VARIANT_OPTIONS: { value: 'solid' | 'outline'; label: string }[] = [
+  { value: 'solid', label: 'Sólido' },
+  { value: 'outline', label: 'Contorno' },
+]
+
+export const SPACING_SCALE_OPTIONS: { value: 'compact' | 'cozy' | 'relaxed'; label: string }[] = [
+  { value: 'compact', label: 'Compacto' },
+  { value: 'cozy', label: 'Cómodo' },
+  { value: 'relaxed', label: 'Espacioso' },
+]
+
+export const CONFETTI_SHAPE_OPTIONS: { value: 'star' | 'square'; label: string }[] = [
+  { value: 'star', label: 'Estrella' },
+  { value: 'square', label: 'Cuadrado' },
+]
+
+// Igual criterio que SECONDARY_FONT_OPTIONS (no texto libre): una plantilla
+// comunitaria solo puede usar tipografías que la app ya carga.
+export const COMMUNITY_FONT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'inherit', label: 'Sistema (por defecto)' },
+  { value: "'EB Garamond', Georgia, serif", label: 'Serif editorial' },
+  { value: "'Space Grotesk', system-ui, sans-serif", label: 'Sans moderna' },
+]
+
 export interface InviteThemeStyle {
   dataTemplate: TemplateId
   // Atributo hermano de dataTemplate (mismo mecanismo: lo aplica
@@ -318,7 +354,10 @@ export interface InviteThemeStyle {
   style: CSSProperties
 }
 
-type TemplateVars = InvitationTemplate['vars']
+// Exportado: lo usa CommunityTemplate (src/types/index.ts) para que un
+// envío de la comunidad tenga la MISMA forma que una plantilla curada, sin
+// duplicar la definición.
+export type TemplateVars = InvitationTemplate['vars']
 
 // Único punto que traduce "qué tema eligió el anfitrión" a variables CSS.
 // `overrides` es un subconjunto cualquiera de los tokens del tema — hoy se

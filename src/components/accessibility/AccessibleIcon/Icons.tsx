@@ -642,3 +642,48 @@ export function IconGraduationCap({ className = 'w-5 h-5' }: IconProps) {
     </svg>
   )
 }
+
+// EventInformationPanel (GeneralInfoSection) — ícono genérico "info", faltaba
+// en el catálogo.
+export function IconInfo({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </svg>
+  )
+}
+
+// EventInformationPanel (WeatherSection).
+export function IconCloud({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M17.5 19H9a5 5 0 1 1 1.35-9.81A6 6 0 0 1 22 12.5a4.5 4.5 0 0 1-4.5 4.5z" />
+    </svg>
+  )
+}
+
+// EventInformationPanel (MenuSection).
+export function IconUtensils({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M3 2v7c0 1.1.9 2 2 2s2-.9 2-2V2" />
+      <path d="M5 11v11" />
+      <path d="M18 2c-2 0-3 2.5-3 6s1 6 3 6 3-2.5 3-6-1-6-3-6z" />
+      <path d="M18 14v9" />
+    </svg>
+  )
+}
+
+// EventInformationPanel (GiftSection).
+export function IconGift({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M12 8v13" />
+      <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
+      <path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5" />
+    </svg>
+  )
+}

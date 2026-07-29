@@ -4,9 +4,13 @@ import type { TimelineEntry } from '../types'
 interface Props {
   entries: TimelineEntry[]
   className?: string
+  // false cuando el caller ya muestra su propio título "Programa" (ej.
+  // EventInfoPanel/sections/ScheduleSection.tsx, fila del acordeón) — evita
+  // repetirlo. InvitationPreview.tsx sigue usando el default (true).
+  showLabel?: boolean
 }
 
-export function TimelineDisplay({ entries, className = '' }: Props) {
+export function TimelineDisplay({ entries, className = '', showLabel = true }: Props) {
   const visible = [...entries]
     .filter((e) => e.time && e.label.trim())
     .sort((a, b) => a.time.localeCompare(b.time))
@@ -15,9 +19,11 @@ export function TimelineDisplay({ entries, className = '' }: Props) {
 
   return (
     <div className={className}>
-      <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-[var(--invite-text-muted)]">
-        Programa
-      </p>
+      {showLabel && (
+        <p className="text-xs font-semibold uppercase tracking-wider mb-3 text-[var(--invite-text-muted)]">
+          Programa
+        </p>
+      )}
       <div className="relative">
         {/* Línea vertical que conecta los puntos */}
         <div

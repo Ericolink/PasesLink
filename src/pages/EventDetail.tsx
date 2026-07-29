@@ -246,6 +246,27 @@ export function EventDetail() {
         </Link>
       </div>
 
+      {(perms.manageSeating || perms.viewLiveDashboard) && (
+        <div className="flex gap-2.5 mb-5">
+          {perms.manageSeating && (
+            <Link
+              to={`/events/${event.id}/seating`}
+              className="flex-1 text-center border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Mesas
+            </Link>
+          )}
+          {perms.viewLiveDashboard && (
+            <Link
+              to={`/events/${event.id}/live`}
+              className="flex-1 text-center border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Anfitrión en Vivo
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* ── HERO DEL EVENTO ── */}
       <div className="invite-card-accent rounded-2xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mb-5">
         {event.coverImage && (

@@ -247,6 +247,7 @@ export function EventJoin() {
       templateId={event?.templateId}
       accentOverride={event?.accentColor}
       themeOverrides={event?.themeOverrides}
+      communityTemplateVars={event?.communityTemplateSnapshot?.vars}
       className="min-h-dvh flex items-center justify-center text-center p-4"
     >
       <div className="w-full max-w-sm">

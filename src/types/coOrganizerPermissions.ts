@@ -25,6 +25,12 @@ export interface CoOrganizerPermissions {
   // Reservado a futuro: hoy no existe ninguna función de "descargar
   // información del evento" que gatear.
   downloadEventInfo: boolean
+  // Crear/editar mesas y asignar invitados a ellas (Seating Chart) — separado
+  // de editGuests para que un coanfitrión de logística pueda mover invitados
+  // de mesa sin heredar edición completa del invitado.
+  manageSeating: boolean
+  // Ver la pantalla "Anfitrión en Vivo" (/events/:eventId/live).
+  viewLiveDashboard: boolean
 }
 
 // Defaults aplicados a: (a) un co-organizador agregado antes de que este
@@ -52,6 +58,8 @@ export const LEGACY_COORG_DEFAULTS: CoOrganizerPermissions = {
   viewReports: true,
   exportLists: true,
   downloadEventInfo: true,
+  manageSeating: true,
+  viewLiveDashboard: true,
 }
 
 export interface EventPermissions extends CoOrganizerPermissions {
@@ -83,6 +91,8 @@ const NO_ACCESS: EventPermissions = {
   viewReports: false,
   exportLists: false,
   downloadEventInfo: false,
+  manageSeating: false,
+  viewLiveDashboard: false,
   isOwner: false,
   isCoOrg: false,
   hasAccess: false,
@@ -104,6 +114,8 @@ const FULL_ACCESS: CoOrganizerPermissions = {
   viewReports: true,
   exportLists: true,
   downloadEventInfo: true,
+  manageSeating: true,
+  viewLiveDashboard: true,
 }
 
 // Única fuente de verdad de "qué puede hacer este usuario en este evento" —

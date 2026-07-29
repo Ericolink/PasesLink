@@ -4,6 +4,7 @@ import { updateEventDetails } from '../firebase/events'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
+import { useApprovedCommunityTemplates } from '../hooks/useApprovedCommunityTemplates'
 import { useFormDraft } from '../hooks/useFormDraft'
 import { useLiveRef } from '../hooks/useLiveRef'
 import { isNetworkError } from '../utils/network'
@@ -14,6 +15,7 @@ import { CustomFieldsBuilder } from './CustomFieldsBuilder'
 import { TimelineEditor } from './TimelineEditor'
 import { FaqEditor } from './FaqEditor'
 import { TransportEditor } from './TransportEditor'
+import { GiftEditor } from './GiftEditor'
 import { GuestTagsEditor } from './GuestTagsEditor'
 import { SectionsEditor } from './SectionsEditor'
 import { MenuEditor } from './MenuEditor'
@@ -28,7 +30,7 @@ import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { EventScheduleField } from './EventScheduleField'
 import { getTemplate, SECONDARY_FONT_OPTIONS } from '../templates/registry'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
-import type { CustomField, EntryMode, EventData, FaqEntry, GuestSegmentTag, PaymentMethod, ReminderRule, TemplateId, TimelineEntry, TransportInfo, VisibilitySection } from '../types'
+import type { CommunityTemplateSnapshot, CustomField, EntryMode, EventData, FaqEntry, GuestSegmentTag, PaymentMethod, ReminderRule, TemplateId, TimelineEntry, TransportInfo, VisibilitySection } from '../types'
 
 interface EventEditDraftFields {
   name: string
@@ -39,11 +41,13 @@ interface EventEditDraftFields {
   description: string
   dressCode: string
   templateId: TemplateId
+  communityTemplateSnapshot: CommunityTemplateSnapshot | null
   accentColor: string
   secondaryFontFamily: string
   buttonVariant: 'solid' | 'outline'
   welcomeMessage: string
   mapsUrl: string
+  departureReminderBufferMinutes: string
   capacity: string
   maxCompanions: string
   customFields: CustomField[]
@@ -62,9 +66,11 @@ interface EventEditDraftFields {
   remindersEnabled: boolean
   reminderRules: ReminderRule[]
   guestTags: GuestSegmentTag[]
+  vipTagId: string | null
   sections: VisibilitySection[]
   sectionVisibility: EventData['sectionVisibility']
   menu: EventData['menu']
+  gifts: EventData['gifts']
 }
 
 // Auditoría de escalabilidad (F19): todos los campos del formulario en un
@@ -116,6 +122,7 @@ function EditSection({
 }
 
 export function EditEventForm({ event, onDone }: { event: EventData; onDone: () => void }) {
+  const approvedCommunityTemplates = useApprovedCommunityTemplates()
   const {
     fileInputRef: coverFileInputRef,
     coverImage,
@@ -139,12 +146,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     description: event.description || '',
     dressCode: event.dressCode || '',
     templateId: event.templateId || 'default',
+    communityTemplateSnapshot: event.communityTemplateSnapshot || null,
     // Vacío = "sin override manual", usa el acento propio de la plantilla.
     accentColor: event.accentColor || '',
     secondaryFontFamily: event.themeOverrides?.secondaryFontFamily || '',
     buttonVariant: event.themeOverrides?.buttonVariant || 'solid',
     welcomeMessage: event.welcomeMessage || '',
     mapsUrl: event.mapsUrl || '',
+    departureReminderBufferMinutes: event.departureReminderBufferMinutes != null ? String(event.departureReminderBufferMinutes) : '',
     capacity: event.capacity ? String(event.capacity) : '',
     // resolveMaxCompanions y no event.maxCompanions ?? 0: en un evento anterior
     // al campo, el valor EFECTIVO es el default legacy (9) — mostrar 0 acá haría
@@ -165,9 +174,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     remindersEnabled: event.remindersEnabled || false,
     reminderRules: event.reminderRules || [],
     guestTags: event.guestTags || [],
+    vipTagId: event.vipTagId ?? null,
     sections: event.sections || [],
     sectionVisibility: event.sectionVisibility || undefined,
     menu: event.menu || undefined,
+    gifts: event.gifts || undefined,
   })
 
   function updateField<K extends keyof FormFields>(field: K, value: FormFields[K]) {
@@ -205,6 +216,8 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       ...rest,
       dressCode: rest.dressCode || '',
       maxCompanions: rest.maxCompanions ?? String(resolveMaxCompanions(event)),
+      communityTemplateSnapshot: rest.communityTemplateSnapshot ?? null,
+      departureReminderBufferMinutes: rest.departureReminderBufferMinutes ?? (event.departureReminderBufferMinutes != null ? String(event.departureReminderBufferMinutes) : ''),
       paymentMethods: rest.paymentMethods?.length ? rest.paymentMethods : ['transfer'],
       organizerContactPhone: rest.organizerContactPhone || '',
       organizerContactPhoneCountry: rest.organizerContactPhoneCountry || DEFAULT_PHONE_COUNTRY,
@@ -322,6 +335,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     if (JSON.stringify(event.menu || {}) !== JSON.stringify(form.menu || {})) {
       changes.push({ label: 'Menú y restricciones alimenticias', detail: 'Actualizado' })
     }
+    if (JSON.stringify(event.gifts || {}) !== JSON.stringify(form.gifts || {})) {
+      changes.push({ label: 'Regalos', detail: 'Actualizado' })
+    }
     if (
       (event.remindersEnabled || false) !== form.remindersEnabled
       || (event.rsvpDeadline || '') !== form.rsvpDeadline
@@ -379,6 +395,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         coverImage,
         accentColor: form.accentColor,
         templateId: form.templateId,
+        communityTemplateSnapshot: form.communityTemplateSnapshot,
         themeOverrides: (form.secondaryFontFamily || form.buttonVariant !== 'solid')
           ? {
             ...(form.secondaryFontFamily ? { secondaryFontFamily: form.secondaryFontFamily } : {}),
@@ -387,6 +404,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           : undefined,
         welcomeMessage: form.welcomeMessage.trim(),
         mapsUrl: form.mapsUrl.trim() || undefined,
+        departureReminderBufferMinutes: form.departureReminderBufferMinutes.trim()
+          ? Math.max(0, Math.min(120, Number(form.departureReminderBufferMinutes) || 15))
+          : undefined,
         entryMode,
         capacity: parsedCapacity,
         maxCompanions: parsedMaxCompanions,
@@ -405,9 +425,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         remindersEnabled: form.remindersEnabled,
         reminderRules: form.reminderRules,
         guestTags: form.guestTags,
+        vipTagId: form.vipTagId,
         sections: form.sections,
         sectionVisibility: form.sectionVisibility,
         menu: form.menu,
+        gifts: form.gifts,
       })
       clearDraft()
       onDone()
@@ -588,6 +610,26 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             />
           )}
         </AccessibleField>
+        {form.mapsUrl.trim() && (
+          <AccessibleField
+            label="Margen para la hora de salida recomendada (minutos)"
+            id="edit-event-departure-buffer"
+            helperText='Con el link de Google Maps arriba, el pase le muestra a cada invitado (bajo pedido, con su ubicación) a qué hora conviene salir. Este margen es cuánto antes del evento quiere llegar por defecto — cada invitado puede ajustarlo desde su pase.'
+          >
+            {(fieldProps) => (
+              <input
+                {...fieldProps}
+                type="number"
+                min={0}
+                max={120}
+                value={form.departureReminderBufferMinutes}
+                onChange={(e) => updateField('departureReminderBufferMinutes', e.target.value)}
+                placeholder="15"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            )}
+          </AccessibleField>
+        )}
       </EditSection>
 
       <EditSection title="Plantilla y estilo del pase" subtitle="Tema visual, portada, color de acento y mensaje de bienvenida">
@@ -596,6 +638,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <TemplatePicker
             selected={form.templateId}
             onSelect={(v) => updateField('templateId', v)}
+            communityTemplates={approvedCommunityTemplates}
+            selectedCommunityTemplate={form.communityTemplateSnapshot}
+            onSelectCommunity={(snapshot) => updateField('communityTemplateSnapshot', snapshot)}
             previewData={{
               eventName: form.name,
               date: form.date,
@@ -711,8 +756,17 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <TransportEditor transport={form.transport} onChange={(v) => updateField('transport', v)} />
       </EditSection>
 
+      <EditSection title="Regalos" subtitle="Mesa de regalos, mensaje o datos para regalo en efectivo">
+        <GiftEditor gifts={form.gifts} onChange={(v) => updateField('gifts', v)} />
+      </EditSection>
+
       <EditSection title="Segmentos de invitado" subtitle="Grupos para mostrar contenido exclusivo (ej. VIP, Familia)">
-        <GuestTagsEditor tags={form.guestTags} onChange={(v) => updateField('guestTags', v)} />
+        <GuestTagsEditor
+          tags={form.guestTags}
+          onChange={(v) => updateField('guestTags', v)}
+          vipTagId={form.vipTagId}
+          onVipTagIdChange={(v) => updateField('vipTagId', v)}
+        />
       </EditSection>
 
       <EditSection title="Menú y restricciones alimenticias" subtitle="El invitado elige su platillo al confirmar asistencia">

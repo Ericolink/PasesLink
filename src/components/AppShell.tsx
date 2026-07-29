@@ -5,7 +5,7 @@ import { IconArrowLeft } from './accessibility/AccessibleIcon'
 import { useAuth } from '../hooks/useAuth'
 import { SkipLink } from './accessibility/SkipLink'
 
-type AppShellMode = 'browse' | 'focus' | 'kiosk'
+type AppShellMode = 'browse' | 'focus' | 'kiosk' | 'display'
 
 type AppShellProps = {
   /**
@@ -15,6 +15,11 @@ type AppShellProps = {
    *             cuenta (crear evento). Sin barra inferior, con salida explícita.
    * "kiosk"   — pantallas operadas bajo presión (escanear en la puerta, pase
    *             público de un invitado). Chrome mínimo a propósito.
+   * "display" — pantalla grande sin operador (Anfitrión en Vivo, pensada para
+   *             TV/proyector). A diferencia de "kiosk", quien la abre siempre
+   *             está autenticado (no es de acceso público), así que no
+   *             necesita el flag `guestExit` — la propia página lleva su
+   *             salida. Sin barra inferior, sin chrome extra.
    */
   mode?: AppShellMode
   /**

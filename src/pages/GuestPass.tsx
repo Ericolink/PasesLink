@@ -16,21 +16,25 @@ import { resolveEventPermissions } from '../types/coOrganizerPermissions'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconUserPlus, IconWhatsApp } from '../components/accessibility/AccessibleIcon'
 import { WallSection } from '../components/WallSection'
-import { EventMap } from '../components/EventMap'
-import { FaqAccordion } from '../components/FaqAccordion'
-import { TransportSection } from '../components/TransportSection'
-import { EventWeather } from '../components/EventWeather'
+import {
+  CustomInfoSection,
+  EventInformationPanel,
+  FAQSection,
+  GeneralInfoSection,
+  GiftSection,
+  LocationSection,
+  MenuSection,
+  ScheduleSection,
+  TransportationSection,
+} from '../components/EventInfoPanel'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { toWhatsAppPhone } from '../utils/phone'
 import { getAccentContrastText } from '../utils/contrastColor'
-import { isSectionVisibleToGuest } from '../utils/sectionVisibility'
-import { CustomSectionCard } from '../components/CustomSectionCard'
 import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
-import { TimelineDisplay } from '../components/TimelineDisplay'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
 import { InAppBrowserBanner } from '../components/InAppBrowserBanner'
 import { InlineNotice } from '../components/InlineNotice'
@@ -486,6 +490,7 @@ function GuestPassInner() {
       templateId={event.templateId}
       accentOverride={event.accentColor}
       themeOverrides={event.themeOverrides}
+      communityTemplateVars={event.communityTemplateSnapshot?.vars}
       className="max-w-sm mx-auto px-4 py-12 text-center"
     >
       {/* ── BOARDING PASS CARD ───────────────────────────────────────────
@@ -859,17 +864,6 @@ function GuestPassInner() {
             </div>
           )}
 
-          {event.timeline && event.timeline.length > 0 && isSectionVisibleToGuest(event.sectionVisibility?.timeline, guest) && (
-            <div className="mt-4 pt-4 text-left border-t" style={{ borderColor: 'var(--invite-border)' }}>
-              <TimelineDisplay entries={event.timeline} />
-            </div>
-          )}
-
-          {event.welcomeMessage && isSectionVisibleToGuest(event.sectionVisibility?.welcomeMessage, guest) && (
-            <p className="mt-4 pt-4 text-sm font-medium italic border-t text-[var(--invite-accent)]" style={{ borderColor: 'var(--invite-border)' }}>
-              {event.welcomeMessage}
-            </p>
-          )}
         </div>
 
         <PerforatedDivider />
@@ -903,12 +897,6 @@ function GuestPassInner() {
             endTime={event.endTime}
             className="mt-3 mx-auto"
           />
-
-          {event.description && (
-            <p className="mt-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-center max-w-xs mx-auto">
-              {event.description}
-            </p>
-          )}
         </div>
       </div>
       {/* Compartir en redes (Feature 4: completar Instagram Stories) — mismo
@@ -934,38 +922,26 @@ function GuestPassInner() {
           <GuestPassTicket ref={ticketRef} event={event} guest={guest} passUrl={passUrl} />
         </div>
       )}
-      {/* ── Secciones externas al boarding pass ── */}
-      {event.mapsUrl && isSectionVisibleToGuest(event.sectionVisibility?.map, guest) && (
-        <>
-          <InviteDivider templateId={event.templateId} />
-          <EventMap mapsUrl={event.mapsUrl} />
-          <EventWeather event={event} />
-        </>
-      )}
-      {!!(event.transport?.options?.length || event.transport?.parkingInfo?.trim() || event.transport?.specialInstructions?.length) && isSectionVisibleToGuest(event.sectionVisibility?.transport, guest) && (
-        <>
-          <InviteDivider templateId={event.templateId} />
-          <TransportSection transport={event.transport!} />
-        </>
-      )}
-      {!!event.faq?.length && isSectionVisibleToGuest(event.sectionVisibility?.faq, guest) && (
-        <>
-          <InviteDivider templateId={event.templateId} />
-          <FaqAccordion entries={event.faq} />
-        </>
-      )}
-      {!!event.sections?.length && (
-        <>
-          {event.sections
-            .filter((s) => isSectionVisibleToGuest(s.visibility, guest))
-            .map((s) => (
-              <div key={s.id}>
-                <InviteDivider templateId={event.templateId} />
-                <CustomSectionCard section={s} />
-              </div>
-            ))}
-        </>
-      )}
+      {/* ── Panel de información del evento (Event Information Panel) ──
+          Un único acordeón reemplaza la secuencia de bloques con su propio
+          InviteDivider que había acá (mapa+clima+recordatorio, transporte,
+          FAQ, secciones libres) — ver src/components/EventInfoPanel. Cada
+          fila decide su propia disponibilidad; el panel entero solo
+          desaparece si TODAS las filas vienen vacías (evento sin ningún
+          dato logístico cargado, caso raro). */}
+      <InviteDivider templateId={event.templateId} />
+      <EventInformationPanel>
+        <GeneralInfoSection event={event} guest={guest} />
+        <LocationSection event={event} guest={guest} />
+        <TransportationSection event={event} guest={guest} />
+        <FAQSection event={event} guest={guest} />
+        <MenuSection event={event} guest={guest} />
+        <ScheduleSection event={event} guest={guest} />
+        <GiftSection event={event} />
+        {event.sections?.map((s) => (
+          <CustomInfoSection key={s.id} section={s} guest={guest} />
+        ))}
+      </EventInformationPanel>
       {/* Muro del evento — Historias + fotos ya viven dentro de WallSection */}
       {eventId && (
         guest.rsvpStatus === 'yes' ? (

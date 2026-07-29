@@ -1158,6 +1158,29 @@ textarea:focus {
   animation: menu-icon-in .22s ease-out both;
 }
 
+/* AccessibleAccordion (Event Information Panel y cualquier otro uso futuro):
+   mismo truco grid-template-rows 0fr/1fr que .mobile-menu-collapse arriba,
+   sin JS midiendo alturas. A diferencia de ese caso, el contenido interno
+   NO se monta hasta el primer open (ver Accordion.tsx) — el wrapper igual
+   puede quedar siempre presente en el DOM porque no cuesta nada vacío. */
+.a11y-accordion-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .2s ease-in-out;
+}
+.a11y-accordion-collapse[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+.a11y-accordion-collapse > div {
+  overflow: hidden;
+  min-height: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a11y-accordion-collapse {
+    transition: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mobile-menu-collapse,
   .mobile-menu-item {

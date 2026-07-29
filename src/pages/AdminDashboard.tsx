@@ -22,12 +22,13 @@ import {
   updateFeedbackStatus,
   updateFeedbackTags,
 } from '../firebase/feedback'
+import { reviewCommunityTemplate, subscribeToAllCommunityTemplates } from '../firebase/communityTemplates'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useUnreadFeedbackCount } from '../hooks/useUnreadFeedbackCount'
 import { deleteEvent, setEventStatus } from '../firebase/events'
 import { attendancePercent } from '../utils/attendance'
-import type { EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
+import type { CommunityTemplate, EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Tab as TabButton, TabList, TabPanel, Tabs } from '../components/accessibility/AccessibleTabs'
 import { MetricTile } from '../components/MetricTile'
@@ -37,6 +38,8 @@ import { AdminUsersTable } from '../components/Admin/AdminUsersTable'
 import { AdminActivityLog } from '../components/Admin/AdminActivityLog'
 import { AdminFeedbackTable } from '../components/Admin/AdminFeedbackTable'
 import { AdminFeedbackDetail } from '../components/Admin/AdminFeedbackDetail'
+import { AdminCommunityTemplatesTable } from '../components/Admin/AdminCommunityTemplatesTable'
+import { AdminCommunityTemplateDetail } from '../components/Admin/AdminCommunityTemplateDetail'
 import { AdminReportsTab } from '../components/Admin/AdminReportsTab'
 import { ScreenHeader } from '../components/ScreenHeader'
 import {
@@ -55,7 +58,7 @@ const STATUS_LABELS: Record<EventStatus, string> = {
   archived: 'Archivado',
 }
 
-type Tab = 'events' | 'users' | 'activity' | 'feedback' | 'reports'
+type Tab = 'events' | 'users' | 'activity' | 'feedback' | 'reports' | 'templates'
 type BulkAction = 'archive' | 'cancel' | 'delete'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
@@ -90,6 +93,9 @@ export function AdminDashboard() {
   // tiene abierto (ej. después de cambiar su propio estado/prioridad).
   const [openFeedbackId, setOpenFeedbackId] = useState<string | null>(null)
   const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null)
+  const [communityTemplates, setCommunityTemplates] = useState<CommunityTemplate[]>([])
+  const [communityTemplatesLoading, setCommunityTemplatesLoading] = useState(true)
+  const [openTemplateId, setOpenTemplateId] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const [actionError, setActionError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
@@ -163,6 +169,23 @@ export function AdminDashboard() {
         console.error('Error loading feedback:', err)
         setLoadError('No se pudieron cargar los mensajes del buzón. Verifica tu conexión o tus permisos.')
         setFeedbackLoading(false)
+      },
+    )
+  }, [tab])
+
+  // Mismo criterio que el efecto de feedback arriba: solo se suscribe
+  // mientras la pestaña "Plantillas" está activa, así un admin que nunca la
+  // abre no paga por este listener.
+  useEffect(() => {
+    if (tab !== 'templates') return
+    return subscribeToAllCommunityTemplates(
+      (data) => {
+        setCommunityTemplates(data)
+        setCommunityTemplatesLoading(false)
+      },
+      (err) => {
+        console.error('Error loading community templates:', err)
+        setCommunityTemplatesLoading(false)
       },
     )
   }, [tab])
@@ -288,6 +311,8 @@ export function AdminDashboard() {
 
   const openFeedbackItem = feedback.find((f) => f.id === openFeedbackId) || null
   const deletingFeedbackItem = feedback.find((f) => f.id === deletingFeedbackId) || null
+  const openTemplateItem = communityTemplates.find((t) => t.id === openTemplateId) || null
+  const inReviewTemplatesCount = communityTemplates.filter((t) => t.status === 'in_review').length
 
   function handleOpenFeedback(item: Feedback) {
     setOpenFeedbackId(item.id)
@@ -358,6 +383,22 @@ export function AdminDashboard() {
     }
   }
 
+  async function handleReviewTemplate(id: string, status: 'approved' | 'rejected' | 'archived', reviewNotes: string) {
+    if (!user) return
+    setActionBusy(true)
+    setActionError('')
+    try {
+      await reviewCommunityTemplate(id, { status, reviewerUid: user.uid, reviewNotes })
+      setActionMessage(status === 'approved' ? 'Plantilla aprobada.' : status === 'rejected' ? 'Plantilla rechazada.' : 'Plantilla archivada.')
+      setOpenTemplateId(null)
+    } catch (err) {
+      console.error('Error revisando plantilla comunitaria:', err)
+      setActionError('No se pudo actualizar la plantilla. Intenta de nuevo.')
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
   const bulkActionCopy: Record<BulkAction, { title: string; verb: string; danger: boolean }> = {
     archive: { title: 'Archivar eventos', verb: 'archivar', danger: false },
     cancel: { title: 'Cancelar eventos', verb: 'cancelar', danger: false },
@@ -405,6 +446,7 @@ export function AdminDashboard() {
           <TabButton value="users" label="Clientes" count={users.length} />
           <TabButton value="feedback" label="Buzón" unreadCount={unreadFeedbackCount} />
           <TabButton value="reports" label="Reportes" />
+          <TabButton value="templates" label="Plantillas" unreadCount={inReviewTemplatesCount} />
           <TabButton value="activity" label="Actividad" />
         </TabList>
 
@@ -468,6 +510,14 @@ export function AdminDashboard() {
           <AdminReportsTab initialReportId={initialReportId} />
         </TabPanel>
 
+        <TabPanel value="templates">
+          <AdminCommunityTemplatesTable
+            items={communityTemplates}
+            loading={communityTemplatesLoading}
+            onOpen={(item) => setOpenTemplateId(item.id)}
+          />
+        </TabPanel>
+
         <TabPanel value="activity">
           <ActivityTab />
         </TabPanel>
@@ -512,6 +562,12 @@ export function AdminDashboard() {
         onSaveNotes={handleSaveFeedbackNotes}
         onToggleFavorite={handleToggleFeedbackFavorite}
         onRequestDelete={(item) => setDeletingFeedbackId(item.id)}
+      />
+
+      <AdminCommunityTemplateDetail
+        template={openTemplateItem}
+        onClose={() => setOpenTemplateId(null)}
+        onReview={handleReviewTemplate}
       />
     </div>
   )

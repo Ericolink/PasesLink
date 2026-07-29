@@ -7,6 +7,12 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('es-MX', {
 
 const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 const DATE_TIME_MEDIUM_FORMATTER = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
+const TIME_OF_DAY_FORMATTER = new Intl.DateTimeFormat('es-MX', { timeStyle: 'short' })
+
+/** Convierte un timestamp (ms) a solo la hora, "6:20 p. m." — usado por el recordatorio de salida. */
+export function formatTimeOfDay(ms: number): string {
+  return TIME_OF_DAY_FORMATTER.format(ms)
+}
 
 /** Convierte una fecha/timestamp a "31 dic 2025" — usado en tablas admin (feedback, reportes). */
 export function formatShortDate(date: Date | number): string {

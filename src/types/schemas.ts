@@ -16,13 +16,69 @@
 // incluido en esta subfase.
 import { z } from 'zod'
 import { WALL_TYPES } from '../utils/validation'
-import { INVITATION_TEMPLATES } from '../templates/registry'
+import { COMMUNITY_FONT_OPTIONS, INVITATION_TEMPLATES } from '../templates/registry'
 import type { TemplateId } from './index'
 
 // Derivados de su única fuente de verdad (WALL_TYPES / INVITATION_TEMPLATES) en
 // vez de tipear los mismos valores a mano por 3ra/4ta vez — agregar un tipo de
 // mensaje o una plantilla nueva ya no requiere recordar actualizar este archivo.
 const templateIds = INVITATION_TEMPLATES.map((t) => t.id) as [TemplateId, ...TemplateId[]]
+const communityFontValues = COMMUNITY_FONT_OPTIONS.map((o) => o.value) as [string, ...string[]]
+
+// Plantillas comunitarias (Feature de innovación): a diferencia del resto de
+// este archivo, este schema NO es solo diagnóstico — el formulario de envío
+// (SubmitCommunityTemplate.tsx) lo usa para VALIDAR de verdad antes de
+// escribir a Firestore, porque acá el dato es contenido generado por un
+// tercero (UGC), no la salida de un mapper propio. Colores restringidos a
+// hex estricto y fuentes a la misma lista curada que ya usa
+// EventData.themeOverrides — mismo criterio de "no configuraciones
+// arbitrarias" ya aplicado ahí. `shadow`/`borderRadius` restringidos a un
+// alfabeto seguro (sin `;`, `{`, `url(`) para que un valor no confiable nunca
+// pueda intentar salirse de una propiedad CSS individual, aunque hoy se
+// inyecten como objetos de estilo de React (no strings concatenados) y el
+// riesgo real sea bajo.
+const HEX_COLOR_REGEX = /^#[0-9a-f]{6}$/i
+const SAFE_CSS_VALUE_REGEX = /^[a-zA-Z0-9\s,.\-#()%]+$/
+
+export const CommunityTemplateVarsSchema = z.object({
+  accent: z.string().regex(HEX_COLOR_REGEX),
+  accentDark: z.string().regex(HEX_COLOR_REGEX),
+  accentSoft: z.string().regex(HEX_COLOR_REGEX),
+  pageBg: z.string().regex(HEX_COLOR_REGEX),
+  surface: z.string().regex(HEX_COLOR_REGEX),
+  text: z.string().regex(HEX_COLOR_REGEX),
+  textMuted: z.string().regex(HEX_COLOR_REGEX),
+  border: z.string().regex(HEX_COLOR_REGEX),
+  fontFamily: z.enum(communityFontValues),
+  borderRadius: z.string().regex(/^[\d.]+(px|rem|em|%)$/),
+  shadow: z.string().max(300).regex(SAFE_CSS_VALUE_REGEX),
+  enterAnimation: z.enum(['animate-fade-in-up', 'animate-fade-in', 'animate-bounce-in', 'animate-slide-in-up']),
+  confettiShape: z.enum(['star', 'square']).optional(),
+  secondaryFontFamily: z.enum(communityFontValues).optional(),
+  buttonVariant: z.enum(['solid', 'outline']).optional(),
+  spacingScale: z.enum(['compact', 'cozy', 'relaxed']).optional(),
+})
+
+export const CommunityTemplateSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(60),
+  authorUid: z.string().min(1),
+  authorDisplayName: z.string(),
+  description: z.string().max(500),
+  category: z.string().min(1),
+  previewImageUrl: z.string().optional(),
+  vars: CommunityTemplateVarsSchema,
+  license: z.string().max(60),
+  version: z.number().int().positive(),
+  compatibility: z.array(z.string()),
+  status: z.enum(['draft', 'in_review', 'approved', 'rejected', 'archived']),
+  reviewerUid: z.string().optional(),
+  reviewNotes: z.string().optional(),
+  createdAt: z.number(),
+  submittedAt: z.number().optional(),
+  publishedAt: z.number().optional(),
+  updatedAt: z.number(),
+})
 
 const CustomFieldOptionSchema = z.object({
   id: z.string(),
@@ -109,6 +165,12 @@ const MenuSelectionSchema = z.object({
   note: z.string().optional(),
 })
 
+const GiftInfoSchema = z.object({
+  message: z.string().optional(),
+  registryUrl: z.string().optional(),
+  cashInfo: z.string().optional(),
+})
+
 // Espeja CoOrganizerPermissions (src/types/coOrganizerPermissions.ts).
 // Optional a nivel de mapa: un evento/co-org de antes de este campo
 // simplemente no lo tiene, resuelto con LEGACY_COORG_DEFAULTS en el cliente.
@@ -127,6 +189,8 @@ const CoOrganizerPermissionsSchema = z.object({
   viewReports: z.boolean(),
   exportLists: z.boolean(),
   downloadEventInfo: z.boolean(),
+  manageSeating: z.boolean(),
+  viewLiveDashboard: z.boolean(),
 })
 
 export const EventSchema = z.object({
@@ -143,6 +207,11 @@ export const EventSchema = z.object({
   accentColor: z.string(),
   templateId: z.enum(templateIds),
   themeOverrides: ThemeOverridesSchema.optional(),
+  communityTemplateSnapshot: z.object({
+    id: z.string(),
+    name: z.string(),
+    vars: CommunityTemplateVarsSchema.partial(),
+  }).optional(),
   welcomeMessage: z.string(),
   mapsUrl: z.string(),
   entryMode: z.enum(['list', 'open', 'hybrid']),
@@ -163,9 +232,12 @@ export const EventSchema = z.object({
   remindersEnabled: z.boolean().optional(),
   reminderRules: z.array(ReminderRuleSchema).optional(),
   guestTags: z.array(GuestSegmentTagSchema).optional(),
+  vipTagId: z.string().nullable().optional(),
   sectionVisibility: z.record(z.string(), SectionVisibilityRuleSchema).optional(),
+  departureReminderBufferMinutes: z.number().optional(),
   sections: z.array(VisibilitySectionSchema).optional(),
   menu: z.object({ options: z.array(MenuOptionSchema), restrictions: z.array(DietaryRestrictionSchema) }).optional(),
+  gifts: GiftInfoSchema.optional(),
   plan: z.enum(['premium']),
   paymentStatus: z.enum(['pending', 'paid', 'free_trial']),
   status: z.enum(['active', 'cancelled', 'archived']),
@@ -217,6 +289,7 @@ export const GuestSchema = z.object({
   lockTokens: z.array(z.string()).optional(),
   customData: z.record(z.string(), z.string()).optional(),
   tags: z.array(z.string()).optional(),
+  tableId: z.string().nullable().optional(),
   menuSelection: MenuSelectionSchema.optional(),
   paymentStatus: z.enum(['unpaid', 'pending_confirmation', 'paid', 'expired']),
   paymentMethod: z.enum(['transfer', 'cash']).nullable(),
@@ -230,12 +303,26 @@ export const CheckinSchema = z.object({
   id: z.string().min(1),
   guestId: z.string().min(1),
   guestName: z.string(),
-  type: z.enum(['check_in', 'check_out']),
+  type: z.enum(['check_in', 'check_out', 'entry_blocked']),
   exitKind: z.enum(['temporary', 'final']).optional(),
   reentry: z.boolean().optional(),
+  reason: z.enum(['final_exit_blocked']).optional(),
   timestamp: z.number(),
   scannedBy: z.string(),
   scannedByEmail: z.string().nullable(),
+})
+
+export const SeatingTableSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  capacity: z.number().int().positive(),
+  shape: z.enum(['round', 'rectangular', 'square', 'custom']),
+  zone: z.string().optional(),
+  position: z.object({ x: z.number(), y: z.number() }).optional(),
+  sortOrder: z.number(),
+  notes: z.string().optional(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
 })
 
 const WallReplySchema = z.object({

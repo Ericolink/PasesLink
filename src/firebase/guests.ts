@@ -1138,6 +1138,19 @@ export async function checkInGuest(
       return { status: 'already_checked_in', guest } as CheckInResult
     }
     if (presence === 'final_out') {
+      // Único caso real de "entrada rechazada" (a diferencia de
+      // payment_required, que el propio escáner resuelve en el momento) —
+      // se registra para que Anfitrión en Vivo pueda mostrar rechazos.
+      const blockedRef = doc(collection(db, 'events', eventId, 'checkins'))
+      transaction.set(blockedRef, {
+        guestId: guest.id,
+        guestName: guest.name,
+        type: 'entry_blocked',
+        reason: 'final_exit_blocked',
+        timestamp: serverTimestamp(),
+        scannedBy,
+        scannedByEmail,
+      })
       return { status: 'blocked_final_exit', guest } as CheckInResult
     }
     const isReentry = presence === 'temp_out'

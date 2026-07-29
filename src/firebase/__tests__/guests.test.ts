@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { doc, setDoc, updateDoc } from 'firebase/firestore'
 import { createTestEnv, getEventDoc, getGuestContactDoc, getGuestDoc, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
+import { getCheckins } from '../reports'
 
 // Mismo mock que capacity.test.ts: redirige el `db` singleton de guests.ts/capacity.ts
 // al Firestore del emulador activo en cada test (ver comentario en capacity.test.ts).
@@ -179,6 +180,15 @@ describe('guests.ts', () => {
 
     const reentry = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
     expect(reentry.status).toBe('blocked_final_exit')
+
+    // Anfitrión en Vivo lee este registro para mostrar "rechazados" — el
+    // único caso real de rechazo (payment_required no escribe nada, se
+    // resuelve en el momento desde el propio escáner).
+    const checkins = await getCheckins(EVENT_ID)
+    const blocked = checkins.filter((c) => c.type === 'entry_blocked')
+    expect(blocked).toHaveLength(1)
+    expect(blocked[0].reason).toBe('final_exit_blocked')
+    expect(blocked[0].guestId).toBe(GUEST_ID)
   })
 
   it('should allow re-entry even if payment status changed to unpaid while the guest was out', async () => {

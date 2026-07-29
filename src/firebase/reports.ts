@@ -1,7 +1,9 @@
-import { collection, getDocs, orderBy, query, where } from 'firebase/firestore'
+import { collection, getDocs, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore'
+import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import type { CheckinLog } from '../types'
 import { CheckinSchema, warnIfInvalidShape } from '../types/schemas'
+import { withListenerReporting } from '../lib/sentry'
 
 function mapCheckin(id: string, data: Record<string, unknown>): CheckinLog {
   const checkin: CheckinLog = {
@@ -11,6 +13,7 @@ function mapCheckin(id: string, data: Record<string, unknown>): CheckinLog {
     type: (data.type as CheckinLog['type']) || 'check_in',
     exitKind: (data.exitKind as CheckinLog['exitKind']) || undefined,
     reentry: (data.reentry as boolean) || undefined,
+    reason: (data.reason as CheckinLog['reason']) || undefined,
     scannedBy: data.scannedBy as string,
     scannedByEmail: (data.scannedByEmail as string) || null,
     timestamp: toMillis(data.timestamp),
@@ -43,6 +46,31 @@ export async function getCheckins(eventId: string): Promise<CheckinLog[]> {
   const q = query(collection(db, 'events', eventId, 'checkins'), orderBy('timestamp', 'asc'))
   const snapshot = await getDocs(q)
   return snapshot.docs.map((d) => mapCheckin(d.id, d.data()))
+}
+
+// A diferencia de getCheckins (lectura puntual, ver comentario arriba): esta
+// SÍ es un listener en vivo, pero acotado con limit() — no repite el patrón
+// costoso que ese comentario describe porque nunca vuelve a bajar la
+// colección completa, solo los últimos `limitCount`. Pensada para Anfitrión
+// en Vivo (feed de ingresos/rechazos recientes) y reutilizable a futuro por
+// cualquier pantalla que solo necesite "lo último que pasó", no el historial
+// entero.
+export function subscribeToRecentCheckins(
+  eventId: string,
+  limitCount: number,
+  callback: (checkins: CheckinLog[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const q = query(
+    collection(db, 'events', eventId, 'checkins'),
+    orderBy('timestamp', 'desc'),
+    limit(limitCount),
+  )
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map((d) => mapCheckin(d.id, d.data()))),
+    withListenerReporting('reports.recentCheckins', onError),
+  )
 }
 
 // Historial de accesos de UN invitado (entradas, salidas y reingresos), para

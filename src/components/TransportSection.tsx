@@ -1,5 +1,4 @@
 import type { TransportInfo } from '../types'
-import { IconCar } from './accessibility/AccessibleIcon'
 
 interface Props {
   transport: TransportInfo
@@ -9,16 +8,13 @@ function hasContent(transport: TransportInfo): boolean {
   return !!(transport.options?.length || transport.parkingInfo?.trim() || transport.specialInstructions?.length)
 }
 
+// Body puro (sin título propio): el título/ícono de esta información los
+// pone el EventInfoSection que lo envuelve en el panel.
 export function TransportSection({ transport }: Props) {
   if (!hasContent(transport)) return null
 
   return (
-    <div className="mt-4 space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: 'var(--invite-text-muted)' }}>
-        <IconCar className="w-3.5 h-3.5" />
-        Cómo llegar
-      </p>
-
+    <div className="space-y-3">
       {!!transport.options?.length && (
         <ul className="space-y-1.5">
           {transport.options.map((opt) => (

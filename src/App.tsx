@@ -34,6 +34,10 @@ const EventWall = lazy(() => import('./pages/EventWall').then((m) => ({ default:
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile').then((m) => ({ default: m.CompleteProfile })))
 const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => ({ default: m.MyInvitations })))
 const Feedback        = lazy(() => import('./pages/Feedback').then((m) => ({ default: m.Feedback })))
+const SeatingChart    = lazy(() => import('./pages/SeatingChart').then((m) => ({ default: m.SeatingChart })))
+const HostLive        = lazy(() => import('./pages/HostLive').then((m) => ({ default: m.HostLive })))
+const MyCommunityTemplates    = lazy(() => import('./pages/MyCommunityTemplates').then((m) => ({ default: m.MyCommunityTemplates })))
+const SubmitCommunityTemplate = lazy(() => import('./pages/SubmitCommunityTemplate').then((m) => ({ default: m.SubmitCommunityTemplate })))
 
 function PageFallback() {
   return <CrownLoader className="min-h-[60vh]" />
@@ -59,6 +63,14 @@ function ReportsRoute() {
 function ScannerRoute() {
   const { eventId } = useParams()
   return <AppShell mode="kiosk"><Scanner key={eventId} /></AppShell>
+}
+function SeatingChartRoute() {
+  const { eventId } = useParams()
+  return <BrowseLayout><SeatingChart key={eventId} /></BrowseLayout>
+}
+function HostLiveRoute() {
+  const { eventId } = useParams()
+  return <AppShell mode="display"><HostLive key={eventId} /></AppShell>
 }
 
 function App() {
@@ -119,6 +131,22 @@ function App() {
           }
         />
         <Route
+          path="/events/:eventId/seating"
+          element={
+            <ProtectedRoute>
+              <SeatingChartRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:eventId/live"
+          element={
+            <ProtectedRoute>
+              <HostLiveRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/profile"
           element={
             <ProtectedRoute>
@@ -131,6 +159,30 @@ function App() {
           element={
             <ProtectedRoute>
               <BrowseLayout><MyInvitations /></BrowseLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-templates"
+          element={
+            <ProtectedRoute>
+              <BrowseLayout><MyCommunityTemplates /></BrowseLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-templates/new"
+          element={
+            <ProtectedRoute>
+              <AppShell mode="focus"><SubmitCommunityTemplate /></AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-templates/:id/edit"
+          element={
+            <ProtectedRoute>
+              <AppShell mode="focus"><SubmitCommunityTemplate /></AppShell>
             </ProtectedRoute>
           }
         />

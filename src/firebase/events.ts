@@ -18,7 +18,7 @@ import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
 import { compareEventsByRelevance } from '../utils/time'
 import { GUEST_MAX_COMPANIONS } from '../utils/validation'
-import type { CustomField, DietaryRestriction, EntryMode, EventData, EventStatus, FaqEntry, GuestSegmentTag, MenuOption, PaymentMethod, ReminderRule, TemplateId, ThemeOverrides, TimelineEntry, TransportInfo, VisibilitySection } from '../types'
+import type { CommunityTemplateSnapshot, CustomField, DietaryRestriction, EntryMode, EventData, EventStatus, FaqEntry, GiftInfo, GuestSegmentTag, MenuOption, PaymentMethod, ReminderRule, TemplateId, ThemeOverrides, TimelineEntry, TransportInfo, VisibilitySection } from '../types'
 
 // Clampea a [0, GUEST_MAX_COMPANIONS] — defensa además de la validación de
 // UI (EventCreate/EditEventForm) y de firestore.rules (isValidMaxCompanions).
@@ -60,6 +60,7 @@ export interface NewEventInput {
   remindersEnabled?: boolean
   reminderRules?: ReminderRule[]
   guestTags?: GuestSegmentTag[]
+  vipTagId?: string | null
   sectionVisibility?: EventData['sectionVisibility']
   sections?: VisibilitySection[]
   menu?: { options: MenuOption[]; restrictions: DietaryRestriction[] }
@@ -99,6 +100,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     remindersEnabled: input.remindersEnabled || false,
     reminderRules: input.reminderRules || [],
     guestTags: input.guestTags || [],
+    vipTagId: input.vipTagId ?? null,
     sectionVisibility: input.sectionVisibility || {},
     sections: input.sections || [],
     menu: input.menu || { options: [], restrictions: [] },
@@ -272,9 +274,13 @@ export interface UpdateEventInput {
   remindersEnabled?: boolean
   reminderRules?: ReminderRule[]
   guestTags?: GuestSegmentTag[]
+  vipTagId?: string | null
   sectionVisibility?: EventData['sectionVisibility']
   sections?: VisibilitySection[]
   menu?: { options: MenuOption[]; restrictions: DietaryRestriction[] }
+  gifts?: GiftInfo
+  departureReminderBufferMinutes?: number
+  communityTemplateSnapshot?: CommunityTemplateSnapshot | null
 }
 
 export async function updateEventDetails(eventId: string, input: UpdateEventInput) {
@@ -310,9 +316,13 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     remindersEnabled: input.remindersEnabled || false,
     reminderRules: input.reminderRules || [],
     guestTags: input.guestTags || [],
+    vipTagId: input.vipTagId ?? null,
     sectionVisibility: input.sectionVisibility || {},
     sections: input.sections || [],
     menu: input.menu || { options: [], restrictions: [] },
+    gifts: input.gifts || {},
+    departureReminderBufferMinutes: input.departureReminderBufferMinutes ?? 15,
+    communityTemplateSnapshot: input.communityTemplateSnapshot ?? null,
     updatedAt: serverTimestamp(),
   })
 }
@@ -479,7 +489,10 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     remindersEnabled: (data.remindersEnabled as boolean) || false,
     reminderRules: (data.reminderRules as ReminderRule[]) || [],
     guestTags: (data.guestTags as GuestSegmentTag[]) || [],
+    vipTagId: (data.vipTagId as string) || null,
     sectionVisibility: (data.sectionVisibility as EventData['sectionVisibility']) || undefined,
+    departureReminderBufferMinutes: typeof data.departureReminderBufferMinutes === 'number' ? data.departureReminderBufferMinutes : undefined,
+    communityTemplateSnapshot: (data.communityTemplateSnapshot as CommunityTemplateSnapshot) || undefined,
     sections: (data.sections as VisibilitySection[]) || [],
     menu: (data.menu as EventData['menu']) || undefined,
     plan: data.plan as EventData['plan'],

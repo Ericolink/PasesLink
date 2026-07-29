@@ -126,6 +126,34 @@ export interface GuestSegmentTag {
   color?: string
 }
 
+// Forma de la mesa: solo afecta el ícono/preview en la UI (TableCard) —
+// ninguna regla ni cálculo de ocupación la lee. 'custom' cubre layouts que no
+// encajan en las 3 formas básicas sin forzar un valor incorrecto.
+export type SeatingTableShape = 'round' | 'rectangular' | 'square' | 'custom'
+
+// Mesa de un evento (events/{eventId}/tables/{tableId}). La asignación
+// invitado→mesa vive en GuestData.tableId (no acá, como array) para no tener
+// que reescribir este doc cada vez que alguien cambia de mesa — la ocupación
+// se calcula sumando partySize() de los invitados con ese tableId, con los
+// datos que la pantalla de asignación ya tiene en memoria vía useEvent().
+// `position` no se usa todavía: queda reservado para un plano/drag&drop
+// futuro sin requerir otra migración de datos.
+export interface SeatingTableData {
+  id: string
+  name: string
+  capacity: number
+  shape: SeatingTableShape
+  // Salón/área libre (ej. "Salón principal", "Terraza") — string libre por
+  // ahora, sin catálogo propio; se puede promover a un catálogo tipado el día
+  // que un evento necesite gestionar varios salones con reglas propias.
+  zone?: string
+  position?: { x: number; y: number }
+  sortOrder: number
+  notes?: string
+  createdAt: number
+  updatedAt: number
+}
+
 // Motor de visibilidad de secciones (invitado, no organizador — para
 // permisos de organizador ver coOrganizerPermissions.ts). Cada campo
 // presente es una condición en AND con las demás; dentro de un campo, los
@@ -168,6 +196,93 @@ export interface ThemeOverrides {
   accent?: string
   secondaryFontFamily?: string
   buttonVariant?: 'solid' | 'outline'
+}
+
+// Mismo motivo que ThemeOverrides arriba (evitar ciclo de imports con
+// registry.ts): estructuralmente idéntico a InvitationTemplate['vars']
+// (TemplateVars, ya exportado desde registry.ts) — TypeScript los trata como
+// compatibles por tipado estructural, sin necesidad de importar uno desde el
+// otro. Si TemplateVars gana un campo nuevo, este tipo también debe ganarlo
+// para seguir siendo compatible (el compilador lo señala en
+// buildInviteThemeStyle si se olvida).
+export interface CommunityTemplateVars {
+  accent: string
+  accentDark: string
+  accentSoft: string
+  pageBg: string
+  surface: string
+  text: string
+  textMuted: string
+  border: string
+  fontFamily: string
+  borderRadius: string
+  shadow: string
+  enterAnimation: 'animate-fade-in-up' | 'animate-fade-in' | 'animate-bounce-in' | 'animate-slide-in-up'
+  confettiShape?: 'star' | 'square'
+  secondaryFontFamily?: string
+  buttonVariant?: 'solid' | 'outline'
+  spacingScale?: 'compact' | 'cozy' | 'relaxed'
+}
+
+export type CommunityTemplateStatus = 'draft' | 'in_review' | 'approved' | 'rejected' | 'archived'
+
+// Plantilla propuesta por un diseñador externo (Feature de innovación:
+// plantillas comunitarias). Colección top-level `communityTemplates/{id}` —
+// ver firestore.rules para el flujo de moderación (mismo patrón que
+// `reports`: create requiere auth, update de contenido solo del autor en
+// draft/rejected, transiciones de estado solo por isAdmin()).
+export interface CommunityTemplate {
+  id: string
+  name: string
+  authorUid: string
+  // Snapshot del nombre del autor al momento de crear/actualizar — evita leer
+  // users/{uid} en cada fila de una tabla de moderación o del picker.
+  authorDisplayName: string
+  description: string
+  category: string
+  previewImageUrl?: string
+  vars: CommunityTemplateVars
+  // Texto libre v1 (ej. "PaseLink", "CC-BY") — sin catálogo de licencias
+  // todavía, ver PLATFORM_EXPANSION_ARCHITECTURE.md-style "fuera de alcance".
+  license: string
+  version: number
+  // Ids informativos de features ya verificadas contra esta plantilla (ej.
+  // 'confetti', 'wall') — sin validación automática todavía, ver nota en el
+  // formulario de envío.
+  compatibility: string[]
+  status: CommunityTemplateStatus
+  reviewerUid?: string
+  reviewNotes?: string
+  createdAt: number
+  submittedAt?: number
+  publishedAt?: number
+  updatedAt: number
+}
+
+// Copia CONGELADA de CommunityTemplateVars al momento en que el organizador
+// eligió una plantilla comunitaria para su evento (ver TemplatePicker) — no
+// una referencia viva al doc de communityTemplates. Así, si esa plantilla se
+// archiva o cambia de versión después, los eventos que ya la usan siguen
+// renderizando exactamente igual (mismo criterio que amountDueMinorUnits en
+// PLATFORM_EXPANSION_ARCHITECTURE.md §4.3: congelar en vez de recalcular).
+// Separado de ThemeOverrides (que sigue siendo solo ajustes manuales chicos
+// del organizador) — ambos se mezclan en el mismo punto donde hoy se pasa
+// `overrides` a buildInviteThemeStyle, con themeOverrides ganando por encima.
+export interface CommunityTemplateSnapshot {
+  id: string
+  name: string
+  vars: Partial<CommunityTemplateVars>
+}
+
+// Regalos (EventInfoPanel/sections/GiftSection.tsx) — shape mínimo a
+// propósito: link a un registro externo (Amazon, Liverpool, Mercado Libre...)
+// + nota de efectivo/transferencia + mensaje libre. No arma un catálogo de
+// regalos propio ni tracking de "quién regaló qué" — eso es un producto
+// distinto; hoy resuelve el caso común (organizador comparte 1-2 canales).
+export interface GiftInfo {
+  message?: string
+  registryUrl?: string
+  cashInfo?: string
 }
 
 export interface MenuOption {
@@ -213,6 +328,10 @@ export interface EventData {
   // deja igual por compatibilidad con el mecanismo `overrides` ya existente
   // en buildInviteThemeStyle, que hoy solo recibe accentColor por separado.
   themeOverrides?: ThemeOverrides
+  // Presente solo si el organizador eligió una plantilla de la comunidad
+  // (ver CommunityTemplateSnapshot) — cuando está presente, templateId queda
+  // en 'default' (base estructural neutra, sin ornamentos propios todavía).
+  communityTemplateSnapshot?: CommunityTemplateSnapshot | null
   welcomeMessage?: string
   mapsUrl?: string
   entryMode: EntryMode
@@ -221,11 +340,22 @@ export interface EventData {
   // asignados por invitado en GuestData.tags. Ausente = el evento no usa
   // segmentación todavía.
   guestTags?: GuestSegmentTag[]
+  // Id de un GuestSegmentTag (de guestTags arriba) que Anfitrión en Vivo
+  // destaca como métrica propia (ej. "VIP") — opcional; si no está definido,
+  // esa tarjeta simplemente no se muestra. No introduce un concepto de "tier"
+  // nuevo, solo reutiliza el catálogo de etiquetas que ya existe.
+  vipTagId?: string | null
   // Gating opcional de las secciones YA existentes de más abajo (transport/
   // faq/timeline/welcomeMessage) — no se migran a un modelo de bloques, solo
   // ganan una condición de visibilidad adicional. Clave ausente = visible
   // para cualquier invitado, igual que antes de que existiera este campo.
-  sectionVisibility?: Partial<Record<'transport' | 'faq' | 'timeline' | 'welcomeMessage' | 'map', SectionVisibilityRule>>
+  sectionVisibility?: Partial<Record<'transport' | 'faq' | 'timeline' | 'welcomeMessage' | 'map' | 'departureReminder', SectionVisibilityRule>>
+  // Margen (minutos) que se suma al tiempo de viaje estimado del recordatorio
+  // de salida (Feature de innovación) — ausente = 15 min por defecto (ver
+  // DEFAULT_BUFFER_MINUTES en useDepartureReminder.ts). El invitado puede
+  // además ajustarlo al vuelo en el propio widget (estado local, no se
+  // persiste acá).
+  departureReminderBufferMinutes?: number
   // Secciones nuevas y libres (After Party, Cena VIP, Hospedaje...) — ver
   // VisibilitySection.
   sections?: VisibilitySection[]
@@ -233,6 +363,9 @@ export interface EventData {
   // DietaryRestriction. Ausente = el evento no ofrece selección de menú (el
   // paso correspondiente no se muestra en el RSVP).
   menu?: { options: MenuOption[]; restrictions: DietaryRestriction[] }
+  // Regalos — ver GiftInfo. Ausente = el evento no muestra la fila
+  // correspondiente en el Event Information Panel.
+  gifts?: GiftInfo
   // Tope de acompañantes que puede sumar UN invitado individual (autoregistro
   // público o alta/edición manual del organizador) — ver GUEST_MAX_COMPANIONS
   // en utils/validation.ts (techo 20) y resolveMaxCompanions en
@@ -268,11 +401,13 @@ export interface EventData {
   organizerContactPhoneCountry?: string
   timeline?: TimelineEntry[]
   // Preguntas frecuentes configurables por el organizador (FaqEditor.tsx),
-  // mostradas al invitado en su pase como acordeón (FaqAccordion.tsx) fuera
-  // del boarding pass, junto al mapa. Ausente = sin sección de FAQ.
+  // mostradas al invitado como fila del Event Information Panel (ver
+  // src/components/EventInfoPanel/sections/FAQSection.tsx). Ausente = sin
+  // sección de FAQ.
   faq?: FaqEntry[]
   // Transporte, estacionamiento e indicaciones especiales (TransportEditor.tsx),
-  // mostrado al invitado como TransportSection.tsx. Ausente = sin sección.
+  // mostrado al invitado como fila del panel (TransportationSection.tsx).
+  // Ausente = sin sección.
   transport?: TransportInfo
   // Recordatorios automáticos de RSVP por email (distinto del panel manual
   // de WhatsApp en ReminderSection.tsx) — enviados por
@@ -489,6 +624,10 @@ export interface GuestData {
   // solo lo escribe el organizador (bulkSetGuestTags), nunca el propio
   // invitado. Ausente = sin segmento asignado.
   tags?: string[]
+  // Mesa asignada (id de SeatingTableData) — null/ausente = sin asignar
+  // todavía. Solo lo escribe el organizador/coanfitrión con manageSeating,
+  // nunca el propio invitado (mismo criterio que `tags`).
+  tableId?: string | null
   // Selección de menú propia del invitado (no de sus acompañantes, ver
   // CompanionData.menuSelection) — se completa junto con la confirmación de
   // RSVP cuando EventData.menu existe.
@@ -513,7 +652,11 @@ export interface GuestData {
   createdAt: number
 }
 
-type CheckinType = 'check_in' | 'check_out'
+// 'entry_blocked': intento de ingreso rechazado por checkInGuest (hoy solo el
+// caso de reingreso bloqueado tras una salida definitiva — ver `reason`).
+// payment_required NO genera esta entrada: no es un rechazo, es un estado que
+// el propio escáner resuelve en el momento (confirmPaymentAndCheckIn).
+type CheckinType = 'check_in' | 'check_out' | 'entry_blocked'
 
 export interface CheckinLog {
   id: string
@@ -526,6 +669,8 @@ export interface CheckinLog {
   // Solo presente en entradas type: 'check_in' que corresponden a un
   // reingreso tras una salida temporal (no al primer check-in).
   reentry?: boolean
+  // Solo presente en entradas type: 'entry_blocked'.
+  reason?: 'final_exit_blocked'
   timestamp: number
   scannedBy: string
   scannedByEmail: string | null
