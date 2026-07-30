@@ -118,6 +118,13 @@ const FULL_ACCESS: CoOrganizerPermissions = {
   viewLiveDashboard: true,
 }
 
+// Único punto de verdad para "¿este usuario es organizador/co-organizador de
+// este evento?" — reemplaza los checks ad-hoc `perms.isOwner || perms.isCoOrg`
+// repetidos en distintos componentes (ver GuestPass.tsx).
+export function isOrganizerRole(perms: Pick<EventPermissions, 'isOwner' | 'isCoOrg'>): boolean {
+  return perms.isOwner || perms.isCoOrg
+}
+
 // Única fuente de verdad de "qué puede hacer este usuario en este evento" —
 // todo componente que necesite gatear una acción (agregar invitados, escanear,
 // moderar el muro, etc.) llama a esto (vía useEventPermissions) en vez de

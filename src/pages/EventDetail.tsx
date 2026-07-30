@@ -405,7 +405,7 @@ export function EventDetail() {
       {/* ── AUTO-REGISTRO ── arriba y compacto: es de las acciones más usadas
           durante la organización (copiar/compartir el enlace), así que no
           debe requerir scroll hasta el final de la pantalla. */}
-      {event.entryMode !== 'list' && (
+      {event.entryMode !== 'list' && perms.shareInviteLink && (
         <div id="open-entry-links" className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">
             <IconLink className="w-3.5 h-3.5 text-primary" />
@@ -576,8 +576,12 @@ export function EventDetail() {
       </div>
       )}
 
-      {/* ── RECORDATORIOS ── */}
-      {perms.viewGuestList && guests.length > 0 && (
+      {/* ── RECORDATORIOS ── envía/copia los links personales de pase de
+          invitados pendientes; requiere editGuests (mismo criterio que
+          "Reenviar" en GuestDetailSheet.tsx) — un coanfitrión de solo
+          lectura no debe poder extraer/redistribuir en bloque los links de
+          todos los invitados. */}
+      {perms.editGuests && guests.length > 0 && (
         <ReminderSection event={event} guests={guests} />
       )}
 

@@ -12,7 +12,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { saveUserInvitation, deleteUserInvitation } from '../firebase/userProfile'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
-import { resolveEventPermissions } from '../types/coOrganizerPermissions'
+import { isOrganizerRole, resolveEventPermissions } from '../types/coOrganizerPermissions'
 import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconUserPlus, IconWhatsApp } from '../components/accessibility/AccessibleIcon'
 import { WallSection } from '../components/WallSection'
@@ -32,7 +32,6 @@ import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { toWhatsAppPhone } from '../utils/phone'
 import { getAccentContrastText } from '../utils/contrastColor'
-import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
@@ -190,7 +189,7 @@ function GuestPassInner() {
 
         // Si el visor es organizador o co-org, no aplicar lock — solo cargar el guest
         const viewerPerms = resolveEventPermissions(eventData, user?.uid)
-        if (viewerPerms.isOwner || viewerPerms.isCoOrg) {
+        if (isOrganizerRole(viewerPerms)) {
           setGuest(guestData)
           if (guestData.status === 'checked_in') setCheckInState('already')
           return
@@ -285,7 +284,7 @@ function GuestPassInner() {
     return <ErrorFallbackCTA message="Pase no encontrado." />
   }
 
-  const isOrg = perms.isOwner || perms.isCoOrg
+  const isOrg = isOrganizerRole(perms)
   const passUrl = buildPassUrl(eventId, qrToken)
 
   async function handleCheckIn() {
@@ -694,17 +693,6 @@ function GuestPassInner() {
                     >
                       <IconCalendar className="w-4 h-4" /> Agregar al calendario
                     </button>
-                    {guest.companions.length > 0 && (
-                      <a
-                        href={`https://wa.me/?text=${encodeURIComponent(`Aquí está mi pase para ${event.name}: ${passUrl}`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Comparte con tus acompañantes"
-                        className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white rounded-md px-4 py-3 sm:py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-                      >
-                        <IconWhatsApp className="w-4 h-4" /> Compartir
-                      </a>
-                    )}
                   </div>
                   <PassSecurityNotice />
 
@@ -899,18 +887,6 @@ function GuestPassInner() {
           />
         </div>
       </div>
-      {/* Compartir en redes (Feature 4: completar Instagram Stories) — mismo
-          componente que ya usa el organizador en EventDetail.tsx, sin
-          ningún cambio (ShareEventButton ya estaba preparado para esto, ver
-          comentario en ese archivo). Mismo gate: solo tiene sentido cuando
-          hay auto-registro público abierto. El deep link nativo
-          `instagram-stories://` queda deliberadamente sin implementar — ver
-          nota en src/utils/share/shareEngine.ts. */}
-      {event.entryMode !== 'list' && (
-        <div className="mt-3">
-          <ShareEventButton event={event} />
-        </div>
-      )}
       {/* Boleto exclusivo para exportar (GuestPassTicket) — montado siempre
           que el botón "Descargar pase" existe (mismo gate), fuera de
           pantalla vía position:fixed (nunca display:none/visibility:hidden,
