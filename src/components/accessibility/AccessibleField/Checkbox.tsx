@@ -4,7 +4,7 @@ type CheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>
 
 // Consolida las 4 combinaciones de clases que convivían para el mismo
 // control de 16×16px (CustomFieldsBuilder, LegalConsentCheckbox,
-// CoOrganizerPermissionsEditor, EditEventForm/StepInvitationMethod) — el
+// CoOrganizerPermissionsEditor, EditEventForm/StepCapacityAndPayment) — el
 // caller sigue controlando el <label>/texto que lo envuelve, este componente
 // es solo el <input> estilizado.
 export function Checkbox({ className = '', ...rest }: CheckboxProps) {

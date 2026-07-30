@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
 import { TemplatePicker } from '../../TemplatePicker'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/paymentMethods'
 import { formatDate } from '../../../utils/time'
+import { useEventPreviewData } from '../../../hooks/useEventPreviewData'
 import type { CustomField, EntryMode, PaymentMethod, TemplateId, TimelineEntry } from '../../../types'
 
 const ENTRY_MODE_LABELS: Record<EntryMode, string> = {
@@ -86,31 +86,10 @@ export function StepReviewTemplate({
   const activeTimelineCount = timeline.filter((e) => e.time && e.label.trim()).length
   const formattedDate = date ? formatDate(date) : undefined
 
-  // Memoizado: sin esto, este objeto se recreaba (nueva referencia) en cada
-  // render de este paso, así que TemplatePicker/InvitationPreview (React.memo,
-  // ver esos archivos) igual volvían a renderizar el árbol completo de la
-  // invitación de muestra aunque ninguno de estos valores hubiera cambiado
-  // realmente — el paso de revisión es el más pesado del wizard (preview
-  // temática completa) y no necesita re-renderizarse por cambios ajenos.
-  const previewData = useMemo(
-    () => ({
-      eventName: name,
-      date: formattedDate,
-      location,
-      mapsUrl,
-      coverImage,
-      accentColor,
-      themeOverrides: {
-        ...(secondaryFontFamily ? { secondaryFontFamily } : {}),
-        ...(buttonVariant !== 'solid' ? { buttonVariant } : {}),
-      },
-      welcomeMessage,
-      description,
-      dressCode,
-      timeline,
-    }),
-    [name, formattedDate, location, mapsUrl, coverImage, accentColor, secondaryFontFamily, buttonVariant, welcomeMessage, description, dressCode, timeline],
-  )
+  const previewData = useEventPreviewData({
+    name, date, location, mapsUrl, coverImage, accentColor,
+    secondaryFontFamily, buttonVariant, welcomeMessage, description, dressCode, timeline,
+  })
 
   return (
     <>
@@ -120,13 +99,13 @@ export function StepReviewTemplate({
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-100 dark:divide-gray-700 px-4 mb-5">
         <SummaryRow
-          title="Información básica"
-          detail={`${name || 'Sin nombre'} · ${formattedDate || 'sin fecha'} · ${location || 'sin lugar'}`}
+          title="Tipo de evento"
+          detail={ENTRY_MODE_LABELS[entryMode]}
           onEdit={() => onEditStep(1)}
         />
         <SummaryRow
-          title="Método de invitación"
-          detail={`${ENTRY_MODE_LABELS[entryMode]} · ${paymentSummary}`}
+          title="Información básica"
+          detail={`${name || 'Sin nombre'} · ${formattedDate || 'sin fecha'} · ${location || 'sin lugar'}`}
           onEdit={() => onEditStep(2)}
         />
         <SummaryRow
@@ -135,22 +114,21 @@ export function StepReviewTemplate({
           onEdit={() => onEditStep(3)}
         />
         <SummaryRow
-          title="Descripción y ubicación"
-          detail={description.trim() ? 'Con descripción' : 'Sin descripción'}
+          title="Descripción y programa"
+          detail={`${description.trim() ? 'Con descripción' : 'Sin descripción'} · ${
+            activeTimelineCount > 0 ? `${activeTimelineCount} actividad(es)` : 'sin programa'
+          }`}
           onEdit={() => onEditStep(4)}
         />
         <SummaryRow
-          title="Programa del evento"
-          detail={activeTimelineCount > 0 ? `${activeTimelineCount} actividad(es)` : 'Sin programa'}
+          title="Acceso e invitados"
+          detail={
+            showRegistrationFieldsRow
+              ? `${paymentSummary} · ${customFields.length > 0 ? `${customFields.length} campo(s) extra` : 'sin campos extra'}`
+              : paymentSummary
+          }
           onEdit={() => onEditStep(5)}
         />
-        {showRegistrationFieldsRow && (
-          <SummaryRow
-            title="Campos de registro"
-            detail={customFields.length > 0 ? `${customFields.length} campo(s) extra` : 'Solo nombre y teléfono'}
-            onEdit={() => onEditStep(6)}
-          />
-        )}
       </div>
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">

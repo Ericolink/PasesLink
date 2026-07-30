@@ -1,12 +1,11 @@
 import type { CountryCode } from 'libphonenumber-js/min'
 import { useAnnouncer } from '../../accessibility/LiveRegion'
-import { EntryModeSelector } from '../EntryModeSelector'
 import { AccessibleField, Checkbox, FieldError } from '../../accessibility/AccessibleField'
 import { CountryCodeSelect } from '../../CountryCodeSelect'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/paymentMethods'
 import { sanitizeDecimalInput } from '../../../utils/validationRules'
 import { GUEST_MAX_COMPANIONS } from '../../../utils/validation'
-import type { EntryMode, PaymentMethod } from '../../../types'
+import type { PaymentMethod } from '../../../types'
 
 function capacityHint(cap: string): string {
   const n = parseInt(cap)
@@ -17,9 +16,7 @@ function capacityHint(cap: string): string {
   return 'Evento masivo'
 }
 
-interface StepInvitationMethodProps {
-  entryMode: EntryMode
-  onEntryModeChange: (mode: EntryMode) => void
+interface StepCapacityAndPaymentProps {
   capacity: string
   onCapacityChange: (value: string) => void
   maxCompanions: string
@@ -40,9 +37,7 @@ interface StepInvitationMethodProps {
   onOrganizerContactPhoneCountryChange: (value: CountryCode) => void
 }
 
-export function StepInvitationMethod({
-  entryMode,
-  onEntryModeChange,
+export function StepCapacityAndPayment({
   capacity,
   onCapacityChange,
   maxCompanions,
@@ -61,7 +56,7 @@ export function StepInvitationMethod({
   onOrganizerContactPhoneChange,
   organizerContactPhoneCountry,
   onOrganizerContactPhoneCountryChange,
-}: StepInvitationMethodProps) {
+}: StepCapacityAndPaymentProps) {
   const { announce } = useAnnouncer()
 
   // Los botones ±10 no mueven el foco al input (a propósito, para poder
@@ -77,14 +72,8 @@ export function StepInvitationMethod({
 
   return (
     <>
-      <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2.5 mb-6">
-        ⚠️ El tipo de evento no se puede cambiar después de crearlo — elegilo con cuidado.
-      </p>
-
-      <EntryModeSelector value={entryMode} onChange={onEntryModeChange} />
-
       {/* Capacidad */}
-      <div className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4">
         <label htmlFor="event-capacity" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
           Límite de invitados <span aria-hidden="true" className="text-error">*</span>
         </label>
