@@ -25,7 +25,7 @@ export const GUEST_EMAIL_MAX = 120
 export const GUEST_CUSTOM_FIELD_VALUE_MAX = 300
 export const GUEST_CUSTOM_FIELD_MAX_COUNT = 30
 // Techo del campo configurable EventData.maxCompanions (0–20, ver
-// StepInvitationMethod/EditEventForm) — cuántos acompañantes puede sumar UN
+// StepCapacityAndPayment/EditEventForm) — cuántos acompañantes puede sumar UN
 // invitado individual, autoregistro o alta/edición manual. El valor
 // EFECTIVO por evento es siempre <= este techo (ver resolveMaxCompanions en
 // firebase/guests.ts, única fuente de verdad); esta constante es solo el

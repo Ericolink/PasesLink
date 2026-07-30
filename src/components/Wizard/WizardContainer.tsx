@@ -3,6 +3,7 @@ import { IconArrowLeft } from '../accessibility/AccessibleIcon'
 import { AccessibleButton } from '../accessibility/AccessibleButton'
 import { useAnnouncer } from '../accessibility/LiveRegion'
 import { useFocusOnChange } from '../../hooks/useFocusOnChange'
+import { WizardPreviewPanel } from './WizardPreviewPanel'
 
 interface WizardContainerProps {
   currentStep: number
@@ -16,6 +17,11 @@ interface WizardContainerProps {
   nextLabel?: string
   /** "Guardado 14:32" — indicador del autoguardado de borrador (ver useFormDraft). Ausente = todavía no se guardó nada en esta sesión. */
   savedLabel?: string
+  /** Invitación en vivo del paso actual — ausente = el paso no tiene preview
+      propio (ver EventCreate.tsx, que decide por paso) y el wizard vuelve al
+      layout de una sola columna, sin tocar nada de lo demás. */
+  preview?: ReactNode
+  previewLabel?: string
   children: ReactNode
 }
 
@@ -30,6 +36,8 @@ export function WizardContainer({
   isSubmitting,
   nextLabel,
   savedLabel,
+  preview,
+  previewLabel = 'Vista previa de tu invitación',
   children,
 }: WizardContainerProps) {
   const stepHeadingRef = useRef<HTMLHeadingElement>(null)
@@ -50,8 +58,13 @@ export function WizardContainer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep])
 
+  // El layout de dos columnas (y todo lo que trae: FAB mobile, columna
+  // sticky) solo aparece cuando el paso actual pasa un `preview` — los pasos
+  // que no lo pasan (ver EventCreate.tsx) quedan pixel-idénticos a como
+  // estaban antes de esta feature.
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 animate-fade-in">
+    <div className={preview ? 'max-w-5xl mx-auto px-4 py-8 animate-fade-in lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-10 lg:items-start' : 'max-w-2xl mx-auto px-4 py-8 animate-fade-in'}>
+    <div className="min-w-0 max-w-2xl mx-auto lg:max-w-none lg:mx-0">
       {/* Encabezado con progreso — a propósito no usa el patrón "← Volver"
           de ScreenHeader/ErrorFallbackCTA (hallazgo H3 de la auditoría): acá
           "Cancelar" no navega directo, dispara una confirmación
@@ -126,15 +139,18 @@ export function WizardContainer({
 
           <AccessibleButton type="button" variant="primary" onClick={onNext} disabled={!canProceed || isSubmitting} className="px-7 font-semibold">
             {isSubmitting
-              ? 'Creando…'
+              ? 'Guardando…'
               : nextLabel
               ? nextLabel
               : currentStep === totalSteps
-              ? 'Crear evento'
+              ? 'Publicar invitación'
               : 'Siguiente →'}
           </AccessibleButton>
         </div>
       </div>
+    </div>
+
+    {preview && <WizardPreviewPanel preview={preview} label={previewLabel} />}
     </div>
   )
 }

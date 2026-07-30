@@ -1,4 +1,4 @@
-import { useDeferredValue } from 'react'
+import { memo, useDeferredValue } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
 import { InvitationThemeRoot } from './InvitationThemeRoot'
 import { InvitationCard } from './InvitationCard'
@@ -34,7 +34,12 @@ interface InvitationPreviewProps {
 // completar el formulario. El muro de comentarios es la única pieza no-real
 // (estático, sin Firestore): postear acá escribiría bajo un eventId que no
 // existe.
-export function InvitationPreview({
+// memo: desde el panel persistente del wizard (WizardPreviewPanel) este
+// componente queda montado durante varios pasos, no solo un instante en el
+// paso de revisión — sin memo, cualquier cambio de estado ajeno al preview
+// (tipear en un campo que no afecta la invitación) volvería a montar el QR y
+// el iframe del mapa.
+export const InvitationPreview = memo(function InvitationPreview({
   templateId,
   eventName,
   date,
@@ -148,4 +153,4 @@ export function InvitationPreview({
       </div>
     </InvitationThemeRoot>
   )
-}
+})
