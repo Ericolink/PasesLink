@@ -49,6 +49,7 @@ interface EventEditDraftFields {
   mapsUrl: string
   departureReminderBufferMinutes: string
   capacity: string
+  attendeeLimitEnabled: boolean
   maxCompanions: string
   customFields: CustomField[]
   requiresPayment: boolean
@@ -155,6 +156,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     mapsUrl: event.mapsUrl || '',
     departureReminderBufferMinutes: event.departureReminderBufferMinutes != null ? String(event.departureReminderBufferMinutes) : '',
     capacity: event.capacity ? String(event.capacity) : '',
+    attendeeLimitEnabled: event.attendeeLimitEnabled || false,
     // resolveMaxCompanions y no event.maxCompanions ?? 0: en un evento anterior
     // al campo, el valor EFECTIVO es el default legacy (9) — mostrar 0 acá haría
     // que guardar sin tocar este campo se lo quite en silencio.
@@ -215,6 +217,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     setForm({
       ...rest,
       dressCode: rest.dressCode || '',
+      attendeeLimitEnabled: rest.attendeeLimitEnabled ?? (event.attendeeLimitEnabled || false),
       maxCompanions: rest.maxCompanions ?? String(resolveMaxCompanions(event)),
       communityTemplateSnapshot: rest.communityTemplateSnapshot ?? null,
       departureReminderBufferMinutes: rest.departureReminderBufferMinutes ?? (event.departureReminderBufferMinutes != null ? String(event.departureReminderBufferMinutes) : ''),
@@ -309,6 +312,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     }
     if ((event.capacity || 0) !== parsedCapacity) {
       changes.push({ label: 'Límite de invitados', detail: `${event.capacity || 0} → ${parsedCapacity}` })
+    }
+    if ((event.attendeeLimitEnabled || false) !== form.attendeeLimitEnabled) {
+      changes.push({ label: 'Limitar número de asistentes', detail: form.attendeeLimitEnabled ? 'Activado' : 'Desactivado' })
     }
     if (resolveMaxCompanions(event) !== parsedMaxCompanions) {
       changes.push({ label: 'Acompañantes por invitado', detail: `${resolveMaxCompanions(event)} → ${parsedMaxCompanions}` })
@@ -409,6 +415,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           : undefined,
         entryMode,
         capacity: parsedCapacity,
+        attendeeLimitEnabled: form.attendeeLimitEnabled,
         maxCompanions: parsedMaxCompanions,
         customFields: form.customFields,
         requiresPayment: form.requiresPayment,
@@ -819,7 +826,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           id="edit-event-capacity"
           required
           error={capacityError || null}
-          helperText="Total de personas recomendado (invitados + acompañantes) — informativo, no bloquea nuevos registros si se supera."
+          helperText={form.attendeeLimitEnabled
+            ? 'Total de personas (invitados + acompañantes) — al llegar a este número, el autorregistro y las altas manuales se cierran automáticamente.'
+            : 'Total de personas recomendado (invitados + acompañantes) — informativo, no bloquea nuevos registros si se supera.'}
         >
           {(fieldProps) => (
             <input
@@ -833,6 +842,22 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             />
           )}
         </AccessibleField>
+        <label className="flex items-center gap-2.5 cursor-pointer">
+          <Checkbox checked={form.attendeeLimitEnabled} onChange={(e) => updateField('attendeeLimitEnabled', e.target.checked)} />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Limitar número de asistentes</span>
+        </label>
+        {/* No bloqueamos guardar un límite ya superado por los asistentes actuales
+            (ej. bajarlo de 250 a 180 con 220 ya registrados) — el organizador puede
+            necesitar frenar el registro YA. Nadie se elimina automáticamente: el
+            autorregistro y las altas manuales quedan cerrados hasta que baje del
+            límite por bajas/cancelaciones. Ver CAPACITY_LIMIT_ARCHITECTURE.md §3. */}
+        {form.attendeeLimitEnabled && event.peopleCount > (parseInt(form.capacity) || 0) && (
+          <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+            Ya hay {event.peopleCount} asistentes, por encima de este límite. No se elimina a nadie automáticamente —
+            el autorregistro y las altas manuales quedan cerrados hasta que baje de {form.capacity} por cancelaciones
+            o bajas que hagas vos mismo.
+          </p>
+        )}
         <AccessibleField
           label="Acompañantes por invitado"
           id="edit-event-max-companions"

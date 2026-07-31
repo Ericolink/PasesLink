@@ -45,6 +45,7 @@ export interface NewEventInput {
   mapsUrl?: string
   entryMode?: EntryMode
   capacity: number
+  attendeeLimitEnabled?: boolean
   maxCompanions?: number
   customFields?: CustomField[]
   requiresPayment?: boolean
@@ -85,6 +86,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     mapsUrl: input.mapsUrl || '',
     entryMode: input.entryMode || 'list',
     capacity: input.capacity,
+    attendeeLimitEnabled: input.attendeeLimitEnabled || false,
     maxCompanions: clampMaxCompanions(input.maxCompanions),
     customFields: input.customFields || [],
     requiresPayment: input.requiresPayment || false,
@@ -259,6 +261,7 @@ export interface UpdateEventInput {
   mapsUrl?: string
   entryMode?: EntryMode
   capacity: number
+  attendeeLimitEnabled?: boolean
   maxCompanions?: number
   customFields?: CustomField[]
   requiresPayment?: boolean
@@ -301,6 +304,7 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     mapsUrl: input.mapsUrl ?? '',
     entryMode: input.entryMode || 'list',
     capacity: input.capacity,
+    attendeeLimitEnabled: input.attendeeLimitEnabled || false,
     maxCompanions: clampMaxCompanions(input.maxCompanions),
     customFields: input.customFields || [],
     requiresPayment: input.requiresPayment || false,
@@ -464,6 +468,10 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     mapsUrl: (data.mapsUrl as string) || '',
     entryMode: (data.entryMode as EntryMode) || 'list',
     capacity: (data.capacity as number) || 0,
+    // Ausente/false en eventos anteriores a este campo (o que nunca lo
+    // activaron): cupo ilimitado, comportamiento de siempre — ver
+    // CAPACITY_LIMIT_ARCHITECTURE.md.
+    attendeeLimitEnabled: (data.attendeeLimitEnabled as boolean) || false,
     // Sin default a 0 acá (a diferencia de la mayoría de campos de este
     // mapper): "ausente" (evento de antes de este campo) y "0 explícito"
     // deben distinguirse solo si algún día hace falta — hoy da lo mismo,

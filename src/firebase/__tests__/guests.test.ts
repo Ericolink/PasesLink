@@ -1392,4 +1392,82 @@ describe('guests.ts', () => {
       await expect(getAllGuests(EVENT_ID)).rejects.toThrow()
     })
   })
+
+  // Límite duro y opcional de asistentes (CAPACITY_LIMIT_ARCHITECTURE.md):
+  // la alta manual/masiva/CSV y la edición de acompañantes tienen que
+  // respetar el mismo cupo que el autorregistro público (ver el describe
+  // equivalente en capacity.test.ts para el caso de carrera concurrente).
+  describe('attendeeLimitEnabled (límite duro y opcional de asistentes)', () => {
+    it('addGuest should reject once peopleCount reaches capacity', async () => {
+      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 5, guestCount: 5, peopleCount: 5 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await expect(addGuest(EVENT_ID, { name: 'Invitado 6' }, 0)).rejects.toThrow('Este evento ya alcanzó su capacidad máxima.')
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.guestCount).toBe(5)
+      expect(event?.peopleCount).toBe(5)
+    })
+
+    it('addGuest should still work normally while there is room left', async () => {
+      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 5, guestCount: 4, peopleCount: 4 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const result = await addGuest(EVENT_ID, { name: 'Invitado 5' }, 0)
+
+      expect(result.id).toBeTruthy()
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.peopleCount).toBe(5)
+    })
+
+    it('addGuestsBulk should fill only what fits and report the rest as skipped, without a partial write', async () => {
+      // Quedan 2 lugares (198/200) y se pide agregar 5 — "llenar lo que entra
+      // + reportar" (CAPACITY_LIMIT_ARCHITECTURE.md §8), no todo-o-nada.
+      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 200, guestCount: 198, peopleCount: 198 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const result = await addGuestsBulk(EVENT_ID, ['Ana', 'Beto', 'Caro', 'Dani', 'Eli'])
+
+      expect(result.added).toBe(2)
+      expect(result.skippedNames).toEqual(['Caro', 'Dani', 'Eli'])
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.guestCount).toBe(200)
+      expect(event?.peopleCount).toBe(200)
+    })
+
+    it('addGuestsBulk should add everyone and report nothing skipped when the whole list fits', async () => {
+      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 200, guestCount: 195, peopleCount: 195 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const result = await addGuestsBulk(EVENT_ID, ['Ana', 'Beto'])
+
+      expect(result.added).toBe(2)
+      expect(result.skippedNames).toEqual([])
+    })
+
+    it('updateGuest should reject adding companions past the remaining capacity', async () => {
+      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 5, guestCount: 4, peopleCount: 4 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [] })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      // partySize pasaría de 1 a 3 (2 acompañantes nuevos) — solo queda 1 lugar.
+      await expect(
+        updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}] }, 20),
+      ).rejects.toThrow('Este evento ya alcanzó su capacidad máxima.')
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.peopleCount).toBe(4)
+    })
+
+    it('updateGuest should always allow removing companions, even at full capacity', async () => {
+      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 5, guestCount: 5, peopleCount: 5 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}] })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}] }, 20)
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.peopleCount).toBe(4)
+    })
+  })
 })

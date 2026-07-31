@@ -237,6 +237,19 @@ export function Reports() {
         )}
         <MetricTile label="Dentro ahora" value={event.occupancyCount} accent="primary" />
         <MetricTile label="Pendientes" value={Math.max(0, totalPeople - event.checkedInCount)} />
+        {/* Solo con el límite de asistentes activado (ver
+            CAPACITY_LIMIT_ARCHITECTURE.md) — un evento de cupo ilimitado no
+            gana ninguna tarjeta nueva, mismo dashboard de siempre. */}
+        {event.attendeeLimitEnabled && (
+          <MetricTile
+            label={totalPeople >= event.capacity ? '🔴 Evento lleno' : 'Cupo'}
+            value={`${totalPeople} / ${event.capacity}`}
+            sub={totalPeople >= event.capacity
+              ? 'Registro cerrado'
+              : `${Math.round(attendancePercent(totalPeople, event.capacity))}% · ${Math.max(0, event.capacity - totalPeople)} disponibles`}
+            accent={totalPeople >= event.capacity ? 'warning' : 'primary'}
+          />
+        )}
       </div>
 
       {/* Cupo recomendado (informativo, nunca bloquea nuevos registros) */}

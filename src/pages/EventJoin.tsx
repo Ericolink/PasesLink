@@ -3,6 +3,7 @@ import type { CountryCode } from 'libphonenumber-js/min'
 import { useNavigate, useParams } from 'react-router-dom'
 import { subscribeToEventWithInitial } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
+import { CapacityFullError } from '../firebase/attendeeLimit'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../components/CountryCodeSelect'
 import { useAuth } from '../hooks/useAuth'
@@ -39,7 +40,15 @@ import { CustomFieldInput } from '../components/CustomFieldInput'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import { FieldError, AccessibleField } from '../components/accessibility/AccessibleField'
 
-type State = 'loading' | 'form' | 'submitting' | 'not_found' | 'error'
+type State = 'loading' | 'form' | 'submitting' | 'not_found' | 'error' | 'full'
+
+// Único lugar que decide si el evento ya alcanzó su cupo (ver
+// CAPACITY_LIMIT_ARCHITECTURE.md) — con el límite desactivado (ausente/false,
+// todo evento antes de esta feature) siempre da `false`, cero cambio de
+// comportamiento.
+function isEventFull(ev: Pick<EventData, 'attendeeLimitEnabled' | 'peopleCount' | 'capacity'>): boolean {
+  return !!ev.attendeeLimitEnabled && (ev.peopleCount ?? 0) >= (ev.capacity ?? 0)
+}
 
 interface SavedReg {
   qrToken: string
@@ -121,10 +130,29 @@ export function EventJoin() {
         }
       }
 
-      setState('form')
+      setState(isEventFull(ev) ? 'full' : 'form')
     })
     return unsubscribe
   }, [id, navigate])
+
+  // Reactividad en vivo del cupo (el mismo listener de arriba ya trae
+  // actualizaciones del organizador sin refrescar, ver
+  // subscribeToEventWithInitial): si el evento se llena mientras alguien
+  // tiene el formulario abierto, o el organizador sube el límite mientras se
+  // muestra la pantalla de "lleno", el estado se ajusta solo. No toca
+  // 'submitting' (no interrumpir un envío en curso) ni 'not_found'/'error'.
+  // Efecto intencional (sincroniza `state` contra el evento en vivo, no un
+  // valor derivable en el render): mismo criterio que el efecto de
+  // prefill de perfil un poco más abajo.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!event) return
+    if (state !== 'form' && state !== 'full') return
+    const full = isEventFull(event)
+    if (full && state === 'form') setState('full')
+    if (!full && state === 'full') setState('form')
+  }, [event, state])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Pre-fill name/lastName from profile. Intencionalmente un efecto: profile
   // llega async después de user, y el guard `!name` evita pisar lo que el
@@ -214,6 +242,13 @@ export function EventJoin() {
       // oferta porque esta pantalla se abandona de inmediato.
       navigate(`/pass/${id}/${token}`, { replace: true, state: { justRegistered: true } })
     } catch (err) {
+      // Perdió la carrera por el último lugar (ver assertCapacityAvailable):
+      // nunca se le muestra como un error técnico, va directo a la misma
+      // pantalla amigable de "evento lleno" — ver CAPACITY_LIMIT_ARCHITECTURE.md §7.
+      if (err instanceof CapacityFullError) {
+        setState('full')
+        return
+      }
       console.error('Error registering guest:', err)
       setRegError(err instanceof Error ? err.message : 'No se pudo completar el registro. Intenta de nuevo.')
       setRegErrorAttempt((n) => n + 1)
@@ -237,6 +272,33 @@ export function EventJoin() {
           </p>
         </div>
       </div>
+    )
+  }
+
+  if (state === 'full') {
+    return (
+      <InvitationThemeRoot
+        templateId={event?.templateId}
+        accentOverride={event?.accentColor}
+        themeOverrides={event?.themeOverrides}
+        communityTemplateVars={event?.communityTemplateSnapshot?.vars}
+        className="min-h-dvh flex items-center justify-center text-center p-4"
+      >
+        <div className="w-full max-w-sm">
+          <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name} priority>
+            <h1 className="text-xl font-bold mb-1">{event?.name}</h1>
+            <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-4 text-[var(--invite-accent)]" />
+            <p className="text-base font-semibold text-[var(--invite-text)] mb-2">
+              Este evento ya alcanzó el número máximo de asistentes.
+            </p>
+            <p className="text-sm text-[var(--invite-text-muted)]">Cupo completo · Registro cerrado</p>
+            <p className="text-xs text-[var(--invite-text-muted)] mt-4">
+              Si ya tenés una invitación, buscala en tu correo o WhatsApp. Si creés que esto es un error, contactá al
+              organizador.
+            </p>
+          </InvitationCard>
+        </div>
+      </InvitationThemeRoot>
     )
   }
 
@@ -432,15 +494,20 @@ export function EventJoin() {
               </fieldset>
             )}
 
+            {/* Con el límite activado, la pantalla de "evento lleno" (arriba)
+                ya se hace cargo del caso sin lugar — este aviso solo llega a
+                mostrarse mientras todavía queda cupo, así que alcanza con el
+                contador simple. Sin el límite activado, sigue el aviso
+                informativo de siempre (capacity nunca bloquea nada). */}
             {!!event?.capacity && (
-              event.peopleCount >= event.capacity ? (
+              event.attendeeLimitEnabled || event.peopleCount < event.capacity ? (
+                <p className="text-xs text-center text-[var(--invite-text-muted)]">
+                  {event.peopleCount} / {event.capacity} registros
+                </p>
+              ) : (
                 <p className="text-xs text-center text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
                   Este evento ya superó el número recomendado de asistentes. Aún puedes obtener tu boleto y asistir, pero
                   el ingreso dependerá del orden de llegada el día del evento.
-                </p>
-              ) : (
-                <p className="text-xs text-center text-[var(--invite-text-muted)]">
-                  {event.peopleCount} / {event.capacity} registros
                 </p>
               )
             )}

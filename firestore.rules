@@ -168,6 +168,23 @@ service cloud.firestore {
         || (newVal > oldVal && newVal <= oldVal + 50);
     }
 
+    // Límite duro y opcional de asistentes (ver CAPACITY_LIMIT_ARCHITECTURE.md
+    // y assertCapacityAvailable en src/firebase/attendeeLimit.ts). Red de
+    // seguridad, no la garantía principal: la garantía real de "nunca
+    // 201/200" la da la runTransaction del cliente (Firestore reintenta
+    // automáticamente la que pierde un conflicto de versión contra el mismo
+    // documento) — esto solo cierra la puerta a un cliente que evite esa
+    // transacción y escriba peopleCount directo. Solo se evalúa cuando el
+    // evento tiene el límite activado; con attendeeLimitEnabled ausente/false
+    // (todo evento antes de esta feature) siempre da true, sin excepción.
+    // Las bajas de peopleCount SIEMPRE están permitidas, sin importar el
+    // límite — solo se bloquean los aumentos que superarían capacity.
+    function attendeeLimitOk(oldEv, newEv) {
+      return !(oldEv.get('attendeeLimitEnabled', false) == true)
+        || newEv.peopleCount <= oldEv.peopleCount
+        || newEv.peopleCount <= oldEv.get('capacity', 0);
+    }
+
     // rsvpYesCount/rsvpNoCount/rsvpPendingCount (auditoría F22): a diferencia
     // del resto de los contadores del evento, ESTE lo escribe directamente
     // el invitado sin cuenta desde su propio pase (setGuestRsvp/
@@ -991,12 +1008,16 @@ service cloud.firestore {
         // rechazarse con "maximum of 1000 expressions to evaluate" para el
         // caso de un usuario logueado autoregistrándose. Subirla acá evita esa
         // cadena entera para el caso más común de este bloque.
+        // attendeeLimitOk (CAPACITY_LIMIT_ARCHITECTURE.md): red de seguridad
+        // del límite duro y opcional de asistentes — ver el comentario de esa
+        // función. Con el límite desactivado (default) es un no-op.
         || (resource.data.entryMode in ['open', 'hybrid']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'rsvpYesCount'])
             && request.resource.data.guestCount == eventGuestCountBefore(resource.data) + 1
             && request.resource.data.peopleCount >= eventPeopleCountBefore(resource.data) + 1
             && request.resource.data.peopleCount <= eventPeopleCountBefore(resource.data) + 21
-            && request.resource.data.get('rsvpYesCount', 0) == resource.data.get('rsvpYesCount', 0) + 1)
+            && request.resource.data.get('rsvpYesCount', 0) == resource.data.get('rsvpYesCount', 0) + 1
+            && attendeeLimitOk(resource.data, request.resource.data))
         // Check-in/checkout individual o contador walk-in (Opciones A y C): solo
         // quien tiene el permiso `scanQr` (dueño siempre lo tiene vía canDo),
         // y solo tocando los dos contadores de presencia. checkedInCount
@@ -1041,6 +1062,12 @@ service cloud.firestore {
         // nuevo a rsvpPendingCount en la MISMA escritura que guestCount/
         // peopleCount — no es una rama aparte, así que estos 3 campos tienen
         // que estar en este mismo hasOnly.
+        // attendeeLimitOk acá también: esta rama es la que usa addGuest/
+        // addGuestsBulk/addGuestsFromRows (alta manual/masiva/CSV) para subir
+        // peopleCount — tiene que respetar el mismo cupo que el autorregistro
+        // de arriba. No molesta a deleteGuests/confirmPayments/editGuests
+        // (que comparten esta rama): esas operaciones bajan o no tocan
+        // peopleCount, y attendeeLimitOk siempre permite las bajas.
         || ((canDoData(resource.data, 'addGuests', true) || canDoData(resource.data, 'deleteGuests', true) || canDoData(resource.data, 'confirmPayments', true) || canDoData(resource.data, 'editGuests', true))
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'paidCount', 'rsvpYesCount', 'rsvpNoCount', 'rsvpPendingCount'])
             && counterDeltaOk(request.resource.data.guestCount, resource.data.guestCount)
@@ -1048,7 +1075,8 @@ service cloud.firestore {
             && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount)
             && counterDeltaOk(request.resource.data.get('rsvpYesCount', 0), resource.data.get('rsvpYesCount', 0))
             && counterDeltaOk(request.resource.data.get('rsvpNoCount', 0), resource.data.get('rsvpNoCount', 0))
-            && counterDeltaOk(request.resource.data.get('rsvpPendingCount', 0), resource.data.get('rsvpPendingCount', 0)))
+            && counterDeltaOk(request.resource.data.get('rsvpPendingCount', 0), resource.data.get('rsvpPendingCount', 0))
+            && attendeeLimitOk(resource.data, request.resource.data))
         // deleteGuest borra un invitado que puede estar en cualquier
         // combinación de estados (adentro o no, pagado o no) — decrementa
         // guestCount/peopleCount siempre, y ADEMÁS checkedInCount/

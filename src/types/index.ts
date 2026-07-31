@@ -337,6 +337,19 @@ export interface EventData {
   mapsUrl?: string
   entryMode: EntryMode
   capacity: number
+  // Convierte `capacity` de sugerencia a límite duro (ver
+  // CAPACITY_LIMIT_ARCHITECTURE.md) — ausente/false: comportamiento de
+  // siempre, `capacity` es solo informativo y el registro nunca se bloquea
+  // (ningún evento existente se ve afectado). true: registerWalkInGuest/
+  // addGuest/addGuestsBulk/addGuestsFromRows (y updateGuest al aumentar
+  // acompañantes) rechazan la operación en cuanto peopleCount llegaría a
+  // superar capacity — chequeado DENTRO de la misma transacción que
+  // incrementa peopleCount (ver assertCapacityAvailable en
+  // src/firebase/attendeeLimit.ts), así que dos registros simultáneos por el
+  // último lugar nunca terminan los dos con éxito. No se agrega un contador
+  // nuevo: se reutiliza peopleCount, que ya se mantiene atómicamente en cada
+  // alta/baja/edición de invitado.
+  attendeeLimitEnabled?: boolean
   // Catálogo de segmentos del evento (ver GuestSegmentTag) — definidos acá,
   // asignados por invitado en GuestData.tags. Ausente = el evento no usa
   // segmentación todavía.

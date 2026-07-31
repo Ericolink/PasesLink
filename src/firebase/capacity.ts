@@ -6,6 +6,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from './config'
+import { assertCapacityAvailable } from './attendeeLimit'
 import { generateQrToken, resolveMaxCompanions } from './guests'
 import {
   GUEST_CUSTOM_FIELD_MAX_COUNT,
@@ -58,10 +59,16 @@ export async function walkOut(eventId: string): Promise<void> {
 }
 
 /**
- * Opción B — Crea un invitado al instante (auto-registro público). NUNCA se
- * bloquea por cupo: `capacity` es puramente informativo (ver EventData.capacity
- * y el aviso en EventJoin.tsx cuando peopleCount ya lo superó), no un límite
- * duro — así que esta función no lo consulta en absoluto.
+ * Opción B — Crea un invitado al instante (auto-registro público). Por
+ * defecto (EventData.attendeeLimitEnabled ausente/false) `capacity` sigue
+ * siendo puramente informativo, igual que siempre: el registro nunca se
+ * bloquea. Cuando el organizador activa el límite, esta función SÍ rechaza
+ * el registro apenas peopleCount llegaría a superar capacity — ver
+ * assertCapacityAvailable (src/firebase/attendeeLimit.ts) y
+ * CAPACITY_LIMIT_ARCHITECTURE.md para el diseño completo (por qué se
+ * reutiliza peopleCount en vez de un contador nuevo, y por qué el chequeo
+ * tiene que vivir DENTRO de esta misma transacción para no poder excederse
+ * ante dos registros simultáneos por el último lugar).
  * Capa de aplicación: no confiar en que la UI ya validó. `name` llega ya
  * combinado por el llamador (EventJoin) como "Nombre Apellido" — por eso se
  * valida contra el máximo combinado, no el de una sola parte. Mismos límites
@@ -134,6 +141,22 @@ export async function registerWalkInGuest(
     const maxPartySize = 1 + resolveMaxCompanions({ maxCompanions: data.maxCompanions as number | undefined })
     const clampedPartySize = Math.min(Math.max(Math.trunc(partySize || 1), 1), maxPartySize)
 
+    // Valor absoluto calculado dentro de la transacción, NO increment(): ver
+    // el mismo criterio (y el mismo fallback a guestCount) más abajo, donde
+    // currentPeopleCount se usa para escribir peopleCount. Se calcula acá
+    // arriba para poder chequear el cupo con el valor fresco de ESTA
+    // transacción antes de decidir si el registro entra.
+    const currentGuestCountForCapacity = typeof data.guestCount === 'number' ? data.guestCount : 0
+    const currentPeopleCountForCapacity = typeof data.peopleCount === 'number' ? data.peopleCount : currentGuestCountForCapacity
+    assertCapacityAvailable(
+      {
+        attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
+        peopleCount: currentPeopleCountForCapacity,
+        capacity: data.capacity as number | undefined,
+      },
+      clampedPartySize,
+    )
+
     const qrToken = generateQrToken()
     const guestRef = doc(collection(db, 'events', eventId, 'guests'))
     tx.set(guestRef, {
@@ -175,12 +198,12 @@ export async function registerWalkInGuest(
     // valor calculado backfillea el campo legacy con esa misma aproximación, y
     // la transacción garantiza la atomicidad que antes daba increment().
     // firestore.rules aplica este mismo fallback al validar el delta (ver
-    // eventPeopleCountBefore ahí).
-    const currentGuestCount = typeof data.guestCount === 'number' ? data.guestCount : 0
-    const currentPeopleCount = typeof data.peopleCount === 'number' ? data.peopleCount : currentGuestCount
+    // eventPeopleCountBefore ahí). Reutiliza currentGuestCountForCapacity/
+    // currentPeopleCountForCapacity (ya calculados arriba para el chequeo de
+    // cupo) en vez de recalcularlos.
     tx.update(eventRef, {
-      guestCount: currentGuestCount + 1,
-      peopleCount: currentPeopleCount + clampedPartySize,
+      guestCount: currentGuestCountForCapacity + 1,
+      peopleCount: currentPeopleCountForCapacity + clampedPartySize,
       // El invitado se crea con rsvpStatus: 'yes' más abajo (se registra a sí
       // mismo, ya está confirmando que asiste) — increment() sí es seguro
       // acá (a diferencia de guestCount/peopleCount arriba): es un campo

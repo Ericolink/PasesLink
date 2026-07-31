@@ -455,13 +455,34 @@ export function EventDetail() {
         </div>
       </div>
 
-      {/* Aviso siempre visible — el cupo es solo una capacidad recomendada,
-          informativa, nunca bloquea nuevos registros. */}
-      {event.capacity > 0 && totalPeople > event.capacity && (
-        <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-4 py-3 mb-5">
-          Este evento superó su cupo recomendado ({totalPeople} / {event.capacity} personas). Los nuevos registros
-          siguen entrando — el ingreso el día del evento dependerá del orden de llegada.
-        </p>
+      {/* Con el límite activado (CAPACITY_LIMIT_ARCHITECTURE.md), este bloque
+          reemplaza el aviso informativo de siempre por el estado real del
+          cupo — barra de progreso + alerta roja cuando se llena. Con el
+          límite desactivado (todo evento antes de esta feature), sigue el
+          aviso de "cupo recomendado" de siempre, sin cambios. */}
+      {event.attendeeLimitEnabled ? (
+        <div className={`rounded-xl px-4 py-3 mb-5 border ${
+          totalPeople >= event.capacity
+            ? 'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20'
+            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+        }`}>
+          {totalPeople >= event.capacity && (
+            <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">🔴 Evento lleno</p>
+          )}
+          <AttendanceProgressBar present={totalPeople} expected={event.capacity} unitLabel="asistentes" showPercentage />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            {totalPeople >= event.capacity
+              ? 'El autorregistro y las altas manuales están cerrados hasta que se libere un lugar.'
+              : `Cupos disponibles: ${Math.max(0, event.capacity - totalPeople)}`}
+          </p>
+        </div>
+      ) : (
+        event.capacity > 0 && totalPeople > event.capacity && (
+          <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-4 py-3 mb-5">
+            Este evento superó su cupo recomendado ({totalPeople} / {event.capacity} personas). Los nuevos registros
+            siguen entrando — el ingreso el día del evento dependerá del orden de llegada.
+          </p>
+        )
       )}
 
       {/* ── GESTIÓN DE INVITADOS ── */}

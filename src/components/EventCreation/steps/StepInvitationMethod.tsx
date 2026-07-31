@@ -22,6 +22,8 @@ interface StepInvitationMethodProps {
   onEntryModeChange: (mode: EntryMode) => void
   capacity: string
   onCapacityChange: (value: string) => void
+  attendeeLimitEnabled: boolean
+  onAttendeeLimitEnabledChange: (value: boolean) => void
   maxCompanions: string
   onMaxCompanionsChange: (value: string) => void
   requiresPayment: boolean
@@ -45,6 +47,8 @@ export function StepInvitationMethod({
   onEntryModeChange,
   capacity,
   onCapacityChange,
+  attendeeLimitEnabled,
+  onAttendeeLimitEnabledChange,
   maxCompanions,
   onMaxCompanionsChange,
   requiresPayment,
@@ -121,9 +125,16 @@ export function StepInvitationMethod({
           </p>
         )}
         <p className="text-xs text-gray-400 mt-1">
-          Es una capacidad recomendada, no un límite estricto: si se supera, los nuevos invitados igual pueden
-          registrarse.
+          {attendeeLimitEnabled
+            ? 'Al llegar a este número, el autorregistro y las altas manuales se cierran automáticamente.'
+            : 'Es una capacidad recomendada, no un límite estricto: si se supera, los nuevos invitados igual pueden registrarse.'}
         </p>
+        <label className="flex items-center gap-2.5 cursor-pointer mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <Checkbox checked={attendeeLimitEnabled} onChange={(e) => onAttendeeLimitEnabledChange(e.target.checked)} />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Limitar número de asistentes
+          </span>
+        </label>
       </div>
 
       {/* Acompañantes por invitado */}

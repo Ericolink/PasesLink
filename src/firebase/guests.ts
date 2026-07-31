@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
+import { assertCapacityAvailable, remainingCapacity } from './attendeeLimit'
 import { enqueueNotification } from './notifications'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
 import type { CompanionData, CustomField, EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
@@ -131,8 +132,14 @@ function rsvpCountField(status: RsvpStatus): 'rsvpYesCount' | 'rsvpNoCount' | 'r
   return 'rsvpPendingCount'
 }
 
-// Registro nunca se bloquea por cupo (capacity es puramente informativo, ver
-// EventData.capacity) — el invitado siempre se crea.
+// Por defecto (EventData.attendeeLimitEnabled ausente/false) el registro
+// nunca se bloquea por cupo, igual que siempre. Cuando el organizador activa
+// el límite (ver CAPACITY_LIMIT_ARCHITECTURE.md), esta alta manual tiene que
+// respetarlo con la MISMA garantía que el autorregistro público
+// (registerWalkInGuest, capacity.ts) — así que ahora corre dentro de una
+// runTransaction (antes un writeBatch, que no permite leer el cupo vigente
+// antes de escribir) que chequea assertCapacityAvailable antes de crear al
+// invitado.
 //
 // `maxCompanions` es el límite YA RESUELTO para este evento (ver
 // resolveMaxCompanions) — no se recibe el evento completo para no acoplar
@@ -157,23 +164,35 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
   }
 
   return measureSpan('firestore.addGuest', 'db.firestore', async () => {
-    const batch = writeBatch(db)
+    const eventRef = doc(db, 'events', eventId)
     const guestRef = doc(collection(db, 'events', eventId, 'guests'))
     const payload = buildNewGuestPayload({ ...input, name, lastName })
-    batch.set(guestRef, payload)
-    if (phone) {
-      batch.set(contactRef(eventId, guestRef.id), {
-        phone,
-        ...(input.phoneCountry ? { phoneCountry: input.phoneCountry } : {}),
+    const size = partySize(payload)
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(eventRef)
+      const data = (snap.data() || {}) as Record<string, unknown>
+      assertCapacityAvailable(
+        {
+          attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
+          peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (typeof data.guestCount === 'number' ? data.guestCount : 0),
+          capacity: data.capacity as number | undefined,
+        },
+        size,
+      )
+      tx.set(guestRef, payload)
+      if (phone) {
+        tx.set(contactRef(eventId, guestRef.id), {
+          phone,
+          ...(input.phoneCountry ? { phoneCountry: input.phoneCountry } : {}),
+        })
+      }
+      tx.update(eventRef, {
+        guestCount: increment(1),
+        peopleCount: increment(size),
+        // buildNewGuestPayload siempre arranca en 'pending' (ver ahí).
+        rsvpPendingCount: increment(1),
       })
-    }
-    batch.update(doc(db, 'events', eventId), {
-      guestCount: increment(1),
-      peopleCount: increment(partySize(payload)),
-      // buildNewGuestPayload siempre arranca en 'pending' (ver ahí).
-      rsvpPendingCount: increment(1),
     })
-    await batch.commit()
     return { id: guestRef.id }
   })
 }
@@ -191,7 +210,20 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
 // overselling silencioso ni fallo total al cargar listas grandes.
 const BULK_CHUNK_SIZE = 50
 
-export async function addGuestsBulk(eventId: string, names: string[]) {
+// Resultado de una carga masiva/CSV cuando el cupo (attendeeLimitEnabled)
+// corta la lista a mitad de camino: "llenar lo que entra + reportar" (ver
+// CAPACITY_LIMIT_ARCHITECTURE.md §8), nunca todo-o-nada — desperdiciar
+// lugares realmente disponibles porque el resto de una lista larga no entera
+// es peor experiencia que una carga parcial bien explicada. Con el cupo
+// desactivado (o sin alcanzarlo), `added` siempre es igual a la cantidad
+// pedida y `skippedNames` queda vacío — mismo resultado que antes de esta
+// feature.
+export interface BulkAddResult {
+  added: number
+  skippedNames: string[]
+}
+
+export async function addGuestsBulk(eventId: string, names: string[]): Promise<BulkAddResult> {
   // Se valida la lista completa ANTES de escribir el primer chunk: si un solo
   // nombre es inválido, ningún chunk se guarda — evita el caso de un alta
   // parcial (algunos guests ya creados) por un error en una línea cualquiera
@@ -199,23 +231,48 @@ export async function addGuestsBulk(eventId: string, names: string[]) {
   const trimmedNames = names.map((name) =>
     requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre'),
   )
-  await measureSpan('firestore.addGuestsBulk', 'db.firestore', async () => {
+  return measureSpan('firestore.addGuestsBulk', 'db.firestore', async () => {
+    const eventRef = doc(db, 'events', eventId)
+    let added = 0
     for (let i = 0; i < trimmedNames.length; i += BULK_CHUNK_SIZE) {
       const slice = trimmedNames.slice(i, i + BULK_CHUNK_SIZE)
-      const batch = writeBatch(db)
-      for (const name of slice) {
-        const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-        batch.set(guestRef, buildNewGuestPayload({ name }))
-      }
-      // Cada invitado de una carga masiva es individual sin acompañantes
-      // (partySize == 1), así que peopleCount sube lo mismo que guestCount acá.
-      batch.update(doc(db, 'events', eventId), {
-        guestCount: increment(slice.length),
-        peopleCount: increment(slice.length),
-        rsvpPendingCount: increment(slice.length),
+      // writeBatch → runTransaction: hace falta leer el cupo vigente antes de
+      // decidir cuántos de este chunk entran, en la MISMA operación atómica
+      // que los crea (mismo motivo que en addGuest, ver ahí).
+      let fitCount = slice.length
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(eventRef)
+        const data = (snap.data() || {}) as Record<string, unknown>
+        const remaining = remainingCapacity({
+          attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
+          peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (typeof data.guestCount === 'number' ? data.guestCount : 0),
+          capacity: data.capacity as number | undefined,
+        })
+        // null = cupo ilimitado, el chunk entra completo.
+        fitCount = remaining === null ? slice.length : Math.min(slice.length, remaining)
+        const fitting = slice.slice(0, fitCount)
+        for (const name of fitting) {
+          const guestRef = doc(collection(db, 'events', eventId, 'guests'))
+          tx.set(guestRef, buildNewGuestPayload({ name }))
+        }
+        // Cada invitado de una carga masiva es individual sin acompañantes
+        // (partySize == 1), así que peopleCount sube lo mismo que guestCount acá.
+        if (fitting.length > 0) {
+          tx.update(eventRef, {
+            guestCount: increment(fitting.length),
+            peopleCount: increment(fitting.length),
+            rsvpPendingCount: increment(fitting.length),
+          })
+        }
       })
-      await batch.commit()
+      added += fitCount
+      // El chunk no entró completo: ya no queda lugar, no tiene sentido seguir
+      // con los chunks siguientes.
+      if (fitCount < slice.length) {
+        return { added, skippedNames: trimmedNames.slice(i + fitCount) }
+      }
     }
+    return { added, skippedNames: [] }
   })
 }
 
@@ -232,7 +289,7 @@ export interface ImportedGuestRow {
 // sí distingue columnas; pegar una lista de nombres no). guestContacts
 // necesita el permiso addGuests para su `create` (ver firestore.rules) —
 // coincide con el que ya exige `guests/{guestId}` para esta misma operación.
-export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[]) {
+export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[]): Promise<BulkAddResult> {
   const validated = rows.map((row) => ({
     name: requireMaxLength(requireNonEmpty(row.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre'),
     lastName: row.lastName?.trim() ? requireMaxLength(row.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido') : '',
@@ -243,27 +300,51 @@ export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[
     email: row.email?.trim() ? requireMaxLength(requireValidEmail(row.email.trim().toLowerCase(), 'El email'), GUEST_EMAIL_MAX, 'El email') : '',
   }))
 
-  await measureSpan('firestore.addGuestsFromRows', 'db.firestore', async () => {
+  return measureSpan('firestore.addGuestsFromRows', 'db.firestore', async () => {
+    const eventRef = doc(db, 'events', eventId)
+    let added = 0
     for (let i = 0; i < validated.length; i += BULK_CHUNK_SIZE) {
       const slice = validated.slice(i, i + BULK_CHUNK_SIZE)
-      const batch = writeBatch(db)
-      for (const row of slice) {
-        const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-        batch.set(guestRef, buildNewGuestPayload({ name: row.name, lastName: row.lastName }))
-        if (row.phone || row.email) {
-          const contact: Record<string, string> = {}
-          if (row.phone) contact.phone = row.phone
-          if (row.email) contact.email = row.email
-          batch.set(contactRef(eventId, guestRef.id), contact)
+      // Mismo motivo que addGuestsBulk: writeBatch → runTransaction para leer
+      // el cupo vigente antes de decidir cuántas filas de este chunk entran.
+      let fitCount = slice.length
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(eventRef)
+        const data = (snap.data() || {}) as Record<string, unknown>
+        const remaining = remainingCapacity({
+          attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
+          peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (typeof data.guestCount === 'number' ? data.guestCount : 0),
+          capacity: data.capacity as number | undefined,
+        })
+        fitCount = remaining === null ? slice.length : Math.min(slice.length, remaining)
+        const fitting = slice.slice(0, fitCount)
+        for (const row of fitting) {
+          const guestRef = doc(collection(db, 'events', eventId, 'guests'))
+          tx.set(guestRef, buildNewGuestPayload({ name: row.name, lastName: row.lastName }))
+          if (row.phone || row.email) {
+            const contact: Record<string, string> = {}
+            if (row.phone) contact.phone = row.phone
+            if (row.email) contact.email = row.email
+            tx.set(contactRef(eventId, guestRef.id), contact)
+          }
+        }
+        if (fitting.length > 0) {
+          tx.update(eventRef, {
+            guestCount: increment(fitting.length),
+            peopleCount: increment(fitting.length),
+            rsvpPendingCount: increment(fitting.length),
+          })
+        }
+      })
+      added += fitCount
+      if (fitCount < slice.length) {
+        return {
+          added,
+          skippedNames: validated.slice(i + fitCount).map((row) => `${row.name} ${row.lastName || ''}`.trim()),
         }
       }
-      batch.update(doc(db, 'events', eventId), {
-        guestCount: increment(slice.length),
-        peopleCount: increment(slice.length),
-        rsvpPendingCount: increment(slice.length),
-      })
-      await batch.commit()
     }
+    return { added, skippedNames: [] }
   })
 }
 
@@ -311,6 +392,24 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
           maxCompanions > 0
             ? `Este evento permite hasta ${maxCompanions} acompañante${maxCompanions === 1 ? '' : 's'} por invitado.`
             : 'Este evento no permite acompañantes.',
+        )
+      }
+      // Límite de asistentes (ver CAPACITY_LIMIT_ARCHITECTURE.md): sumar
+      // acompañantes a un invitado ya existente ocupa lugares nuevos ni más
+      // ni menos que crear uno — tiene que respetar el mismo cupo, chequeado
+      // acá antes de escribir nada. Solo aplica cuando `after > before`
+      // (sumar); bajar acompañantes siempre libera lugares, nunca se
+      // bloquea.
+      if (after > before) {
+        const eventSnap = await transaction.get(eventRef)
+        const eventData = (eventSnap.data() || {}) as Record<string, unknown>
+        assertCapacityAvailable(
+          {
+            attendeeLimitEnabled: eventData.attendeeLimitEnabled as boolean | undefined,
+            peopleCount: typeof eventData.peopleCount === 'number' ? eventData.peopleCount : (typeof eventData.guestCount === 'number' ? eventData.guestCount : 0),
+            capacity: eventData.capacity as number | undefined,
+          },
+          after - before,
         )
       }
       transaction.update(guestRef, { ...guestFields })

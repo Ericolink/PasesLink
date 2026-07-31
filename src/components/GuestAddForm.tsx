@@ -159,8 +159,19 @@ export function GuestAddForm({
     setLoading(true)
     setError('')
     try {
-      await addGuestsBulk(eventId, names)
-      announce(`${names.length} invitados agregados`)
+      const { added, skippedNames } = await addGuestsBulk(eventId, names)
+      // Cupo lleno a mitad de la lista ("llenar lo que entra + reportar", ver
+      // CAPACITY_LIMIT_ARCHITECTURE.md §8): no es un error, es un resultado
+      // parcial esperado — se informa en el mismo lugar que un error, pero
+      // sin loguearlo a Sentry (no es un bug, es el comportamiento diseñado).
+      if (skippedNames.length > 0) {
+        setError(
+          `Se agregaron ${added} de ${names.length} invitados. El evento alcanzó su capacidad máxima. ` +
+          `No se pudieron agregar: ${skippedNames.join(', ')}.`,
+        )
+        setErrorAttempt((n) => n + 1)
+      }
+      announce(`${added} invitado${added === 1 ? '' : 's'} agregado${added === 1 ? '' : 's'}`)
       setBulkNames('')
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_bulk' } })
@@ -204,8 +215,17 @@ export function GuestAddForm({
     setLoading(true)
     setError('')
     try {
-      await addGuestsFromRows(eventId, rows)
-      announce(`${rows.length} invitados importados`)
+      const { added, skippedNames } = await addGuestsFromRows(eventId, rows)
+      // Mismo criterio que submitBulkGuests: resultado parcial esperado, no
+      // un error — ver CAPACITY_LIMIT_ARCHITECTURE.md §8.
+      if (skippedNames.length > 0) {
+        setError(
+          `Se importaron ${added} de ${rows.length} invitados. El evento alcanzó su capacidad máxima. ` +
+          `No se pudieron importar: ${skippedNames.join(', ')}.`,
+        )
+        setErrorAttempt((n) => n + 1)
+      }
+      announce(`${added} invitado${added === 1 ? '' : 's'} importado${added === 1 ? '' : 's'}`)
       setCsvFileName('')
       setCsvRows([])
       setCsvRowErrors([])

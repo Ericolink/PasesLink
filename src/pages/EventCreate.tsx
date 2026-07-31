@@ -43,6 +43,7 @@ interface EventDraftFields {
   mapsUrl: string
   entryMode: EntryMode
   capacity: string
+  attendeeLimitEnabled: boolean
   maxCompanions: string
   customFields: CustomField[]
   requiresPayment: boolean
@@ -113,6 +114,7 @@ export function EventCreate() {
     mapsUrl: '',
     entryMode: 'list',
     capacity: '100',
+    attendeeLimitEnabled: false,
     maxCompanions: '0',
     customFields: [],
     requiresPayment: false,
@@ -162,6 +164,7 @@ export function EventCreate() {
       ...rest,
       dressCode: rest.dressCode || '',
       capacity: rest.capacity || '100',
+      attendeeLimitEnabled: rest.attendeeLimitEnabled ?? false,
       maxCompanions: rest.maxCompanions ?? '0',
       paymentMethods: rest.paymentMethods?.length ? rest.paymentMethods : ['transfer'],
       organizerContactPhone: rest.organizerContactPhone || '',
@@ -289,6 +292,7 @@ export function EventCreate() {
         mapsUrl: form.mapsUrl.trim() || undefined,
         entryMode: form.entryMode,
         capacity: parsedCapacity,
+        attendeeLimitEnabled: form.attendeeLimitEnabled,
         maxCompanions: parsedMaxCompanions,
         customFields: form.customFields,
         requiresPayment: form.requiresPayment,
@@ -407,6 +411,8 @@ export function EventCreate() {
             onEntryModeChange={(v) => updateField('entryMode', v)}
             capacity={form.capacity}
             onCapacityChange={(v) => updateField('capacity', v)}
+            attendeeLimitEnabled={form.attendeeLimitEnabled}
+            onAttendeeLimitEnabledChange={(v) => updateField('attendeeLimitEnabled', v)}
             maxCompanions={form.maxCompanions}
             onMaxCompanionsChange={(v) => updateField('maxCompanions', v)}
             requiresPayment={form.requiresPayment}

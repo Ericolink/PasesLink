@@ -229,6 +229,7 @@ export const EventSchema = z.object({
   mapsUrl: z.string(),
   entryMode: z.enum(['list', 'open', 'hybrid']),
   capacity: z.number(),
+  attendeeLimitEnabled: z.boolean().optional(),
   maxCompanions: z.number().optional(),
   customFields: z.array(CustomFieldSchema),
   requiresPayment: z.boolean(),
