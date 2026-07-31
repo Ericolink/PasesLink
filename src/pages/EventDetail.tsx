@@ -9,6 +9,7 @@ import { Toast } from '../components/Toast'
 import { useEventExport } from '../hooks/useEventExport'
 import { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { useEventPermissions } from '../hooks/useEventPermissions'
+import { useIsAdmin } from '../hooks/useIsAdmin'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { useEventLifecycleActions } from '../hooks/useEventLifecycleActions'
 import { resolveMaxCompanions } from '../firebase/guests'
@@ -82,6 +83,7 @@ export function EventDetail() {
   const coOrg = useCoOrganizers(eventId, event?.ownerId, event?.coOrganizersMap)
   const { handleLeaveEvent } = coOrg
   const perms = useEventPermissions(event, user)
+  const { isAdmin } = useIsAdmin()
 
   // Permite que el CTA del modal de éxito de EventCreate (u otros enlaces)
   // lleve directo a una sección con #hash.
@@ -246,7 +248,13 @@ export function EventDetail() {
         </Link>
       </div>
 
-      {(perms.manageSeating || perms.viewLiveDashboard) && (
+      {/* "Menú" (concessions): visible solo si además de manageConcessions/
+          confirmPayments el módulo ya está activo O quien mira es admin de
+          PaseLink (único que puede activarlo mientras dure la beta, ver
+          FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md §7) — un organizador normal
+          sin el módulo activo no debe ni enterarse de que existe. */}
+      {(perms.manageSeating || perms.viewLiveDashboard
+        || ((perms.manageConcessions || perms.confirmPayments) && (event.concessions?.enabled || isAdmin))) && (
         <div className="flex gap-2.5 mb-5">
           {perms.manageSeating && (
             <Link
@@ -262,6 +270,14 @@ export function EventDetail() {
               className="flex-1 text-center border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               Anfitrión en Vivo
+            </Link>
+          )}
+          {(perms.manageConcessions || perms.confirmPayments) && (event.concessions?.enabled || isAdmin) && (
+            <Link
+              to={`/events/${event.id}/menu`}
+              className="flex-1 text-center border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Menú
             </Link>
           )}
         </div>

@@ -1,4 +1,5 @@
 import type { CoOrganizerPermissions } from './coOrganizerPermissions'
+import type { ConcessionsConfig } from './concessions'
 
 // Por ahora solo existe 'premium' (gratis durante el lanzamiento). Se deja como
 // union (no un literal suelto) para poder reintroducir un tier de pago después
@@ -489,6 +490,13 @@ export interface EventData {
   // antes de este campo) cae a LEGACY_COORG_DEFAULTS vía resolveEventPermissions,
   // nunca requiere backfill.
   coOrganizerPermissions?: Record<string, CoOrganizerPermissions>
+  // Venta de alimentos/bebidas/souvenirs durante el evento (ver
+  // src/types/concessions.ts y FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md).
+  // Ausente = el evento nunca activó el módulo. Mientras dure la beta, solo
+  // un admin de PaseLink puede poner `concessions.enabled` en `true` (ver
+  // firestore.rules) — el resto del campo (catálogo, staff, config de pago)
+  // ya lo administra el organizador normalmente una vez habilitado.
+  concessions?: ConcessionsConfig
   createdAt: number
   updatedAt: number
 }

@@ -325,6 +325,77 @@ export const SeatingTableSchema = z.object({
   updatedAt: z.number(),
 })
 
+const concessionsCategorySchema = z.enum(['drink', 'food', 'snack', 'souvenir', 'special'])
+
+export const ConcessionItemSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  category: concessionsCategorySchema,
+  imageUrl: z.string().optional(),
+  priceMinorUnits: z.number().int().nonnegative(),
+  currency: z.string().min(1),
+  stockMode: z.enum(['unlimited', 'limited']),
+  stockRemaining: z.number().int().nonnegative().optional(),
+  stockInitial: z.number().int().nonnegative().optional(),
+  soldCount: z.number().int().nonnegative(),
+  status: z.enum(['active', 'outOfStock', 'archived']),
+  sortOrder: z.number(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+
+const ConcessionOrderLineSchema = z.object({
+  itemId: z.string().min(1),
+  nameSnapshot: z.string(),
+  categorySnapshot: concessionsCategorySchema,
+  unitPriceMinorUnitsSnapshot: z.number().int().nonnegative(),
+  quantity: z.number().int().positive(),
+  lineTotalMinorUnits: z.number().int().nonnegative(),
+})
+
+export const ConcessionOrderSchema = z.object({
+  id: z.string().min(1),
+  eventId: z.string().min(1),
+  guestId: z.string().min(1),
+  guestNameSnapshot: z.string(),
+  items: z.array(ConcessionOrderLineSchema),
+  subtotalMinorUnits: z.number().int().nonnegative(),
+  totalMinorUnits: z.number().int().nonnegative(),
+  currency: z.string().min(1),
+  itemCount: z.number().int().positive(),
+  paymentMethod: z.enum(['transfer', 'cash']).nullable(),
+  paymentPhase: z.enum(['awaiting_payment', 'proof_submitted', 'confirmed', 'rejected', 'cancelled']),
+  paymentNote: z.string().optional(),
+  paymentProofUrl: z.string().optional(),
+  rejectionReason: z.string().optional(),
+  cancelReason: z.enum([
+    'guest_cancelled', 'organizer_cancelled', 'refunded', 'item_removed', 'guest_removed_from_event', 'event_cancelled',
+  ]).optional(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  paidAt: z.number().optional(),
+})
+
+const ConcessionFulfillmentLineSchema = z.object({
+  nameSnapshot: z.string(),
+  categorySnapshot: concessionsCategorySchema,
+  quantity: z.number().int().positive(),
+})
+
+export const ConcessionFulfillmentSchema = z.object({
+  id: z.string().min(1),
+  eventId: z.string().min(1),
+  guestId: z.string().min(1),
+  guestNameSnapshot: z.string(),
+  orderNumber: z.string().min(1),
+  lines: z.array(ConcessionFulfillmentLineSchema),
+  fulfillmentStatus: z.enum(['not_ready', 'queued', 'preparing', 'ready', 'delivered', 'cancelled']),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  deliveredAt: z.number().optional(),
+})
+
 const WallReplySchema = z.object({
   id: z.string(),
   text: z.string(),

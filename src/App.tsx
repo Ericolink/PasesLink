@@ -36,6 +36,8 @@ const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => (
 const Feedback        = lazy(() => import('./pages/Feedback').then((m) => ({ default: m.Feedback })))
 const SeatingChart    = lazy(() => import('./pages/SeatingChart').then((m) => ({ default: m.SeatingChart })))
 const HostLive        = lazy(() => import('./pages/HostLive').then((m) => ({ default: m.HostLive })))
+const ConcessionsManager = lazy(() => import('./pages/ConcessionsManager').then((m) => ({ default: m.ConcessionsManager })))
+const ConcessionsKitchen = lazy(() => import('./pages/ConcessionsKitchen').then((m) => ({ default: m.ConcessionsKitchen })))
 const MyCommunityTemplates    = lazy(() => import('./pages/MyCommunityTemplates').then((m) => ({ default: m.MyCommunityTemplates })))
 const SubmitCommunityTemplate = lazy(() => import('./pages/SubmitCommunityTemplate').then((m) => ({ default: m.SubmitCommunityTemplate })))
 
@@ -71,6 +73,14 @@ function SeatingChartRoute() {
 function HostLiveRoute() {
   const { eventId } = useParams()
   return <AppShell mode="display"><HostLive key={eventId} /></AppShell>
+}
+function ConcessionsManagerRoute() {
+  const { eventId } = useParams()
+  return <BrowseLayout><ConcessionsManager key={eventId} /></BrowseLayout>
+}
+function ConcessionsKitchenRoute() {
+  const { eventId } = useParams()
+  return <BrowseLayout><ConcessionsKitchen key={eventId} /></BrowseLayout>
 }
 
 function App() {
@@ -143,6 +153,22 @@ function App() {
           element={
             <ProtectedRoute>
               <HostLiveRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:eventId/menu"
+          element={
+            <ProtectedRoute>
+              <ConcessionsManagerRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:eventId/kitchen"
+          element={
+            <ProtectedRoute>
+              <ConcessionsKitchenRoute />
             </ProtectedRoute>
           }
         />

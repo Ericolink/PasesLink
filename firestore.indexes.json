@@ -32,6 +32,30 @@
         { "fieldPath": "guestCount", "order": "ASCENDING" },
         { "fieldPath": "peopleCount", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "concessionsOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "guestId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "concessionsOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "paymentPhase", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "concessionsFulfillment",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fulfillmentStatus", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

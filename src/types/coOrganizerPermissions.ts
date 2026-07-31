@@ -31,6 +31,12 @@ export interface CoOrganizerPermissions {
   manageSeating: boolean
   // Ver la pantalla "Anfitrión en Vivo" (/events/:eventId/live).
   viewLiveDashboard: boolean
+  // Catálogo, configuración y staff del módulo de venta de comida/bebida
+  // (ver src/types/concessions.ts) — NO incluye confirmar pagos de pedidos,
+  // eso sigue gateado por `confirmPayments` (mismo nivel de confianza que ya
+  // se le exige a quien confirma el pago de entrada, ver
+  // FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md §8.1).
+  manageConcessions: boolean
 }
 
 // Defaults aplicados a: (a) un co-organizador agregado antes de que este
@@ -60,6 +66,11 @@ export const LEGACY_COORG_DEFAULTS: CoOrganizerPermissions = {
   downloadEventInfo: true,
   manageSeating: true,
   viewLiveDashboard: true,
+  // false (no true como el resto de este bloque): a diferencia de los demás
+  // defaults legacy, esto no reproduce ningún acceso que ya existiera antes
+  // — es una feature nueva desde el día uno, así que ningún co-organizador
+  // ya agregado lo hereda en silencio; el organizador lo otorga a propósito.
+  manageConcessions: false,
 }
 
 export interface EventPermissions extends CoOrganizerPermissions {
@@ -93,6 +104,7 @@ const NO_ACCESS: EventPermissions = {
   downloadEventInfo: false,
   manageSeating: false,
   viewLiveDashboard: false,
+  manageConcessions: false,
   isOwner: false,
   isCoOrg: false,
   hasAccess: false,
@@ -116,6 +128,7 @@ const FULL_ACCESS: CoOrganizerPermissions = {
   downloadEventInfo: true,
   manageSeating: true,
   viewLiveDashboard: true,
+  manageConcessions: true,
 }
 
 // Único punto de verdad para "¿este usuario es organizador/co-organizador de

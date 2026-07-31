@@ -141,6 +141,20 @@ service cloud.firestore {
         && d.get('reminderRules', []).size() <= 5;
     }
 
+    // Gate de beta del módulo de venta de comida/bebida durante el evento
+    // (ver FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md). Mientras dure la beta,
+    // solo un isAdmin() puede pasar `concessions.enabled` de `false` a
+    // `true` — apagarlo (true → false) lo puede hacer cualquier dueño, sin
+    // necesitar ser admin, igual que cualquier otro campo de configuración
+    // del evento. Pasar a GA (apertura pública) es reemplazar `isAdmin()`
+    // acá por `canDoData(newEv, 'manageConcessions', false)`, sin tocar el
+    // resto de este archivo ni migrar datos.
+    function concessionsEnableChangeIsAllowed(oldEv, newEv) {
+      let wasEnabled = oldEv.get('concessions', {}).get('enabled', false);
+      let willBeEnabled = newEv.get('concessions', {}).get('enabled', false);
+      return willBeEnabled == wasEnabled || willBeEnabled == false || isAdmin();
+    }
+
     // Valida el delta de un contador de "gente adentro" (checkedInCount /
     // occupancyCount): sin cambios, o +-1..50 en cualquier dirección —
     // walkIn/walkOut mueven de a 1 (Opción A/C, sin acompañantes), mientras
@@ -564,6 +578,132 @@ service cloud.firestore {
     }
 
 
+    // ---- Concessions (venta de comida/bebida durante el evento) ----
+    // Ver FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md. Namespace 'concessions',
+    // nunca 'menu' (EventData.menu ya existe para selección de plato del
+    // RSVP/banquete, un concepto distinto). Todo lo de acá abajo asume que
+    // `concessions.enabled` ya está en `true` (ver concessionsEnableChangeIsAllowed
+    // más arriba) — se revalida igual en cada match, por si alguien intenta
+    // escribir directo contra una subcolección de un evento donde el módulo
+    // nunca se activó.
+    function concessionsEnabled(evData) {
+      return evData.get('concessions', {}).get('enabled', false) == true;
+    }
+
+    // El Menu Manager (encargado del menú) NO es un co-organizador — es un
+    // rol aparte, sin acceso a invitados/reportes/configuración del evento
+    // (ver RFC §8.2). Mismo patrón de mapa que coOrganizersMap, pero en su
+    // propio namespace para que nunca se confunda con uno.
+    function isConcessionsStaff(evData) {
+      return request.auth != null &&
+        request.auth.uid in evData.get('concessions', {}).get('concessionsStaffMap', {});
+    }
+
+    // Prueba de que quien escribe es dueño de ESTE pedido: igual criterio que
+    // guestSelfEditContactLockOk (un invitado sin cuenta obligatoria no tiene
+    // uid que comparar, así que la prueba real es conocer un lockToken ya
+    // reconocido por su propio documento guests/{guestId} — o el pase sin
+    // reclamar todavía). `lockToken` viaja en el propio pedido solo para
+    // poder probar esto en un documento hermano, igual motivo por el que
+    // guestContacts también lo carga.
+    function isGuestOrderActor(eventId, guestId, lockToken) {
+      let guestPath = /databases/$(database)/documents/events/$(eventId)/guests/$(guestId);
+      return exists(guestPath) && guestLockTokensOk(get(guestPath).data, lockToken);
+    }
+
+    // Solo forma/tipos — NO valida que el precio/stock declarado coincida con
+    // el catálogo real: eso lo hace la transacción del cliente (ver
+    // createConcessionOrder en src/firebase/concessions.ts), que relee
+    // concessionsCatalog dentro de la misma transacción antes de escribir.
+    // Mismo criterio ya aceptado en todo este archivo para contenido que solo
+    // el cliente de confianza (no un adversario con algo que ganar más allá
+    // de mentirse a sí mismo) puede fabricar — ni siquiera se puede iterar
+    // `items` elemento por elemento en Firestore Rules (ver comentario de
+    // isValidGuestSelfEdit más arriba sobre esta misma limitación).
+    function isValidConcessionOrderCreate(d) {
+      return d.guestId is string && d.guestId.size() > 0
+        && d.guestNameSnapshot is string && d.guestNameSnapshot.size() <= 121
+        && d.items is list && d.items.size() >= 1 && d.items.size() <= 30
+        && d.subtotalMinorUnits is int && d.subtotalMinorUnits >= 0
+        && d.totalMinorUnits == d.subtotalMinorUnits
+        && d.currency is string && d.currency.size() > 0 && d.currency.size() <= 10
+        && d.itemCount is int && d.itemCount > 0
+        && d.paymentMethod in [null, 'transfer', 'cash']
+        && (
+          (d.totalMinorUnits == 0 && d.paymentMethod == null && d.paymentPhase == 'confirmed')
+          || (d.totalMinorUnits > 0 && d.paymentMethod in ['transfer', 'cash'] && d.paymentPhase == 'awaiting_payment')
+        )
+        && d.get('paymentNote', '') == ''
+        && d.get('paymentProofUrl', '') == ''
+        && d.get('rejectionReason', '') == ''
+        && !('cancelReason' in d)
+        && (!('lockToken' in d) || (d.lockToken is string && d.lockToken.size() <= 100));
+    }
+
+    // Descuento de inventario del checkout (createConcessionOrder) — lo
+    // dispara un invitado sin cuenta obligatoria, así que no hay ningún uid
+    // contra el cual atar esta escritura (a diferencia del pedido en sí, que
+    // sí se puede probar con isGuestOrderActor). Misma resignación ya
+    // aceptada en este archivo para reactionCounterDeltaOk (contador público,
+    // sin identidad verificable, acotado por un delta razonable en vez de por
+    // un permiso) — acá el delta es "hasta 50 unidades en un solo pedido"
+    // (mismo techo que counterDeltaOk) y la resta de `stockRemaining` debe
+    // coincidir EXACTO con la suma de `soldCount`, así que un cliente
+    // hablando directo contra Firestore no puede inflar ventas sin agotar
+    // stock real, ni viceversa.
+    function isValidConcessionStockDecrement(oldItem, newItem) {
+      let delta = newItem.get('soldCount', 0) - oldItem.get('soldCount', 0);
+      return oldItem.status == 'active'
+        && oldItem.get('stockMode', 'unlimited') == 'limited'
+        && newItem.diff(oldItem).affectedKeys().hasOnly(['stockRemaining', 'soldCount', 'status', 'updatedAt'])
+        && delta >= 1 && delta <= 50
+        && newItem.stockRemaining is int && newItem.stockRemaining >= 0
+        && (oldItem.get('stockRemaining', 0) - newItem.stockRemaining) == delta
+        && newItem.status in [oldItem.status, 'outOfStock'];
+    }
+
+    // Mismo checkout, para un ítem de stock ilimitado: solo sube soldCount,
+    // no hay `stockRemaining` que cuadrar.
+    function isValidConcessionSoldCountBump(oldItem, newItem) {
+      let delta = newItem.get('soldCount', 0) - oldItem.get('soldCount', 0);
+      return oldItem.status == 'active'
+        && oldItem.get('stockMode', 'unlimited') == 'unlimited'
+        && newItem.diff(oldItem).affectedKeys().hasOnly(['soldCount', 'updatedAt'])
+        && delta >= 1 && delta <= 50;
+    }
+
+    // Liberar stock reservado al cancelar un pedido (cancelConcessionOrder) —
+    // a propósito SIN una rama equivalente para el invitado anónimo (a
+    // diferencia del descuento del checkout de arriba): la dirección
+    // "sumar stock" no tiene ningún límite natural que la autolimite (restar
+    // no puede pasar de 0, pero sumar sí podría inflarse sin techo real si
+    // cualquiera pudiera llamar a esto), así que exige la MISMA cuenta de
+    // confianza que ya administra dinero de este módulo. Consecuencia: la
+    // autocancelación del invitado (cancelOwnConcessionOrder) cancela el
+    // PEDIDO pero no libera stock por sí sola — el organizador/staff libera
+    // el stock reservado cuando cancela ese pedido desde su bandeja (ver RFC
+    // §14.1: mismo criterio de "sin cronómetros automáticos, un humano de
+    // confianza decide" ya aplicado ahí).
+    function isValidConcessionStockRelease(evData, oldItem, newItem) {
+      return (canDoData(evData, 'manageConcessions', false) || canDoData(evData, 'confirmPayments', false) || isAdmin())
+        && oldItem.get('stockMode', 'unlimited') == 'limited'
+        && newItem.diff(oldItem).affectedKeys().hasOnly(['stockRemaining', 'status', 'updatedAt'])
+        && newItem.stockRemaining is int
+        && newItem.stockRemaining > oldItem.get('stockRemaining', 0)
+        && newItem.status in [oldItem.status, 'active'];
+    }
+
+    function isValidConcessionItem(d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && (!('description' in d) || (d.description is string && d.description.size() <= 500))
+        && d.category in ['drink', 'food', 'snack', 'souvenir', 'special']
+        && d.priceMinorUnits is int && d.priceMinorUnits >= 0
+        && d.currency is string && d.currency.size() > 0 && d.currency.size() <= 10
+        && d.stockMode in ['unlimited', 'limited']
+        && d.status in ['active', 'outOfStock', 'archived']
+        && d.sortOrder is number;
+    }
+
     // Sin alta pública ni desde la app: la única forma de agregar/quitar un
     // admin es a mano desde la consola de Firebase (que opera con acceso de
     // propietario del proyecto y no pasa por estas reglas). `allow read`
@@ -822,6 +962,7 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId
         && isValidEventPricing() && isValidMaxCompanions() && eventContentCapsOk();
       allow update: if (isOwnerData(resource.data) || isAdmin()) && eventContentCapsOk()
+          && concessionsEnableChangeIsAllowed(resource.data, request.resource.data)
         // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
         // invitación en 1 (guestCount), sumando entre 1 y 21 personas
         // (peopleCount): el invitado más los acompañantes que el organizador le
@@ -978,7 +1119,22 @@ service cloud.firestore {
         // request (un invitado por vez, sin tocar presencia).
         || (request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['guestCount', 'peopleCount', 'checkedInCount', 'occupancyCount', 'paidCount', 'rsvpYesCount', 'rsvpNoCount', 'rsvpPendingCount'])
-            && guestSelfCancelCountsOk(resource.data, request.resource.data));
+            && guestSelfCancelCountsOk(resource.data, request.resource.data))
+        // Config/staff del módulo de comida/bebida (Fase 1, ver
+        // FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md): un co-organizador con
+        // manageConcessions puede tocar TODO dentro de `concessions`
+        // (nombre de tienda, métodos de pago, instrucciones, staff map)
+        // salvo activar el módulo (`enabled` false→true, sigue exigiendo
+        // admin vía concessionsEnableChangeIsAllowed). `concessions` aparece
+        // como UN SOLO campo de nivel superior en diff().affectedKeys()
+        // aunque la escritura real solo toque una subclave (ej.
+        // `concessions.storeName`) — Firestore evalúa reglas contra el
+        // documento resultante completo, no contra el path punteado que
+        // mandó el cliente.
+        || (canDoData(resource.data, 'manageConcessions', false)
+            && eventContentCapsOk()
+            && concessionsEnableChangeIsAllowed(resource.data, request.resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['concessions', 'updatedAt']));
       allow delete: if isOwnerData(resource.data) || isAdmin();
 
       match /guests/{guestId} {
@@ -1202,6 +1358,153 @@ service cloud.firestore {
           && request.resource.data.shape in ['round', 'rectangular', 'square', 'custom']
           && request.resource.data.sortOrder is number;
         allow delete: if canDo(eventId, 'manageSeating', true) || isAdmin();
+      }
+
+      // Catálogo del módulo de comida/bebida (ver RFC §4.2). Lectura pública
+      // para cualquier invitado del evento (isOpenEvent cubre el caso de
+      // autoregistro; un evento 'list' de todas formas es legible por
+      // cualquiera que tenga el link del GuestPass, igual que el resto del
+      // contenido del evento en este archivo) más el propio staff/organizador
+      // para poder armar el pedido/administrar el catálogo. `delete` real
+      // nunca — solo `status: 'archived'` (soft delete, ver comentario de
+      // ConcessionItem.status).
+      match /concessionsCatalog/{itemId} {
+        // Público dentro de un evento con el módulo activo — es un menú, no
+        // hay nada que ocultar acá (mismo criterio que `wall`/`photos`, ya
+        // `allow read: if true` en este archivo).
+        allow read: if concessionsEnabled(eventDataFor(eventId));
+        allow create: if concessionsEnabled(eventDataFor(eventId))
+          && (canDo(eventId, 'manageConcessions', false) || isAdmin())
+          && isValidConcessionItem(request.resource.data);
+        // Dos ramas de `update`: el organizador/coanfitrión con
+        // manageConcessions edita cualquier campo (catálogo, precios, stock);
+        // el Menu Manager SOLO puede tocar `status` (agotado manual, ver RFC
+        // §11.4) — nunca precio, nombre ni stock.
+        allow update: if concessionsEnabled(eventDataFor(eventId)) && (
+          ((canDo(eventId, 'manageConcessions', false) || isAdmin()) && isValidConcessionItem(request.resource.data))
+          || (
+            isConcessionsStaff(eventDataFor(eventId))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && request.resource.data.status in ['active', 'outOfStock']
+          )
+          // Checkout de un invitado (createConcessionOrder) — ver
+          // isValidConcessionStockDecrement/isValidConcessionSoldCountBump.
+          || isValidConcessionStockDecrement(resource.data, request.resource.data)
+          || isValidConcessionSoldCountBump(resource.data, request.resource.data)
+          // Liberar stock al cancelar un pedido (cancelConcessionOrder) — ver
+          // isValidConcessionStockRelease.
+          || isValidConcessionStockRelease(eventDataFor(eventId), resource.data, request.resource.data)
+        );
+        allow delete: if false;
+      }
+
+      // Pedidos — fuente de verdad de dinero/comprobante/pago (ver RFC §4.3).
+      // `get` es bearer-link (mismo modelo de confianza que guests/{guestId}:
+      // el orderId es un id aleatorio de Firestore no adivinable, y es lo que
+      // el propio invitado usa para ver el estado de SU pedido en tiempo
+      // real, sin necesitar cuenta). `list` sí está acotado: solo
+      // organizador/staff con permiso, o una cuenta vinculada consultando sus
+      // propios pedidos entre dispositivos (ver claimGuestOwnership/guestUid).
+      match /concessionsOrders/{orderId} {
+        allow get: if concessionsEnabled(eventDataFor(eventId));
+        allow list: if concessionsEnabled(eventDataFor(eventId)) && (
+          canDo(eventId, 'manageConcessions', false) || canDo(eventId, 'confirmPayments', false) || isAdmin()
+          || (
+            request.auth != null && request.query.limit <= 50 &&
+            get(/databases/$(database)/documents/events/$(eventId)/guests/$(resource.data.guestId)).data.get('guestUid', null) == request.auth.uid
+          )
+        );
+        allow create: if concessionsEnabled(eventDataFor(eventId))
+          && isGuestOrderActor(eventId, request.resource.data.guestId, request.resource.data.get('lockToken', null))
+          && isValidConcessionOrderCreate(request.resource.data);
+        allow update: if concessionsEnabled(eventDataFor(eventId)) && (
+          // Invitado dueño: subir comprobante (transferencia) o cancelar su
+          // propio pedido, solo mientras no esté ya confirmado.
+          (
+            isGuestOrderActor(eventId, resource.data.guestId, request.resource.data.get('lockToken', null))
+            && resource.data.paymentPhase in ['awaiting_payment', 'rejected']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentPhase', 'paymentNote', 'paymentProofUrl', 'cancelReason', 'lockToken', 'updatedAt'])
+            && (
+              (
+                request.resource.data.paymentPhase == 'proof_submitted'
+                && request.resource.data.paymentNote is string
+                && request.resource.data.paymentNote.size() > 0
+                && request.resource.data.paymentNote.size() <= 300
+                && request.resource.data.paymentProofUrl is string
+                && request.resource.data.paymentProofUrl.size() > 0
+                && request.resource.data.paymentProofUrl.size() <= 500
+              )
+              || (request.resource.data.paymentPhase == 'cancelled' && request.resource.data.cancelReason == 'guest_cancelled')
+            )
+          )
+          // Organizador/coanfitrión con manageConcessions o confirmPayments,
+          // o admin: confirmar, rechazar, cancelar. Mismo nivel de confianza
+          // que ya tienen sobre guests/{guestId} para el pago de entrada —
+          // sin acotar campos acá, igual criterio que esa rama.
+          || canDo(eventId, 'confirmPayments', false) || canDo(eventId, 'manageConcessions', false) || isAdmin()
+        );
+        allow delete: if false;
+      }
+
+      // Proyección de cocina — SIN dinero, SIN comprobante (ver RFC §4.3).
+      // Mismo id que el ConcessionOrder del que es espejo. El Menu Manager
+      // solo puede leer pedidos ya pagados (`fulfillmentStatus` fuera de
+      // 'not_ready') y solo puede avanzar el estado de preparación — nunca
+      // tocar montos porque acá ni siquiera existen.
+      match /concessionsFulfillment/{orderId} {
+        allow get: if concessionsEnabled(eventDataFor(eventId)) && (
+          canDo(eventId, 'manageConcessions', false) || canDo(eventId, 'confirmPayments', false) || isAdmin()
+          || (isConcessionsStaff(eventDataFor(eventId)) && resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered'])
+          || !isConcessionsStaff(eventDataFor(eventId))
+        );
+        allow list: if concessionsEnabled(eventDataFor(eventId)) && (
+          canDo(eventId, 'manageConcessions', false) || canDo(eventId, 'confirmPayments', false) || isAdmin()
+          || (isConcessionsStaff(eventDataFor(eventId)) && resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered'])
+        );
+        // Se crea SIEMPRE junto con concessionsOrders, desde la misma
+        // transacción de checkout del invitado — mismo `isGuestOrderActor`
+        // que autoriza al hermano, sin volver a exigir `isValidConcessionOrderCreate`
+        // (ese documento no tiene dinero que validar, solo nombres/cantidades).
+        allow create: if concessionsEnabled(eventDataFor(eventId))
+          && isGuestOrderActor(eventId, request.resource.data.get('guestId', ''), request.resource.data.get('lockToken', null))
+          && request.resource.data.fulfillmentStatus in ['not_ready', 'queued']
+          && request.resource.data.guestNameSnapshot is string && request.resource.data.guestNameSnapshot.size() <= 121
+          && request.resource.data.orderNumber is string && request.resource.data.orderNumber.size() <= 20
+          && request.resource.data.lines is list && request.resource.data.lines.size() >= 1 && request.resource.data.lines.size() <= 30;
+        allow update: if concessionsEnabled(eventDataFor(eventId)) && (
+          canDo(eventId, 'manageConcessions', false) || isAdmin()
+          // confirmPayments: puede sacar un pedido de 'not_ready' (mismo
+          // actor que confirma el pago en concessionsOrders, ver
+          // confirmConcessionOrderPayment) además de avanzar cualquier otro
+          // paso de preparación.
+          || (
+            canDo(eventId, 'confirmPayments', false)
+            && resource.data.fulfillmentStatus in ['not_ready', 'queued', 'preparing', 'ready']
+            && request.resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered', 'cancelled']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fulfillmentStatus', 'updatedAt', 'deliveredAt'])
+          )
+          // Menu Manager: JAMÁS puede tocar un pedido en 'not_ready' (ni
+          // siquiera puede leerlo, ver `allow get` arriba) — solo avanza o
+          // retrocede la preparación de un pedido YA pagado. 'cancelled'
+          // fuera de su set de destino a propósito: cancelar implica
+          // liberar stock reservado (ver isValidConcessionStockRelease en
+          // concessionsCatalog), una operación de dinero/inventario que
+          // sigue reservada a confirmPayments/manageConcessions/admin —
+          // sin esta exclusión, el Menu Manager podía dejar un pedido
+          // "cancelado" en la cocina sin que nadie liberara ese stock ni
+          // tocara el pedido real en concessionsOrders. Sin esta
+          // distinción, un Menu Manager también podría "adivinar" un
+          // orderId y escribir un update a ciegas (Firestore no exige
+          // haber leído el doc antes de escribirlo) y así calificar como
+          // preparado/entregado un pedido que nunca se pagó.
+          || (
+            isConcessionsStaff(eventDataFor(eventId))
+            && resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready']
+            && request.resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fulfillmentStatus', 'updatedAt', 'deliveredAt'])
+          )
+        );
+        allow delete: if false;
       }
 
       // Bitácora de envíos automáticos (recordatorios de RSVP + mensajería

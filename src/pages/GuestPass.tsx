@@ -17,6 +17,7 @@ import type { EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
 import { IconAlertTriangle, IconCalendar, IconCheckCircle, IconClock, IconDownload, IconEdit, IconHeart, IconTicket, IconUserPlus, IconWhatsApp } from '../components/accessibility/AccessibleIcon'
 import { WallSection } from '../components/WallSection'
 import {
+  ConcessionsSection,
   CustomInfoSection,
   EventInformationPanel,
   FAQSection,
@@ -912,6 +913,7 @@ function GuestPassInner() {
         <TransportationSection event={event} guest={guest} />
         <FAQSection event={event} guest={guest} />
         <MenuSection event={event} guest={guest} />
+        {eventId && <ConcessionsSection event={event} guest={guest} eventId={eventId} lockToken={deviceToken} />}
         <ScheduleSection event={event} guest={guest} />
         <GiftSection event={event} />
         {event.sections?.map((s) => (

@@ -144,6 +144,108 @@ export async function seedGuestContact(
   })
 }
 
+export async function seedAdmin(testEnv: RulesTestEnvironment, uid: string) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'admins', uid), { addedAt: Date.now() })
+  })
+}
+
+export async function seedConcessionItem(
+  testEnv: RulesTestEnvironment,
+  eventId: string,
+  itemId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'events', eventId, 'concessionsCatalog', itemId), {
+      name: 'Soda italiana',
+      category: 'drink',
+      priceMinorUnits: 3500,
+      currency: 'MXN',
+      stockMode: 'unlimited',
+      soldCount: 0,
+      status: 'active',
+      sortOrder: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...overrides,
+    })
+  })
+}
+
+export async function getConcessionItemDoc(testEnv: RulesTestEnvironment, eventId: string, itemId: string) {
+  let result: Record<string, unknown> | undefined
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const snap = await getDoc(doc(context.firestore(), 'events', eventId, 'concessionsCatalog', itemId))
+    result = snap.data()
+  })
+  return result
+}
+
+export async function seedConcessionOrder(
+  testEnv: RulesTestEnvironment,
+  eventId: string,
+  orderId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'events', eventId, 'concessionsOrders', orderId), {
+      eventId,
+      guestId: 'guest-1',
+      guestNameSnapshot: 'Invitado de prueba',
+      items: [],
+      subtotalMinorUnits: 0,
+      totalMinorUnits: 0,
+      currency: 'MXN',
+      itemCount: 1,
+      paymentMethod: 'transfer',
+      paymentPhase: 'awaiting_payment',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...overrides,
+    })
+  })
+}
+
+export async function getConcessionOrderDoc(testEnv: RulesTestEnvironment, eventId: string, orderId: string) {
+  let result: Record<string, unknown> | undefined
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const snap = await getDoc(doc(context.firestore(), 'events', eventId, 'concessionsOrders', orderId))
+    result = snap.data()
+  })
+  return result
+}
+
+export async function seedConcessionFulfillment(
+  testEnv: RulesTestEnvironment,
+  eventId: string,
+  orderId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'events', eventId, 'concessionsFulfillment', orderId), {
+      eventId,
+      guestId: 'guest-1',
+      guestNameSnapshot: 'Invitado de prueba',
+      orderNumber: 'ABC123',
+      lines: [{ nameSnapshot: 'Soda italiana', categorySnapshot: 'drink', quantity: 1 }],
+      fulfillmentStatus: 'not_ready',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...overrides,
+    })
+  })
+}
+
+export async function getConcessionFulfillmentDoc(testEnv: RulesTestEnvironment, eventId: string, orderId: string) {
+  let result: Record<string, unknown> | undefined
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const snap = await getDoc(doc(context.firestore(), 'events', eventId, 'concessionsFulfillment', orderId))
+    result = snap.data()
+  })
+  return result
+}
+
 /** Encuentra el id de un guest por su qrToken (registerWalkInGuest solo devuelve el token, no el id). */
 export async function guestIdByToken(testEnv: RulesTestEnvironment, eventId: string, qrToken: string): Promise<string> {
   let result = ''
