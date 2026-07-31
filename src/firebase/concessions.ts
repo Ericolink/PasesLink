@@ -701,7 +701,15 @@ function omitUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
 export async function enableConcessionsBeta(eventId: string, settings: NewConcessionsSettingsInput) {
   return measureSpan('firestore.enableConcessionsBeta', 'db.firestore', () =>
     updateDoc(doc(db, 'events', eventId), {
-      concessions: { ...omitUndefined(settings), enabled: true, concessionsStaffMap: {} },
+      // '$' de respaldo: firestore.rules exige `currency.size() > 0` en
+      // cada producto del catálogo (isValidConcessionItem) — un evento sin
+      // moneda configurada (EventData.currency vacío) dejaría
+      // `concessions.currency: ''` guardado, y CUALQUIER alta de producto
+      // se rechazaría después con "Missing or insufficient permissions"
+      // sin ninguna pista de por qué (bug real encontrado en vivo,
+      // 2026-07-31) — mismo respaldo que ya aplica el formulario, repetido
+      // acá para que ningún otro caller pueda reintroducirlo.
+      concessions: { ...omitUndefined(settings), currency: settings.currency || '$', enabled: true, concessionsStaffMap: {} },
       updatedAt: serverTimestamp(),
     }),
   )
@@ -725,7 +733,13 @@ export async function disableConcessions(eventId: string) {
 // escritura angosta y fácil de auditar.
 export async function updateConcessionsSettings(eventId: string, patch: Partial<NewConcessionsSettingsInput>) {
   const updates: Record<string, unknown> = { updatedAt: serverTimestamp() }
-  for (const [key, value] of Object.entries(omitUndefined(patch))) {
+  // Mismo respaldo que enableConcessionsBeta — nunca guardar `currency`
+  // vacío, ver el comentario ahí.
+  const cleanPatch = omitUndefined(patch)
+  if ('currency' in cleanPatch && !cleanPatch.currency) {
+    cleanPatch.currency = '$'
+  }
+  for (const [key, value] of Object.entries(cleanPatch)) {
     updates[`concessions.${key}`] = value
   }
   return measureSpan('firestore.updateConcessionsSettings', 'db.firestore', () =>

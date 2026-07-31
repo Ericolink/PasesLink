@@ -45,6 +45,13 @@ function PaymentMethodsPicker({ value, onChange }: { value: PaymentMethod[]; onC
 export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
   const concessions = event.concessions
   const [storeName, setStoreName] = useState(concessions?.storeName || '')
+  // Nunca vacío: firestore.rules exige `currency.size() > 0` en cada
+  // producto del catálogo (isValidConcessionItem) — si el evento no tiene
+  // moneda configurada (campo vacío en EditEventForm), heredarla tal cual
+  // dejaba `concessions.currency: ""` guardado, y CUALQUIER alta de
+  // producto se rechazaba con "Missing or insufficient permissions" sin
+  // ninguna pista de por qué (bug real encontrado en vivo, 2026-07-31).
+  const [currency, setCurrency] = useState(concessions?.currency || event.currency || '$')
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(concessions?.paymentMethods || ['transfer'])
   const [useEventInstructions, setUseEventInstructions] = useState(concessions?.useEventPaymentInstructions ?? true)
   const [paymentInstructions, setPaymentInstructions] = useState(concessions?.paymentInstructions || '')
@@ -55,11 +62,15 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
 
   async function handleEnable() {
     setError('')
+    if (!currency.trim()) {
+      setError('Poné un símbolo o código de moneda (ej. "$" o "MXN").')
+      return
+    }
     setSaving(true)
     try {
       await enableConcessionsBeta(event.id, {
         storeName: storeName.trim() || undefined,
-        currency: event.currency,
+        currency: currency.trim(),
         paymentMethods,
         useEventPaymentInstructions: useEventInstructions,
       })
@@ -77,11 +88,15 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
       setError('Elegí al menos un método de cobro.')
       return
     }
+    if (!currency.trim()) {
+      setError('Poné un símbolo o código de moneda (ej. "$" o "MXN").')
+      return
+    }
     setSaving(true)
     try {
       await updateConcessionsSettings(event.id, {
         storeName: storeName.trim() || undefined,
-        currency: event.currency,
+        currency: currency.trim(),
         paymentMethods,
         useEventPaymentInstructions: useEventInstructions,
         paymentInstructions: useEventInstructions ? undefined : paymentInstructions.trim(),
@@ -119,6 +134,14 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
           Activalo solo para este evento — podés ajustar todo lo demás después.
         </p>
         <TextField label="Nombre de la tienda" id="concessions-store-name" value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Barra de Baile Improvisado" />
+        <TextField
+          label="Moneda"
+          id="concessions-currency"
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+          placeholder="$"
+          helperText={`Símbolo o código para mostrar precios (ej. "$" o "MXN").`}
+        />
         <PaymentMethodsPicker value={paymentMethods} onChange={setPaymentMethods} />
         <label className="flex items-center gap-2 cursor-pointer">
           <Checkbox checked={useEventInstructions} onChange={(e) => setUseEventInstructions(e.target.checked)} />
@@ -133,6 +156,15 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
   return (
     <div className="space-y-4">
       <TextField label="Nombre de la tienda" id="concessions-store-name" value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Barra de Baile Improvisado" disabled={!canManage} />
+      <TextField
+        label="Moneda"
+        id="concessions-currency"
+        value={currency}
+        onChange={(e) => setCurrency(e.target.value)}
+        placeholder="$"
+        disabled={!canManage}
+        helperText={`Símbolo o código para mostrar precios (ej. "$" o "MXN").`}
+      />
       <PaymentMethodsPicker value={paymentMethods} onChange={canManage ? setPaymentMethods : () => {}} />
       <label className="flex items-center gap-2 cursor-pointer">
         <Checkbox checked={useEventInstructions} disabled={!canManage} onChange={(e) => setUseEventInstructions(e.target.checked)} />

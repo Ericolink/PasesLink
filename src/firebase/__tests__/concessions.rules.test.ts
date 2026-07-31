@@ -32,6 +32,7 @@ import {
   cancelOwnConcessionOrder,
   ConcessionCheckoutError,
   confirmConcessionOrderPayment,
+  createConcessionItem,
   createConcessionOrder,
   enableConcessionsBeta,
   removeConcessionsStaff,
@@ -538,6 +539,53 @@ describe('Concessions — venta de comida/bebida durante el evento', () => {
       const concessions = event?.concessions as Record<string, unknown> | undefined
       expect(concessions?.enabled).toBe(true)
       expect(concessions).not.toHaveProperty('storeName')
+    })
+
+    // Bug real encontrado en vivo (2026-07-31): un evento de prueba sin
+    // moneda configurada (EventData.currency === '') dejaba
+    // `concessions.currency: ''` guardado al activar el módulo — y
+    // firestore.rules exige `currency.size() > 0` en cada producto del
+    // catálogo (isValidConcessionItem), así que CUALQUIER alta de producto
+    // se rechazaba después con "Missing or insufficient permissions", sin
+    // ninguna pista de que la causa era la moneda vacía. enableConcessionsBeta/
+    // updateConcessionsSettings ahora nunca persisten `currency` vacío.
+    it('nunca guarda `currency` vacío al activar el módulo, aunque el evento no tenga moneda configurada', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, currency: '' })
+      await seedAdmin(testEnv, ADMIN_UID)
+      dbHolder.db = testEnv.authenticatedContext(ADMIN_UID).firestore()
+
+      await enableConcessionsBeta(EVENT_ID, {
+        storeName: 'Test',
+        currency: '',
+        paymentMethods: ['transfer'],
+        useEventPaymentInstructions: true,
+      })
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      const concessions = event?.concessions as Record<string, unknown> | undefined
+      expect(concessions?.currency).toBe('$')
+
+      // Y con esa moneda de respaldo, dar de alta un producto ya no se
+      // rechaza — la validación real (isValidConcessionItem) pasa.
+      await expect(createConcessionItem(EVENT_ID, {
+        name: 'Soda italiana',
+        category: 'drink',
+        priceMinorUnits: 3500,
+        currency: concessions?.currency as string,
+        stockMode: 'unlimited',
+        sortOrder: 0,
+      })).resolves.not.toThrow()
+    })
+
+    it('nunca guarda `currency` vacío al editar la configuración', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await updateConcessionsSettings(EVENT_ID, { currency: '' })
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      const concessions = event?.concessions as Record<string, unknown> | undefined
+      expect(concessions?.currency).toBe('$')
     })
 
     it('guarda la configuración aunque se limpien campos opcionales a vacío (paymentInstructions/pickupInstructions undefined)', async () => {
