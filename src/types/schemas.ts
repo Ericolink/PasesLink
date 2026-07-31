@@ -171,6 +171,19 @@ const GiftInfoSchema = z.object({
   cashInfo: z.string().optional(),
 })
 
+// Espeja ConcessionsConfig (src/types/concessions.ts) — campo opcional de
+// EventData, presente solo si el evento activó el módulo de comida/bebida.
+const ConcessionsConfigSchema = z.object({
+  enabled: z.boolean(),
+  storeName: z.string().optional(),
+  currency: z.string(),
+  paymentMethods: z.array(z.enum(['transfer', 'cash'])),
+  useEventPaymentInstructions: z.boolean(),
+  paymentInstructions: z.string().optional(),
+  pickupInstructions: z.string().optional(),
+  concessionsStaffMap: z.record(z.string(), z.string()).optional(),
+})
+
 // Espeja CoOrganizerPermissions (src/types/coOrganizerPermissions.ts).
 // Optional a nivel de mapa: un evento/co-org de antes de este campo
 // simplemente no lo tiene, resuelto con LEGACY_COORG_DEFAULTS en el cliente.
@@ -252,6 +265,7 @@ export const EventSchema = z.object({
   rsvpPendingCount: z.number(),
   coOrganizersMap: z.record(z.string(), z.string()),
   coOrganizerPermissions: z.record(z.string(), CoOrganizerPermissionsSchema).optional(),
+  concessions: ConcessionsConfigSchema.optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 })

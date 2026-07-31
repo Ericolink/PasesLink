@@ -27,6 +27,7 @@ function clampMaxCompanions(value: number | undefined): number {
 }
 import { EventSchema, warnIfInvalidShape } from '../types/schemas'
 import { LEGACY_COORG_DEFAULTS, type CoOrganizerPermissions } from '../types/coOrganizerPermissions'
+import type { ConcessionsConfig } from '../types/concessions'
 
 export interface NewEventInput {
   name: string
@@ -522,6 +523,10 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     rsvpPendingCount: (data.rsvpPendingCount as number) || 0,
     coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},
     coOrganizerPermissions: data.coOrganizerPermissions as EventData['coOrganizerPermissions'],
+    // Ausente = el evento nunca activó el módulo de comida/bebida (ver
+    // src/types/concessions.ts) — nunca se le pone un default acá, un
+    // objeto vacío se interpretaría como "activado sin config".
+    concessions: (data.concessions as ConcessionsConfig) || undefined,
     createdAt: toMillis(data.createdAt),
     updatedAt: toMillis(data.updatedAt),
   }
