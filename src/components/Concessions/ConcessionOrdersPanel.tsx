@@ -42,7 +42,8 @@ export function ConcessionOrdersPanel({ eventId }: Props) {
     setBusyOrderId(order.id)
     try {
       await confirmConcessionOrderPayment(eventId, order.id)
-    } catch {
+    } catch (err) {
+      console.error('Error al confirmar el pago de un pedido:', err)
       setActionError('No se pudo confirmar el pago. Intenta de nuevo.')
     } finally {
       setBusyOrderId(null)
@@ -55,7 +56,8 @@ export function ConcessionOrdersPanel({ eventId }: Props) {
     setBusyOrderId(cancellingOrder.id)
     try {
       await cancelConcessionOrder(eventId, cancellingOrder.id, 'organizer_cancelled')
-    } catch {
+    } catch (err) {
+      console.error('Error al cancelar un pedido:', err)
       setActionError('No se pudo cancelar el pedido. Intenta de nuevo.')
     } finally {
       setBusyOrderId(null)
@@ -172,7 +174,8 @@ function RejectOrderModal({ eventId, order, onClose }: { eventId: string; order:
       await rejectConcessionOrderPayment(eventId, order.id, reason.trim())
       setReason('')
       onClose()
-    } catch {
+    } catch (err) {
+      console.error('Error al rechazar el comprobante de un pedido:', err)
       setError('No se pudo rechazar el comprobante. Intenta de nuevo.')
     } finally {
       setSaving(false)

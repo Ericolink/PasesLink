@@ -36,7 +36,8 @@ export function ConcessionFulfillmentQueue({ eventId }: Props) {
     setBusyOrderId(order.id)
     try {
       await advanceConcessionFulfillment(eventId, order.id)
-    } catch {
+    } catch (err) {
+      console.error('Error al avanzar un pedido en la cola de cocina:', err)
       setActionError('No se pudo actualizar el pedido. Intenta de nuevo.')
     } finally {
       setBusyOrderId(null)
@@ -48,7 +49,8 @@ export function ConcessionFulfillmentQueue({ eventId }: Props) {
     setBusyOrderId(order.id)
     try {
       await revertConcessionFulfillment(eventId, order.id)
-    } catch {
+    } catch (err) {
+      console.error('Error al deshacer un paso en la cola de cocina:', err)
       setActionError('No se pudo deshacer el paso. Intenta de nuevo.')
     } finally {
       setBusyOrderId(null)

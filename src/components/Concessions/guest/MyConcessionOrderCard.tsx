@@ -102,7 +102,8 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
       const proofUrl = await proofPhoto.upload()
       await submitConcessionPaymentProof(eventId, orderId, { note: note.trim(), proofUrl, lockToken })
       proofPhoto.clear()
-    } catch {
+    } catch (err) {
+      console.error('Error al enviar el comprobante de un pedido:', err)
       setProofError('No se pudo enviar el comprobante. Intenta de nuevo.')
     } finally {
       setSubmittingProof(false)
@@ -114,7 +115,8 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
     setCancelling(true)
     try {
       await cancelOwnConcessionOrder(eventId, orderId, lockToken)
-    } catch {
+    } catch (err) {
+      console.error('Error al cancelar el propio pedido:', err)
       // El listener ya refleja el estado real del pedido si algo salió mal
       // (por ejemplo, el organizador lo confirmó un instante antes) — no
       // hace falta un mensaje de error aparte acá.

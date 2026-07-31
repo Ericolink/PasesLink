@@ -29,7 +29,8 @@ export function ConcessionAvailabilityPanel({ eventId }: Props) {
     setBusyItemId(item.id)
     try {
       await setConcessionItemAvailability(eventId, item.id, item.status === 'active' ? 'outOfStock' : 'active')
-    } catch {
+    } catch (err) {
+      console.error('Error al actualizar disponibilidad desde la cocina:', err)
       setError('No se pudo actualizar la disponibilidad. Intenta de nuevo.')
     } finally {
       setBusyItemId(null)

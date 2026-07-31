@@ -89,7 +89,8 @@ export function ConcessionItemFormModal({ eventId, currency, item, nextSortOrder
         await createConcessionItem(eventId, { ...input, sortOrder: nextSortOrder })
       }
       onClose()
-    } catch {
+    } catch (err) {
+      console.error('Error al guardar un producto del catálogo:', err)
       setFormError('No pudimos guardar el producto. Intenta de nuevo.')
     } finally {
       setSaving(false)

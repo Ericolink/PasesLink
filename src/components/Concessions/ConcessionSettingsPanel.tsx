@@ -63,7 +63,8 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
         paymentMethods,
         useEventPaymentInstructions: useEventInstructions,
       })
-    } catch {
+    } catch (err) {
+      console.error('Error al activar el módulo de concessions:', err)
       setError('No se pudo activar el módulo. Intenta de nuevo.')
     } finally {
       setSaving(false)
@@ -86,7 +87,8 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
         paymentInstructions: useEventInstructions ? undefined : paymentInstructions.trim(),
         pickupInstructions: pickupInstructions.trim() || undefined,
       })
-    } catch {
+    } catch (err) {
+      console.error('Error al guardar la configuración de concessions:', err)
       setError('No se pudo guardar la configuración. Intenta de nuevo.')
     } finally {
       setSaving(false)
@@ -97,7 +99,8 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
     setConfirmingDisable(false)
     try {
       await disableConcessions(event.id)
-    } catch {
+    } catch (err) {
+      console.error('Error al desactivar el módulo de concessions:', err)
       setError('No se pudo desactivar el módulo. Intenta de nuevo.')
     }
   }

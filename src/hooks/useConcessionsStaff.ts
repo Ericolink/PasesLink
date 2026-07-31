@@ -36,7 +36,8 @@ export function useConcessionsStaff(
       }
       await addConcessionsStaff(eventId, found.uid, found.email)
       setStaffEmail('')
-    } catch {
+    } catch (err) {
+      console.error('Error al agregar un encargado del menú:', err)
       setStaffError('Error al agregar encargado del menú.')
     } finally {
       setStaffLoading(false)

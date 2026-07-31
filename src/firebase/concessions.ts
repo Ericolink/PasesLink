@@ -165,7 +165,7 @@ export async function updateConcessionItem(
   return measureSpan('firestore.updateConcessionItem', 'db.firestore', () =>
     runTransaction(db, async (transaction) => {
       const ref = doc(db, 'events', eventId, 'concessionsCatalog', itemId)
-      transaction.update(ref, { ...input, updatedAt: serverTimestamp() })
+      transaction.update(ref, { ...omitUndefined(input), updatedAt: serverTimestamp() })
     }),
   )
 }
@@ -676,6 +676,21 @@ export function subscribeToConcessionFulfillment(
 
 export type NewConcessionsSettingsInput = Omit<ConcessionsConfig, 'enabled' | 'concessionsStaffMap'>
 
+// Los formularios de este módulo usan `campo.trim() || undefined` para
+// representar "el organizador lo dejó vacío" (ej. storeName, paymentInstructions,
+// pickupInstructions, description, imageUrl). Firestore acepta perfectamente
+// que una CLAVE esté ausente, pero rechaza de plano cualquier escritura que
+// contenga una clave presente con valor `undefined` explícito ("Unsupported
+// field value: undefined") — y como esa excepción la atrapa cada caller con
+// un `catch { setError(...) }` que solo pinta un mensaje en pantalla (nunca
+// un console.error), el fallo real quedaba invisible en la consola del
+// navegador. Este helper limpia esos `undefined` antes de que lleguen a
+// cualquier escritura — nunca se usa en los mappers (lectura), donde
+// `undefined` es un valor JS normal que jamás vuelve a Firestore.
+function omitUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>
+}
+
 // Activar el módulo — SOLO tiene efecto real si quien llama es un admin de
 // PaseLink (ver concessionsEnableChangeIsAllowed en firestore.rules): el
 // resto de esta función no valida eso del lado cliente a propósito, la
@@ -686,7 +701,7 @@ export type NewConcessionsSettingsInput = Omit<ConcessionsConfig, 'enabled' | 'c
 export async function enableConcessionsBeta(eventId: string, settings: NewConcessionsSettingsInput) {
   return measureSpan('firestore.enableConcessionsBeta', 'db.firestore', () =>
     updateDoc(doc(db, 'events', eventId), {
-      concessions: { ...settings, enabled: true, concessionsStaffMap: {} },
+      concessions: { ...omitUndefined(settings), enabled: true, concessionsStaffMap: {} },
       updatedAt: serverTimestamp(),
     }),
   )
@@ -710,7 +725,7 @@ export async function disableConcessions(eventId: string) {
 // escritura angosta y fácil de auditar.
 export async function updateConcessionsSettings(eventId: string, patch: Partial<NewConcessionsSettingsInput>) {
   const updates: Record<string, unknown> = { updatedAt: serverTimestamp() }
-  for (const [key, value] of Object.entries(patch)) {
+  for (const [key, value] of Object.entries(omitUndefined(patch))) {
     updates[`concessions.${key}`] = value
   }
   return measureSpan('firestore.updateConcessionsSettings', 'db.firestore', () =>

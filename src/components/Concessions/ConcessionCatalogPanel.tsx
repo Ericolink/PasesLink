@@ -33,7 +33,8 @@ export function ConcessionCatalogPanel({ eventId, currency }: Props) {
     setActionError('')
     try {
       await setConcessionItemAvailability(eventId, item.id, item.status === 'active' ? 'outOfStock' : 'active')
-    } catch {
+    } catch (err) {
+      console.error('Error al actualizar disponibilidad de un producto:', err)
       setActionError('No se pudo actualizar la disponibilidad. Intenta de nuevo.')
     }
   }
@@ -43,7 +44,8 @@ export function ConcessionCatalogPanel({ eventId, currency }: Props) {
     setActionError('')
     try {
       await archiveConcessionItem(eventId, archivingItem.id)
-    } catch {
+    } catch (err) {
+      console.error('Error al eliminar un producto del catálogo:', err)
       setActionError('No se pudo eliminar el producto. Intenta de nuevo.')
     } finally {
       setArchivingItem(null)

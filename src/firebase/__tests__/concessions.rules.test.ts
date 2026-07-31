@@ -37,6 +37,7 @@ import {
   removeConcessionsStaff,
   revertConcessionFulfillment,
   submitConcessionPaymentProof,
+  updateConcessionItem,
   updateConcessionsSettings,
 } from '../concessions'
 
@@ -167,6 +168,24 @@ describe('Concessions — venta de comida/bebida durante el evento', () => {
       await assertFails(
         updateDoc(doc(staffDb, 'events', EVENT_ID, 'concessionsCatalog', ITEM_ID), { priceMinorUnits: 1 }),
       )
+    })
+
+    // Regresión real: ConcessionItemFormModal manda `description`/`imageUrl`
+    // en `undefined` cuando el organizador deja esos campos vacíos al editar
+    // un producto. updateConcessionItem hacía `transaction.update(ref, {
+    // ...input, ... })` sin limpiar esos `undefined` — Firestore rechazaba la
+    // escritura entera ("Unsupported field value: undefined").
+    it('permite editar un producto limpiando su descripción/foto a vacío', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { description: 'Sabor original', imageUrl: 'https://res.cloudinary.com/demo/old.jpg' })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await expect(updateConcessionItem(EVENT_ID, ITEM_ID, {
+        name: 'Soda italiana',
+        description: undefined,
+        imageUrl: undefined,
+        stockInitial: undefined,
+      })).resolves.not.toThrow()
     })
   })
 
@@ -493,6 +512,42 @@ describe('Concessions — venta de comida/bebida durante el evento', () => {
       expect(concessions?.enabled).toBe(true)
       expect(concessions?.storeName).toBe('Barra de Baile Improvisado')
       expect(concessions?.concessionsStaffMap).toEqual({})
+    })
+
+    // Regresión real: el formulario (ConcessionSettingsPanel) manda
+    // `storeName: undefined` cuando el organizador deja ese campo vacío
+    // (patrón `.trim() || undefined`). Firestore rechaza cualquier campo con
+    // valor `undefined` explícito ("Unsupported field value: undefined") —
+    // sin `omitUndefined` en enableConcessionsBeta/updateConcessionsSettings,
+    // esto rompía la activación del módulo entero de forma silenciosa (el
+    // catch de la UI solo mostraba un mensaje en pantalla, sin loguear el
+    // error real en consola).
+    it('activa el módulo aunque el organizador deje el nombre de la tienda vacío (storeName undefined)', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+      await seedAdmin(testEnv, ADMIN_UID)
+      dbHolder.db = testEnv.authenticatedContext(ADMIN_UID).firestore()
+
+      await expect(enableConcessionsBeta(EVENT_ID, {
+        storeName: undefined,
+        currency: 'MXN',
+        paymentMethods: ['transfer'],
+        useEventPaymentInstructions: true,
+      })).resolves.not.toThrow()
+
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      const concessions = event?.concessions as Record<string, unknown> | undefined
+      expect(concessions?.enabled).toBe(true)
+      expect(concessions).not.toHaveProperty('storeName')
+    })
+
+    it('guarda la configuración aunque se limpien campos opcionales a vacío (paymentInstructions/pickupInstructions undefined)', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await expect(updateConcessionsSettings(EVENT_ID, {
+        storeName: undefined,
+        pickupInstructions: undefined,
+      })).resolves.not.toThrow()
     })
 
     it('un co-organizador con manageConcessions puede editar la config (sin poder activar el módulo)', async () => {
