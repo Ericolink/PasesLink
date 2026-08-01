@@ -67,6 +67,14 @@ export function IconHome({ className = 'w-5 h-5' }: IconProps) {
   )
 }
 
+export function IconPlus({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
 export function IconThumbsUp({ className = 'w-5 h-5' }: IconProps) {
   return (
     <svg className={className} {...base}>
