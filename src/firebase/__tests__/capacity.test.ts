@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { addDoc, collection, doc, setDoc, updateDoc } from 'firebase/firestore'
-import { createTestEnv, defaultEventData, getEventDoc, getGuestDoc, guestIdByToken, seedEvent, seedGuest, seedUserProfile, type EmulatorFirestore } from './helpers'
+import { addDoc, collection, doc, updateDoc } from 'firebase/firestore'
+import { createTestEnv, getEventDoc, seedEvent, seedGuest, seedUserProfile, type EmulatorFirestore } from './helpers'
 
 // capacity.ts y guests.ts importan `db` de './config' como singleton de producción.
 // Lo reemplazamos por un getter que apunta al Firestore del emulador activo en cada
@@ -13,19 +13,19 @@ vi.mock('../config', () => ({
   },
 }))
 
-// fetchOfferedWaitlistCount llama a una Callable Function — ver el mismo
-// mock, con el mismo motivo, en guests.test.ts.
-vi.mock('../attendeeLimit', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../attendeeLimit')>()
-  return { ...actual, fetchOfferedWaitlistCount: vi.fn().mockResolvedValue(0) }
-})
-
-import { registerWalkInGuest, walkIn, walkOut } from '../capacity'
-import { CapacityFullError } from '../attendeeLimit'
+import { walkIn, walkOut } from '../capacity'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
 
+// registerWalkInGuest se migró a Cloud Functions (ver
+// FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md, Fase A) — toda la lógica de
+// negocio (cupo, clamping de partySize, guestUid/guestPhotoURL, contadores)
+// se prueba ahora contra el emulador vía Admin SDK en
+// functions/src/capacity/registerWalkInGuest.test.ts. Este archivo conserva:
+// walkIn/walkOut (siguen siendo transacciones de cliente, fuera de esta
+// migración) y los tests de `firestore.rules` que verifican que un cliente
+// no puede bypassear la Cloud Function con una escritura directa.
 describe('capacity.ts', () => {
   let testEnv: RulesTestEnvironment
 
@@ -96,256 +96,25 @@ describe('capacity.ts', () => {
     expect(event?.occupancyCount).toBe(0)
   })
 
-  it('should still create the guest and increment guestCount when capacity is full but attendeeLimitEnabled is off (default)', async () => {
-    // Sin attendeeLimitEnabled (default de todo evento, incluidos los
-    // creados antes de esta feature): capacity sigue siendo puramente
-    // informativo, el registro nunca se bloquea. Ver CAPACITY_LIMIT_ARCHITECTURE.md.
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 1, guestCount: 1 })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Nuevo')
-
-    expect(result.status).toBe('success')
-    expect(result.qrToken).toBeTruthy()
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(2)
-  })
-
-  describe('attendeeLimitEnabled (límite duro y opcional de asistentes)', () => {
-    it('should reject registration once peopleCount reaches capacity', async () => {
-      await seedEvent(testEnv, EVENT_ID, {
-        entryMode: 'open', attendeeLimitEnabled: true, capacity: 200, guestCount: 200, peopleCount: 200,
-      })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      await expect(registerWalkInGuest(EVENT_ID, 'Invitado 201')).rejects.toThrow(CapacityFullError)
-
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      // La transacción abortó: ni guestCount ni peopleCount se movieron.
-      expect(event?.guestCount).toBe(200)
-      expect(event?.peopleCount).toBe(200)
+  it('rules should reject a raw write bypassing the client transaction, as a defense-in-depth backstop', async () => {
+    // La garantía real de cupo la da la Cloud Function registerWalkInGuest
+    // (ver functions/src/capacity/registerWalkInGuest.test.ts, test de
+    // carrera) — esto verifica la segunda capa (attendeeLimitOk en
+    // firestore.rules) para el caso de un cliente que evite esa función por
+    // completo y escriba peopleCount directo, con los mismos deltas que la
+    // rama de autorregistro público exige (+1 guestCount, +1 peopleCount, +1
+    // rsvpYesCount) — pasa todas las demás condiciones de esa rama, pero
+    // igual debe rechazarse por superar capacity.
+    await seedEvent(testEnv, EVENT_ID, {
+      entryMode: 'open', attendeeLimitEnabled: true, capacity: 5, guestCount: 5, peopleCount: 5, rsvpYesCount: 5,
     })
+    const publicDb = testEnv.unauthenticatedContext().firestore()
 
-    it('should allow registering into exactly the last available spot', async () => {
-      await seedEvent(testEnv, EVENT_ID, {
-        entryMode: 'open', attendeeLimitEnabled: true, capacity: 200, guestCount: 199, peopleCount: 199,
-      })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      const result = await registerWalkInGuest(EVENT_ID, 'Último Lugar')
-
-      expect(result.status).toBe('success')
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.peopleCount).toBe(200)
-    })
-
-    it('should reject a party size that would exceed capacity even with some room left', async () => {
-      // Queda 1 lugar (199/200) pero pide traer 1 acompañante (partySize 2)
-      // — no entra, aunque el evento no esté técnicamente lleno todavía.
-      await seedEvent(testEnv, EVENT_ID, {
-        entryMode: 'open', attendeeLimitEnabled: true, capacity: 200, guestCount: 199, peopleCount: 199, maxCompanions: 5,
-      })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      await expect(
-        registerWalkInGuest(EVENT_ID, 'Con Acompañante', undefined, undefined, undefined, 2),
-      ).rejects.toThrow(CapacityFullError)
-
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.peopleCount).toBe(199)
-    })
-
-    it('should never let two simultaneous registrations for the last spot both succeed', async () => {
-      // El escenario exacto del incidente que motivó esta feature: 1 lugar
-      // libre, dos personas envían el formulario "al mismo tiempo". Firestore
-      // reintenta automáticamente la transacción que pierde el conflicto de
-      // versión — ver CAPACITY_LIMIT_ARCHITECTURE.md §7.
-      await seedEvent(testEnv, EVENT_ID, {
-        entryMode: 'open', attendeeLimitEnabled: true, capacity: 200, guestCount: 199, peopleCount: 199,
-      })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      const results = await Promise.allSettled([
-        registerWalkInGuest(EVENT_ID, 'Carrera A'),
-        registerWalkInGuest(EVENT_ID, 'Carrera B'),
-      ])
-
-      const succeeded = results.filter((r) => r.status === 'fulfilled')
-      const failed = results.filter((r) => r.status === 'rejected')
-      expect(succeeded).toHaveLength(1)
-      expect(failed).toHaveLength(1)
-
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      // Nunca 201/200 — exactamente uno de los dos registros ganó la carrera.
-      expect(event?.peopleCount).toBe(200)
-      expect(event?.guestCount).toBe(200)
-    })
-
-    it('rules should reject a raw write bypassing the client transaction, as a defense-in-depth backstop', async () => {
-      // La garantía real es la runTransaction (ver el test de carrera arriba)
-      // — esto verifica la segunda capa (attendeeLimitOk en firestore.rules)
-      // para el caso de un cliente que evite esa transacción por completo y
-      // escriba peopleCount directo, con los mismos deltas que la rama de
-      // autorregistro público exige (+1 guestCount, +1 peopleCount, +1
-      // rsvpYesCount) — pasa todas las demás condiciones de esa rama, pero
-      // igual debe rechazarse por superar capacity.
-      await seedEvent(testEnv, EVENT_ID, {
-        entryMode: 'open', attendeeLimitEnabled: true, capacity: 5, guestCount: 5, peopleCount: 5, rsvpYesCount: 5,
-      })
-      const publicDb = testEnv.unauthenticatedContext().firestore()
-
-      await assertFails(updateDoc(doc(publicDb, 'events', EVENT_ID), {
-        guestCount: 6,
-        peopleCount: 6,
-        rsvpYesCount: 6,
-      }))
-    })
-
-    it('should not evaluate the limit at all when attendeeLimitEnabled is absent, even with capacity spelled out', async () => {
-      // Evento legacy: tiene `capacity` (obligatorio desde siempre) pero
-      // nunca tuvo la oportunidad de activar el toggle nuevo — debe
-      // comportarse exactamente igual que antes de esta feature.
-      await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 5, guestCount: 5, peopleCount: 5 })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      const result = await registerWalkInGuest(EVENT_ID, 'Invitado Legacy Sin Límite')
-
-      expect(result.status).toBe('success')
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.peopleCount).toBe(6)
-    })
-  })
-
-  it('should create the guest and increment guestCount on a successful registerWalkInGuest', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 5, guestCount: 0 })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Nuevo')
-
-    expect(result.status).toBe('success')
-    expect(result.qrToken).toBeTruthy()
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(1)
-  })
-
-  it('should increment peopleCount by the party size on registerWalkInGuest, clamped to the event maxCompanions', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0, maxCompanions: 5 })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Con Acompañantes', undefined, undefined, undefined, 4)
-
-    expect(result.status).toBe('success')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(1)
-    expect(event?.peopleCount).toBe(4)
-  })
-
-  it('should clamp the requested party size down to the event maxCompanions instead of registering it as-is', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0, maxCompanions: 2 })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Con Muchos Acompañantes', undefined, undefined, undefined, 8)
-
-    expect(result.status).toBe('success')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    // maxCompanions: 2 -> party size máximo 3 (invitado + 2 acompañantes), no los 8 pedidos.
-    expect(event?.peopleCount).toBe(3)
-  })
-
-  it('should fall back to the legacy limit (party of 10) when the event has no maxCompanions configured', async () => {
-    // Evento anterior al campo maxCompanions: siempre permitió grupos de
-    // hasta 10 en el autoregistro (la vieja GUEST_MAX_PARTY_SIZE) — el
-    // default legacy (GUEST_LEGACY_MAX_COMPANIONS = 9 acompañantes) preserva
-    // ese comportamiento en vez de dejarlos sin acompañantes en silencio.
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0 })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Sin Límite Configurado', undefined, undefined, undefined, 4)
-
-    expect(result.status).toBe('success')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.peopleCount).toBe(4)
-  })
-
-  it('should clamp the party size to 10 on a legacy event without maxCompanions', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 50, guestCount: 0, peopleCount: 0 })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Grupo Legacy', undefined, undefined, undefined, 15)
-
-    expect(result.status).toBe('success')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.peopleCount).toBe(10)
-  })
-
-  it('should still allow no companions when maxCompanions is explicitly 0', async () => {
-    // El default legacy aplica SOLO al campo ausente — un 0 explícito (el
-    // valor con el que se crea todo evento nuevo si el organizador no lo
-    // toca) sigue significando "sin acompañantes".
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, peopleCount: 0, maxCompanions: 0 })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Sin Acompañantes', undefined, undefined, undefined, 4)
-
-    expect(result.status).toBe('success')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.peopleCount).toBe(1)
-  })
-
-  it('should register by transfer without any hold/expiry (no more apartado temporal)', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, requiresPayment: true, paymentMethods: ['transfer', 'cash'] })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Transferencia', undefined, undefined, undefined, undefined, 'transfer')
-
-    expect(result.status).toBe('success')
-    const guestId = await guestIdByToken(testEnv, EVENT_ID, result.qrToken!)
-    const guest = await getGuestDoc(testEnv, EVENT_ID, guestId)
-    expect(guest?.paymentStatus).toBe('unpaid')
-    expect(guest?.paymentMethod).toBe('transfer')
-  })
-
-  it('should register by cash the same way, without any hold/expiry', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0, requiresPayment: true, paymentMethods: ['transfer', 'cash'] })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Efectivo', undefined, undefined, undefined, undefined, 'cash')
-
-    expect(result.status).toBe('success')
-    const guestId = await guestIdByToken(testEnv, EVENT_ID, result.qrToken!)
-    const guest = await getGuestDoc(testEnv, EVENT_ID, guestId)
-    expect(guest?.paymentStatus).toBe('unpaid')
-    expect(guest?.paymentMethod).toBe('cash')
-  })
-
-  it('should store guestUid and guestPhotoURL when a logged-in user self-registers', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0 })
-    const uid = 'guest-account-uid'
-    await seedUserProfile(testEnv, uid, { photoURL: 'https://res.cloudinary.com/demo/photo.jpg' })
-    dbHolder.db = testEnv.authenticatedContext(uid).firestore()
-
-    const result = await registerWalkInGuest(
-      EVENT_ID, 'Invitado Con Cuenta', undefined, undefined, undefined, undefined, undefined,
-      uid, 'https://res.cloudinary.com/demo/photo.jpg',
-    )
-
-    expect(result.status).toBe('success')
-    const guestId = await guestIdByToken(testEnv, EVENT_ID, result.qrToken!)
-    const guest = await getGuestDoc(testEnv, EVENT_ID, guestId)
-    expect(guest?.guestUid).toBe(uid)
-    expect(guest?.guestPhotoURL).toBe('https://res.cloudinary.com/demo/photo.jpg')
-  })
-
-  it('should leave guestUid and guestPhotoURL null when registering without a session', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', capacity: 10, guestCount: 0 })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Sin Cuenta')
-
-    const guestId = await guestIdByToken(testEnv, EVENT_ID, result.qrToken!)
-    const guest = await getGuestDoc(testEnv, EVENT_ID, guestId)
-    expect(guest?.guestUid).toBeNull()
-    expect(guest?.guestPhotoURL).toBeNull()
+    await assertFails(updateDoc(doc(publicDb, 'events', EVENT_ID), {
+      guestCount: 6,
+      peopleCount: 6,
+      rsvpYesCount: 6,
+    }))
   })
 
   it('should reject a raw authenticated write that fabricates another user\'s guestUid', async () => {
@@ -402,83 +171,6 @@ describe('capacity.ts', () => {
       guestPhotoURL: 'https://evil.example.com/offensive.jpg',
       createdAt: Date.now(),
     }))
-  })
-
-  // Regresión del "Missing or insufficient permissions" en el autoregistro
-  // público: eventos creados antes de que existiera peopleCount no tienen ese
-  // campo, y la regla del update del evento leía resource.data.peopleCount a
-  // secas — leer una clave ausente en reglas es un error que deniega la
-  // transacción entera. Ver eventPeopleCountBefore en firestore.rules.
-  it('should self-register on a legacy event that has no peopleCount field, backfilling it from guestCount', async () => {
-    const legacy = defaultEventData({ entryMode: 'open', guestCount: 3 })
-    delete (legacy as Record<string, unknown>).peopleCount
-    delete (legacy as Record<string, unknown>).paidCount
-    await testEnv.withSecurityRulesDisabled(async (context) => {
-      await setDoc(doc(context.firestore(), 'events', EVENT_ID), legacy)
-    })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Legacy')
-
-    expect(result.status).toBe('success')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(4)
-    // Backfill con el mismo fallback que getEvent: peopleCount ausente ≈ guestCount.
-    expect(event?.peopleCount).toBe(4)
-  })
-
-  // Regresión: si el listener de perfil todavía no emitió cuando el usuario
-  // envía el formulario, EventJoin manda guestUid con la sesión activa pero
-  // guestPhotoURL null aunque el perfil SÍ tenga foto — antes la regla exigía
-  // igualdad exacta con users/{uid}.photoURL y denegaba el registro.
-  it('should let a logged-in user self-register without a photo even if their profile has one (profile not loaded yet)', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', guestCount: 0 })
-    const uid = 'user-foto-sin-cargar'
-    await seedUserProfile(testEnv, uid, { photoURL: 'https://res.cloudinary.com/demo/foto.jpg' })
-    dbHolder.db = testEnv.authenticatedContext(uid).firestore()
-
-    const result = await registerWalkInGuest(
-      EVENT_ID, 'Invitado Con Sesión', undefined, undefined, undefined, undefined, undefined,
-      uid, undefined,
-    )
-
-    expect(result.status).toBe('success')
-    const guest = await getGuestDoc(testEnv, EVENT_ID, await guestIdByToken(testEnv, EVENT_ID, result.qrToken!))
-    expect(guest?.guestUid).toBe(uid)
-    expect(guest?.guestPhotoURL).toBeNull()
-  })
-
-  // Regresión: cuenta autenticada SIN documento users/{uid} (p.ej. login con
-  // Google sin completar el perfil) — el get() de la regla sobre un documento
-  // inexistente es un error, así que antes denegaba el registro.
-  it('should let a logged-in user without a users/{uid} document self-register', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', guestCount: 0 })
-    const uid = 'user-sin-perfil'
-    dbHolder.db = testEnv.authenticatedContext(uid).firestore()
-
-    const result = await registerWalkInGuest(
-      EVENT_ID, 'Invitado Sin Perfil', undefined, undefined, undefined, undefined, undefined,
-      uid, undefined,
-    )
-
-    expect(result.status).toBe('success')
-    const guest = await getGuestDoc(testEnv, EVENT_ID, await guestIdByToken(testEnv, EVENT_ID, result.qrToken!))
-    expect(guest?.guestUid).toBe(uid)
-  })
-
-  // Regresión: la regla del update del evento limitaba el delta de peopleCount
-  // a +10 (copiado de una constante GUEST_MAX_PARTY_SIZE que ya no existe),
-  // pero maxCompanions puede configurarse hasta 20 (GUEST_MAX_COMPANIONS) —
-  // un grupo legítimo de 11 a 21 personas quedaba denegado.
-  it('should self-register a full party of 21 when the event allows the maximum 20 companions', async () => {
-    await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', guestCount: 0, peopleCount: 0, maxCompanions: 20 })
-    dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-    const result = await registerWalkInGuest(EVENT_ID, 'Invitado Grupo Grande', undefined, undefined, undefined, 21)
-
-    expect(result.status).toBe('success')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.peopleCount).toBe(21)
   })
 
   it('should reject a raw public write that tries to self-mark as paid or checked-in', async () => {

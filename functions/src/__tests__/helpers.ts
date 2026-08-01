@@ -99,3 +99,12 @@ export async function getGuestDoc(db: Firestore, eventId: string, guestId: strin
   const snap = await db.collection('events').doc(eventId).collection('guests').doc(guestId).get()
   return snap.data()
 }
+
+export async function getGuestContactsDoc(db: Firestore, eventId: string, guestId: string) {
+  const snap = await db.collection('events').doc(eventId).collection('guestContacts').doc(guestId).get()
+  return snap.data()
+}
+
+export async function seedUserProfile(db: Firestore, uid: string, overrides: Record<string, unknown> = {}) {
+  await db.collection('users').doc(uid).set({ photoURL: null, ...overrides })
+}

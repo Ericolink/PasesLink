@@ -1,13 +1,7 @@
-import {
-  collection,
-  doc,
-  increment,
-  runTransaction,
-  serverTimestamp,
-} from 'firebase/firestore'
-import { db } from './config'
-import { assertCapacityAvailable, fetchOfferedWaitlistCount } from './attendeeLimit'
-import { generateQrToken, resolveMaxCompanions } from './guests'
+import { doc, increment, runTransaction } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from './config'
+import { CapacityFullError } from './attendeeLimit'
 import {
   GUEST_CUSTOM_FIELD_MAX_COUNT,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
@@ -59,34 +53,26 @@ export async function walkOut(eventId: string): Promise<void> {
 }
 
 /**
- * Opción B — Crea un invitado al instante (auto-registro público). Por
- * defecto (EventData.attendeeLimitEnabled ausente/false) `capacity` sigue
- * siendo puramente informativo, igual que siempre: el registro nunca se
- * bloquea. Cuando el organizador activa el límite, esta función SÍ rechaza
- * el registro apenas peopleCount llegaría a superar capacity — ver
- * assertCapacityAvailable (src/firebase/attendeeLimit.ts) y
- * CAPACITY_LIMIT_ARCHITECTURE.md para el diseño completo (por qué se
- * reutiliza peopleCount en vez de un contador nuevo, y por qué el chequeo
- * tiene que vivir DENTRO de esta misma transacción para no poder excederse
- * ante dos registros simultáneos por el último lugar).
- * Capa de aplicación: no confiar en que la UI ya validó. `name` llega ya
- * combinado por el llamador (EventJoin) como "Nombre Apellido" — por eso se
- * valida contra el máximo combinado, no el de una sola parte. Mismos límites
- * que firestore.rules (ver isValidPublicGuestRegistration ahí).
+ * Opción B — Crea un invitado al instante (auto-registro público), vía la
+ * Callable Function `registerWalkInGuest` (functions/src/callable/
+ * registerWalkInGuest.ts) — reemplaza la transacción de cliente que existía
+ * antes acá (ver FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md, Fase A). El cálculo
+ * de cupo (incluida la cuenta de ofertas activas de lista de espera) y la
+ * validación de forma de `customData` ahora corren del lado del servidor,
+ * dentro de una única transacción con Admin SDK — dejan de ser best-effort.
  *
- * El QR/pase se crea siempre, pague o no — el gate real está en checkInGuest
- * (ver GuestData.paymentStatus, que nunca es 'paid' hasta que el organizador
- * lo confirme). Ya no existe el "apartado temporal de lugar" (cronómetro):
- * el invitado puede subir su comprobante cuando quiera, sin plazo.
+ * Validación de forma acá sigue existiendo como fail-fast de UX (evita un
+ * viaje de red para errores obvios de tipeo), pero ya no es la barrera de
+ * seguridad real — esa vive en la Cloud Function.
  *
- * ADVERTENCIA: esta función abre su propia runTransaction — no se puede
- * llamar desde dentro de otra runTransaction (p.ej. una de guests.ts), eso
- * falla en runtime y TypeScript no lo detecta porque ambas son simplemente
- * funciones que devuelven una Promise. Además, el largo POR VALOR de cada
- * campo de `customData` se valida SOLO acá (el bucle de abajo) — firestore.rules
- * no puede iterar un mapa para revisar el largo de cada valor individual, así
- * que esta es la única barrera real para ese caso. No la quites sin agregar
- * una equivalente en otro lado.
+ * `guestUid`/`guestPhotoURL` ya no los manda el cliente: la Callable los
+ * resuelve del lado del servidor a partir del uid verificado de la sesión (si
+ * la hay) y del perfil real en `users/{uid}`.
+ *
+ * httpsCallable(functions, ...) se construye DENTRO de la función (no a nivel
+ * de módulo) por el mismo motivo ya documentado en attendeeLimit.ts
+ * (fetchOfferedWaitlistCount): solo IMPORTAR este archivo (p.ej. para usar
+ * walkIn/walkOut) no debería disparar la inicialización del SDK de Functions.
  */
 export async function registerWalkInGuest(
   eventId: string,
@@ -96,25 +82,18 @@ export async function registerWalkInGuest(
   customData?: Record<string, string>,
   partySize?: number,
   paymentMethod?: PaymentMethod,
-  // Presentes solo si quien se autoregistra está logueado con una cuenta
-  // PaseLink (ver EventJoin.tsx) — permiten mostrar su foto real en vez de
-  // iniciales en la lista del organizador. Ver firestore.rules,
-  // isValidPublicGuestRegistration: guestUid debe ser el uid autenticado del
-  // propio request y guestPhotoURL debe coincidir con el de su perfil, así
-  // que mandar valores falsos acá no tiene efecto (las reglas lo rechazan).
-  guestUid?: string,
-  guestPhotoURL?: string,
+  // Ya no se usan del lado cliente (ver comentario de arriba) — se conservan
+  // en la firma para no tener que tocar el único llamador (EventJoin.tsx) en
+  // esta misma migración.
+  _guestUid?: string,
+  _guestPhotoURL?: string,
   // País (ISO alpha-2) elegido junto al teléfono — ver el mismo campo en
   // GuestData y toWhatsAppPhone (utils/phone.ts).
   phoneCountry?: string,
 ): Promise<{ status: 'success' | 'error'; qrToken?: string }> {
   const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
-  // Minúsculas: permite encontrar este contacto más tarde por igualdad
-  // exacta contra el email VERIFICADO de Firebase Auth (ver
-  // reclaimInvitationsByEmail / guestContactEmailMatches en firestore.rules),
-  // que Firestore no puede comparar sin distinguir mayúsculas en una query.
-  const trimmedEmail = email?.trim() ? requireMaxLength(email.trim().toLowerCase(), GUEST_EMAIL_MAX, 'El email') : ''
-  const trimmedPhone = phone?.trim() ? requireMaxLength(phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
+  const trimmedEmail = email?.trim() ? requireMaxLength(email.trim(), GUEST_EMAIL_MAX, 'El email') : undefined
+  const trimmedPhone = phone?.trim() ? requireMaxLength(phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : undefined
   const customEntries = Object.entries(customData || {})
   if (customEntries.length > GUEST_CUSTOM_FIELD_MAX_COUNT) {
     throw new Error('El formulario tiene demasiados campos.')
@@ -123,101 +102,32 @@ export async function registerWalkInGuest(
     requireMaxLength(value, GUEST_CUSTOM_FIELD_VALUE_MAX, 'Uno de los campos del formulario')
   }
 
-  const eventRef = doc(db, 'events', eventId)
-  // Fuera de la transacción a propósito (el SDK de cliente no puede correr
-  // una aggregate query adentro de una runTransaction) — best-effort para
-  // no pisar una oferta de lista de espera activa, no la garantía dura (ver
-  // fetchOfferedWaitlistCount en attendeeLimit.ts).
-  const offeredCount = await fetchOfferedWaitlistCount(eventId)
+  const registerWalkInGuestCallable = httpsCallable<
+    {
+      eventId: string
+      name: string
+      email?: string
+      phone?: string
+      phoneCountry?: string
+      customData?: Record<string, string>
+      partySize?: number
+      paymentMethod?: PaymentMethod
+    },
+    { status: 'success'; qrToken: string } | { status: 'full' } | { status: 'error' }
+  >(functions, 'registerWalkInGuest')
 
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(eventRef)
-    // Único motivo de fallo posible: el evento se borró entre que se cargó
-    // el formulario y se envió el registro — ya no hay ningún chequeo de cupo.
-    if (!snap.exists()) return { status: 'error' }
-    const data = snap.data()
-    const requiresPayment = (data.requiresPayment as boolean) || false
-    const resolvedMethod = requiresPayment ? paymentMethod || null : null
-    // Clampeado, no rechazado: un valor fuera de rango (incluido undefined,
-    // el caso normal para llamadores que no piden acompañantes) cae a un
-    // tamaño de grupo válido en vez de romper el registro. El techo es el
-    // límite de ESTE evento (EventData.maxCompanions), no un valor global —
-    // ver resolveMaxCompanions.
-    const maxPartySize = 1 + resolveMaxCompanions({ maxCompanions: data.maxCompanions as number | undefined })
-    const clampedPartySize = Math.min(Math.max(Math.trunc(partySize || 1), 1), maxPartySize)
-
-    // Valor absoluto calculado dentro de la transacción, NO increment(): ver
-    // el mismo criterio (y el mismo fallback a guestCount) más abajo, donde
-    // currentPeopleCount se usa para escribir peopleCount. Se calcula acá
-    // arriba para poder chequear el cupo con el valor fresco de ESTA
-    // transacción antes de decidir si el registro entra.
-    const currentGuestCountForCapacity = typeof data.guestCount === 'number' ? data.guestCount : 0
-    const currentPeopleCountForCapacity = typeof data.peopleCount === 'number' ? data.peopleCount : currentGuestCountForCapacity
-    assertCapacityAvailable(
-      {
-        attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
-        peopleCount: currentPeopleCountForCapacity,
-        capacity: data.capacity as number | undefined,
-      },
-      clampedPartySize,
-      offeredCount,
-    )
-
-    const qrToken = generateQrToken()
-    const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-    tx.set(guestRef, {
-      name: trimmedName,
-      qrToken,
-      status: 'invited',
-      rsvpStatus: 'yes',
-      // Formato numérico legacy (no array de CompanionData) — normalizeCompanions
-      // en guests.ts ya sabe traducirlo a `companions.length` al leerlo.
-      companions: clampedPartySize - 1,
-      checkedInAt: null,
-      checkedInBy: null,
-      checkedInByEmail: null,
-      checkedOutAt: null,
-      checkedOutByEmail: null,
-      exitType: null,
-      lockToken: null,
-      notes: '',
-      paymentStatus: 'unpaid',
-      paymentMethod: resolvedMethod,
-      holdExpiresAt: null,
-      customData: customData || {},
-      guestUid: guestUid || null,
-      guestPhotoURL: guestPhotoURL || null,
-      createdAt: serverTimestamp(),
-    })
-    if (trimmedEmail || trimmedPhone) {
-      tx.set(doc(db, 'events', eventId, 'guestContacts', guestRef.id), {
-        email: trimmedEmail,
-        phone: trimmedPhone,
-        ...(trimmedPhone && phoneCountry ? { phoneCountry } : {}),
-      })
-    }
-    // Valor absoluto calculado dentro de la transacción, NO increment():
-    // eventos creados antes de que existiera peopleCount no tienen ese campo,
-    // e increment() lo crearía arrancando de 0, dejando el total inconsistente
-    // con lo que la app ya muestra (getEvent en events.ts aproxima el
-    // peopleCount ausente con guestCount — mismo fallback de acá). Escribir el
-    // valor calculado backfillea el campo legacy con esa misma aproximación, y
-    // la transacción garantiza la atomicidad que antes daba increment().
-    // firestore.rules aplica este mismo fallback al validar el delta (ver
-    // eventPeopleCountBefore ahí). Reutiliza currentGuestCountForCapacity/
-    // currentPeopleCountForCapacity (ya calculados arriba para el chequeo de
-    // cupo) en vez de recalcularlos.
-    tx.update(eventRef, {
-      guestCount: currentGuestCountForCapacity + 1,
-      peopleCount: currentPeopleCountForCapacity + clampedPartySize,
-      // El invitado se crea con rsvpStatus: 'yes' más abajo (se registra a sí
-      // mismo, ya está confirmando que asiste) — increment() sí es seguro
-      // acá (a diferencia de guestCount/peopleCount arriba): es un campo
-      // nuevo, nunca tuvo la ambigüedad de "ausente vs 0" que forzó el
-      // cálculo absoluto de esos dos.
-      rsvpYesCount: increment(1),
-    })
-
-    return { status: 'success', qrToken }
+  const result = await registerWalkInGuestCallable({
+    eventId,
+    name: trimmedName,
+    email: trimmedEmail,
+    phone: trimmedPhone,
+    phoneCountry,
+    customData,
+    partySize,
+    paymentMethod,
   })
+
+  if (result.data.status === 'full') throw new CapacityFullError()
+  if (result.data.status === 'error') return { status: 'error' }
+  return { status: 'success', qrToken: result.data.qrToken }
 }
