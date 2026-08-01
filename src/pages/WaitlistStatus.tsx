@@ -72,7 +72,7 @@ export function WaitlistStatus() {
   async function handleConfirm() {
     if (!eventId || !entry?.offerToken) return
     if (needsMethodChoice && !resolvedPaymentMethod) {
-      setActionError('Elegí cómo vas a pagar antes de confirmar.')
+      setActionError('Elige cómo vas a pagar antes de confirmar.')
       return
     }
     setActionState('confirming')
@@ -136,9 +136,9 @@ export function WaitlistStatus() {
 
           {entry.status === 'waiting' && (
             <>
-              <p className="text-base font-semibold text-[var(--invite-text)] mb-2">Seguís en la lista de espera.</p>
+              <p className="text-base font-semibold text-[var(--invite-text)] mb-2">Sigues en la lista de espera.</p>
               <p className="text-sm text-[var(--invite-text-muted)]">
-                Te avisamos por email apenas se libere un lugar. Podés cerrar esta página y volver cuando quieras con el
+                Te avisamos por email apenas se libere un lugar. Puedes cerrar esta página y volver cuando quieras con el
                 mismo link.
               </p>
             </>
@@ -147,10 +147,10 @@ export function WaitlistStatus() {
           {entry.status === 'offered' && (
             <div className="text-left">
               <p className="text-base font-semibold text-[var(--invite-text)] mb-2 text-center">
-                🎉 ¡Se liberó un lugar para vos!
+                🎉 ¡Se liberó un lugar para ti!
               </p>
               <p className="text-sm text-[var(--invite-text-muted)] mb-4 text-center">
-                Confirmá tu asistencia cuando puedas. Te recomendamos hacerlo pronto: si tarda demasiado, el
+                Confirma tu asistencia cuando puedas. Te recomendamos hacerlo pronto: si tarda demasiado, el
                 organizador puede ofrecerle el lugar a la siguiente persona en la fila.
               </p>
               {needsMethodChoice && (
@@ -197,20 +197,20 @@ export function WaitlistStatus() {
 
           {entry.status === 'declined' && (
             <p className="text-sm text-[var(--invite-text-muted)]">
-              Declinaste este lugar. Si cambiaste de opinión, contactá al organizador.
+              Declinaste este lugar. Si cambiaste de opinión, contacta al organizador.
             </p>
           )}
 
           {entry.status === 'expired' && (
             <p className="text-sm text-[var(--invite-text-muted)]">
               El lugar que se liberó ya fue asignado a otra persona porque no llegamos a tu confirmación a tiempo. Si
-              querés seguir esperando, anotate de nuevo desde el link de invitación del evento.
+              quieres seguir esperando, anótate de nuevo desde el link de invitación del evento.
             </p>
           )}
 
           {entry.status === 'removed' && (
             <p className="text-sm text-[var(--invite-text-muted)]">
-              El organizador te quitó de la lista de espera. Si creés que es un error, contactalo directamente.
+              El organizador te quitó de la lista de espera. Si crees que es un error, contáctalo directamente.
             </p>
           )}
         </InvitationCard>

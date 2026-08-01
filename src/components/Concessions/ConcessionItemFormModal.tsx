@@ -62,12 +62,12 @@ export function ConcessionItemFormModal({ eventId, currency, item, nextSortOrder
     }
     const priceMinorUnits = isFree ? 0 : majorToMinorUnits(Number(priceInput) || 0)
     if (!isFree && priceMinorUnits <= 0) {
-      setFormError('Ponle un precio mayor a 0, o marcá el producto como gratis.')
+      setFormError('Ponle un precio mayor a 0, o marca el producto como gratis.')
       return
     }
     const stockInitialNumber = Number(stockInitial) || 0
     if (stockMode === 'limited' && stockInitialNumber <= 0) {
-      setFormError('Indicá cuántas unidades hay disponibles.')
+      setFormError('Indica cuántas unidades hay disponibles.')
       return
     }
 

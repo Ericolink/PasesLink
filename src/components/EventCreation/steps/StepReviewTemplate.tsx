@@ -115,7 +115,7 @@ export function StepReviewTemplate({
   return (
     <>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Última revisión. Podés editar cualquier sección — al confirmar, volvés directo acá.
+        Última revisión. Puedes editar cualquier sección — al confirmar, vuelves directo acá.
       </p>
 
       <div className="border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-100 dark:divide-gray-700 px-4 mb-5">

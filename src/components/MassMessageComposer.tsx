@@ -94,7 +94,7 @@ export function MassMessageComposer({ event, open, onClose }: Props) {
       <div className="px-5 pb-4 pt-4 overflow-y-auto space-y-5">
         {sent ? (
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Tu mensaje se está preparando, puede tardar unos minutos en salir. Podés ver el estado del envío en el historial.
+            Tu mensaje se está preparando, puede tardar unos minutos en salir. Puedes ver el estado del envío en el historial.
           </p>
         ) : (
           <>

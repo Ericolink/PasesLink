@@ -63,7 +63,7 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
   async function handleEnable() {
     setError('')
     if (!currency.trim()) {
-      setError('Poné un símbolo o código de moneda (ej. "$" o "MXN").')
+      setError('Pon un símbolo o código de moneda (ej. "$" o "MXN").')
       return
     }
     setSaving(true)
@@ -85,11 +85,11 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
   async function handleSave() {
     setError('')
     if (paymentMethods.length === 0) {
-      setError('Elegí al menos un método de cobro.')
+      setError('Elige al menos un método de cobro.')
       return
     }
     if (!currency.trim()) {
-      setError('Poné un símbolo o código de moneda (ej. "$" o "MXN").')
+      setError('Pon un símbolo o código de moneda (ej. "$" o "MXN").')
       return
     }
     setSaving(true)
@@ -131,7 +131,7 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
     return (
       <div className="space-y-4">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Activalo solo para este evento — podés ajustar todo lo demás después.
+          Actívalo solo para este evento — puedes ajustar todo lo demás después.
         </p>
         <TextField label="Nombre de la tienda" id="concessions-store-name" value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Barra de Baile Improvisado" />
         <TextField
@@ -211,7 +211,7 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
       <ConfirmDialog
         open={confirmingDisable}
         title="Desactivar módulo de menú"
-        message="Los invitados dejarán de ver la sección de menú en su invitación. El catálogo y los pedidos existentes no se borran — podés volver a activarlo cuando quieras."
+        message="Los invitados dejarán de ver la sección de menú en su invitación. El catálogo y los pedidos existentes no se borran — puedes volver a activarlo cuando quieras."
         confirmLabel="Desactivar"
         danger
         onConfirm={handleDisable}

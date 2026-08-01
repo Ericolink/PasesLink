@@ -246,7 +246,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
                 ref={textareaRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder={attachedFile ? 'Agregá un mensaje (opcional)…' : `Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
+                placeholder={attachedFile ? 'Agrega un mensaje (opcional)…' : `Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
                 rows={2}
                 maxLength={maxLength}
                 className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 bg-transparent text-[var(--invite-text)] focus:ring-[var(--invite-accent)]"

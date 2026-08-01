@@ -32,7 +32,7 @@ export function StepBasicInfo({
   return (
     <>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Solo toma 30 segundos. El resto del diseño lo personalizás en los próximos pasos.
+        Solo toma 30 segundos. El resto del diseño lo personalizas en los próximos pasos.
       </p>
 
       <div className="space-y-5">

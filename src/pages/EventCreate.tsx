@@ -382,7 +382,7 @@ export function EventCreate() {
       >
         {returnStep && (
           <p className="text-sm text-primary bg-primary/10 rounded-lg px-3 py-2.5 mb-5">
-            Estás editando desde la revisión final — al confirmar, volvés directo ahí.
+            Estás editando desde la revisión final — al confirmar, vuelves directo ahí.
           </p>
         )}
 
@@ -401,7 +401,7 @@ export function EventCreate() {
             onEndTimeChange={(v) => updateField('endTime', v)}
           />
           {form.date && isEventPast(form.date) && (
-            <p className="text-xs text-red-500 mt-1">La fecha ya pasó — elegí una fecha de hoy en adelante.</p>
+            <p className="text-xs text-red-500 mt-1">La fecha ya pasó — elige una fecha de hoy en adelante.</p>
           )}
         </WizardStep>
 

@@ -72,7 +72,7 @@ export function ConcessionCatalogPanel({ eventId, currency }: Props) {
       {visibleItems.length === 0 ? (
         <div className="text-center py-10 text-gray-400">
           <IconInbox className="w-8 h-8 mx-auto mb-2" />
-          <p className="text-sm">Agregá tu primer producto para que los invitados puedan verlo en su invitación.</p>
+          <p className="text-sm">Agrega tu primer producto para que los invitados puedan verlo en su invitación.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

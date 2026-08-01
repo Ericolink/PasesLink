@@ -163,8 +163,8 @@ export function OrganizerPassView({
           {checkInState === 'payment_required' && (
             <p className="text-sm text-amber-600 mb-3">
               {guest.paymentStatus === 'pending_confirmation'
-                ? 'Tiene un comprobante esperando revisión. Aprobalo arriba para poder registrar el ingreso.'
-                : 'Cobra la entrada y marcá el pago antes de registrar el ingreso.'}
+                ? 'Tiene un comprobante esperando revisión. Apruébalo arriba para poder registrar el ingreso.'
+                : 'Cobra la entrada y marca el pago antes de registrar el ingreso.'}
             </p>
           )}
           {checkInState === 'blocked' && (

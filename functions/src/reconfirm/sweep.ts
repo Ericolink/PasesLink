@@ -94,10 +94,10 @@ export async function sendDueReminders(db: Firestore, now: number): Promise<Send
         const result = await sendEmail({
           toEmail: email,
           toName: guest.name as string | undefined,
-          subject: `Confirmá tu asistencia a ${eventName}`,
+          subject: `Confirma tu asistencia a ${eventName}`,
           html: `<p>Hola${guest.name ? ` ${guest.name}` : ''},</p>
 <p>El organizador de <strong>${eventName}</strong> pidió reconfirmar tu asistencia.</p>
-<p>Respondé antes del plazo para no perder tu lugar.</p>
+<p>Responde antes del plazo para no perder tu lugar.</p>
 <p><a href="${PASELINK_ORIGIN}/pass/${eventDoc.id}/${guest.qrToken}">Reconfirmar mi asistencia</a></p>`,
         })
 

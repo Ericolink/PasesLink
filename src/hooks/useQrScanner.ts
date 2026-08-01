@@ -41,7 +41,7 @@ export function useQrScanner({ canAutoStart, onDecode }: Options) {
 
   async function startScanning() {
     // Evita inicializar dos instancias de Html5Qrcode en paralelo si el
-    // usuario pulsa "Reintentar"/"Activar cámara" varias veces antes de que
+    // usuario toca "Reintentar"/"Activar cámara" varias veces antes de que
     // la primera llamada a scanner.start() resuelva (sea éxito o error).
     if (startingRef.current) return
     startingRef.current = true

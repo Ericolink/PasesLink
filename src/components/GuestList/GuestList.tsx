@@ -140,7 +140,7 @@ export const GuestList = memo(function GuestList({
   maxCompanions?: number
   // true cuando `guests` ya viene reducido por búsqueda/filtro de estado (no
   // por el orden, que nunca produce cero resultados) — distingue "todavía no
-  // hay invitados" de "ninguno coincide con lo que buscás", que antes
+  // hay invitados" de "ninguno coincide con lo que buscas", que antes
   // compartían el mismo mensaje.
   hasActiveFilters?: boolean
   // Solo la mitad "hay texto de búsqueda" de hasActiveFilters: con texto
@@ -485,7 +485,7 @@ export const GuestList = memo(function GuestList({
       <ConfirmDialog
         open={!!sendingToWaitlistGuest}
         title="Enviar a lista de espera"
-        message={`"${sendingToWaitlistGuest?.name} ${sendingToWaitlistGuest?.lastName || ''}" deja de estar en la lista de invitados y su lugar queda libre — si alguien más está esperando cupo, se le ofrece automáticamente. Podés reincorporarlo desde la lista de espera si aparece más tarde.`}
+        message={`"${sendingToWaitlistGuest?.name} ${sendingToWaitlistGuest?.lastName || ''}" deja de estar en la lista de invitados y su lugar queda libre — si alguien más está esperando cupo, se le ofrece automáticamente. Puedes reincorporarlo desde la lista de espera si aparece más tarde.`}
         confirmLabel="Enviar a lista de espera"
         onConfirm={confirmSendToWaitlist}
         onCancel={() => setSendingToWaitlistGuest(null)}

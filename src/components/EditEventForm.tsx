@@ -460,12 +460,12 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     e.preventDefault()
     if (!form.name.trim() || !form.date || !form.location.trim()) return
     if (form.requiresPayment && form.paymentMethods.length === 0) {
-      setSubmitError('Elegí al menos un método de cobro.')
+      setSubmitError('Elige al menos un método de cobro.')
       setErrorAttempt((n) => n + 1)
       return
     }
     if (form.requiresPayment && !(parseFloat(form.ticketPrice) > 0)) {
-      setSubmitError('Ingresá un precio mayor a 0 para el boleto.')
+      setSubmitError('Ingresa un precio mayor a 0 para el boleto.')
       setErrorAttempt((n) => n + 1)
       return
     }
@@ -604,7 +604,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         <AccessibleField
           label={<>Link de Google Maps <span className="text-gray-400 font-normal">(opcional)</span></>}
           id="edit-event-maps-url"
-          helperText={'Si no pegás un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado y el pronóstico del clima, pega el link completo de Google Maps (desde el navegador, no el link corto).'}
+          helperText={'Si no pegas un link, el pase no mostrará el botón "Cómo llegar" — así evitamos llevar a tus invitados a un lugar incorrecto. Para ver el mapa integrado y el pronóstico del clima, pega el link completo de Google Maps (desde el navegador, no el link corto).'}
         >
           {(fieldProps) => (
             <input
@@ -855,7 +855,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
             Ya hay {event.peopleCount} asistentes, por encima de este límite. No se elimina a nadie automáticamente —
             el autorregistro y las altas manuales quedan cerrados hasta que baje de {form.capacity} por cancelaciones
-            o bajas que hagas vos mismo.
+            o bajas que hagas tú mismo.
           </p>
         )}
         <AccessibleField
@@ -908,7 +908,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                   </label>
                 ))}
               </div>
-              {form.paymentMethods.length === 0 && <FieldError message="Elegí al menos un método." />}
+              {form.paymentMethods.length === 0 && <FieldError message="Elige al menos un método." />}
             </fieldset>
             <div className="grid grid-cols-3 gap-3">
               <AccessibleField label="Precio por persona" id="edit-event-ticket-price" className="col-span-2">
@@ -946,7 +946,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
                     value={form.paymentInstructions}
                     onChange={(e) => updateField('paymentInstructions', e.target.value)}
                     rows={3}
-                    placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
+                    placeholder="Ej: Transfiere a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 )}

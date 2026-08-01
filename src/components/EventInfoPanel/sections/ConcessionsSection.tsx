@@ -42,7 +42,7 @@ export function ConcessionsSection({ event, guest, eventId, lockToken }: Props) 
   if (activeItems.length === 0 && !hasOrders) return null
 
   const summary = hasOrders
-    ? 'Seguí el estado de tu pedido'
+    ? 'Sigue el estado de tu pedido'
     : `${activeItems.length} producto${activeItems.length === 1 ? '' : 's'} disponible${activeItems.length === 1 ? '' : 's'}`
 
   return (

@@ -78,7 +78,7 @@ export function GuestEditModal({
       setSaved(true)
     } catch (err) {
       console.error('Error al guardar la edición del invitado:', err)
-      setError(err instanceof Error ? err.message : 'No se pudo guardar. Recargá la página e intentá de nuevo.')
+      setError(err instanceof Error ? err.message : 'No se pudo guardar. Recarga la página e intenta de nuevo.')
       setErrorAttempt((n) => n + 1)
     } finally {
       setSaving(false)

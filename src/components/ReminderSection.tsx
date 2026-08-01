@@ -28,7 +28,7 @@ export function ReminderSection({ event, guests }: Props) {
     const lines = pending
       .map((g) => `• ${g.name}: ${buildPassUrl(event.id, g.qrToken)}`)
       .join('\n')
-    const msg = `Recordatorio — *${event.name}*\n\nEstos invitados aún no confirmaron su asistencia:\n${lines}\n\nConfirmá tu asistencia en tu pase personal.`
+    const msg = `Recordatorio — *${event.name}*\n\nEstos invitados aún no confirmaron su asistencia:\n${lines}\n\nConfirma tu asistencia en tu pase personal.`
     navigator.clipboard.writeText(msg).then(() => {
       setBulkCopied(true)
       setTimeout(() => setBulkCopied(false), 2500)

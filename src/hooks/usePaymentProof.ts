@@ -28,7 +28,7 @@ export function usePaymentProof(
   async function handleSubmitProof() {
     if (!eventId || !guestId) return
     if (!proofNote.trim()) {
-      setProofError('Ingresá el número de referencia de tu transferencia.')
+      setProofError('Ingresa el número de referencia de tu transferencia.')
       setProofErrorAttempt((n) => n + 1)
       return
     }

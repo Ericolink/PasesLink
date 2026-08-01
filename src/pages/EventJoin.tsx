@@ -142,8 +142,8 @@ export function EventJoin() {
       }
 
       // Ya se anotó antes en la lista de espera de este evento: lo manda a
-      // su pantalla de estado (que ya sabe mostrar "seguís esperando" /
-      // "tenés una oferta" / "ya tenés un lugar") en vez de mostrarle el
+      // su pantalla de estado (que ya sabe mostrar "sigues esperando" /
+      // "tienes una oferta" / "ya tienes un lugar") en vez de mostrarle el
       // formulario de nuevo — sin importar si el evento sigue lleno o no.
       const savedWaitlist = localStorage.getItem(waitlistRegKey(id))
       if (savedWaitlist) {
@@ -211,7 +211,7 @@ export function EventJoin() {
     e.preventDefault()
     if (!id || !name.trim() || !lastName.trim()) return
     if (needsMethodChoice && !resolvedPaymentMethod) {
-      setRegError('Elegí cómo vas a pagar antes de continuar.')
+      setRegError('Elige cómo vas a pagar antes de continuar.')
       setRegErrorAttempt((n) => n + 1)
       return
     }
@@ -341,7 +341,7 @@ export function EventJoin() {
             <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-4 text-[var(--invite-accent)]" />
 
             {/* Un solo mensaje prominente en vez de dos líneas separadas
-                ("cupo completo" arriba, "podés anotarte" chiquito y suelto
+                ("cupo completo" arriba, "puedes anotarte" chiquito y suelto
                 más abajo) — el punto central de esta pantalla es "hay lista
                 de espera", no "está cerrado", así que tiene que notarse de
                 entrada, antes de que la persona vea el formulario. */}
@@ -356,7 +356,7 @@ export function EventJoin() {
                 Este evento alcanzó su capacidad máxima
               </p>
               <p className="text-sm text-gray-900">
-                Pero podés anotarte en la <strong>lista de espera</strong>: si se libera un lugar, te avisamos
+                Pero puedes anotarte en la <strong>lista de espera</strong>: si se libera un lugar, te avisamos
                 automáticamente.
               </p>
             </div>
@@ -365,7 +365,7 @@ export function EventJoin() {
               <div className="rounded-2xl border border-[var(--invite-border)] bg-[var(--invite-surface)] p-4 text-left">
                 <p className="text-sm font-semibold text-[var(--invite-text)] mb-1">✅ Te agregamos a la lista de espera.</p>
                 <p className="text-xs text-[var(--invite-text-muted)] mb-3">
-                  Te avisaremos por email si se libera un lugar. Guardá este link para consultar tu estado cuando quieras.
+                  Te avisaremos por email si se libera un lugar. Guarda este link para consultar tu estado cuando quieras.
                 </p>
                 <button
                   type="button"
@@ -489,7 +489,7 @@ export function EventJoin() {
                 ))}
 
                 {waitlistState === 'error' && (
-                  <FieldError message="No pudimos anotarte en la lista de espera. Intentá de nuevo." />
+                  <FieldError message="No pudimos anotarte en la lista de espera. Intenta de nuevo." />
                 )}
                 <button
                   type="submit"
@@ -502,7 +502,7 @@ export function EventJoin() {
             )}
 
             <p className="text-xs text-[var(--invite-text-muted)] mt-4">
-              Si ya tenés una invitación, buscala en tu correo o WhatsApp. Si creés que esto es un error, contactá al
+              Si ya tienes una invitación, búscala en tu correo o WhatsApp. Si crees que esto es un error, contacta al
               organizador.
             </p>
           </InvitationCard>
@@ -696,7 +696,7 @@ export function EventJoin() {
                   </p>
                 )}
                 {event.paymentMethods.includes('transfer') && (needsMethodChoice ? paymentMethod === 'transfer' : true) && (
-                  <p className="text-xs mt-1.5 text-[var(--invite-text-muted)]">Podés enviar tu comprobante cuando quieras después de registrarte.</p>
+                  <p className="text-xs mt-1.5 text-[var(--invite-text-muted)]">Puedes enviar tu comprobante cuando quieras después de registrarte.</p>
                 )}
               </fieldset>
             )}

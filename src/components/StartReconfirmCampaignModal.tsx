@@ -36,7 +36,7 @@ export function StartReconfirmCampaignModal({ open, eventId, guestTags, onClose,
 
   async function handleSubmit() {
     if (!deadline) {
-      setError('Elegí una fecha límite.')
+      setError('Elige una fecha límite.')
       return
     }
     setSaving(true)
@@ -66,7 +66,7 @@ export function StartReconfirmCampaignModal({ open, eventId, guestTags, onClose,
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Les pedimos a tus invitados confirmados que <strong>todavía no pagaron</strong> que reconfirmen que van a
             asistir (quien ya pagó nunca tiene que hacerlo). Quien no responda antes del plazo aparece "en riesgo" en
-            tu panel — vos decidís si liberar su lugar o darle más tiempo, nunca se libera solo.
+            tu panel — tú decides si liberar su lugar o darle más tiempo, nunca se libera solo.
           </p>
         </div>
 

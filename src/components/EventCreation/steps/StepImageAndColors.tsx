@@ -39,7 +39,7 @@ export function StepImageAndColors({
   return (
     <>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Es opcional, pero es lo primero que ven tus invitados. Podés cambiarlo en cualquier momento.
+        Es opcional, pero es lo primero que ven tus invitados. Puedes cambiarlo en cualquier momento.
       </p>
 
       <div className="space-y-5">
@@ -60,7 +60,7 @@ export function StepImageAndColors({
             Color de acento
           </label>
           <p className="text-xs text-gray-500 mb-2">
-            Se usa en botones, íconos y detalles de la invitación. Si no elegís uno, se usa el color de la plantilla.
+            Se usa en botones, íconos y detalles de la invitación. Si no eliges uno, se usa el color de la plantilla.
           </p>
           <div className="flex items-center gap-2">
             <input

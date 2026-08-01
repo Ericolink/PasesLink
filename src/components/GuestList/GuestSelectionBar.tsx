@@ -42,12 +42,12 @@ export function GuestSelectionBar({
             <button
               type="button"
               onClick={onDelete}
-              aria-label="Borrar"
-              title="Borrar"
+              aria-label="Eliminar"
+              title="Eliminar"
               className="flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors w-11 h-11 sm:w-auto sm:h-auto sm:px-3 sm:py-2"
             >
               <IconTrash className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
-              <span className="hidden sm:inline text-xs font-semibold">Borrar</span>
+              <span className="hidden sm:inline text-xs font-semibold">Eliminar</span>
             </button>
           )}
           <button

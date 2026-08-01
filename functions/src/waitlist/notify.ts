@@ -1,4 +1,4 @@
-// Notificación de "se liberó un lugar para vos" — único canal en V1 es
+// Notificación de "se liberó un lugar para ti" — único canal en V1 es
 // email (ver §10 de WAITLIST_RECONFIRMATION_ARCHITECTURE.md: WhatsApp
 // Business API queda diseñado para V2, no se construye ahora). Se llama
 // DESPUÉS de que la transacción de attemptPromote ya confirmó (nunca desde
@@ -52,10 +52,10 @@ export async function sendOfferEmail(db: Firestore, eventId: string, entryId: st
   const result = await sendEmail({
     toEmail: entry.email,
     toName: entry.name,
-    subject: `¡Se liberó un lugar para vos en ${eventName}!`,
+    subject: `¡Se liberó un lugar para ti en ${eventName}!`,
     html: `<p>Hola${entry.name ? ` ${entry.name}` : ''},</p>
-<p>Se liberó un lugar para vos en <strong>${eventName}</strong>.</p>
-<p>Confirmá tu asistencia cuando puedas desde el siguiente link. Te recomendamos hacerlo pronto: si tarda demasiado, el organizador puede ofrecerle el lugar a la siguiente persona en la fila.</p>
+<p>Se liberó un lugar para ti en <strong>${eventName}</strong>.</p>
+<p>Confirma tu asistencia cuando puedas desde el siguiente link. Te recomendamos hacerlo pronto: si tarda demasiado, el organizador puede ofrecerle el lugar a la siguiente persona en la fila.</p>
 <p><a href="${link}">Confirmar mi lugar</a></p>`,
   })
 

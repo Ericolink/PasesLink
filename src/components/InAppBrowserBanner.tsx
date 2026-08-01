@@ -27,8 +27,8 @@ export function InAppBrowserBanner({ grouped = false }: Props) {
       <p className="text-[var(--invite-text)]">Estás viendo esto desde el navegador de {appName}.</p>
       <p className="mt-0.5 text-[var(--invite-text-muted)]">
         {intentUrl
-          ? 'Para una mejor experiencia, abrí el pase en Chrome.'
-          : 'Para una mejor experiencia, tocá el menú ••• y elegí "Abrir en el navegador", o copiá el enlace y pegalo en Safari/Chrome.'}
+          ? 'Para una mejor experiencia, abre el pase en Chrome.'
+          : 'Para una mejor experiencia, toca el menú ••• y elige "Abrir en el navegador", o copia el enlace y pégalo en Safari/Chrome.'}
       </p>
       <button
         type="button"

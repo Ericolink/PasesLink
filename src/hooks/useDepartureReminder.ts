@@ -109,7 +109,7 @@ export function useDepartureReminder(event: EventData): DepartureReminderResult 
           bufferMinutes: 0,
         })
         if (!recommendation) {
-          setState({ status: 'error', message: 'No pudimos calcular tu ruta ahora. Probá de nuevo en un momento.' })
+          setState({ status: 'error', message: 'No pudimos calcular tu ruta ahora. Prueba de nuevo en un momento.' })
           return
         }
 

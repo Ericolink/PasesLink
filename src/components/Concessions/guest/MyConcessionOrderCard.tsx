@@ -29,14 +29,14 @@ interface StatusDescription {
 // FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md §4.3).
 function describeStatus(order: ConcessionOrder, fulfillment: ConcessionFulfillment | null): StatusDescription {
   if (order.paymentPhase === 'cancelled') return { label: 'Pedido cancelado', tone: 'danger' }
-  if (order.paymentPhase === 'rejected') return { label: 'Comprobante rechazado — volvé a intentarlo', tone: 'danger' }
+  if (order.paymentPhase === 'rejected') return { label: 'Comprobante rechazado — vuelve a intentarlo', tone: 'danger' }
   if (order.paymentPhase === 'awaiting_payment') return { label: 'Pendiente de pago', tone: 'neutral' }
   if (order.paymentPhase === 'proof_submitted') return { label: 'Comprobante enviado — esperando confirmación', tone: 'neutral' }
   switch (fulfillment?.fulfillmentStatus) {
     case 'preparing':
       return { label: 'En preparación', tone: 'neutral' }
     case 'ready':
-      return { label: '¡Listo! Pasá a recogerlo', tone: 'success' }
+      return { label: '¡Listo! Pasa a recogerlo', tone: 'success' }
     case 'delivered':
       return { label: 'Entregado', tone: 'success' }
     case 'cancelled':
@@ -69,7 +69,7 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
     return subscribeToConcessionOrder(eventId, orderId, (next) => {
       if (next && lastPhase.current !== null && lastPhase.current !== next.paymentPhase) {
         if (next.paymentPhase === 'confirmed') setToast({ message: '¡Tu pago fue confirmado!', tone: 'primary' })
-        else if (next.paymentPhase === 'rejected') setToast({ message: 'Tu comprobante fue rechazado — revisá el motivo.', tone: 'warning' })
+        else if (next.paymentPhase === 'rejected') setToast({ message: 'Tu comprobante fue rechazado — revisa el motivo.', tone: 'warning' })
       }
       lastPhase.current = next?.paymentPhase ?? null
       setOrder(next)
@@ -93,7 +93,7 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
 
   async function handleSubmitProof() {
     if (!note.trim()) {
-      setProofError('Ingresá el número de referencia de tu transferencia.')
+      setProofError('Ingresa el número de referencia de tu transferencia.')
       return
     }
     setSubmittingProof(true)
@@ -201,7 +201,7 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
       <ConfirmDialog
         open={confirmingCancel}
         title="Cancelar pedido"
-        message="¿Seguro que querés cancelar este pedido?"
+        message="¿Seguro que quieres cancelar este pedido?"
         confirmLabel="Cancelar pedido"
         danger
         onConfirm={handleCancel}

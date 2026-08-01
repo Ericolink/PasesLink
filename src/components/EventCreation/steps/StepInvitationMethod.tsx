@@ -168,7 +168,7 @@ export function StepInvitationMethod({
         {requiresPayment && (
           <>
             <p className="text-xs text-gray-500">
-              El pago se confirma manualmente: marcás a cada invitado como pagado desde la lista o al escanear su pase.
+              El pago se confirma manualmente: marcas a cada invitado como pagado desde la lista o al escanear su pase.
             </p>
 
             <fieldset className="border-0 p-0 m-0">
@@ -195,10 +195,10 @@ export function StepInvitationMethod({
                   </label>
                 ))}
               </div>
-              {paymentMethods.length === 0 && <FieldError message="Elegí al menos un método." />}
+              {paymentMethods.length === 0 && <FieldError message="Elige al menos un método." />}
               {paymentMethods.includes('transfer') && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Transferencia: el invitado puede subir su comprobante cuando quiera, sin límite de tiempo — vos confirmás el pago manualmente desde la lista de invitados o el escáner.
+                  Transferencia: el invitado puede subir su comprobante cuando quiera, sin límite de tiempo — tú confirmas el pago manualmente desde la lista de invitados o el escáner.
                 </p>
               )}
             </fieldset>
@@ -208,7 +208,7 @@ export function StepInvitationMethod({
                 label="Precio por persona"
                 id="event-ticket-price"
                 className="col-span-2"
-                error={!(parseFloat(ticketPrice) > 0) ? 'Ingresá un precio mayor a 0.' : null}
+                error={!(parseFloat(ticketPrice) > 0) ? 'Ingresa un precio mayor a 0.' : null}
               >
                 {(fieldProps) => (
                   <input
@@ -249,7 +249,7 @@ export function StepInvitationMethod({
                     value={paymentInstructions}
                     onChange={(e) => onPaymentInstructionsChange(e.target.value)}
                     rows={3}
-                    placeholder="Ej: Transferí a alias fiesta.maria.mp, o por Mercado Pago: https://..."
+                    placeholder="Ej: Transfiere a alias fiesta.maria.mp, o por Mercado Pago: https://..."
                     className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 )}

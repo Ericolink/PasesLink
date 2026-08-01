@@ -20,7 +20,7 @@ export function useConcessionPaymentProofPhoto() {
     e.target.value = ''
     if (!selected) return
     if (!selected.type.startsWith('image/')) {
-      setError('Elegí un archivo de imagen (JPG, PNG, captura de pantalla, etc.).')
+      setError('Elige un archivo de imagen (JPG, PNG, captura de pantalla, etc.).')
       return
     }
     if (selected.size > MAX_UPLOAD_MB * 1024 * 1024) {
@@ -41,7 +41,7 @@ export function useConcessionPaymentProofPhoto() {
   // referencia y decide cancelar. Devuelve la URL final para que el caller
   // se la pase a submitConcessionPaymentProof.
   async function upload(): Promise<string> {
-    if (!file) throw new Error('Elegí una foto del comprobante antes de enviar.')
+    if (!file) throw new Error('Elige una foto del comprobante antes de enviar.')
     setUploading(true)
     try {
       const { blob } = await resizeImageForUpload(file)

@@ -114,7 +114,7 @@ export function EventManagementPanel({ event, actions }: Props) {
         open={confirmCancelEvent}
         danger
         title={`Cancelar "${event.name}"`}
-        message="Los invitados y coanfitriones van a ver el evento marcado como cancelado. Podés reactivarlo después si fue un error."
+        message="Los invitados y coanfitriones van a ver el evento marcado como cancelado. Puedes reactivarlo después si fue un error."
         confirmLabel={updatingStatus ? 'Cancelando…' : 'Sí, cancelar evento'}
         cancelLabel="Volver"
         onConfirm={() => { void handleStatusChange('cancelled'); setConfirmCancelEvent(false) }}

@@ -598,7 +598,7 @@ function GuestPassInner() {
           {guest.reconfirmStatus === 'requested' && (
             <InlineNotice icon={<IconAlertTriangle className="w-4 h-4 text-amber-400" />}>
               <p className="text-[var(--invite-text)] font-medium">El organizador pidió reconfirmar tu asistencia.</p>
-              <p className="mt-0.5 mb-2 text-[var(--invite-text-muted)]">Respondé para no perder tu lugar.</p>
+              <p className="mt-0.5 mb-2 text-[var(--invite-text-muted)]">Responde para no perder tu lugar.</p>
               {reconfirmError && <p className="text-error text-xs mb-2">{reconfirmError}</p>}
               <button
                 type="button"
@@ -676,7 +676,7 @@ function GuestPassInner() {
                   onClick={() => setEditOpen(true)}
                   className="w-full text-left mb-3 px-3 py-2.5 rounded-lg text-sm bg-[var(--invite-accent-soft)] text-[var(--invite-accent)]"
                 >
-                  Todavía no elegiste tu menú — tocá acá para elegirlo.
+                  Todavía no elegiste tu menú — toca acá para elegirlo.
                 </button>
               )}
 
@@ -864,7 +864,7 @@ function GuestPassInner() {
                 <p className="text-sm whitespace-pre-line text-[var(--invite-text-muted)]">{event.paymentInstructions}</p>
               )}
               {guest.paymentMethod === 'cash' && (
-                <p className="text-sm text-[var(--invite-text-muted)]">Pagás en efectivo, presencialmente, el día del evento.</p>
+                <p className="text-sm text-[var(--invite-text-muted)]">Pagas en efectivo, presencialmente, el día del evento.</p>
               )}
 
               {/* "Ya pagué" — extraído a PaymentProofForm.tsx (auditoría de

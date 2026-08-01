@@ -50,7 +50,7 @@ export function WaitlistPanel({ eventId, canManage }: WaitlistPanelProps) {
       await action()
     } catch (err) {
       console.error('Error managing waitlist entry:', err)
-      setError('No se pudo completar la acción. Intentá de nuevo.')
+      setError('No se pudo completar la acción. Intenta de nuevo.')
     } finally {
       setBusyEntryId(null)
     }
@@ -124,7 +124,7 @@ export function WaitlistPanel({ eventId, canManage }: WaitlistPanelProps) {
       <ConfirmDialog
         open={!!removeTarget}
         title="¿Quitar de la lista de espera?"
-        message={`${removeTarget?.name} ya no va a poder confirmar un lugar desde este link. Podés dejar que se vuelva a anotar si querés.`}
+        message={`${removeTarget?.name} ya no va a poder confirmar un lugar desde este link. Puedes dejar que se vuelva a anotar si quieres.`}
         confirmLabel="Quitar"
         danger
         onConfirm={() => {

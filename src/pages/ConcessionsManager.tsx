@@ -63,7 +63,7 @@ export function ConcessionsManager() {
               <ConcessionCatalogPanel eventId={event.id} currency={currency} />
             ) : (
               <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
-                Activá el módulo desde "Configuración" para empezar a cargar productos.
+                Activa el módulo desde "Configuración" para empezar a cargar productos.
               </p>
             )}
           </TabPanel>
@@ -91,7 +91,7 @@ export function ConcessionsManager() {
               <ConcessionStaffPanel event={event} />
             ) : (
               <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
-                Activá el módulo desde "Configuración" para agregar encargados.
+                Activa el módulo desde "Configuración" para agregar encargados.
               </p>
             )}
           </TabPanel>

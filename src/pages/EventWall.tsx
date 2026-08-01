@@ -402,7 +402,7 @@ export function EventWall() {
 
       {!canPostWall && (
         <div className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md px-3 py-2 mb-4">
-          No tenés permiso para publicar en el muro de este evento.
+          No tienes permiso para publicar en el muro de este evento.
         </div>
       )}
 
@@ -418,7 +418,7 @@ export function EventWall() {
                 ref={textareaRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder={attachedFile ? 'Agregá un mensaje (opcional)…' : `Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
+                placeholder={attachedFile ? 'Agrega un mensaje (opcional)…' : `Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
                 rows={2}
                 maxLength={maxLength}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"
@@ -560,7 +560,7 @@ export function EventWall() {
       <ConfirmDialog
         open={!!deletingMessageId}
         title="Eliminar mensaje"
-        message="¿Borrar este mensaje? No se puede deshacer."
+        message="¿Eliminar este mensaje? No se puede deshacer."
         confirmLabel="Eliminar"
         danger
         onConfirm={confirmDeleteMessage}

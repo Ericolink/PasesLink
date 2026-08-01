@@ -182,7 +182,7 @@ export function SubmitCommunityTemplate() {
       <ScreenHeader title={editId ? 'Editar plantilla' : 'Proponer una plantilla'} backTo="/my-templates" />
       <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-6">
         Diseña un set de colores y tipografía para PaseLink. El equipo revisa cada envío antes de publicarlo en el
-        catálogo — podés guardar un borrador y volver más tarde, o mandarlo directo a revisión.
+        catálogo — puedes guardar un borrador y volver más tarde, o mandarlo directo a revisión.
       </p>
 
       <div className="grid gap-6 sm:grid-cols-[1fr_auto] sm:items-start">

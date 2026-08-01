@@ -102,7 +102,7 @@ export function subscribeToWaitlistEntry(
   )
 }
 
-// El invitado confirma la oferta ("¡Se liberó un lugar para vos!") — crea
+// El invitado confirma la oferta ("¡Se liberó un lugar para ti!") — crea
 // el guest doc real, de mayor riesgo que cualquier otra escritura de este
 // archivo, por eso vive en una Cloud Function y no acá (ver
 // functions/src/callable/confirmWaitlistOffer.ts). La oferta no vence sola
@@ -177,7 +177,7 @@ export async function moveWaitlistEntryToFront(eventId: string, entryId: string)
 
 // Solo entradas 'waiting' (ver firestore.rules, la rama de update solo
 // permite 'waiting'→'removed'). Para quitar a alguien con una oferta
-// activa, primero cancelá la oferta (cancelWaitlistOffer) — vuelve a
+// activa, primero cancela la oferta (cancelWaitlistOffer) — vuelve a
 // 'waiting' y ahí sí se puede quitar.
 export async function removeFromWaitlist(eventId: string, entryId: string): Promise<void> {
   await updateDoc(doc(db, 'events', eventId, 'waitlist', entryId), { status: 'removed' })

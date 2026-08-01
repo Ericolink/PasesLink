@@ -130,7 +130,7 @@ export function SectionsEditor({ guestTags, sections, onChangeSections, sectionV
       {guestTags.length > 0 && (
         <div className="space-y-2 pt-3 border-t border-gray-100 dark:border-gray-700">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Visibilidad de secciones existentes</p>
-          <p className="text-xs text-gray-400">Restringí a un segmento las secciones que ya usa el evento. Sin selección, quedan visibles para todos.</p>
+          <p className="text-xs text-gray-400">Restringe a un segmento las secciones que ya usa el evento. Sin selección, quedan visibles para todos.</p>
           {BUILTIN_SECTIONS.map(({ key, label }) => (
             <div key={key} className="flex flex-col gap-1">
               <span className="text-xs text-gray-600 dark:text-gray-300">{label}</span>

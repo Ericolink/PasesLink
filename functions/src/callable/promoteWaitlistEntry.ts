@@ -20,7 +20,7 @@ interface PromoteWaitlistEntryInput {
 
 export const promoteWaitlistEntry = onCall<PromoteWaitlistEntryInput>({ secrets: [brevoApiKey, brevoSenderEmail] }, async (request) => {
   if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Necesitás iniciar sesión.')
+    throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
   }
   const { eventId, entryId } = request.data || {}
   if (!eventId || !entryId) {
@@ -33,7 +33,7 @@ export const promoteWaitlistEntry = onCall<PromoteWaitlistEntryInput>({ secrets:
     throw new HttpsError('not-found', 'El evento no existe.')
   }
   if (!canManageGuests(eventSnap.data()!, request.auth.uid)) {
-    throw new HttpsError('permission-denied', 'No tenés permiso para gestionar la lista de espera de este evento.')
+    throw new HttpsError('permission-denied', 'No tienes permiso para gestionar la lista de espera de este evento.')
   }
 
   const result = await attemptPromote(db, eventId, entryId, 'manual')
@@ -42,7 +42,7 @@ export const promoteWaitlistEntry = onCall<PromoteWaitlistEntryInput>({ secrets:
       not_found: 'Esa entrada ya no existe.',
       not_waiting: 'Esa persona ya no está esperando (ya tiene una oferta, ya fue promovida, o se la quitó de la fila).',
       no_capacity: 'No hay lugar suficiente para el tamaño de este grupo.',
-      event_too_close: 'El evento está por empezar — asigná el lugar manualmente en persona en vez de ofertarlo.',
+      event_too_close: 'El evento está por empezar — asigna el lugar manualmente en persona en vez de ofertarlo.',
     }
     throw new HttpsError('failed-precondition', messages[result.reason])
   }
