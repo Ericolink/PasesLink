@@ -11,7 +11,6 @@ import {
   collection,
   deleteField,
   doc,
-  increment,
   onSnapshot,
   orderBy,
   query,
@@ -20,8 +19,9 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
-import type { DocumentReference, DocumentSnapshot, Transaction, Unsubscribe } from 'firebase/firestore'
-import { db } from './config'
+import type { Unsubscribe } from 'firebase/firestore'
+import { httpsCallable, FunctionsError } from 'firebase/functions'
+import { db, functions } from './config'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
 import type { PaymentMethod } from '../types'
 import type {
@@ -245,120 +245,39 @@ export class ConcessionCheckoutError extends Error {
   }
 }
 
-// Único punto de entrada para "pagar" el carrito. Reserva stock (decrementa
-// dentro de la MISMA transacción, ver RFC §11.2) y crea el pedido y su
-// proyección de cocina a la vez — nunca hay un instante en que exista uno sin
-// el otro. El precio y la disponibilidad se leen SIEMPRE del documento
-// fresco del catálogo (nunca del carrito local): esto es lo que resuelve de
-// raíz "cambio de precio después de agregar al carrito" y "producto
-// eliminado/agotado mientras alguien compra" (RFC §12, casos 1, 4 y 9).
+// Único punto de entrada para "pagar" el carrito — vía la Callable Function
+// `createConcessionOrder` (functions/src/callable/createConcessionOrder.ts,
+// ver FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md Fase B). El precio y la
+// disponibilidad se leen SIEMPRE del documento fresco del catálogo (nunca de
+// nada que mande el cliente) dentro de una transacción con Admin SDK — ahora
+// nadie que hable directo contra Firestore puede fabricar un total que no
+// coincida con el catálogo real (el gap que antes solo el cliente honesto
+// evitaba, sin que firestore.rules pudiera volver a verificarlo).
 export async function createConcessionOrder(eventId: string, input: CreateConcessionOrderInput): Promise<string> {
   if (input.lines.length === 0) throw new ConcessionCheckoutError('El carrito está vacío')
 
   return measureSpan('firestore.createConcessionOrder', 'db.firestore', async () => {
-    const orderRef = doc(collection(db, 'events', eventId, 'concessionsOrders'))
-    const fulfillmentRef = doc(db, 'events', eventId, 'concessionsFulfillment', orderRef.id)
-    const itemRefs = input.lines.map((line) => doc(db, 'events', eventId, 'concessionsCatalog', line.itemId))
-    // Código corto legible, no un contador incremental por evento — un
-    // contador compartido sería un documento caliente en una ráfaga de
-    // pedidos simultáneos (ver RFC §11.5). doc(collection(...)) ya genera el
-    // id localmente, sin red, así que está disponible antes de commitear.
-    const orderNumber = orderRef.id.slice(0, 6).toUpperCase()
+    const callable = httpsCallable<
+      { eventId: string } & CreateConcessionOrderInput,
+      { status: 'success'; orderId: string }
+    >(functions, 'createConcessionOrder')
 
-    await runTransaction(db, async (transaction) => {
-      const itemSnaps = await Promise.all(itemRefs.map((ref) => transaction.get(ref)))
-
-      // Una sola pasada de validación + mapeo — evita repetir snap.data() (que
-      // TypeScript solo estrecha a "no undefined" dentro del mismo closure
-      // donde se llamó exists()) en una segunda pasada separada más abajo.
-      const items = itemSnaps.map((snap, i) => {
-        const line = input.lines[i]
-        if (!snap.exists()) {
-          throw new ConcessionCheckoutError('Este producto ya no está disponible', line.itemId)
-        }
-        const item = mapConcessionItem(snap.id, snap.data())
-        if (item.status !== 'active') {
-          throw new ConcessionCheckoutError(`"${item.name}" ya no está disponible`, item.id)
-        }
-        if (item.stockMode === 'limited' && (item.stockRemaining ?? 0) < line.quantity) {
-          throw new ConcessionCheckoutError(`Solo quedan ${item.stockRemaining ?? 0} de "${item.name}"`, item.id)
-        }
-        return item
-      })
-
-      const orderLines: ConcessionOrderLine[] = []
-      const fulfillmentLines: ConcessionFulfillmentLine[] = []
-      let subtotalMinorUnits = 0
-      let itemCount = 0
-
-      items.forEach((item, i) => {
-        const quantity = input.lines[i].quantity
-        const lineTotalMinorUnits = item.priceMinorUnits * quantity
-        subtotalMinorUnits += lineTotalMinorUnits
-        itemCount += quantity
-        orderLines.push({
-          itemId: item.id,
-          nameSnapshot: item.name,
-          categorySnapshot: item.category,
-          unitPriceMinorUnitsSnapshot: item.priceMinorUnits,
-          quantity,
-          lineTotalMinorUnits,
-        })
-        fulfillmentLines.push({ nameSnapshot: item.name, categorySnapshot: item.category, quantity })
-      })
-
-      // Reserva de inventario — dentro de la misma transacción que crea el
-      // pedido, así que dos invitados compitiendo por el último producto
-      // nunca pueden agotarlo dos veces (Firestore reintenta/serializa
-      // transacciones en conflicto sobre el mismo documento).
-      items.forEach((item, i) => {
-        const quantity = input.lines[i].quantity
-        if (item.stockMode !== 'limited') {
-          transaction.update(itemRefs[i], { soldCount: increment(quantity), updatedAt: serverTimestamp() })
-          return
-        }
-        const remaining = (item.stockRemaining ?? 0) - quantity
-        transaction.update(itemRefs[i], {
-          stockRemaining: remaining,
-          soldCount: increment(quantity),
-          ...(remaining <= 0 ? { status: 'outOfStock' } : {}),
-          updatedAt: serverTimestamp(),
-        })
-      })
-
-      const isFree = subtotalMinorUnits === 0
-
-      transaction.set(orderRef, {
-        eventId,
-        guestId: input.guestId,
-        guestNameSnapshot: input.guestNameSnapshot,
-        items: orderLines,
-        subtotalMinorUnits,
-        totalMinorUnits: subtotalMinorUnits,
-        currency: input.currency,
-        itemCount,
-        paymentMethod: isFree ? null : input.paymentMethod,
-        paymentPhase: isFree ? 'confirmed' : 'awaiting_payment',
-        lockToken: input.lockToken,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        ...(isFree ? { paidAt: serverTimestamp() } : {}),
-      })
-
-      transaction.set(fulfillmentRef, {
-        eventId,
-        guestId: input.guestId,
-        guestNameSnapshot: input.guestNameSnapshot,
-        orderNumber,
-        lines: fulfillmentLines,
-        fulfillmentStatus: isFree ? 'queued' : 'not_ready',
-        lockToken: input.lockToken,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    })
-
-    return orderRef.id
+    try {
+      const result = await callable({ eventId, ...input })
+      return result.data.orderId
+    } catch (err) {
+      // La Callable manda `itemId` en `details` únicamente para los errores
+      // de negocio del checkout (stock/catálogo) — todo lo demás (evento
+      // inexistente, módulo apagado, lockToken ajeno) se deja propagar tal
+      // cual, el llamador ya lo trata como error genérico.
+      if (
+        err instanceof FunctionsError &&
+        err.details && typeof err.details === 'object' && 'itemId' in err.details
+      ) {
+        throw new ConcessionCheckoutError(err.message, (err.details as { itemId?: string }).itemId)
+      }
+      throw err
+    }
   })
 }
 
@@ -478,59 +397,22 @@ export async function rejectConcessionOrderPayment(eventId: string, orderId: str
   )
 }
 
-// Cancelación por el organizador — a diferencia de cancelOwnConcessionOrder,
-// puede aplicarse en cualquier fase anterior a 'delivered' (incluido un
-// pedido ya pagado: reembolso manual fuera de la app, ver RFC §12 caso 6) y
-// siempre libera el stock reservado.
+// Cancelación por el organizador — vía la Callable Function
+// `cancelConcessionOrder` (functions/src/callable/cancelConcessionOrder.ts,
+// ver FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md Fase B). A diferencia de
+// cancelOwnConcessionOrder, puede aplicarse en cualquier fase anterior a
+// 'delivered' (incluido un pedido ya pagado: reembolso manual fuera de la
+// app, ver RFC §12 caso 6) y siempre libera el stock reservado.
 export async function cancelConcessionOrder(
   eventId: string,
   orderId: string,
   cancelReason: ConcessionCancelReason,
-) {
-  const orderRef = doc(db, 'events', eventId, 'concessionsOrders', orderId)
-  const fulfillmentRef = doc(db, 'events', eventId, 'concessionsFulfillment', orderId)
-
-  return measureSpan('firestore.cancelConcessionOrder', 'db.firestore', () =>
-    runTransaction(db, async (transaction) => {
-      const [orderSnap, fulfillmentSnap] = await Promise.all([transaction.get(orderRef), transaction.get(fulfillmentRef)])
-      if (!orderSnap.exists()) return
-      const order = mapConcessionOrder(orderSnap.id, orderSnap.data())
-      if (order.paymentPhase === 'cancelled') return
-      if (fulfillmentSnap.exists() && fulfillmentSnap.data().fulfillmentStatus === 'delivered') return
-
-      const itemRefs = order.items.map((line) => doc(db, 'events', eventId, 'concessionsCatalog', line.itemId))
-      const itemSnaps = await Promise.all(itemRefs.map((ref) => transaction.get(ref)))
-      releaseStock(transaction, itemRefs, itemSnaps, order.items)
-
-      transaction.update(orderRef, { paymentPhase: 'cancelled', cancelReason, updatedAt: serverTimestamp() })
-      if (fulfillmentSnap.exists()) {
-        transaction.update(fulfillmentRef, { fulfillmentStatus: 'cancelled', updatedAt: serverTimestamp() })
-      }
-    }),
-  )
-}
-
-// Compartido por cancelOwnConcessionOrder/cancelConcessionOrder: devuelve al
-// catálogo la cantidad reservada por cada línea del pedido. Un ítem ya
-// archivado (o borrado en un futuro que no debería pasar, ver
-// archiveConcessionItem) no tiene a dónde devolver stock — se ignora esa
-// línea en vez de fallar la cancelación entera.
-function releaseStock(
-  transaction: Transaction,
-  itemRefs: DocumentReference[],
-  itemSnaps: DocumentSnapshot[],
-  lines: ConcessionOrderLine[],
-): void {
-  itemSnaps.forEach((snap, i) => {
-    if (!snap.exists()) return
-    const item = mapConcessionItem(snap.id, snap.data())
-    if (item.stockMode !== 'limited') return
-    const remaining = (item.stockRemaining ?? 0) + lines[i].quantity
-    transaction.update(itemRefs[i], {
-      stockRemaining: remaining,
-      ...(item.status === 'outOfStock' && remaining > 0 ? { status: 'active' } : {}),
-      updatedAt: serverTimestamp(),
-    })
+): Promise<void> {
+  return measureSpan('firestore.cancelConcessionOrder', 'db.firestore', async () => {
+    const callable = httpsCallable<{ eventId: string; orderId: string; cancelReason: ConcessionCancelReason }, { ok: boolean }>(
+      functions, 'cancelConcessionOrder',
+    )
+    await callable({ eventId, orderId, cancelReason })
   })
 }
 

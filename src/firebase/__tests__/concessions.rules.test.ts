@@ -28,12 +28,9 @@ vi.mock('../config', () => ({
 import {
   addConcessionsStaff,
   advanceConcessionFulfillment,
-  cancelConcessionOrder,
   cancelOwnConcessionOrder,
-  ConcessionCheckoutError,
   confirmConcessionOrderPayment,
   createConcessionItem,
-  createConcessionOrder,
   enableConcessionsBeta,
   removeConcessionsStaff,
   revertConcessionFulfillment,
@@ -190,123 +187,15 @@ describe('Concessions — venta de comida/bebida durante el evento', () => {
     })
   })
 
-  describe('createConcessionOrder (checkout transaccional)', () => {
-    it('reserva stock, crea el pedido y su proyección de cocina en `not_ready`', async () => {
-      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
-      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { stockMode: 'limited', stockRemaining: 10, priceMinorUnits: 3500 })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { lockTokens: [LOCK_TOKEN] })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      const orderId = await createConcessionOrder(EVENT_ID, {
-        guestId: GUEST_ID,
-        guestNameSnapshot: 'Invitado de prueba',
-        lockToken: LOCK_TOKEN,
-        currency: 'MXN',
-        paymentMethod: 'transfer',
-        lines: [{ itemId: ITEM_ID, quantity: 2 }],
-      })
-
-      const item = await getConcessionItemDoc(testEnv, EVENT_ID, ITEM_ID)
-      expect(item?.stockRemaining).toBe(8)
-      expect(item?.soldCount).toBe(2)
-
-      const order = await getConcessionOrderDoc(testEnv, EVENT_ID, orderId)
-      expect(order?.totalMinorUnits).toBe(7000)
-      expect(order?.paymentPhase).toBe('awaiting_payment')
-
-      const fulfillment = await getConcessionFulfillmentDoc(testEnv, EVENT_ID, orderId)
-      expect(fulfillment?.fulfillmentStatus).toBe('not_ready')
-    })
-
-    it('confirma pagos automáticamente y salta a `queued` cuando el pedido es 100% gratis', async () => {
-      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
-      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { priceMinorUnits: 0, stockMode: 'unlimited' })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { lockTokens: [LOCK_TOKEN] })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      const orderId = await createConcessionOrder(EVENT_ID, {
-        guestId: GUEST_ID,
-        guestNameSnapshot: 'Invitado de prueba',
-        lockToken: LOCK_TOKEN,
-        currency: 'MXN',
-        paymentMethod: null,
-        lines: [{ itemId: ITEM_ID, quantity: 1 }],
-      })
-
-      const order = await getConcessionOrderDoc(testEnv, EVENT_ID, orderId)
-      expect(order?.paymentPhase).toBe('confirmed')
-      expect(order?.paymentMethod).toBeNull()
-
-      const fulfillment = await getConcessionFulfillmentDoc(testEnv, EVENT_ID, orderId)
-      expect(fulfillment?.fulfillmentStatus).toBe('queued')
-    })
-
-    it('rechaza el checkout si no alcanza el stock, sin dejar escrituras a medias', async () => {
-      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
-      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { stockMode: 'limited', stockRemaining: 1 })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { lockTokens: [LOCK_TOKEN] })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      await expect(
-        createConcessionOrder(EVENT_ID, {
-          guestId: GUEST_ID,
-          guestNameSnapshot: 'Invitado de prueba',
-          lockToken: LOCK_TOKEN,
-          currency: 'MXN',
-          paymentMethod: 'cash',
-          lines: [{ itemId: ITEM_ID, quantity: 2 }],
-        }),
-      ).rejects.toThrow(ConcessionCheckoutError)
-
-      const item = await getConcessionItemDoc(testEnv, EVENT_ID, ITEM_ID)
-      expect(item?.stockRemaining).toBe(1) // sin cambios: la transacción entera se abortó
-    })
-
-    it('deja que exactamente uno de dos pedidos simultáneos por el último producto gane la carrera', async () => {
-      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
-      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { stockMode: 'limited', stockRemaining: 1 })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { lockTokens: [LOCK_TOKEN] })
-      await seedGuest(testEnv, EVENT_ID, OTHER_GUEST_ID, { lockTokens: [LOCK_TOKEN] })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      const attempt = (guestId: string) => createConcessionOrder(EVENT_ID, {
-        guestId,
-        guestNameSnapshot: 'Invitado de prueba',
-        lockToken: LOCK_TOKEN,
-        currency: 'MXN',
-        paymentMethod: 'cash',
-        lines: [{ itemId: ITEM_ID, quantity: 1 }],
-      })
-
-      const results = await Promise.allSettled([attempt(GUEST_ID), attempt(OTHER_GUEST_ID)])
-      const succeeded = results.filter((r) => r.status === 'fulfilled')
-      const failed = results.filter((r) => r.status === 'rejected')
-      expect(succeeded).toHaveLength(1)
-      expect(failed).toHaveLength(1)
-
-      const item = await getConcessionItemDoc(testEnv, EVENT_ID, ITEM_ID)
-      expect(item?.stockRemaining).toBe(0)
-      expect(item?.status).toBe('outOfStock')
-    })
-
-    it('rechaza el checkout si el lockToken no corresponde al invitado dueño', async () => {
-      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
-      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { stockMode: 'unlimited' })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { lockTokens: [LOCK_TOKEN] })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
-
-      await expect(
-        createConcessionOrder(EVENT_ID, {
-          guestId: GUEST_ID,
-          guestNameSnapshot: 'Invitado de prueba',
-          lockToken: 'token-ajeno',
-          currency: 'MXN',
-          paymentMethod: 'cash',
-          lines: [{ itemId: ITEM_ID, quantity: 1 }],
-        }),
-      ).rejects.toThrow()
-    })
-  })
+  // createConcessionOrder se migró a Cloud Functions (ver
+  // FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md Fase B) — cierra el gap real que
+  // documentaba el comentario de isValidConcessionOrderCreate en
+  // firestore.rules (no había forma de verificar que subtotalMinorUnits/
+  // totalMinorUnits coincidieran con el catálogo real). Los 5 tests que
+  // probaban esta función (reserva de stock, pedido gratis, stock
+  // insuficiente, carrera por el último producto, lockToken ajeno) viven
+  // ahora en functions/src/concessions/createConcessionOrder.test.ts,
+  // probados contra el emulador vía Admin SDK.
 
   describe('flujo de pago', () => {
     it('el invitado dueño puede subir su comprobante (nota + foto)', async () => {
@@ -364,43 +253,11 @@ describe('Concessions — venta de comida/bebida durante el evento', () => {
       expect(item?.stockRemaining).toBe(3)
     })
 
-    it('el organizador SÍ libera el stock reservado al cancelar un pedido', async () => {
-      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
-      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { stockMode: 'limited', stockRemaining: 3, status: 'active' })
-      await seedConcessionOrder(testEnv, EVENT_ID, 'order-1', {
-        guestId: GUEST_ID,
-        paymentPhase: 'awaiting_payment',
-        items: [{ itemId: ITEM_ID, nameSnapshot: 'Soda italiana', categorySnapshot: 'drink', unitPriceMinorUnitsSnapshot: 3500, quantity: 2, lineTotalMinorUnits: 7000 }],
-      })
-      await seedConcessionFulfillment(testEnv, EVENT_ID, 'order-1', { guestId: GUEST_ID, fulfillmentStatus: 'not_ready' })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      await cancelConcessionOrder(EVENT_ID, 'order-1', 'organizer_cancelled')
-
-      const order = await getConcessionOrderDoc(testEnv, EVENT_ID, 'order-1')
-      expect(order?.paymentPhase).toBe('cancelled')
-      const item = await getConcessionItemDoc(testEnv, EVENT_ID, ITEM_ID)
-      expect(item?.stockRemaining).toBe(5)
-      const fulfillment = await getConcessionFulfillmentDoc(testEnv, EVENT_ID, 'order-1')
-      expect(fulfillment?.fulfillmentStatus).toBe('cancelled')
-    })
-
-    it('un ítem agotado vuelve a `active` cuando el organizador cancela un pedido y libera stock', async () => {
-      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
-      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { stockMode: 'limited', stockRemaining: 0, status: 'outOfStock' })
-      await seedConcessionOrder(testEnv, EVENT_ID, 'order-1', {
-        guestId: GUEST_ID,
-        paymentPhase: 'awaiting_payment',
-        items: [{ itemId: ITEM_ID, nameSnapshot: 'Soda italiana', categorySnapshot: 'drink', unitPriceMinorUnitsSnapshot: 3500, quantity: 1, lineTotalMinorUnits: 3500 }],
-      })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      await cancelConcessionOrder(EVENT_ID, 'order-1', 'organizer_cancelled')
-
-      const item = await getConcessionItemDoc(testEnv, EVENT_ID, ITEM_ID)
-      expect(item?.stockRemaining).toBe(1)
-      expect(item?.status).toBe('active')
-    })
+    // cancelConcessionOrder (organizador, libera stock reservado) se migró a
+    // Cloud Functions (ver FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md Fase B) —
+    // los 2 tests que probaban esto (libera stock al cancelar; un ítem
+    // agotado vuelve a `active`) viven ahora en
+    // functions/src/concessions/cancelConcessionOrder.test.ts.
 
     it('un invitado no puede cancelar el pedido de otro invitado (token reconocido, pero de OTRO pase)', async () => {
       await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })

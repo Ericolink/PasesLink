@@ -108,3 +108,75 @@ export async function getGuestContactsDoc(db: Firestore, eventId: string, guestI
 export async function seedUserProfile(db: Firestore, uid: string, overrides: Record<string, unknown> = {}) {
   await db.collection('users').doc(uid).set({ photoURL: null, ...overrides })
 }
+
+export async function seedConcessionItem(
+  db: Firestore,
+  eventId: string,
+  itemId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await db.collection('events').doc(eventId).collection('concessionsCatalog').doc(itemId).set({
+    name: 'Soda italiana',
+    category: 'drink',
+    priceMinorUnits: 3500,
+    currency: 'MXN',
+    stockMode: 'unlimited',
+    soldCount: 0,
+    status: 'active',
+    sortOrder: 0,
+    ...overrides,
+  })
+}
+
+export async function getConcessionItemDoc(db: Firestore, eventId: string, itemId: string) {
+  const snap = await db.collection('events').doc(eventId).collection('concessionsCatalog').doc(itemId).get()
+  return snap.data()
+}
+
+export async function seedConcessionOrder(
+  db: Firestore,
+  eventId: string,
+  orderId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await db.collection('events').doc(eventId).collection('concessionsOrders').doc(orderId).set({
+    eventId,
+    guestId: 'guest-1',
+    guestNameSnapshot: 'Invitado de prueba',
+    items: [],
+    subtotalMinorUnits: 0,
+    totalMinorUnits: 0,
+    currency: 'MXN',
+    itemCount: 1,
+    paymentMethod: 'transfer',
+    paymentPhase: 'awaiting_payment',
+    ...overrides,
+  })
+}
+
+export async function getConcessionOrderDoc(db: Firestore, eventId: string, orderId: string) {
+  const snap = await db.collection('events').doc(eventId).collection('concessionsOrders').doc(orderId).get()
+  return snap.data()
+}
+
+export async function seedConcessionFulfillment(
+  db: Firestore,
+  eventId: string,
+  orderId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await db.collection('events').doc(eventId).collection('concessionsFulfillment').doc(orderId).set({
+    eventId,
+    guestId: 'guest-1',
+    guestNameSnapshot: 'Invitado de prueba',
+    orderNumber: 'ABC123',
+    lines: [{ nameSnapshot: 'Soda italiana', categorySnapshot: 'drink', quantity: 1 }],
+    fulfillmentStatus: 'not_ready',
+    ...overrides,
+  })
+}
+
+export async function getConcessionFulfillmentDoc(db: Firestore, eventId: string, orderId: string) {
+  const snap = await db.collection('events').doc(eventId).collection('concessionsFulfillment').doc(orderId).get()
+  return snap.data()
+}
