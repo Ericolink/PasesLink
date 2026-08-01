@@ -3,6 +3,14 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local"],
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
+    }
+  ],
   "hosting": {
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map"],
@@ -63,6 +71,9 @@
   "emulators": {
     "firestore": {
       "port": 8080
+    },
+    "functions": {
+      "port": 5001
     }
   }
 }

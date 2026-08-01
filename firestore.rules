@@ -447,6 +447,92 @@ service cloud.firestore {
         && isValidPublicGuestRegistrationData(evData, d);
     }
 
+    // Alta pública en la lista de espera (WAITLIST_RECONFIRMATION_ARCHITECTURE.md).
+    // Reemplaza el bloque `match /waitlist/{entryId}` que existía más abajo
+    // (huérfano desde que se eliminó el sistema de reserva/hold — ver el
+    // comentario que tenía, "no hay ningún camino que lleve a un invitado a
+    // esperar cupo"): ahora sí lo hay, porque el límite duro de asistentes
+    // (attendeeLimitEnabled) puede bloquear el registro.
+    //
+    // Todas las transiciones de estado que importan (waiting→offered→
+    // promoted/expired/declined, offerToken, offerExpiresAt,
+    // promotedGuestId, promotionReason) son EXCLUSIVAS de Cloud Functions
+    // (Admin SDK, ignora estas reglas) — el cliente público solo puede crear
+    // una entrada 'waiting', nunca fabricarse una oferta ni promoverse a sí
+    // mismo. Por eso esta validación es más chica que
+    // isValidPublicGuestRegistrationData: no hay tantos campos de estado que
+    // pinear porque casi ninguno es escribible por el cliente para empezar.
+    function isValidWaitlistJoinData(evData, d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 121
+        && d.partySize is int && d.partySize >= 1 && d.partySize <= evData.get('maxCompanions', 9) + 1
+        && (!('phone' in d) || (d.phone is string && d.phone.size() <= 40))
+        && (!('phoneCountry' in d) || (d.phoneCountry is string && d.phoneCountry.size() <= 2))
+        && (!('email' in d) || (d.email is string && d.email.size() <= 254))
+        // Respuestas a los campos personalizados del evento — mismo tope
+        // que isValidPublicGuestRegistrationData (customData.size() <= 30);
+        // el largo de cada valor individual no se puede validar acá (misma
+        // limitación ya documentada ahí), solo lo valida el cliente.
+        && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30))
+        && d.waitlistToken is string && d.waitlistToken.size() > 0
+        && d.status == 'waiting'
+        && d.priorityBoost == 0
+        && d.createdAt == request.time
+        && d.offerToken == null
+        && d.offerExpiresAt == null
+        && d.respondedAt == null
+        && d.promotedGuestId == null
+        && d.promotionReason == null;
+    }
+
+    // Un solo get() al evento, mismo motivo que canSelfRegisterGuest.
+    // attendeeLimitEnabled == false también bloquea: sin cupo duro no existe
+    // "lleno", así que no debería poder crearse ninguna entrada (evita ruido/
+    // abuso de una colección que en ese caso nunca la va a procesar nadie).
+    function canJoinWaitlist(eventId, d) {
+      let evData = eventDataFor(eventId);
+      return evData.entryMode in ['open', 'hybrid']
+        && evData.get('attendeeLimitEnabled', false) == true
+        && isValidWaitlistJoinData(evData, d);
+    }
+
+    // Misma forma que isValidWaitlistJoinData, salvo el tope de partySize:
+    // ahí se acota a maxCompanions+1 porque es un alta nueva de cero
+    // acompañantes; acá el invitado YA existía con ese partySize (validado
+    // cuando se lo agregó originalmente, quizás bajo otro maxCompanions o
+    // como 'familia o grupo' con su propio tope), así que no vuelve a
+    // pinearse contra el límite vigente hoy.
+    function isValidOrganizerWaitlistEntryData(d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 121
+        && d.partySize is int && d.partySize >= 1
+        && (!('phone' in d) || (d.phone is string && d.phone.size() <= 40))
+        && (!('phoneCountry' in d) || (d.phoneCountry is string && d.phoneCountry.size() <= 2))
+        && (!('email' in d) || (d.email is string && d.email.size() <= 254))
+        && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30))
+        && d.waitlistToken is string && d.waitlistToken.size() > 0
+        && d.status == 'waiting'
+        && d.priorityBoost == 0
+        && d.createdAt == request.time
+        && d.offerToken == null
+        && d.offerExpiresAt == null
+        && d.respondedAt == null
+        && d.promotedGuestId == null
+        && d.promotionReason == null;
+    }
+
+    // "Enviar a la lista de espera" (src/firebase/guests.ts,
+    // moveGuestToWaitlist): el organizador convierte a un invitado sin pagar
+    // que no llegó en una entrada de espera nueva, en vez de borrarlo del
+    // todo (deleteGuest) — libera su lugar igual, pero conserva el registro
+    // por si aparece más tarde. No exige entryMode/attendeeLimitEnabled a
+    // diferencia del alta pública: acá lo decide un organizador con permiso
+    // de gestión de invitados, no la configuración pública del evento.
+    // Gateado por 'deleteGuests' (no 'addGuests') porque siempre viaja junto
+    // al delete del guest original, en el mismo batch — mismo permiso que ya
+    // exige esa baja.
+    function canOrganizerCreateWaitlistEntry(eventId, d) {
+      return canDo(eventId, 'deleteGuests', true) && isValidOrganizerWaitlistEntryData(d);
+    }
+
     // Contadores del EVENTO tolerantes a documentos legacy: eventos creados
     // antes de que existieran estos campos no los tienen, y en reglas de
     // Firestore leer una clave ausente (resource.data.peopleCount) es un
@@ -1222,6 +1308,17 @@ service cloud.firestore {
             canDoData(eventDataFor(eventId), 'manageSeating', true) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tableId'])
           ) ||
+          // "Dar más tiempo" del organizador (ReconfirmPanel.tsx) — mismo
+          // permiso que ya gatea el resto de la gestión de invitados
+          // (addGuests, reutilizado también por la lista de espera). Vuelve
+          // a poner 'requested' con un plazo nuevo — no valida que el plazo
+          // nuevo sea mayor al viejo (el organizador puede necesitar
+          // corregir una fecha mal puesta, no solo extenderla).
+          (
+            canDoData(eventDataFor(eventId), 'addGuests', true) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reconfirmStatus', 'reconfirmDeadline']) &&
+            request.resource.data.reconfirmStatus == 'requested'
+          ) ||
           // Botón "Sí, ya pagó" del escáner (confirmPaymentAndCheckIn): marca
           // el pago Y registra el check-in en una sola escritura, así que
           // necesita AMBOS permisos a la vez (no alcanza con tener solo uno,
@@ -1235,6 +1332,20 @@ service cloud.firestore {
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&
             guestLockTokensOk(resource.data, request.resource.data.lockToken)
+          ) ||
+          // El propio invitado reconfirma su asistencia ("Sí, voy a
+          // asistir", GuestPass — ver WAITLIST_RECONFIRMATION_ARCHITECTURE.md
+          // Fase 2). Solo puede escribir 'confirmed' — 'requested'/'expired'
+          // los escribe exclusivamente la Callable/el barrido (Admin SDK,
+          // ignora esta regla) o el organizador (rama aparte, "dar más
+          // tiempo"). Sin esto, un invitado que nunca fue parte de una
+          // campaña (reconfirmStatus ausente) no tiene nada que confirmar,
+          // así que se exige que ya exista 'requested' antes.
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reconfirmStatus', 'lockToken']) &&
+            guestLockTokensOk(resource.data, request.resource.data.get('lockToken', null)) &&
+            resource.data.get('reconfirmStatus', null) == 'requested' &&
+            request.resource.data.reconfirmStatus == 'confirmed'
           ) ||
           // El propio invitado marca "ya pagué / comprobante enviado"
           // (submitPaymentProof, src/firebase/guests.ts) — solo desde un
@@ -1607,15 +1718,44 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // Funcionalidad eliminada (ver src/firebase/waitlist.ts, borrado). Ya
-      // no hay ningún camino en la app que lleve a un invitado a esperar
-      // cupo — el registro nunca se bloquea — así que no debe quedar
-      // ninguna forma de escribir acá, ni siquiera hablando directo contra
-      // Firestore. Entries viejas de antes de este cambio pueden seguir
-      // existiendo (huérfanas, invisibles) — no hace falta borrarlas, y esta
-      // regla no las afecta retroactivamente.
+      // Lista de espera (WAITLIST_RECONFIRMATION_ARCHITECTURE.md). Mismo
+      // patrón de lectura por token que `guests` (allow get: if true — el id
+      // del documento no es adivinable ni listable; allow list acotado a
+      // limit(1) habilita `where('waitlistToken','==',token)` sin permitir
+      // enumerar el resto de la fila, protegiendo la privacidad de quién más
+      // está esperando).
       match /waitlist/{entryId} {
-        allow read, write: if false;
+        allow get: if true;
+        allow list: if request.query.limit <= 1;
+        allow create: if canJoinWaitlist(eventId, request.resource.data)
+          || canOrganizerCreateWaitlistEntry(eventId, request.resource.data)
+          || isAdmin();
+        // Únicas dos escrituras que puede hacer un cliente (organizador/
+        // coanfitrión con permiso de gestión de invitados, mismo permiso que
+        // ya gatea addGuests — la lista de espera es una extensión de
+        // "gestionar invitados", no una categoría de permiso nueva): mover
+        // al frente de la fila (solo puede SUBIR priorityBoost, nunca
+        // bajarlo, y solo mientras la entrada sigue 'waiting') y quitar a
+        // alguien de la fila (waiting→removed). Todo lo demás — ofertar,
+        // vencer, promover, declinar — es exclusivo de Cloud Functions vía
+        // Admin SDK, que ignora estas reglas; por eso ninguna rama de acá
+        // abajo puede tocar `offerToken`/`offerExpiresAt`/`promotedGuestId`/
+        // `promotionReason`, ni escribir `status: 'offered'/'promoted'/
+        // 'expired'/'declined'`.
+        allow update: if (canDoData(eventDataFor(eventId), 'addGuests', true) || isAdmin())
+          && (
+            (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['priorityBoost'])
+              && resource.data.status == 'waiting'
+              && request.resource.data.priorityBoost > resource.data.priorityBoost
+            )
+            || (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+              && resource.data.status == 'waiting'
+              && request.resource.data.status == 'removed'
+            )
+          );
+        allow delete: if false;
       }
 
       match /wall/{messageId} {

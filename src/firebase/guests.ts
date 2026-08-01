@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
-import { assertCapacityAvailable, remainingCapacity } from './attendeeLimit'
+import { assertCapacityAvailable, fetchOfferedWaitlistCount, remainingCapacity } from './attendeeLimit'
 import { enqueueNotification } from './notifications'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
 import type { CompanionData, CustomField, EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
@@ -168,6 +168,10 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
     const guestRef = doc(collection(db, 'events', eventId, 'guests'))
     const payload = buildNewGuestPayload({ ...input, name, lastName })
     const size = partySize(payload)
+    // Fuera de la transacción: ver el mismo comentario en capacity.ts
+    // (registerWalkInGuest) — best-effort para no pisar una oferta de lista
+    // de espera activa.
+    const offeredCount = await fetchOfferedWaitlistCount(eventId)
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(eventRef)
       const data = (snap.data() || {}) as Record<string, unknown>
@@ -178,6 +182,7 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
           capacity: data.capacity as number | undefined,
         },
         size,
+        offeredCount,
       )
       tx.set(guestRef, payload)
       if (phone) {
@@ -233,6 +238,10 @@ export async function addGuestsBulk(eventId: string, names: string[]): Promise<B
   )
   return measureSpan('firestore.addGuestsBulk', 'db.firestore', async () => {
     const eventRef = doc(db, 'events', eventId)
+    // Una sola lectura antes de todo el lote (no una por chunk): sigue
+    // siendo best-effort, no la garantía dura — ver el mismo comentario en
+    // addGuest.
+    const offeredCount = await fetchOfferedWaitlistCount(eventId)
     let added = 0
     for (let i = 0; i < trimmedNames.length; i += BULK_CHUNK_SIZE) {
       const slice = trimmedNames.slice(i, i + BULK_CHUNK_SIZE)
@@ -247,7 +256,7 @@ export async function addGuestsBulk(eventId: string, names: string[]): Promise<B
           attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
           peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (typeof data.guestCount === 'number' ? data.guestCount : 0),
           capacity: data.capacity as number | undefined,
-        })
+        }, offeredCount)
         // null = cupo ilimitado, el chunk entra completo.
         fitCount = remaining === null ? slice.length : Math.min(slice.length, remaining)
         const fitting = slice.slice(0, fitCount)
@@ -302,6 +311,8 @@ export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[
 
   return measureSpan('firestore.addGuestsFromRows', 'db.firestore', async () => {
     const eventRef = doc(db, 'events', eventId)
+    // Ver el mismo comentario en addGuestsBulk.
+    const offeredCount = await fetchOfferedWaitlistCount(eventId)
     let added = 0
     for (let i = 0; i < validated.length; i += BULK_CHUNK_SIZE) {
       const slice = validated.slice(i, i + BULK_CHUNK_SIZE)
@@ -315,7 +326,7 @@ export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[
           attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
           peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (typeof data.guestCount === 'number' ? data.guestCount : 0),
           capacity: data.capacity as number | undefined,
-        })
+        }, offeredCount)
         fitCount = remaining === null ? slice.length : Math.min(slice.length, remaining)
         const fitting = slice.slice(0, fitCount)
         for (const row of fitting) {
@@ -375,6 +386,13 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
   if (guestFields.companions !== undefined) {
     const guestRef = doc(db, 'events', eventId, 'guests', guestId)
     const eventRef = doc(db, 'events', eventId)
+    // Fuera de la transacción: ver el mismo comentario en addGuest. Se pide
+    // siempre que `companions` esté en el input (no solo cuando termina
+    // aumentando) para no tener que decidir adentro de la transacción si
+    // hace falta o no — el costo de una lectura de más en el caso que
+    // termina bajando/igual es bajo comparado con la complejidad de pedirla
+    // condicionalmente.
+    const offeredCount = await fetchOfferedWaitlistCount(eventId)
     await runTransaction(db, async (transaction) => {
       const snap = await transaction.get(guestRef)
       if (!snap.exists()) return
@@ -410,6 +428,7 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
             capacity: eventData.capacity as number | undefined,
           },
           after - before,
+          offeredCount,
         )
       }
       transaction.update(guestRef, { ...guestFields })
@@ -559,6 +578,63 @@ export async function deleteGuest(
     updates.paidCount = increment(-size)
   }
   batch.update(doc(db, 'events', eventId), updates)
+  await batch.commit()
+}
+
+// Alternativa a deleteGuest para el día del evento: un invitado sin pagar
+// que no se presenta puede pasarse a la lista de espera en vez de
+// eliminarlo — libera su lugar igual (mismos contadores que deleteGuest,
+// dispara la cascada de la lista de espera vía onCapacityFreed) pero
+// conserva su registro por si aparece más tarde. Recibe el GuestData ya
+// cargado en memoria (phone/email ya vienen mezclados desde guestContacts
+// por subscribeToGuests) — no hace falta una lectura extra.
+export async function moveGuestToWaitlist(
+  eventId: string,
+  guest: Pick<
+    GuestData,
+    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'customData' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'
+  >,
+): Promise<void> {
+  const size = partySize(guest)
+  const fullName = `${guest.name}${guest.lastName ? ` ${guest.lastName}` : ''}`.trim()
+  const batch = writeBatch(db)
+
+  batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
+  batch.delete(contactRef(eventId, guest.id))
+  const updates: Record<string, unknown> = {
+    guestCount: increment(-1),
+    peopleCount: increment(-size),
+    [rsvpCountField(guest.rsvpStatus)]: increment(-1),
+  }
+  if (guest.status === 'checked_in') {
+    updates.checkedInCount = increment(-size)
+    if (guestPresence(guest) === 'inside') {
+      updates.occupancyCount = increment(-size)
+    }
+  }
+  if (guest.paymentStatus === 'paid') {
+    updates.paidCount = increment(-size)
+  }
+  batch.update(doc(db, 'events', eventId), updates)
+
+  batch.set(doc(collection(db, 'events', eventId, 'waitlist')), {
+    name: fullName,
+    partySize: size,
+    ...(guest.phone ? { phone: guest.phone } : {}),
+    ...(guest.phoneCountry ? { phoneCountry: guest.phoneCountry } : {}),
+    ...(guest.email ? { email: guest.email } : {}),
+    ...(guest.customData && Object.keys(guest.customData).length > 0 ? { customData: guest.customData } : {}),
+    waitlistToken: crypto.randomUUID().replace(/-/g, ''),
+    status: 'waiting',
+    priorityBoost: 0,
+    createdAt: serverTimestamp(),
+    offerToken: null,
+    offerExpiresAt: null,
+    respondedAt: null,
+    promotedGuestId: null,
+    promotionReason: null,
+  })
+
   await batch.commit()
 }
 

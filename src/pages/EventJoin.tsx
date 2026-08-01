@@ -5,6 +5,7 @@ import { subscribeToEventWithInitial } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
 import { CapacityFullError } from '../firebase/attendeeLimit'
 import { resolveMaxCompanions } from '../firebase/guests'
+import { joinWaitlist } from '../firebase/waitlist'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../components/CountryCodeSelect'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
@@ -30,7 +31,7 @@ import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { EventCountdown } from '../components/EventCountdown'
 import { formatTime12h } from '../utils/time'
-import { IconBan } from '../components/accessibility/AccessibleIcon'
+import { IconBan, IconClock } from '../components/accessibility/AccessibleIcon'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useAnnouncer } from '../components/accessibility/LiveRegion'
@@ -58,6 +59,14 @@ function regKey(eventId: string) {
   return `join_reg_${eventId}`
 }
 
+interface SavedWaitlistReg {
+  waitlistToken: string
+}
+
+function waitlistRegKey(eventId: string) {
+  return `join_waitlist_${eventId}`
+}
+
 // El pase de un invitado autoregistrado se ve y funciona igual que el de un
 // invitado agregado por lista: ambos son el mismo documento en
 // events/{eventId}/guests y ambos se muestran con GuestPass en
@@ -82,6 +91,8 @@ export function EventJoin() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
   const [regError, setRegError] = useState('')
   const [regErrorAttempt, setRegErrorAttempt] = useState(0)
+  const [waitlistState, setWaitlistState] = useState<'form' | 'submitting' | 'joined' | 'error'>('form')
+  const [waitlistToken, setWaitlistToken] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
   useFocusFirstInvalidField(formRef, regErrorAttempt)
 
@@ -127,6 +138,23 @@ export function EventJoin() {
           }
         } catch {
           localStorage.removeItem(regKey(id))
+        }
+      }
+
+      // Ya se anotó antes en la lista de espera de este evento: lo manda a
+      // su pantalla de estado (que ya sabe mostrar "seguís esperando" /
+      // "tenés una oferta" / "ya tenés un lugar") en vez de mostrarle el
+      // formulario de nuevo — sin importar si el evento sigue lleno o no.
+      const savedWaitlist = localStorage.getItem(waitlistRegKey(id))
+      if (savedWaitlist) {
+        try {
+          const reg: SavedWaitlistReg = JSON.parse(savedWaitlist)
+          if (reg.waitlistToken) {
+            navigate(`/waitlist/${id}?token=${reg.waitlistToken}`, { replace: true })
+            return
+          }
+        } catch {
+          localStorage.removeItem(waitlistRegKey(id))
         }
       }
 
@@ -256,6 +284,27 @@ export function EventJoin() {
     }
   }
 
+  // Unirse a la lista de espera reutiliza los mismos campos de estado
+  // (name/lastName/phone/phoneCountry/email/partySize) que el formulario de
+  // registro normal — nunca se muestran los dos a la vez (uno depende de
+  // `state === 'form'`, el otro de `state === 'full'`), así que no hay
+  // conflicto en compartirlos.
+  async function handleJoinWaitlist(e: React.FormEvent) {
+    e.preventDefault()
+    if (!id || !name.trim() || !lastName.trim()) return
+    setWaitlistState('submitting')
+    try {
+      const fullName = `${name.trim()} ${lastName.trim()}`
+      const { waitlistToken: token } = await joinWaitlist(id, fullName, partySize, phone, phoneCountry, email, customValues)
+      localStorage.setItem(waitlistRegKey(id), JSON.stringify({ waitlistToken: token }))
+      setWaitlistToken(token)
+      setWaitlistState('joined')
+    } catch (err) {
+      console.error('Error joining waitlist:', err)
+      setWaitlistState('error')
+    }
+  }
+
   if (state === 'loading') {
     return <CrownLoader />
   }
@@ -275,6 +324,8 @@ export function EventJoin() {
     )
   }
 
+  const customFields = event?.customFields || []
+
   if (state === 'full') {
     return (
       <InvitationThemeRoot
@@ -288,10 +339,168 @@ export function EventJoin() {
           <InvitationCard coverImage={event?.coverImage} coverAlt={event?.name} priority>
             <h1 className="text-xl font-bold mb-1">{event?.name}</h1>
             <ThemeOrnament templateId={event?.templateId} className="w-16 h-6 mx-auto mt-1 mb-4 text-[var(--invite-accent)]" />
-            <p className="text-base font-semibold text-[var(--invite-text)] mb-2">
-              Este evento ya alcanzó el número máximo de asistentes.
-            </p>
-            <p className="text-sm text-[var(--invite-text-muted)]">Cupo completo · Registro cerrado</p>
+
+            {/* Un solo mensaje prominente en vez de dos líneas separadas
+                ("cupo completo" arriba, "podés anotarte" chiquito y suelto
+                más abajo) — el punto central de esta pantalla es "hay lista
+                de espera", no "está cerrado", así que tiene que notarse de
+                entrada, antes de que la persona vea el formulario. */}
+            {/* Texto en negro fijo (no --invite-text, que en algunos temas
+                sale blanco): bg-accent-soft puede resultar en un azul poco
+                claro según la plantilla, y blanco sobre azul saturado no se
+                distingue — negro fijo garantiza contraste sin depender del
+                tema. */}
+            <div className="rounded-2xl border-2 border-[var(--invite-accent)] bg-[var(--invite-accent-soft)] p-4 mb-5">
+              <IconClock className="w-8 h-8 mx-auto mb-2 text-[var(--invite-accent)]" />
+              <p className="text-base font-bold text-gray-900 mb-1">
+                Este evento alcanzó su capacidad máxima
+              </p>
+              <p className="text-sm text-gray-900">
+                Pero podés anotarte en la <strong>lista de espera</strong>: si se libera un lugar, te avisamos
+                automáticamente.
+              </p>
+            </div>
+
+            {waitlistState === 'joined' ? (
+              <div className="rounded-2xl border border-[var(--invite-border)] bg-[var(--invite-surface)] p-4 text-left">
+                <p className="text-sm font-semibold text-[var(--invite-text)] mb-1">✅ Te agregamos a la lista de espera.</p>
+                <p className="text-xs text-[var(--invite-text-muted)] mb-3">
+                  Te avisaremos por email si se libera un lugar. Guardá este link para consultar tu estado cuando quieras.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => id && waitlistToken && navigate(`/waitlist/${id}?token=${waitlistToken}`)}
+                  className="w-full text-white rounded-full py-3 font-bold text-sm hover:opacity-90 active:scale-[.98] transition-all bg-[var(--invite-accent)]"
+                >
+                  Ver mi estado en la lista de espera
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleJoinWaitlist} className="space-y-3 text-left">
+                <p className={`${labelClass} text-center normal-case`}>Anotarme en la lista de espera</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <AccessibleField label="Tu nombre" required labelClassName={labelClass}>
+                    {(fieldProps) => (
+                      <input
+                        {...fieldProps}
+                        type="text"
+                        autoComplete="given-name"
+                        maxLength={GUEST_NAME_PART_MAX}
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Ana"
+                        className={inputClass}
+                      />
+                    )}
+                  </AccessibleField>
+                  <AccessibleField label="Apellido" required labelClassName={labelClass}>
+                    {(fieldProps) => (
+                      <input
+                        {...fieldProps}
+                        type="text"
+                        autoComplete="family-name"
+                        maxLength={GUEST_NAME_PART_MAX}
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="García"
+                        className={inputClass}
+                      />
+                    )}
+                  </AccessibleField>
+                </div>
+                <fieldset className="border-0 p-0 m-0">
+                  <legend className={labelClass}>¿Cuántos son? <span className="font-normal normal-case">(incluyéndote)</span></legend>
+                  <div className="flex items-center justify-between rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] px-2 py-1">
+                    <button
+                      type="button"
+                      onClick={() => setPartySize(Math.max(partySize - 1, 1))}
+                      disabled={partySize <= 1}
+                      aria-label="Restar acompañante"
+                      className="w-11 h-11 shrink-0 rounded-full text-xl font-bold text-[var(--invite-text)] disabled:opacity-30 active:bg-[var(--invite-accent-soft)] transition-colors"
+                    >
+                      −
+                    </button>
+                    <span className="text-base font-semibold text-[var(--invite-text)] tabular-nums">{partySize}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPartySize(Math.min(partySize + 1, maxPartySize))}
+                      disabled={partySize >= maxPartySize}
+                      aria-label="Sumar acompañante"
+                      className="w-11 h-11 shrink-0 rounded-full text-xl font-bold text-[var(--invite-text)] disabled:opacity-30 active:bg-[var(--invite-accent-soft)] transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                </fieldset>
+                <AccessibleField label={<>Teléfono <span className="font-normal normal-case">(opcional)</span></>} labelClassName={labelClass}>
+                  {(fieldProps) => (
+                    <div className="flex items-center gap-1.5">
+                      <CountryCodeSelect
+                        value={phoneCountry}
+                        onChange={setPhoneCountry}
+                        aria-label="País del teléfono"
+                        className="rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
+                      />
+                      <input
+                        {...fieldProps}
+                        type="tel"
+                        autoComplete="tel"
+                        maxLength={GUEST_PHONE_MAX}
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="656 123 4567"
+                        className={`flex-1 min-w-0 ${inputClass}`}
+                      />
+                    </div>
+                  )}
+                </AccessibleField>
+                <AccessibleField
+                  label={<>Email <span className="font-normal normal-case">(recomendado, para avisarte si se libera un lugar)</span></>}
+                  labelClassName={labelClass}
+                >
+                  {(fieldProps) => (
+                    <input
+                      {...fieldProps}
+                      type="email"
+                      autoComplete="email"
+                      inputMode="email"
+                      maxLength={GUEST_EMAIL_MAX}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="tu@email.com"
+                      className={inputClass}
+                    />
+                  )}
+                </AccessibleField>
+
+                {customFields.map((field) => (
+                  <AccessibleField key={field.id} label={field.label} required={field.required} labelClassName={labelClass}>
+                    {(fieldProps) => (
+                      <CustomFieldInput
+                        field={field}
+                        fieldProps={fieldProps}
+                        maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
+                        value={customValues[field.id] || ''}
+                        onChange={(v) => setCustomValues((cv) => ({ ...cv, [field.id]: v }))}
+                        className={inputClass}
+                      />
+                    )}
+                  </AccessibleField>
+                ))}
+
+                {waitlistState === 'error' && (
+                  <FieldError message="No pudimos anotarte en la lista de espera. Intentá de nuevo." />
+                )}
+                <button
+                  type="submit"
+                  disabled={waitlistState === 'submitting'}
+                  className="w-full text-white rounded-full py-3.5 font-bold text-base hover:opacity-90 active:scale-[.98] transition-all disabled:opacity-50 bg-[var(--invite-accent)]"
+                >
+                  {waitlistState === 'submitting' ? 'Anotando…' : 'Unirme a la lista de espera'}
+                </button>
+              </form>
+            )}
+
             <p className="text-xs text-[var(--invite-text-muted)] mt-4">
               Si ya tenés una invitación, buscala en tu correo o WhatsApp. Si creés que esto es un error, contactá al
               organizador.
@@ -301,8 +510,6 @@ export function EventJoin() {
       </InvitationThemeRoot>
     )
   }
-
-  const customFields = event?.customFields || []
 
   return (
     <InvitationThemeRoot

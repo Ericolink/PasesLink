@@ -1,0 +1,79 @@
+// Harness de tests para Cloud Functions: Admin SDK contra el emulador de
+// Firestore (FIRESTORE_EMULATOR_HOST), mismo principio que scripts/*.mjs —
+// nunca contra producción. A diferencia de src/firebase/__tests__/helpers.ts
+// (que usa @firebase/rules-unit-testing para poder probar las Security
+// Rules), acá no hace falta esa librería: el Admin SDK siempre ignora las
+// rules, que es exactamente el privilegio real que van a tener las Cloud
+// Functions en producción.
+import { randomUUID } from 'node:crypto'
+import { getApps, initializeApp } from 'firebase-admin/app'
+import { getFirestore, type Firestore } from 'firebase-admin/firestore'
+
+const PROJECT_ID = 'demo-paselink-test'
+
+// Mismo patrón que scripts/send-notifications.mjs: sin credenciales cuando
+// FIRESTORE_EMULATOR_HOST está seteado, el emulador no las pide.
+export function getTestFirestore(): Firestore {
+  if (getApps().length === 0) {
+    if (!process.env.FIRESTORE_EMULATOR_HOST) {
+      throw new Error('FIRESTORE_EMULATOR_HOST no está seteado — correr vía `npm run test:functions` (raíz), no directo.')
+    }
+    initializeApp({ projectId: PROJECT_ID })
+  }
+  return getFirestore()
+}
+
+// Limpia todos los documentos del proyecto emulado entre tests — mismo rol
+// que testEnv.clearFirestore() en los tests de rules, vía el endpoint REST
+// que expone el propio emulador (no hay equivalente en el Admin SDK).
+export async function clearFirestoreEmulator(): Promise<void> {
+  const host = process.env.FIRESTORE_EMULATOR_HOST
+  if (!host) return
+  await fetch(`http://${host}/emulator/v1/projects/${PROJECT_ID}/databases/(default)/documents`, { method: 'DELETE' })
+}
+
+export function uniqueId(prefix: string): string {
+  return `${prefix}-${randomUUID()}`
+}
+
+export async function seedEvent(db: Firestore, eventId: string, overrides: Record<string, unknown> = {}) {
+  await db.collection('events').doc(eventId).set({
+    ownerId: 'owner-uid',
+    name: 'Evento de prueba',
+    date: '2999-01-01',
+    location: 'Salón de prueba',
+    entryMode: 'open',
+    attendeeLimitEnabled: true,
+    capacity: 10,
+    guestCount: 0,
+    peopleCount: 0,
+    ...overrides,
+  })
+}
+
+export async function seedWaitlistEntry(
+  db: Firestore,
+  eventId: string,
+  entryId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await db.collection('events').doc(eventId).collection('waitlist').doc(entryId).set({
+    name: 'Invitado en espera',
+    partySize: 1,
+    waitlistToken: entryId,
+    status: 'waiting',
+    priorityBoost: 0,
+    createdAt: Date.now(),
+    offerToken: null,
+    offerExpiresAt: null,
+    respondedAt: null,
+    promotedGuestId: null,
+    promotionReason: null,
+    ...overrides,
+  })
+}
+
+export async function getWaitlistEntry(db: Firestore, eventId: string, entryId: string) {
+  const snap = await db.collection('events').doc(eventId).collection('waitlist').doc(entryId).get()
+  return snap.data()
+}

@@ -15,6 +15,8 @@ import { useEventLifecycleActions } from '../hooks/useEventLifecycleActions'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
+import { WaitlistPanel } from '../components/WaitlistPanel'
+import { ReconfirmPanel } from '../components/ReconfirmPanel'
 import { GuestList } from '../components/GuestList'
 import { GuestSearchSheet } from '../components/GuestSearchSheet'
 import { EditEventForm } from '../components/EditEventForm'
@@ -485,6 +487,23 @@ export function EventDetail() {
         )
       )}
 
+      {/* Lista de espera (WAITLIST_RECONFIRMATION_ARCHITECTURE.md) — solo
+          tiene sentido con el límite duro activado, y se oculta sola (sin
+          renderizar nada) si todavía no hay ninguna entrada, mismo criterio
+          de "no molestar a quien no usa la feature" que el resto de esta
+          página. */}
+      {event.attendeeLimitEnabled && perms.viewGuestList && (
+        <WaitlistPanel eventId={event.id} canManage={perms.addGuests} />
+      )}
+
+      {/* Reconfirmación (WAITLIST_RECONFIRMATION_ARCHITECTURE.md Fase 2) —
+          no depende del límite de asistentes (a diferencia de la lista de
+          espera): cualquier evento puede querer recuperar lugares de gente
+          que confirmó pero probablemente no va a venir. */}
+      {perms.viewGuestList && (
+        <ReconfirmPanel eventId={event.id} event={event} guests={guests} canManage={perms.addGuests} />
+      )}
+
       {/* ── GESTIÓN DE INVITADOS ── */}
       {/* Toda la card queda detrás de viewGuestList: un coanfitrión sin ese
           permiso (ej. solo scanQr) nunca se suscribe a un dato que igual no
@@ -608,6 +627,7 @@ export function EventDetail() {
             canEditGuests={perms.editGuests}
             canConfirmPayments={perms.confirmPayments}
             canDeleteGuests={perms.deleteGuests}
+            attendeeLimitEnabled={event.attendeeLimitEnabled}
           />
         </div>
       </div>

@@ -431,6 +431,22 @@ export interface EventData {
   rsvpDeadline?: string
   remindersEnabled?: boolean
   reminderRules?: ReminderRule[]
+  // Campaña de reconfirmación de asistencia (ver
+  // WAITLIST_RECONFIRMATION_ARCHITECTURE.md, Fase 2) — solo la campaña
+  // ACTIVA/última, no un historial (una por vez, se reemplaza al relanzar).
+  // Ausente = el evento nunca inició una. reminderRules reutiliza el mismo
+  // tipo que reminderRules de arriba (mismo componente de UI,
+  // ReminderRulesEditor.tsx, mismo motor de envío en functions/).
+  reconfirmCampaign?: {
+    startedAt: number
+    deadline: number
+    // Siempre se les pide reconfirmar a invitados confirmados (rsvpStatus
+    // 'yes') que todavía no pagaron — sin excepción ni opción para incluir
+    // a quien ya pagó (decisión explícita: más simple que el diseño
+    // original, que permitía incluirlos).
+    excludeTagIds?: string[]
+    reminderRules: ReminderRule[]
+  }
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus
@@ -671,6 +687,66 @@ export interface GuestData {
   guestUid?: string | null
   guestPhotoURL?: string | null
   createdAt: number
+  // Reconfirmación de asistencia (ver WAITLIST_RECONFIRMATION_ARCHITECTURE.md,
+  // Fase 2). Ausente = nunca fue parte de ninguna campaña. 'requested' lo
+  // escribe la Callable que arranca la campaña o "dar más tiempo" del
+  // organizador; 'confirmed' solo lo puede escribir el propio invitado
+  // (autoservicio por lockToken); 'expired' solo el barrido diario
+  // (Admin SDK) cuando vence reconfirmDeadline sin respuesta — nunca se
+  // libera el lugar automáticamente al llegar acá, es un estado "en
+  // riesgo" que el organizador resuelve a mano (liberar o dar más tiempo).
+  reconfirmStatus?: 'requested' | 'confirmed' | 'expired'
+  reconfirmDeadline?: number | null
+}
+
+// Entrada en la lista de espera de un evento con cupo lleno (ver
+// WAITLIST_RECONFIRMATION_ARCHITECTURE.md) — vive en
+// events/{eventId}/waitlist/{entryId}, separada de `guests`: todo documento
+// en `guests` tiene un lugar confirmado, invariante que mantiene simple el
+// conteo de peopleCount (nunca hay que filtrar entradas de waitlist).
+export type WaitlistEntryStatus = 'waiting' | 'offered' | 'promoted' | 'declined' | 'expired' | 'removed'
+
+export interface WaitlistEntryData {
+  id: string
+  name: string
+  partySize: number
+  phone?: string
+  phoneCountry?: string
+  email?: string
+  // Respuestas a los campos personalizados del evento (EventData.customFields)
+  // — el formulario de lista de espera pide exactamente los mismos campos
+  // que el registro normal (EventJoin.tsx), incluidos los obligatorios. Se
+  // copia tal cual al crear el guest doc al confirmar la oferta (ver
+  // functions/src/callable/confirmWaitlistOffer.ts).
+  customData?: Record<string, string>
+  // Larga vida (dura toda la espera) — solo habilita LEER el estado de esta
+  // entrada. Separado de offerToken a propósito: un link reenviado o
+  // cacheado semanas después de anotarse no debe poder reclamar un lugar
+  // real, solo consultar posición/estado. Mismo principio que llevó a
+  // separar lockToken en lockTokens[] en guests.
+  waitlistToken: string
+  status: WaitlistEntryStatus
+  // 0 por defecto. "Mover al frente de la fila" = escribir un valor mayor al
+  // máximo actual entre las 'waiting' — una sola escritura, sin reordenar el
+  // resto de la fila (importa a partir de cientos/miles de entradas). Orden
+  // real: status=='waiting' ORDER BY priorityBoost DESC, createdAt ASC.
+  priorityBoost: number
+  createdAt: number
+  // Corta vida — generado por Cloud Functions solo al pasar a 'offered',
+  // exigido para confirmar/declinar esa oferta puntual. Vencida o resuelta
+  // la oferta, deja de servir para siempre (a diferencia de waitlistToken).
+  offerToken: string | null
+  offerExpiresAt: number | null
+  // Cuándo se resolvió la oferta activa (confirmó/declinó/venció) — gratis
+  // de capturar, útil para métricas futuras (tiempo de respuesta) sin
+  // necesitar una colección de auditoría aparte.
+  respondedAt: number | null
+  promotedGuestId: string | null
+  // 'fifo' = la cascada automática le tocaba por orden; 'manual' = el
+  // organizador la asignó saltando el orden. Responde, sin tener que
+  // reconstruirlo a partir de timestamps, la pregunta de soporte "¿por qué a
+  // esta persona sí y a la que se anotó antes no?".
+  promotionReason: 'fifo' | 'manual' | null
 }
 
 // 'entry_blocked': intento de ingreso rechazado por checkInGuest (hoy solo el

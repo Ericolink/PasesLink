@@ -6,6 +6,7 @@ import {
   persistentMultipleTabManager,
   memoryLocalCache,
 } from 'firebase/firestore'
+import { getFunctions } from 'firebase/functions'
 import { captureException } from '../lib/sentry'
 import { cleanEnv } from '../utils/env'
 
@@ -65,6 +66,10 @@ function createDb() {
 
 export const db = createDb()
 export const googleProvider = new GoogleAuthProvider()
+// Primer uso de Cloud Functions del proyecto (Callable Functions, ver
+// WAITLIST_RECONFIRMATION_ARCHITECTURE.md) — recién posible desde que el
+// proyecto pasó a Blaze.
+export const functions = getFunctions(app)
 
 // App Check (anti-bot): solo se activa si hay site key configurada. Sin esto,
 // los formularios públicos (wall, auto-registro) quedan sin esa capa.

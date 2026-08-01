@@ -13,6 +13,13 @@ vi.mock('../config', () => ({
   },
 }))
 
+// fetchOfferedWaitlistCount llama a una Callable Function — ver el mismo
+// mock, con el mismo motivo, en guests.test.ts.
+vi.mock('../attendeeLimit', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../attendeeLimit')>()
+  return { ...actual, fetchOfferedWaitlistCount: vi.fn().mockResolvedValue(0) }
+})
+
 import { registerWalkInGuest, walkIn, walkOut } from '../capacity'
 import { CapacityFullError } from '../attendeeLimit'
 import { checkInGuest } from '../guests'

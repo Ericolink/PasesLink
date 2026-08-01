@@ -144,6 +144,48 @@ export async function seedGuestContact(
   })
 }
 
+export async function seedWaitlistEntry(
+  testEnv: RulesTestEnvironment,
+  eventId: string,
+  entryId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'events', eventId, 'waitlist', entryId), {
+      name: 'Invitado en espera',
+      partySize: 1,
+      waitlistToken: entryId,
+      status: 'waiting',
+      priorityBoost: 0,
+      createdAt: Date.now(),
+      offerToken: null,
+      offerExpiresAt: null,
+      respondedAt: null,
+      promotedGuestId: null,
+      promotionReason: null,
+      ...overrides,
+    })
+  })
+}
+
+export async function getWaitlistDoc(testEnv: RulesTestEnvironment, eventId: string, entryId: string) {
+  let result: Record<string, unknown> | undefined
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const snap = await getDoc(doc(context.firestore(), 'events', eventId, 'waitlist', entryId))
+    result = snap.data()
+  })
+  return result
+}
+
+export async function getWaitlistEntries(testEnv: RulesTestEnvironment, eventId: string) {
+  let result: Record<string, unknown>[] = []
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const snap = await getDocs(collection(context.firestore(), 'events', eventId, 'waitlist'))
+    result = snap.docs.map((d) => d.data())
+  })
+  return result
+}
+
 export async function seedAdmin(testEnv: RulesTestEnvironment, uid: string) {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), 'admins', uid), { addedAt: Date.now() })

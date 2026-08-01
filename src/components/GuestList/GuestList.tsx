@@ -5,6 +5,7 @@ import {
   bulkSetGuestPaymentStatus,
   bulkSetGuestTags,
   deleteGuest,
+  moveGuestToWaitlist,
   resetGuestRsvp,
   setGuestPaymentStatus,
   unlockGuestPass,
@@ -124,6 +125,7 @@ export const GuestList = memo(function GuestList({
   canEditGuests = true,
   canConfirmPayments = true,
   canDeleteGuests = true,
+  attendeeLimitEnabled = false,
 }: {
   eventId: string
   eventName: string
@@ -149,11 +151,13 @@ export const GuestList = memo(function GuestList({
   canEditGuests?: boolean
   canConfirmPayments?: boolean
   canDeleteGuests?: boolean
+  attendeeLimitEnabled?: boolean
 }) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deletingGuest, setDeletingGuest] = useState<GuestData | null>(null)
   const [unlockingGuest, setUnlockingGuest] = useState<GuestData | null>(null)
   const [reentryGuest, setReentryGuest] = useState<GuestData | null>(null)
+  const [sendingToWaitlistGuest, setSendingToWaitlistGuest] = useState<GuestData | null>(null)
   const [detailGuest, setDetailGuest] = useState<GuestData | null>(null)
   const [actionError, setActionError] = useState('')
   const [visibleCount, setVisibleCount] = useState(GUEST_LIST_PAGE_SIZE)
@@ -329,6 +333,20 @@ export const GuestList = memo(function GuestList({
     }
   }
 
+  async function confirmSendToWaitlist() {
+    if (!sendingToWaitlistGuest) return
+    setActionError('')
+    try {
+      await moveGuestToWaitlist(eventId, sendingToWaitlistGuest)
+      announce(`Enviado a la lista de espera: ${sendingToWaitlistGuest.name}`)
+    } catch (err) {
+      console.error('Error sending guest to waitlist:', err)
+      setActionError('No se pudo enviar a la lista de espera. Intenta de nuevo.')
+    } finally {
+      setSendingToWaitlistGuest(null)
+    }
+  }
+
   function exitSelectMode() {
     setSelectMode(false)
     setSelected(new Set())
@@ -441,6 +459,7 @@ export const GuestList = memo(function GuestList({
         canEditGuests={canEditGuests}
         canConfirmPayments={canConfirmPayments}
         canDeleteGuests={canDeleteGuests}
+        attendeeLimitEnabled={attendeeLimitEnabled}
         onClose={() => setDetailGuest(null)}
         onShare={handleShare}
         onResend={handleResend}
@@ -451,6 +470,7 @@ export const GuestList = memo(function GuestList({
         onRequestUnlock={(guest) => { setDetailGuest(null); setUnlockingGuest(guest) }}
         onRequestReentry={(guest) => { setDetailGuest(null); setReentryGuest(guest) }}
         onReactivate={handleReactivate}
+        onRequestSendToWaitlist={(guest) => { setDetailGuest(null); setSendingToWaitlistGuest(guest) }}
       />
 
       <ConfirmDialog
@@ -461,6 +481,14 @@ export const GuestList = memo(function GuestList({
         danger
         onConfirm={confirmDelete}
         onCancel={() => setDeletingGuest(null)}
+      />
+      <ConfirmDialog
+        open={!!sendingToWaitlistGuest}
+        title="Enviar a lista de espera"
+        message={`"${sendingToWaitlistGuest?.name} ${sendingToWaitlistGuest?.lastName || ''}" deja de estar en la lista de invitados y su lugar queda libre — si alguien más está esperando cupo, se le ofrece automáticamente. Podés reincorporarlo desde la lista de espera si aparece más tarde.`}
+        confirmLabel="Enviar a lista de espera"
+        onConfirm={confirmSendToWaitlist}
+        onCancel={() => setSendingToWaitlistGuest(null)}
       />
       <ConfirmDialog
         open={!!unlockingGuest}

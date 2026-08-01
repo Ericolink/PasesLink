@@ -56,6 +56,31 @@
         { "fieldPath": "fulfillmentStatus", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "waitlist",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "priorityBoost", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "waitlist",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "offerExpiresAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "guests",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "reconfirmStatus", "order": "ASCENDING" },
+        { "fieldPath": "reconfirmDeadline", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

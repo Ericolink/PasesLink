@@ -6,7 +6,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from './config'
-import { assertCapacityAvailable } from './attendeeLimit'
+import { assertCapacityAvailable, fetchOfferedWaitlistCount } from './attendeeLimit'
 import { generateQrToken, resolveMaxCompanions } from './guests'
 import {
   GUEST_CUSTOM_FIELD_MAX_COUNT,
@@ -124,6 +124,11 @@ export async function registerWalkInGuest(
   }
 
   const eventRef = doc(db, 'events', eventId)
+  // Fuera de la transacción a propósito (el SDK de cliente no puede correr
+  // una aggregate query adentro de una runTransaction) — best-effort para
+  // no pisar una oferta de lista de espera activa, no la garantía dura (ver
+  // fetchOfferedWaitlistCount en attendeeLimit.ts).
+  const offeredCount = await fetchOfferedWaitlistCount(eventId)
 
   return runTransaction(db, async (tx) => {
     const snap = await tx.get(eventRef)
@@ -155,6 +160,7 @@ export async function registerWalkInGuest(
         capacity: data.capacity as number | undefined,
       },
       clampedPartySize,
+      offeredCount,
     )
 
     const qrToken = generateQrToken()

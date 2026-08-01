@@ -27,6 +27,7 @@ function MenuSummary({ menu, selection, label }: { menu: { options: MenuOption[]
 import {
   IconCheck,
   IconCheckCircle,
+  IconClock,
   IconEdit,
   IconHelpCircle,
   IconLock,
@@ -111,6 +112,7 @@ export function GuestDetailSheet({
   canEditGuests = true,
   canConfirmPayments = true,
   canDeleteGuests = true,
+  attendeeLimitEnabled = false,
   onClose,
   onShare,
   onResend,
@@ -121,6 +123,7 @@ export function GuestDetailSheet({
   onRequestUnlock,
   onRequestReentry,
   onReactivate,
+  onRequestSendToWaitlist,
 }: {
   eventId: string
   guest: GuestData | null
@@ -139,6 +142,10 @@ export function GuestDetailSheet({
   canEditGuests?: boolean
   canConfirmPayments?: boolean
   canDeleteGuests?: boolean
+  // "Enviar a lista de espera" solo tiene sentido en eventos con cupo
+  // límite (si no, no hay lista de espera que active una cascada al
+  // liberar el lugar) — ver moveGuestToWaitlist en src/firebase/guests.ts.
+  attendeeLimitEnabled?: boolean
   onClose: () => void
   onShare: (guest: GuestData) => void
   onResend: (guest: GuestData, channel: 'whatsapp' | 'email') => void
@@ -149,6 +156,7 @@ export function GuestDetailSheet({
   onRequestUnlock: (guest: GuestData) => void
   onRequestReentry: (guest: GuestData) => void
   onReactivate: (guest: GuestData) => void
+  onRequestSendToWaitlist: (guest: GuestData) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -355,6 +363,19 @@ export function GuestDetailSheet({
                 {canEditGuests && presence === 'final_out' && (
                   <ActionButton icon={<IconRotateCcw className="w-4 h-4" />} onClick={() => onRequestReentry(guest)}>
                     Permitir reingreso
+                  </ActionButton>
+                )}
+
+                {/* Para el día del evento: en vez de eliminar a alguien que
+                    no pagó y no llegó (perdiendo su registro), lo pasa a la
+                    lista de espera — libera su lugar igual (misma cascada
+                    que deleteGuest, vía onCapacityFreed) pero conserva sus
+                    datos por si aparece más tarde. No para quien ya pagó
+                    (mismo criterio que ReconfirmPanel: nunca se le quita el
+                    lugar a un pase pagado) ni para quien ya hizo check-in. */}
+                {canDeleteGuests && attendeeLimitEnabled && guest.paymentStatus !== 'paid' && presence === 'invited' && (
+                  <ActionButton tone="subtle" icon={<IconClock className="w-4 h-4" />} onClick={() => onRequestSendToWaitlist(guest)}>
+                    Enviar a lista de espera
                   </ActionButton>
                 )}
 

@@ -245,6 +245,12 @@ export const EventSchema = z.object({
   rsvpDeadline: z.string().optional(),
   remindersEnabled: z.boolean().optional(),
   reminderRules: z.array(ReminderRuleSchema).optional(),
+  reconfirmCampaign: z.object({
+    startedAt: z.number(),
+    deadline: z.number(),
+    excludeTagIds: z.array(z.string()).optional(),
+    reminderRules: z.array(ReminderRuleSchema),
+  }).optional(),
   guestTags: z.array(GuestSegmentTagSchema).optional(),
   vipTagId: z.string().nullable().optional(),
   sectionVisibility: z.record(z.string(), SectionVisibilityRuleSchema).optional(),
@@ -312,6 +318,27 @@ export const GuestSchema = z.object({
   guestUid: z.string().nullable().optional(),
   guestPhotoURL: z.string().nullable().optional(),
   createdAt: z.number(),
+  reconfirmStatus: z.enum(['requested', 'confirmed', 'expired']).optional(),
+  reconfirmDeadline: z.number().nullable().optional(),
+})
+
+export const WaitlistEntrySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  partySize: z.number().int().min(1),
+  phone: z.string().optional(),
+  phoneCountry: z.string().optional(),
+  email: z.string().optional(),
+  customData: z.record(z.string(), z.string()).optional(),
+  waitlistToken: z.string().min(1),
+  status: z.enum(['waiting', 'offered', 'promoted', 'declined', 'expired', 'removed']),
+  priorityBoost: z.number(),
+  createdAt: z.number(),
+  offerToken: z.string().nullable(),
+  offerExpiresAt: z.number().nullable(),
+  respondedAt: z.number().nullable(),
+  promotedGuestId: z.string().nullable(),
+  promotionReason: z.enum(['fifo', 'manual']).nullable(),
 })
 
 export const CheckinSchema = z.object({

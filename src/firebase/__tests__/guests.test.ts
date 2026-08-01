@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { doc, setDoc, updateDoc } from 'firebase/firestore'
-import { createTestEnv, getEventDoc, getGuestContactDoc, getGuestDoc, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
+import { createTestEnv, getEventDoc, getGuestContactDoc, getGuestDoc, getWaitlistEntries, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
 import { getCheckins } from '../reports'
 
 // Mismo mock que capacity.test.ts: redirige el `db` singleton de guests.ts/capacity.ts
@@ -13,8 +13,21 @@ vi.mock('../config', () => ({
   },
 }))
 
+// fetchOfferedWaitlistCount llama a una Callable Function (ver
+// attendeeLimit.ts) — no hay emulador de Functions en test:firebase (solo
+// firestore), así que se stubea acá a 0 (sin ofertas activas, mismo
+// comportamiento que antes de que existiera la lista de espera). El
+// comportamiento real de esa Callable se prueba contra el Admin SDK en
+// functions/src/callable/getOfferedWaitlistCount, y cómo `offeredCount`
+// afecta a remainingCapacity/assertCapacityAvailable se prueba aparte, sin
+// mocks, en attendeeLimit.test.ts (son funciones puras).
+vi.mock('../attendeeLimit', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../attendeeLimit')>()
+  return { ...actual, fetchOfferedWaitlistCount: vi.fn().mockResolvedValue(0) }
+})
+
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, getAllGuests, resetGuestRsvp, resolveMaxCompanions, setGuestPaymentStatus, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, getAllGuests, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestPaymentStatus, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -348,6 +361,77 @@ describe('guests.ts', () => {
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.guestCount).toBe(0)
     expect(event?.peopleCount).toBe(0)
+    expect(event?.paidCount).toBe(0)
+  })
+
+  it('moveGuestToWaitlist should free the guest\'s spot (same counters as deleteGuest) and create a fresh waiting entry carrying over their data', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 2, rsvpYesCount: 1 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await moveGuestToWaitlist(EVENT_ID, {
+      id: GUEST_ID,
+      name: 'Ana',
+      lastName: 'García',
+      phone: '555-1234',
+      phoneCountry: 'MX',
+      email: 'ana@test.com',
+      customData: { talla: 'M' },
+      status: 'invited',
+      companions: [{}],
+      checkedOutAt: null,
+      exitType: null,
+      paymentStatus: 'unpaid',
+      rsvpStatus: 'yes',
+    })
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(0)
+    expect(event?.peopleCount).toBe(0)
+    expect(event?.rsvpYesCount).toBe(0)
+
+    const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+    expect(guest).toBeUndefined()
+
+    const entries = await getWaitlistEntries(testEnv, EVENT_ID)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      name: 'Ana García',
+      partySize: 2,
+      phone: '555-1234',
+      phoneCountry: 'MX',
+      email: 'ana@test.com',
+      customData: { talla: 'M' },
+      status: 'waiting',
+      priorityBoost: 0,
+      offerToken: null,
+      promotedGuestId: null,
+    })
+    expect(entries[0].waitlistToken).toBeTruthy()
+  })
+
+  it('moveGuestToWaitlist should decrement checkedInCount/occupancyCount/paidCount when converting a checked-in, paid guest (defense in depth — the UI never offers this combination)', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 1, checkedInCount: 1, occupancyCount: 1, paidCount: 1, rsvpYesCount: 1 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await moveGuestToWaitlist(EVENT_ID, {
+      id: GUEST_ID,
+      name: 'Bruno',
+      lastName: '',
+      phone: '',
+      phoneCountry: '',
+      email: '',
+      customData: {},
+      status: 'checked_in',
+      companions: [],
+      checkedOutAt: null,
+      exitType: null,
+      paymentStatus: 'paid',
+      rsvpStatus: 'yes',
+    })
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.checkedInCount).toBe(0)
+    expect(event?.occupancyCount).toBe(0)
     expect(event?.paidCount).toBe(0)
   })
 

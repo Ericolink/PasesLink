@@ -30,6 +30,7 @@ const GuestPass = lazy(() => import('./pages/GuestPass').then((m) => ({ default:
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then((m) => ({ default: m.AdminDashboard })))
 const EventArrive = lazy(() => import('./pages/EventArrive').then((m) => ({ default: m.EventArrive })))
 const EventJoin = lazy(() => import('./pages/EventJoin').then((m) => ({ default: m.EventJoin })))
+const WaitlistStatus = lazy(() => import('./pages/WaitlistStatus').then((m) => ({ default: m.WaitlistStatus })))
 const EventWall = lazy(() => import('./pages/EventWall').then((m) => ({ default: m.EventWall })))
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile').then((m) => ({ default: m.CompleteProfile })))
 const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => ({ default: m.MyInvitations })))
@@ -114,6 +115,9 @@ function App() {
         {/* Alias corto de /events/:id/join para compartir en redes (ver
             ShareEventButton.tsx) — EventJoin no depende del prefijo de ruta. */}
         <Route path="/e/:id" element={<AppShell mode="kiosk" guestExit><EventJoin /></AppShell>} />
+        {/* Estado de una entrada de lista de espera, acceso por ?token= (ver
+            WAITLIST_RECONFIRMATION_ARCHITECTURE.md §3.2). */}
+        <Route path="/waitlist/:eventId" element={<AppShell mode="kiosk" guestExit><WaitlistStatus /></AppShell>} />
 
         {/* Modo navegación: Inicio, Invitaciones, Perfil y sus drill-downs */}
         <Route
