@@ -1,5 +1,10 @@
 name: Uptime check
 
+# TRANSICIÓN: coexiste a propósito con los Uptime Checks de Cloud Monitoring
+# (infra/terraform/) durante el período de validación — ver
+# infra/terraform/README.md "Plan de transición" para el criterio de cuándo
+# borrar este archivo entero. No agregar features nuevas acá, van del lado
+# de Terraform.
 on:
   schedule:
     # Cada 10 min. GitHub a veces atrasa los cron jobs varios minutos en

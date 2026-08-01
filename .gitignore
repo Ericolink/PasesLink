@@ -32,3 +32,12 @@ dist-ssr
 backups-data/
 test-backup-output/
 qa-tmp/
+
+# Estado de Terraform (infra/terraform) — tiene datos del proyecto real y no
+# hay backend remoto configurado (ver infra/terraform/versions.tf). Cada
+# quien aplique el Terraform mantiene su propio estado local.
+infra/terraform/.terraform/
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.backup
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example

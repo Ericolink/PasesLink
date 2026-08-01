@@ -1,0 +1,8 @@
+# Copiar a terraform.tfvars (ignorado por git) y completar antes de
+# `terraform apply`.
+
+notification_email = "tu-correo@ejemplo.com"
+
+# El resto de las variables (project_id, site_url, firebase_hosting_url,
+# region, umbrales) ya tienen default en variables.tf y normalmente no hace
+# falta tocarlas — ver ahí si algo cambió (dominio, umbral de latencia, etc.).
