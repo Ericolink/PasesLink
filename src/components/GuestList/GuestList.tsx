@@ -220,10 +220,6 @@ export const GuestList = memo(function GuestList({
     )
   }
 
-  function resolveMethod(guest: GuestData): PaymentMethod | undefined {
-    return guest.paymentMethod || paymentMethods[0]
-  }
-
   async function handleMarkPaid(guest: GuestData, method?: PaymentMethod) {
     setActionError('')
     try {
@@ -355,7 +351,7 @@ export const GuestList = memo(function GuestList({
   async function bulkMarkPaid() {
     setActionError('')
     const targets = guests.filter((g) => selected.has(g.id))
-    const { failed } = await bulkSetGuestPaymentStatus(eventId, targets, 'paid', resolveMethod)
+    const { failed } = await bulkSetGuestPaymentStatus(eventId, targets.map((g) => g.id), 'paid', paymentMethods[0])
     if (failed > 0) setActionError(`No se pudo marcar como pagado a ${failed} de ${targets.length} invitados.`)
     exitSelectMode()
   }

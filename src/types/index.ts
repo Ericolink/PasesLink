@@ -485,11 +485,10 @@ export interface EventData {
   // aprobados antes de este cambio.
   paidCount: number
   // Cantidad de check-ins (escaneos QR exitosos, primera entrada o
-  // reingreso — no walk-ins, que no pasan por checkInGuest/
-  // confirmPaymentAndCheckIn) agrupados por hora del día ("20:00" =
-  // 20:00-20:59), mantenido con increment() en la misma transacción que
-  // escribe checkedInCount/occupancyCount (ver checkInGuest/
-  // confirmPaymentAndCheckIn en src/firebase/guests.ts). Reemplaza el
+  // reingreso — no walk-ins, que no pasan por checkInGuest) agrupados por
+  // hora del día ("20:00" = 20:00-20:59), mantenido con increment() en la
+  // misma transacción que escribe checkedInCount/occupancyCount (ver
+  // checkInGuest en src/firebase/guests.ts). Reemplaza el
   // cálculo que antes recorría TODA la subcolección `checkins` en el
   // cliente cada vez que se abría Reports (ver auditoría de escalabilidad,
   // hallazgo F4) — "Llegadas por hora" ahora lee este campo directo, O(1).
@@ -678,6 +677,15 @@ export interface GuestData {
   // operación, hora del depósito, etc.) — le ahorra al organizador tener que
   // ir a buscarlo por WhatsApp para revisar el comprobante.
   paymentNote?: string
+  // Auditoría de la confirmación de pago (Cloud Function setGuestPaymentStatus/
+  // bulkSetGuestPaymentStatus, ver functions/src/payments/confirmPayment.ts):
+  // se escriben SOLO en la transición real `!paid -> paid` (nunca se pisan al
+  // corregir el método sobre un invitado ya pagado) y se limpian a `null` al
+  // revertir a `unpaid`. Ausentes en cualquier documento creado antes de este
+  // campo. paidBy es el uid del organizador que confirmó (fuente manual) o el
+  // nombre de la pasarela de pago (fuente automática futura, ej. 'stripe').
+  paidAt?: number | null
+  paidBy?: string | null
   // Presentes solo cuando el invitado se autoregistró logueado con una
   // cuenta PaseLink (ver registerWalkInGuest en src/firebase/capacity.ts) —
   // null en alta manual del organizador y en todo invitado creado antes de
@@ -752,7 +760,9 @@ export interface WaitlistEntryData {
 // 'entry_blocked': intento de ingreso rechazado por checkInGuest (hoy solo el
 // caso de reingreso bloqueado tras una salida definitiva — ver `reason`).
 // payment_required NO genera esta entrada: no es un rechazo, es un estado que
-// el propio escáner resuelve en el momento (confirmPaymentAndCheckIn).
+// el propio escáner resuelve en el momento (ver handleConfirmPayment en
+// src/pages/Scanner.tsx: confirma el pago vía setGuestPaymentStatus y luego
+// hace el check-in normal).
 type CheckinType = 'check_in' | 'check_out' | 'entry_blocked'
 
 export interface CheckinLog {

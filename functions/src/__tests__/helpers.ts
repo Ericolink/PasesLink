@@ -77,3 +77,25 @@ export async function getWaitlistEntry(db: Firestore, eventId: string, entryId: 
   const snap = await db.collection('events').doc(eventId).collection('waitlist').doc(entryId).get()
   return snap.data()
 }
+
+export async function seedGuest(
+  db: Firestore,
+  eventId: string,
+  guestId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  await db.collection('events').doc(eventId).collection('guests').doc(guestId).set({
+    name: 'Invitado de prueba',
+    qrToken: `${guestId}-qr`,
+    status: 'invited',
+    companions: [],
+    paymentStatus: 'unpaid',
+    paymentMethod: null,
+    ...overrides,
+  })
+}
+
+export async function getGuestDoc(db: Firestore, eventId: string, guestId: string) {
+  const snap = await db.collection('events').doc(eventId).collection('guests').doc(guestId).get()
+  return snap.data()
+}

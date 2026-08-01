@@ -65,7 +65,7 @@ export function Reports() {
   // completo cargado por getCheckins) en cada carga/actualización — ver
   // auditoría de escalabilidad, hallazgo F4. Ahora lee el contador ya
   // agregado server-side (event.checkinsByHour, mantenido con increment()
-  // en checkInGuest/confirmPaymentAndCheckIn) — O(1) sin importar el
+  // en checkInGuest) — O(1) sin importar el
   // tamaño del evento, no necesita useMemo (a lo sumo 24 claves).
   const hourEntries = Object.entries(event?.checkinsByHour ?? {}).sort(([a], [b]) => a.localeCompare(b))
   const maxHourCount = Math.max(1, ...hourEntries.map(([, count]) => count))

@@ -13,7 +13,7 @@ import { useLiveRef } from '../hooks/useLiveRef'
 import { useWalkInCounter } from '../hooks/useWalkInCounter'
 import { useQrScanner } from '../hooks/useQrScanner'
 import { IconArrowLeft, IconRotateCcw } from '../components/accessibility/AccessibleIcon'
-import { checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
+import { checkInGuest, checkOutGuest, findGuestByToken, guestPresence, partySize, setGuestPaymentStatus } from '../firebase/guests'
 import type { PaymentMethod } from '../types'
 import { walkIn } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
@@ -42,6 +42,10 @@ export type ScanFeedback = {
   // (p.ej. 'transfer' si mandó comprobante), para preservarlo al confirmar
   // el pago desde el botón "Sí, ya pagó" (ver handleConfirmPayment).
   paymentMethod?: PaymentMethod | null
+  // Solo para type: 'payment_required' — necesario para llamar a la Callable
+  // setGuestPaymentStatus (ver handleConfirmPayment), que identifica al
+  // invitado por id, no por qrToken.
+  guestId?: string
 }
 
 type ScanMode = 'entrada' | 'salida'
@@ -211,6 +215,7 @@ export function Scanner() {
           guestName: result.guest.name,
           detail,
           qrToken,
+          guestId: result.guest.id,
           paymentMethod: result.guest.paymentMethod,
         })
       } else if (result.status === 'blocked_final_exit') {
@@ -315,23 +320,28 @@ export function Scanner() {
   }
 
   // Disparado desde el botón "Sí, ya pagó" del ScanResultModal (modo entrada,
-  // invitado no pagado en un evento de pago) — marca el pago y registra el
-  // check-in en una sola operación atómica (confirmPaymentAndCheckIn), sin
-  // que el guardia tenga que volver a escanear ni salir del flujo.
+  // invitado no pagado en un evento de pago) — dos pasos en vez de la
+  // transacción atómica que existía antes (confirmPaymentAndCheckIn): primero
+  // confirma el pago vía la Callable setGuestPaymentStatus (Cloud Function,
+  // único lugar autorizado a tocar paymentStatus), y si eso no lanza, hace el
+  // check-in normal (checkInGuest, que ya no vuelve a pedir pago porque el
+  // invitado acaba de quedar 'paid'). checkInGuest nunca tocó paidCount, así
+  // que dividir en 2 pasos no arriesga doble conteo.
   async function handleConfirmPayment(attempt = 1) {
     // Guard síncrono: mismo motivo que exitSubmitting en submitExit (evita
     // doble-tap táctil disparando dos confirmaciones en paralelo).
     if (confirmingPayment || !eventId || !user) return
     const current = feedbackRef.current
-    if (!current || current.type !== 'payment_required' || !current.qrToken) return
-    const { qrToken } = current
+    if (!current || current.type !== 'payment_required' || !current.qrToken || !current.guestId) return
+    const { qrToken, guestId } = current
     const ev = eventRef.current
     const method: PaymentMethod | undefined = current.paymentMethod ?? ev?.paymentMethods[0]
 
     setConfirmingPayment(true)
     setConfirmError(null)
     try {
-      const result = await confirmPaymentAndCheckIn(eventId, qrToken, user.uid, user.email, method)
+      await setGuestPaymentStatus(eventId, guestId, 'paid', method)
+      const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
       if (result.status === 'success') {
         if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = ev?.welcomeMessage || undefined
@@ -362,6 +372,11 @@ export function Scanner() {
           guestName: result.guest.name,
           detail: 'Este invitado se retiró definitivamente del evento. Un organizador puede habilitar su reingreso desde la lista de invitados.',
         })
+      } else if (result.status === 'payment_required') {
+        // Caso borde raro: el pago se confirmó recién arriba, pero
+        // checkInGuest lo volvió a ver sin pagar (otra pantalla revirtió el
+        // pago justo en el medio). Se mantiene el modal para reintentar.
+        setConfirmError('El pago se revirtió antes de completar el check-in. Intenta de nuevo.')
       } else {
         showFeedback({ type: 'not_found', detail: 'Este código no corresponde a ningún invitado de este evento.' })
       }

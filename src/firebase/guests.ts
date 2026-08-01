@@ -17,7 +17,8 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
-import { db } from './config'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from './config'
 import { assertCapacityAvailable, fetchOfferedWaitlistCount, remainingCapacity } from './attendeeLimit'
 import { enqueueNotification } from './notifications'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
@@ -738,61 +739,25 @@ export async function bulkDeleteGuests(
   return { ok, failed }
 }
 
-// Versión masiva de setGuestPaymentStatus: mismo delta agregado por lote que
-// bulkDeleteGuests, pero con transacción (no batch) porque, a diferencia de
-// borrar, acá SÍ hace falta releer cada invitado — decidir si su pago
-// cambió de estado depende de su paymentStatus actual en el servidor, no del
-// que tenía cuando se cargó la pantalla (podría haber cambiado, ej. otro
-// organizador ya lo marcó pagado). `resolveMethod` se llama con el invitado
-// RECIÉN leído, no con el de pantalla, por la misma razón.
+// Versión masiva de setGuestPaymentStatus — igual que la versión suelta, toda
+// la lógica (releer cada invitado, delta agregado de paidCount, elegir
+// método) vive en la Cloud Function `bulkSetGuestPaymentStatus`
+// (functions/src/payments/confirmPayment.ts:bulkConfirmGuestPayments).
+// `defaultMethod` reemplaza al `resolveMethod` que este archivo pasaba antes
+// (un callback no puede viajar por la red): el servidor conserva el método
+// propio del invitado si ya tenía uno, y usa `defaultMethod` solo si no.
 export async function bulkSetGuestPaymentStatus(
   eventId: string,
-  guests: Pick<GuestData, 'id'>[],
+  guestIds: string[],
   paymentStatus: 'paid' | 'unpaid',
-  resolveMethod: (guest: GuestData) => PaymentMethod | undefined,
+  defaultMethod?: PaymentMethod,
 ): Promise<BulkResult> {
-  const eventRef = doc(db, 'events', eventId)
-  // Se trocea por CANTIDAD de invitados acá (no por partySize, que recién se
-  // conoce tras la lectura dentro de la transacción) — 50 es el mismo margen
-  // conservador: como mucho un invitado aporta su partySize completo al
-  // delta, así que un lote de ≤50 invitados nunca puede superar por mucho el
-  // tope de la regla incluso si todos tuvieran acompañantes (y en la
-  // práctica, la gran mayoría no).
-  const chunks: Pick<GuestData, 'id'>[][] = []
-  for (let i = 0; i < guests.length; i += COUNTER_DELTA_CAP) {
-    chunks.push(guests.slice(i, i + COUNTER_DELTA_CAP))
-  }
-  let ok = 0
-  let failed = 0
-  for (const chunk of chunks) {
-    try {
-      await runTransaction(db, async (transaction) => {
-        // Todas las lecturas antes que cualquier escritura — regla de
-        // transacciones de Firestore.
-        const snaps = await Promise.all(
-          chunk.map((g) => transaction.get(doc(db, 'events', eventId, 'guests', g.id))),
-        )
-        let paidCountDelta = 0
-        for (const snap of snaps) {
-          if (!snap.exists()) continue
-          const guest = mapGuest(snap.id, snap.data())
-          const wasPaid = guest.paymentStatus === 'paid'
-          const updates: Record<string, unknown> = { paymentStatus }
-          const method = resolveMethod(guest)
-          if (method !== undefined) updates.paymentMethod = method
-          if (paymentStatus === 'paid' && !wasPaid) paidCountDelta += partySize(guest)
-          else if (paymentStatus === 'unpaid' && wasPaid) paidCountDelta -= partySize(guest)
-          transaction.update(doc(db, 'events', eventId, 'guests', guest.id), updates)
-        }
-        if (paidCountDelta !== 0) transaction.update(eventRef, { paidCount: increment(paidCountDelta) })
-      })
-      ok += chunk.length
-    } catch (err) {
-      console.error('Error en bulkSetGuestPaymentStatus para un lote:', err)
-      failed += chunk.length
-    }
-  }
-  return { ok, failed }
+  const callable = httpsCallable<
+    { eventId: string; guestIds: string[]; paymentStatus: 'paid' | 'unpaid'; defaultMethod?: PaymentMethod },
+    BulkResult
+  >(functions, 'bulkSetGuestPaymentStatus')
+  const result = await callable({ eventId, guestIds, paymentStatus, defaultMethod })
+  return result.data
 }
 
 // Asignación masiva de segmentos (Feature 1: visibilidad de secciones por
@@ -1071,66 +1036,22 @@ export async function unlockGuestPass(eventId: string, guestId: string) {
 // `method` es opcional: si no se pasa, se conserva el que ya tenía el
 // invitado.
 //
-// Nunca toca guestCount/peopleCount: el invitado ya cuenta desde que se
-// registró, pague o no (capacity es solo informativo). Lo único que cambia
-// es `paidCount` (personas), y solo en la transición real de pagado <->
-// no pagado — aprobar un pago ya aprobado o revertir uno que nunca se
-// aprobó no debe mover el contador. Un invitado legacy en `paymentStatus:
-// 'expired'` (valor que este código ya no escribe, ver GuestPaymentStatus)
-// se trata igual que uno `unpaid`: puede aprobarse sin ningún chequeo de
-// cupo, ya que el cupo nunca lo había perdido.
+// Toda la máquina de estados (paidCount, paidAt/paidBy, idempotencia) vive
+// en la Cloud Function `setGuestPaymentStatus` (Admin SDK, ver
+// functions/src/payments/confirmPayment.ts) — este archivo ya no escribe
+// paymentStatus/paymentMethod/paidAt/paidBy directo a Firestore, firestore.rules
+// tampoco lo permite. Solo se invoca la Callable y se propaga cualquier error.
 export async function setGuestPaymentStatus(
   eventId: string,
   guestId: string,
   paymentStatus: 'paid' | 'unpaid',
   method?: PaymentMethod,
 ) {
-  const guestRef = doc(db, 'events', eventId, 'guests', guestId)
-  const eventRef = doc(db, 'events', eventId)
-
-  // El valor de retorno del callback de runTransaction (no una variable
-  // externa reasignada dentro del closure) porque TypeScript no estrecha el
-  // tipo de una `let` de afuera cuando la única asignación real ocurre
-  // dentro de una función anidada — termina viendo "siempre null" fuera del
-  // closure. Devolverlo evita el problema de raíz.
-  const notify = await runTransaction(db, async (transaction) => {
-    // Lectura del evento agregada acá (antes esta transacción no lo leía)
-    // solo para poder encolar la notificación de pago confirmado con
-    // ownerId/nombre reales — Firestore cachea reads al mismo path, así que
-    // no es una lectura extra si algo más en la misma transacción ya lo pide.
-    const [guestSnap, eventSnap] = await Promise.all([transaction.get(guestRef), transaction.get(eventRef)])
-    if (!guestSnap.exists()) return null
-    const guest = mapGuest(guestSnap.id, guestSnap.data())
-    const wasPaid = guest.paymentStatus === 'paid'
-
-    const updates: Record<string, unknown> = { paymentStatus }
-    if (method !== undefined) updates.paymentMethod = method
-
-    let notifyResult: { ownerId: string; eventName: string; guestName: string } | null = null
-    if (paymentStatus === 'paid' && !wasPaid) {
-      transaction.update(eventRef, { paidCount: increment(partySize(guest)) })
-      const eventData = eventSnap.data()
-      if (eventData?.ownerId) {
-        notifyResult = { ownerId: eventData.ownerId as string, eventName: (eventData.name as string) || '', guestName: guest.name }
-      }
-    } else if (paymentStatus === 'unpaid' && wasPaid) {
-      transaction.update(eventRef, { paidCount: increment(-partySize(guest)) })
-    }
-    // paid -> paid (solo cambia método) y no-pagado (unpaid/pending_confirmation/
-    // legacy 'expired') -> unpaid: no-op sobre paidCount.
-
-    transaction.update(guestRef, updates)
-    return notifyResult
-  })
-
-  if (notify) {
-    enqueueNotification({
-      eventId,
-      type: 'payment_confirmed',
-      recipientUid: notify.ownerId,
-      payload: { title: 'Pago confirmado', body: `${notify.guestName} pagó su entrada a ${notify.eventName}.`, deepLink: `/events/${eventId}` },
-    }).catch((err) => console.error('Error encolando notificación de pago confirmado:', err))
-  }
+  const callable = httpsCallable<
+    { eventId: string; guestId: string; paymentStatus: 'paid' | 'unpaid'; method?: PaymentMethod },
+    { ok: boolean }
+  >(functions, 'setGuestPaymentStatus')
+  await callable({ eventId, guestId, paymentStatus, method })
 }
 
 // Acción del INVITADO: "Ya pagué / Comprobante enviado" (GuestPass). Solo
@@ -1381,87 +1302,6 @@ export async function checkInGuest(
   }))
 }
 
-// Fusión de setGuestPaymentStatus + checkInGuest en UNA sola transacción —
-// botón "Sí, ya pagó" del escáner (invitado no pagado en un evento de pago).
-// Firestore no permite dos transaction.update() separados sobre el mismo doc
-// dentro de la misma transacción, así que acá se combinan los campos de
-// ambas operaciones en un único update por doc. `wasPaid` se relee dentro de
-// la transacción para no duplicar paidCount si el pago ya se había aprobado
-// desde otra pantalla mientras el diálogo estaba abierto.
-export type ConfirmPaymentAndCheckInResult =
-  | { status: 'success'; guest: GuestData; reentry: boolean }
-  | { status: 'already_checked_in'; guest: GuestData }
-  | { status: 'blocked_final_exit'; guest: GuestData }
-  | { status: 'not_found' }
-
-export async function confirmPaymentAndCheckIn(
-  eventId: string,
-  qrToken: string,
-  scannedBy: string,
-  scannedByEmail: string | null,
-  method?: PaymentMethod,
-): Promise<ConfirmPaymentAndCheckInResult> {
-  const guestRef = await findGuestRefByToken(eventId, qrToken)
-  if (!guestRef) {
-    return { status: 'not_found' }
-  }
-
-  const eventRef = doc(db, 'events', eventId)
-
-  return measureSpan('firestore.confirmPaymentAndCheckIn', 'db.firestore', () => runTransaction(db, async (transaction) => {
-    const guestSnap = await transaction.get(guestRef)
-    if (!guestSnap.exists()) {
-      return { status: 'not_found' } as ConfirmPaymentAndCheckInResult
-    }
-    const guest = mapGuest(guestSnap.id, guestSnap.data())
-    const presence = guestPresence(guest)
-    if (presence === 'inside') {
-      return { status: 'already_checked_in', guest } as ConfirmPaymentAndCheckInResult
-    }
-    if (presence === 'final_out') {
-      return { status: 'blocked_final_exit', guest } as ConfirmPaymentAndCheckInResult
-    }
-    const isReentry = presence === 'temp_out'
-    const wasPaid = guest.paymentStatus === 'paid'
-
-    const guestUpdates: Record<string, unknown> = {
-      paymentStatus: 'paid',
-      status: 'checked_in',
-      checkedOutAt: null,
-      checkedOutByEmail: null,
-      exitType: null,
-      ...(isReentry ? {} : { checkedInAt: serverTimestamp(), checkedInBy: scannedBy, checkedInByEmail: scannedByEmail }),
-    }
-    if (method !== undefined) guestUpdates.paymentMethod = method
-    transaction.update(guestRef, guestUpdates)
-
-    transaction.update(eventRef, {
-      occupancyCount: increment(partySize(guest)),
-      ...(isReentry ? {} : { checkedInCount: increment(partySize(guest)) }),
-      ...(wasPaid ? {} : { paidCount: increment(partySize(guest)) }),
-      [`checkinsByHour.${checkinHourLabel()}`]: increment(1),
-    })
-
-    const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
-    transaction.set(checkinRef, {
-      guestId: guest.id,
-      guestName: guest.name,
-      type: 'check_in',
-      ...(isReentry ? { reentry: true } : {}),
-      paymentConfirmed: true,
-      timestamp: serverTimestamp(),
-      scannedBy,
-      scannedByEmail,
-    })
-
-    return {
-      status: 'success',
-      guest: { ...guest, paymentStatus: 'paid', status: 'checked_in', checkedOutAt: null, exitType: null },
-      reentry: isReentry,
-    } as ConfirmPaymentAndCheckInResult
-  }))
-}
-
 export type CheckOutResult =
   | { status: 'success'; guest: GuestData; kind: 'temporary' | 'final' }
   | { status: 'not_checked_in' }
@@ -1592,6 +1432,10 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     paymentStatus: (data.paymentStatus as GuestData['paymentStatus']) || 'unpaid',
     paymentMethod: (data.paymentMethod as GuestData['paymentMethod']) || null,
     paymentNote: (data.paymentNote as string) || undefined,
+    // Escritos como número plano (Date.now()) por la Cloud Function
+    // setGuestPaymentStatus, no como Timestamp — no pasan por toMillisOrNull.
+    paidAt: typeof data.paidAt === 'number' ? data.paidAt : null,
+    paidBy: (data.paidBy as string) || null,
     guestUid: (data.guestUid as string) || null,
     guestPhotoURL: (data.guestPhotoURL as string) || null,
     createdAt: toMillisOrNull(data.createdAt) || 0,

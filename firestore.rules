@@ -671,6 +671,19 @@ service cloud.firestore {
         incomingToken in guestData.lockTokens;
     }
 
+    // La confirmación de pago (paymentStatus/paymentMethod/paidAt/paidBy) es
+    // exclusiva de las Cloud Functions setGuestPaymentStatus/
+    // bulkSetGuestPaymentStatus (Admin SDK, ignora estas reglas) — ver
+    // functions/src/payments/confirmPayment.ts. Se usa para acotar las 2
+    // ramas de `guests/{guestId}` que, de otra forma, quedarían sin
+    // restricción de campos (editGuests e isAdmin) y podrían pisar estos 4
+    // campos directo desde un cliente. NO se usa en la rama de
+    // submitPaymentProof (el invitado marcando "ya pagué"): esa sigue siendo
+    // una escritura de cliente legítima, ya acotada por su propio hasOnly.
+    function paymentConfirmationFieldsUntouched(oldData, newData) {
+      return !newData.diff(oldData).affectedKeys().hasAny(['paymentStatus', 'paymentMethod', 'paidAt', 'paidBy']);
+    }
+
     // Cruza con guests/{guestId} (que sí tiene lockTokens) para autorizar la
     // auto-edición de guestContacts (email/phone) del mismo invitado — ese
     // documento no tiene su propia lista de dispositivos.
@@ -1128,21 +1141,22 @@ service cloud.firestore {
         // este `allow update`) necesita poder tocar guestCount/peopleCount/
         // paidCount en estos casos: eliminar un invitado (deleteGuest,
         // decrementa guestCount/peopleCount y también paidCount si ya había
-        // pagado), aprobar o revertir un pago (setGuestPaymentStatus, suma o
-        // resta paidCount sin tocar guestCount/peopleCount — el invitado ya
-        // contaba desde que se registró, pague o no) y cambiar la cantidad
-        // de acompañantes de un invitado ya pagado (updateGuest ajusta
-        // peopleCount y paidCount por la misma diferencia). También cubre
-        // agregar invitados (addGuest/addGuestsBulk, permiso addGuests):
-        // guestCount/peopleCount suben ahí de la misma forma. Mismo margen
-        // ±50 que counterDeltaOk ya usa para los contadores de presencia
-        // arriba, no un exacto ±1: un borrado (o una carga masiva) puede
-        // mover un grupo entero de una sola vez. Gateado por CUALQUIERA de
-        // los 4 permisos que legítimamente disparan esta escritura (antes
-        // solo isOwnerOrCoOrg, sin mirar el permiso puntual) — no se puede
-        // exigir uno solo porque addGuest/deleteGuest/confirmPayment/
-        // updateGuest son operaciones distintas que comparten este mismo
-        // rango de campos.
+        // pagado) y cambiar la cantidad de acompañantes de un invitado ya
+        // pagado (updateGuest ajusta peopleCount y paidCount por la misma
+        // diferencia). También cubre agregar invitados (addGuest/
+        // addGuestsBulk, permiso addGuests): guestCount/peopleCount suben ahí
+        // de la misma forma. Mismo margen ±50 que counterDeltaOk ya usa para
+        // los contadores de presencia arriba, no un exacto ±1: un borrado (o
+        // una carga masiva) puede mover un grupo entero de una sola vez.
+        // Gateado por CUALQUIERA de los 3 permisos que legítimamente disparan
+        // esta escritura — no se puede exigir uno solo porque addGuest/
+        // deleteGuest/updateGuest son operaciones distintas que comparten
+        // este mismo rango de campos. `paidCount` sigue en el hasOnly porque
+        // deleteGuest/updateGuest todavía lo tocan (borrar o editar
+        // acompañantes de un invitado ya pagado); confirmPayments YA NO
+        // aparece acá — setGuestPaymentStatus/bulkSetGuestPaymentStatus
+        // (Cloud Functions, Admin SDK) ajustan paidCount directo, sin pasar
+        // por esta regla.
         // rsvpYesCount/rsvpNoCount/rsvpPendingCount (auditoría F22): addGuest/
         // addGuestsBulk/addGuestsFromRows (permiso addGuests) suman al invitado
         // nuevo a rsvpPendingCount en la MISMA escritura que guestCount/
@@ -1151,10 +1165,10 @@ service cloud.firestore {
         // attendeeLimitOk acá también: esta rama es la que usa addGuest/
         // addGuestsBulk/addGuestsFromRows (alta manual/masiva/CSV) para subir
         // peopleCount — tiene que respetar el mismo cupo que el autorregistro
-        // de arriba. No molesta a deleteGuests/confirmPayments/editGuests
-        // (que comparten esta rama): esas operaciones bajan o no tocan
-        // peopleCount, y attendeeLimitOk siempre permite las bajas.
-        || ((canDoData(resource.data, 'addGuests', true) || canDoData(resource.data, 'deleteGuests', true) || canDoData(resource.data, 'confirmPayments', true) || canDoData(resource.data, 'editGuests', true))
+        // de arriba. No molesta a deleteGuests/editGuests (que comparten esta
+        // rama): esas operaciones bajan o no tocan peopleCount, y
+        // attendeeLimitOk siempre permite las bajas.
+        || ((canDoData(resource.data, 'addGuests', true) || canDoData(resource.data, 'deleteGuests', true) || canDoData(resource.data, 'editGuests', true))
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'paidCount', 'rsvpYesCount', 'rsvpNoCount', 'rsvpPendingCount'])
             && counterDeltaOk(request.resource.data.guestCount, resource.data.guestCount)
             && counterDeltaOk(request.resource.data.peopleCount, resource.data.peopleCount)
@@ -1187,19 +1201,6 @@ service cloud.firestore {
             && counterDeltaOk(request.resource.data.get('rsvpYesCount', 0), resource.data.get('rsvpYesCount', 0))
             && counterDeltaOk(request.resource.data.get('rsvpNoCount', 0), resource.data.get('rsvpNoCount', 0))
             && counterDeltaOk(request.resource.data.get('rsvpPendingCount', 0), resource.data.get('rsvpPendingCount', 0)))
-        // Botón "Sí, ya pagó" del escáner (confirmPaymentAndCheckIn): check-in
-        // + aprobación de pago en una sola escritura, así que toca los 3
-        // contadores (checkedInCount/occupancyCount de la rama de arriba +
-        // paidCount de la rama de justo arriba) a la vez — ninguna de esas
-        // dos ramas sola lo permite. Exige AMBOS permisos (scanQr y
-        // confirmPayments) a la vez, igual que ya exige la rama equivalente
-        // de `guests/{guestId}` de más abajo — antes esta rama del evento no
-        // miraba ningún permiso puntual.
-        || (canDoData(resource.data, 'scanQr', true) && canDoData(resource.data, 'confirmPayments', true)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount', 'paidCount', 'checkinsByHour'])
-            && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
-            && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount)
-            && counterDeltaOk(request.resource.data.paidCount, resource.data.paidCount))
         // "Salir del evento": un co-organizador puede quitarse a sí mismo sin
         // pasar por el dueño. Solo puede tocar sus propias 2 entradas
         // (coOrganizersMap/coOrganizerPermissions) y hacerlas desaparecer —
@@ -1271,34 +1272,34 @@ service cloud.firestore {
         allow get: if true;
         // Rama del organizador: updateGuest (nombre/apellido/companions/
         // customData/rsvpStatus/lockToken) no restringe campos, igual que
-        // antes — solo cambia de qué permiso depende. Check-in/checkout y
-        // confirmar pago sí quedan acotados a sus campos exactos, para que
-        // un co-organizador con SOLO scanQr (sin editGuests) pueda escanear,
-        // y uno con SOLO confirmPayments pueda aprobar pagos, sin heredar
-        // acceso al resto del invitado. companionsWithinLimit (grandfathered)
+        // antes — solo cambia de qué permiso depende. Check-in/checkout sí
+        // queda acotado a sus campos exactos, para que un co-organizador con
+        // SOLO scanQr (sin editGuests) pueda escanear sin heredar acceso al
+        // resto del invitado. Confirmar pago YA NO tiene una rama de cliente
+        // propia — ver setGuestPaymentStatus/bulkSetGuestPaymentStatus
+        // (Cloud Functions, Admin SDK) — y paymentConfirmationFieldsUntouched
+        // bloquea que esta rama sin restricción de campos (o isAdmin() más
+        // abajo) los toque de rebote. companionsWithinLimit (grandfathered)
         // es la única rama de `update` que valida el tope de acompañantes —
         // es la única que puede tocar `companions` desde el organizador.
         //
         // canDoData/companionsWithinLimitData (vía eventDataFor, ver esa
         // función más arriba) en vez de canDo(eventId,...): cada canDo()
         // internamente hace su propio isOwner+isCoOrganizer+coOrgPerm, 3
-        // get()s encadenados por llamada. Antes de este cambio, checkInGuest/
-        // confirmPaymentAndCheckIn (transacciones que escriben a la vez
-        // guests/{guestId} Y events/{eventId}) llegaron a rechazarse con
-        // "maximum of 1000 expressions to evaluate" al sumar el costo de
-        // evaluar ESTA regla (hasta 6 llamadas a canDo()) más el de
-        // events/{eventId} en la misma transacción — mismo incidente ya
-        // documentado y resuelto ahí (ver isOwnerData/canDoData más arriba),
-        // ahora resuelto acá con el mismo patrón.
-        allow update: if (canDoData(eventDataFor(eventId), 'editGuests', true) && companionsWithinLimitData(eventDataFor(eventId), request.resource.data, true)) || isAdmin() ||
+        // get()s encadenados por llamada. Antes de este cambio, checkInGuest
+        // (transacción que escribe a la vez guests/{guestId} Y
+        // events/{eventId}) llegó a rechazarse con "maximum of 1000
+        // expressions to evaluate" al sumar el costo de evaluar ESTA regla
+        // (hasta 6 llamadas a canDo()) más el de events/{eventId} en la misma
+        // transacción — mismo incidente ya documentado y resuelto ahí (ver
+        // isOwnerData/canDoData más arriba), ahora resuelto acá con el mismo
+        // patrón.
+        allow update: if (canDoData(eventDataFor(eventId), 'editGuests', true) && companionsWithinLimitData(eventDataFor(eventId), request.resource.data, true) && paymentConfirmationFieldsUntouched(resource.data, request.resource.data)) ||
+          (isAdmin() && paymentConfirmationFieldsUntouched(resource.data, request.resource.data)) ||
           (
             canDoData(eventDataFor(eventId), 'scanQr', true) &&
             request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail', 'checkedOutAt', 'checkedOutByEmail', 'exitType'])
-          ) ||
-          (
-            canDoData(eventDataFor(eventId), 'confirmPayments', true) &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentMethod'])
           ) ||
           // assignGuestToTable (Seating Chart, src/firebase/seating.ts): un
           // coanfitrión con SOLO manageSeating (sin editGuests) puede mover
@@ -1318,16 +1319,6 @@ service cloud.firestore {
             canDoData(eventDataFor(eventId), 'addGuests', true) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reconfirmStatus', 'reconfirmDeadline']) &&
             request.resource.data.reconfirmStatus == 'requested'
-          ) ||
-          // Botón "Sí, ya pagó" del escáner (confirmPaymentAndCheckIn): marca
-          // el pago Y registra el check-in en una sola escritura, así que
-          // necesita AMBOS permisos a la vez (no alcanza con tener solo uno,
-          // a diferencia de las dos ramas de arriba) y toca la unión exacta
-          // de los dos grupos de campos.
-          (
-            canDoData(eventDataFor(eventId), 'scanQr', true) && canDoData(eventDataFor(eventId), 'confirmPayments', true) &&
-            request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail', 'checkedOutAt', 'checkedOutByEmail', 'exitType', 'paymentStatus', 'paymentMethod'])
           ) ||
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&

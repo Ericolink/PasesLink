@@ -27,7 +27,7 @@ vi.mock('../attendeeLimit', async (importOriginal) => {
 })
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, confirmPaymentAndCheckIn, deleteGuest, getAllGuests, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestPaymentStatus, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, deleteGuest, getAllGuests, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -251,61 +251,49 @@ describe('guests.ts', () => {
     expect(guest?.paymentStatus).toBe('unpaid')
   })
 
-  it('should increment paidCount by partySize when the organizer approves a payment', async () => {
-    await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['transfer'], paidCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
-      qrToken: QR_TOKEN,
-      paymentMethod: 'transfer',
-      paymentStatus: 'pending_confirmation',
-      companions: [{}, {}],
+  // Confirmación de pago migrada a Cloud Functions (setGuestPaymentStatus/
+  // bulkSetGuestPaymentStatus, Admin SDK — ver functions/src/payments/) —
+  // ningún cliente, sin importar el permiso que tenga, puede seguir
+  // marcando 'paid' directo a Firestore. Estos tests reemplazan a los que
+  // antes llamaban a setGuestPaymentStatus() acá (esa función ahora invoca
+  // una Callable, que no hay forma de probar contra el emulador de solo
+  // Firestore de este archivo).
+  describe('confirmación de pago bloqueada para el cliente (migrada a Cloud Functions)', () => {
+    it('rejects the event owner writing paymentStatus/paymentMethod directly to a guest', async () => {
+      await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['transfer'] })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentMethod: 'transfer', paymentStatus: 'unpaid' })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(ownerDb, 'events', EVENT_ID, 'guests', GUEST_ID), { paymentStatus: 'paid' }),
+      )
     })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-    await setGuestPaymentStatus(EVENT_ID, GUEST_ID, 'paid')
+    it('rejects a co-organizer with confirmPayments (and even editGuests) writing paymentStatus directly to a guest', async () => {
+      const COORG_UID = 'coorg-confirm-uid'
+      await seedEvent(testEnv, EVENT_ID, {
+        requiresPayment: true,
+        paymentMethods: ['transfer'],
+        coOrganizersMap: { [COORG_UID]: true },
+        coOrganizerPermissions: { [COORG_UID]: { confirmPayments: true, editGuests: true } },
+      })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentMethod: 'transfer', paymentStatus: 'unpaid' })
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
 
-    const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
-    expect(guest?.paymentStatus).toBe('paid')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.paidCount).toBe(3)
-    // Nunca toca guestCount/peopleCount: el invitado ya contaba desde que se registró.
-    expect(event?.guestCount).toBe(0)
-  })
-
-  it('should decrement paidCount by partySize when the organizer reverts an approved payment', async () => {
-    await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['transfer'], paidCount: 3 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
-      qrToken: QR_TOKEN,
-      paymentMethod: 'transfer',
-      paymentStatus: 'paid',
-      companions: [{}, {}],
+      await assertFails(
+        updateDoc(doc(coOrgDb, 'events', EVENT_ID, 'guests', GUEST_ID), { paymentStatus: 'paid' }),
+      )
     })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-    await setGuestPaymentStatus(EVENT_ID, GUEST_ID, 'unpaid')
+    it('rejects a direct write to paidAt/paidBy, even alongside an otherwise-valid editGuests update', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, name: 'Nombre editado' })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-    const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
-    expect(guest?.paymentStatus).toBe('unpaid')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.paidCount).toBe(0)
-  })
-
-  it('should not double-count paidCount when approving a payment that was already paid', async () => {
-    await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['transfer', 'cash'], paidCount: 3 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
-      qrToken: QR_TOKEN,
-      paymentMethod: 'transfer',
-      paymentStatus: 'paid',
-      companions: [{}, {}],
+      await assertFails(
+        updateDoc(doc(ownerDb, 'events', EVENT_ID, 'guests', GUEST_ID), { name: 'Nombre editado', paidAt: Date.now(), paidBy: OWNER_UID }),
+      )
     })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    // Solo cambia el método (p.ej. corrigiendo un error), sigue 'paid' -> 'paid'.
-    await setGuestPaymentStatus(EVENT_ID, GUEST_ID, 'paid', 'cash')
-
-    const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
-    expect(guest?.paymentMethod).toBe('cash')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.paidCount).toBe(3)
   })
 
   it('should let a legacy "expired" guest submit a payment proof same as an unpaid guest', async () => {
@@ -323,25 +311,6 @@ describe('guests.ts', () => {
 
     const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
     expect(guest?.paymentStatus).toBe('pending_confirmation')
-  })
-
-  it('should let the organizer approve payment for a legacy "expired" guest without any capacity check', async () => {
-    await seedEvent(testEnv, EVENT_ID, { capacity: 1, guestCount: 1, peopleCount: 1, requiresPayment: true, paymentMethods: ['transfer'], paidCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
-      qrToken: QR_TOKEN,
-      paymentMethod: 'transfer',
-      paymentStatus: 'expired',
-      companions: 0,
-    })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    await setGuestPaymentStatus(EVENT_ID, GUEST_ID, 'paid')
-
-    const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
-    expect(guest?.paymentStatus).toBe('paid')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.paidCount).toBe(1)
-    expect(event?.guestCount).toBe(1)
   })
 
   it('should decrement paidCount when deleting an already-paid guest', async () => {
@@ -818,118 +787,6 @@ describe('guests.ts', () => {
     })
   })
 
-  describe('confirmPaymentAndCheckIn (botón "Sí, ya pagó" del escáner)', () => {
-    it('should mark the guest as paid and check them in, moving paidCount/checkedInCount/occupancyCount together', async () => {
-      await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['cash'], paidCount: 0, checkedInCount: 0, occupancyCount: 0 })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
-        qrToken: QR_TOKEN,
-        paymentStatus: 'unpaid',
-        companions: [{ name: 'Uno' }],
-      })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      const result = await confirmPaymentAndCheckIn(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'cash')
-
-      expect(result.status).toBe('success')
-      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
-      expect(guest?.paymentStatus).toBe('paid')
-      expect(guest?.paymentMethod).toBe('cash')
-      expect(guest?.status).toBe('checked_in')
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      // 1 invitado + 1 acompañante = 2, en los 3 contadores a la vez.
-      expect(event?.paidCount).toBe(2)
-      expect(event?.checkedInCount).toBe(2)
-      expect(event?.occupancyCount).toBe(2)
-      // checkinsByHour cuenta el ESCANEO (1), no partySize — mismo criterio
-      // que el resto de "Llegadas por hora" (auditoría F4).
-      const expectedHourLabel = `${new Date().getHours().toString().padStart(2, '0')}:00`
-      expect(event?.checkinsByHour).toEqual({ [expectedHourLabel]: 1 })
-    })
-
-    it('should not double-count paidCount if the payment was already approved from another screen (race)', async () => {
-      await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['transfer'], paidCount: 1, checkedInCount: 0, occupancyCount: 0 })
-      // Otro dispositivo ya aprobó el pago justo antes de que el guardia
-      // tocara "Sí, ya pagó" (comprobante ya revisado desde GuestList).
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid', paymentMethod: 'transfer' })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      const result = await confirmPaymentAndCheckIn(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-
-      expect(result.status).toBe('success')
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.paidCount).toBe(1)
-    })
-
-    it('should return already_checked_in without touching counters if the guest is already inside', async () => {
-      await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['cash'], paidCount: 1, checkedInCount: 1, occupancyCount: 1 })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid', status: 'checked_in' })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      const result = await confirmPaymentAndCheckIn(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'cash')
-
-      expect(result.status).toBe('already_checked_in')
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.paidCount).toBe(1)
-      expect(event?.checkedInCount).toBe(1)
-    })
-
-    it('should block re-entry with blocked_final_exit for a guest who left for good', async () => {
-      await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['cash'] })
-      // paymentStatus 'paid' desde el inicio para poder pasar por el check-in
-      // y check-out reales (checkInGuest/checkOutGuest) y así producir un
-      // checkedOutAt/exitType genuinos (un Firestore Timestamp real, no un
-      // número JS crudo que mapGuest no sabría convertir).
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid' })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-      await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-      await checkOutGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'final')
-
-      const result = await confirmPaymentAndCheckIn(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'cash')
-
-      expect(result.status).toBe('blocked_final_exit')
-    })
-
-    it('should reject a direct write combining check-in and payment fields for a co-organizer with scanQr but not confirmPayments', async () => {
-      const COORG_UID = 'coorg-uid'
-      // Rol "staff de acceso": solo scanQr (y viewGuestList para poder ver la
-      // lista) — todo lo demás explícitamente en false, para no caer en el
-      // default amplio de LEGACY_COORG_DEFAULTS (editGuests: true de fábrica
-      // habilitaría cualquier escritura sobre el invitado, tapando el chequeo
-      // puntual que este test quiere aislar).
-      await seedEvent(testEnv, EVENT_ID, {
-        requiresPayment: true,
-        paymentMethods: ['cash'],
-        coOrganizersMap: { [COORG_UID]: true },
-        coOrganizerPermissions: {
-          [COORG_UID]: {
-            addGuests: false,
-            editGuests: false,
-            deleteGuests: false,
-            shareInviteLink: false,
-            confirmPayments: false,
-            scanQr: true,
-            viewGuestList: true,
-            postWall: false,
-            moderateWall: false,
-            editEvent: false,
-            manageCoOrganizers: false,
-            viewReports: false,
-            exportLists: false,
-            downloadEventInfo: false,
-          },
-        },
-      })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'unpaid' })
-      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
-
-      await assertFails(
-        updateDoc(doc(coOrgDb, 'events', EVENT_ID, 'guests', GUEST_ID), {
-          status: 'checked_in',
-          paymentStatus: 'paid',
-        }),
-      )
-    })
-  })
 
   describe('updateGuestSelf (auto-edición del invitado)', () => {
     it('should let the guest edit name/companions/customData when companions was still the legacy numeric format', async () => {
@@ -1268,23 +1125,18 @@ describe('guests.ts', () => {
       expect(event?.guestCount).toBe(0)
     })
 
-    it('should reject a co-organizer with scanQr but not confirmPayments combining the 3 confirmPaymentAndCheckIn counters', async () => {
-      await seedCoOrg({ scanQr: true })
+    // Confirmación de pago migrada a Cloud Functions: confirmPayments ya no
+    // aparece en la rama compartida de events/{eventId} (ver firestore.rules)
+    // — solo deleteGuests/addGuests/editGuests siguen pudiendo tocar
+    // paidCount directo (borrado/alta/edición de acompañantes), nunca
+    // confirmPayments solo.
+    it('rejects a co-organizer with only confirmPayments (no deleteGuests/editGuests/addGuests) writing paidCount directly', async () => {
+      await seedCoOrg({ confirmPayments: true })
       const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
 
       await assertFails(
-        updateDoc(doc(coOrgDb, 'events', EVENT_ID), { checkedInCount: 1, occupancyCount: 1, paidCount: 1 }),
+        updateDoc(doc(coOrgDb, 'events', EVENT_ID), { guestCount: 0, peopleCount: 0, paidCount: 0 }),
       )
-    })
-
-    it('should allow a co-organizer with both scanQr and confirmPayments combining the 3 confirmPaymentAndCheckIn counters', async () => {
-      await seedCoOrg({ scanQr: true, confirmPayments: true })
-      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
-
-      await updateDoc(doc(coOrgDb, 'events', EVENT_ID), { checkedInCount: 1, occupancyCount: 1, paidCount: 1 })
-
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.paidCount).toBe(1)
     })
   })
 
