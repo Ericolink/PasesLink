@@ -1,0 +1,58 @@
+// Botón "Sí, ya pagó" del escáner (evento de pago, invitado sin pagar) —
+// confirma el pago y hace el check-in en una sola transacción atómica del
+// servidor. Toda la máquina de estados vive en
+// functions/src/checkin/confirmPaymentAndCheckIn.ts.
+import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { getFirestore } from 'firebase-admin/firestore'
+import { confirmPaymentAndCheckIn as confirmPaymentAndCheckInService } from '../checkin/confirmPaymentAndCheckIn.js'
+import { canConfirmPayments, canScanQr } from '../lib/permissions.js'
+import type { PaymentMethod } from '../payments/confirmPayment.js'
+
+interface ConfirmPaymentAndCheckInInput {
+  eventId: string
+  guestId: string
+  method?: PaymentMethod
+}
+
+const VALID_METHODS: PaymentMethod[] = ['transfer', 'cash']
+
+// minInstances: 1 — mismo motivo que checkInGuest.ts (camino crítico del
+// escáner, momento de mayor tráfico del evento).
+export const confirmPaymentAndCheckIn = onCall<ConfirmPaymentAndCheckInInput>(
+  { region: 'us-central1', minInstances: 1, maxInstances: 20 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
+    }
+    const { eventId, guestId, method } = request.data || {}
+    if (!eventId || !guestId) {
+      throw new HttpsError('invalid-argument', 'Faltan datos para confirmar el pago y registrar el ingreso.')
+    }
+    if (method !== undefined && !VALID_METHODS.includes(method)) {
+      throw new HttpsError('invalid-argument', 'Método de pago inválido.')
+    }
+
+    const db = getFirestore()
+    const eventSnap = await db.collection('events').doc(eventId).get()
+    if (!eventSnap.exists) {
+      throw new HttpsError('not-found', 'El evento no existe.')
+    }
+    const event = eventSnap.data()!
+    // Mismo doble gate que ya exige la UI del escáner: la pantalla entera
+    // requiere scanQr, el botón "Sí, ya pagó" requiere además confirmPayments.
+    if (!canScanQr(event, request.auth.uid) || !canConfirmPayments(event, request.auth.uid)) {
+      throw new HttpsError('permission-denied', 'No tienes permiso para confirmar pagos y registrar ingresos en este evento.')
+    }
+
+    const result = await confirmPaymentAndCheckInService(db, eventId, guestId, {
+      method,
+      scannedBy: request.auth.uid,
+      scannedByEmail: request.auth.token.email ?? null,
+      source: { kind: 'manual', uid: request.auth.uid },
+    })
+    if (!result.ok) {
+      throw new HttpsError('not-found', result.reason === 'event_not_found' ? 'El evento no existe.' : 'El invitado no existe en este evento.')
+    }
+    return result
+  },
+)

@@ -13,7 +13,7 @@ import { useLiveRef } from '../hooks/useLiveRef'
 import { useWalkInCounter } from '../hooks/useWalkInCounter'
 import { useQrScanner } from '../hooks/useQrScanner'
 import { IconArrowLeft, IconRotateCcw } from '../components/accessibility/AccessibleIcon'
-import { checkInGuest, checkOutGuest, findGuestByToken, guestPresence, partySize, setGuestPaymentStatus } from '../firebase/guests'
+import { checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
 import type { PaymentMethod } from '../types'
 import { walkIn } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
@@ -43,7 +43,7 @@ export type ScanFeedback = {
   // el pago desde el botón "Sí, ya pagó" (ver handleConfirmPayment).
   paymentMethod?: PaymentMethod | null
   // Solo para type: 'payment_required' — necesario para llamar a la Callable
-  // setGuestPaymentStatus (ver handleConfirmPayment), que identifica al
+  // confirmPaymentAndCheckIn (ver handleConfirmPayment), que identifica al
   // invitado por id, no por qrToken.
   guestId?: string
 }
@@ -177,7 +177,7 @@ export function Scanner() {
     }
 
     try {
-      const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
+      const result = await checkInGuest(eventId, qrToken)
       if (result.status === 'success') {
         if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = eventRef.current?.welcomeMessage || undefined
@@ -280,7 +280,7 @@ export function Scanner() {
     const { qrToken, guestName } = pendingExit
     setExitSubmitting(true)
     try {
-      const result = await checkOutGuest(eventId, qrToken, user.uid, user.email, kind)
+      const result = await checkOutGuest(eventId, qrToken, kind)
       if (result.status === 'success') {
         showFeedback({
           type: 'checkout',
@@ -320,29 +320,28 @@ export function Scanner() {
   }
 
   // Disparado desde el botón "Sí, ya pagó" del ScanResultModal (modo entrada,
-  // invitado no pagado en un evento de pago) — dos pasos en vez de la
-  // transacción atómica que existía antes (confirmPaymentAndCheckIn): primero
-  // confirma el pago vía la Callable setGuestPaymentStatus (Cloud Function,
-  // único lugar autorizado a tocar paymentStatus), y si eso no lanza, hace el
-  // check-in normal (checkInGuest, que ya no vuelve a pedir pago porque el
-  // invitado acaba de quedar 'paid'). checkInGuest nunca tocó paidCount, así
-  // que dividir en 2 pasos no arriesga doble conteo.
+  // invitado no pagado en un evento de pago) — una sola llamada atómica del
+  // servidor (Cloud Function confirmPaymentAndCheckIn, ver
+  // functions/src/checkin/confirmPaymentAndCheckIn.ts) que confirma el pago
+  // y hace el check-in en la misma transacción. Reemplaza las dos llamadas
+  // secuenciales no atómicas (setGuestPaymentStatus + checkInGuest) que este
+  // handler usaba antes de la migración de check-in a Cloud Functions — ya
+  // no existe el caso borde de "el pago se revirtió entre medio".
   async function handleConfirmPayment(attempt = 1) {
     // Guard síncrono: mismo motivo que exitSubmitting en submitExit (evita
     // doble-tap táctil disparando dos confirmaciones en paralelo).
     if (confirmingPayment || !eventId || !user) return
     const current = feedbackRef.current
-    if (!current || current.type !== 'payment_required' || !current.qrToken || !current.guestId) return
-    const { qrToken, guestId } = current
+    if (!current || current.type !== 'payment_required' || !current.guestId) return
+    const { guestId, qrToken } = current
     const ev = eventRef.current
     const method: PaymentMethod | undefined = current.paymentMethod ?? ev?.paymentMethods[0]
 
     setConfirmingPayment(true)
     setConfirmError(null)
     try {
-      await setGuestPaymentStatus(eventId, guestId, 'paid', method)
-      const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
-      if (result.status === 'success') {
+      const result = await confirmPaymentAndCheckIn(eventId, guestId, method)
+      if (result.checkIn === 'success') {
         if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = ev?.welcomeMessage || undefined
         const companions = result.guest.isGroup
@@ -356,7 +355,7 @@ export function Scanner() {
           guestName: result.guest.name,
           detail: ['Pago confirmado', reentryMsg, companions, welcome].filter(Boolean).join(' · '),
         })
-      } else if (result.status === 'already_checked_in') {
+      } else if (result.checkIn === 'already_checked_in') {
         showFeedback({
           type: 'already',
           guestName: result.guest.name,
@@ -366,19 +365,12 @@ export function Scanner() {
           companionsCount: result.guest.companions.length,
           isGroup: result.guest.isGroup,
         })
-      } else if (result.status === 'blocked_final_exit') {
+      } else {
         showFeedback({
           type: 'exit_blocked',
           guestName: result.guest.name,
           detail: 'Este invitado se retiró definitivamente del evento. Un organizador puede habilitar su reingreso desde la lista de invitados.',
         })
-      } else if (result.status === 'payment_required') {
-        // Caso borde raro: el pago se confirmó recién arriba, pero
-        // checkInGuest lo volvió a ver sin pagar (otra pantalla revirtió el
-        // pago justo en el medio). Se mantiene el modal para reintentar.
-        setConfirmError('El pago se revirtió antes de completar el check-in. Intenta de nuevo.')
-      } else {
-        showFeedback({ type: 'not_found', detail: 'Este código no corresponde a ningún invitado de este evento.' })
       }
     } catch (err) {
       console.error('Error confirmando pago:', err)

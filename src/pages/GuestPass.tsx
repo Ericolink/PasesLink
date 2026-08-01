@@ -294,28 +294,36 @@ function GuestPassInner() {
   async function handleCheckIn() {
     if (!eventId || !qrToken || !user) return
     setCheckInState('loading')
-    const result = await checkInGuest(eventId, qrToken, user.uid, user.email)
-    if (result.status === 'success') {
-      setGuest((g) => g ? { ...g, status: 'checked_in' } : g)
-      setCheckInState('done')
-      const tpl = getTemplate(event!.templateId).vars
-      if (!prefersReducedMotion) {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.5 },
-          colors: [event!.accentColor || tpl.accent, tpl.accentDark, tpl.accentSoft],
-          shapes: tpl.confettiShape ? [tpl.confettiShape] : undefined,
-        })
+    try {
+      const result = await checkInGuest(eventId, qrToken)
+      if (result.status === 'success') {
+        setGuest((g) => g ? { ...g, status: 'checked_in' } : g)
+        setCheckInState('done')
+        const tpl = getTemplate(event!.templateId).vars
+        if (!prefersReducedMotion) {
+          confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.5 },
+            colors: [event!.accentColor || tpl.accent, tpl.accentDark, tpl.accentSoft],
+            shapes: tpl.confettiShape ? [tpl.confettiShape] : undefined,
+          })
+        }
+      } else if (result.status === 'already_checked_in') {
+        setCheckInState('already')
+      } else if (result.status === 'payment_required') {
+        setCheckInState('payment_required')
+      } else if (result.status === 'blocked_final_exit') {
+        setCheckInState('blocked')
+      } else {
+        setCheckInState('not_found')
       }
-    } else if (result.status === 'already_checked_in') {
-      setCheckInState('already')
-    } else if (result.status === 'payment_required') {
-      setCheckInState('payment_required')
-    } else if (result.status === 'blocked_final_exit') {
-      setCheckInState('blocked')
-    } else {
-      setCheckInState('not_found')
+    } catch (err) {
+      console.error('Error registrando check-in:', err)
+      // Sin esto, un error de red o de la Callable dejaba el botón "Registrar
+      // entrada" trabado en 'loading' para siempre (la promesa nunca se
+      // capturaba) — vuelve a 'idle' para que el organizador pueda reintentar.
+      setCheckInState('idle')
     }
   }
 

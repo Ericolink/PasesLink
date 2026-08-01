@@ -671,17 +671,24 @@ service cloud.firestore {
         incomingToken in guestData.lockTokens;
     }
 
-    // La confirmación de pago (paymentStatus/paymentMethod/paidAt/paidBy) es
-    // exclusiva de las Cloud Functions setGuestPaymentStatus/
-    // bulkSetGuestPaymentStatus (Admin SDK, ignora estas reglas) — ver
-    // functions/src/payments/confirmPayment.ts. Se usa para acotar las 2
-    // ramas de `guests/{guestId}` que, de otra forma, quedarían sin
-    // restricción de campos (editGuests e isAdmin) y podrían pisar estos 4
-    // campos directo desde un cliente. NO se usa en la rama de
-    // submitPaymentProof (el invitado marcando "ya pagué"): esa sigue siendo
-    // una escritura de cliente legítima, ya acotada por su propio hasOnly.
-    function paymentConfirmationFieldsUntouched(oldData, newData) {
-      return !newData.diff(oldData).affectedKeys().hasAny(['paymentStatus', 'paymentMethod', 'paidAt', 'paidBy']);
+    // La confirmación de pago (paymentStatus/paymentMethod/paidAt/paidBy) y
+    // todo el proceso de acceso (status/checkedInAt/checkedInBy(Email)/
+    // checkedOutAt/checkedOutByEmail/exitType) son exclusivos de las Cloud
+    // Functions setGuestPaymentStatus/bulkSetGuestPaymentStatus/
+    // checkInGuest/checkOutGuest/confirmPaymentAndCheckIn/allowGuestReentry
+    // (Admin SDK, ignora estas reglas) — ver functions/src/payments/ y
+    // functions/src/checkin/. Se usa para acotar las 2 ramas de
+    // `guests/{guestId}` que, de otra forma, quedarían sin restricción de
+    // campos (editGuests e isAdmin) y podrían pisar estos campos directo
+    // desde un cliente. NO se usa en la rama de submitPaymentProof (el
+    // invitado marcando "ya pagué"): esa sigue siendo una escritura de
+    // cliente legítima, ya acotada por su propio hasOnly.
+    function accessControlFieldsUntouched(oldData, newData) {
+      return !newData.diff(oldData).affectedKeys().hasAny([
+        'paymentStatus', 'paymentMethod', 'paidAt', 'paidBy',
+        'status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail',
+        'checkedOutAt', 'checkedOutByEmail', 'exitType'
+      ]);
     }
 
     // Cruza con guests/{guestId} (que sí tiene lockTokens) para autorizar la
@@ -1077,8 +1084,18 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId
         && isValidEventPricing() && isValidMaxCompanions() && eventContentCapsOk();
+      // checkinsByHour explícitamente afuera de la rama sin restricción de
+      // campos del dueño/admin (igual que accessControlFieldsUntouched hace
+      // en guests/{guestId}) — si no, el dueño podría fabricar el gráfico
+      // "Llegadas por hora" de Reports directo, sin pasar por la Cloud
+      // Function checkInGuest. checkedInCount/occupancyCount NO se agregan
+      // acá: walkIn/walkOut (capacity.ts, fuera de esta migración) siguen
+      // necesitando que el dueño los escriba directo, y ya están cubiertos
+      // por la rama scanQr de abajo (hasOnly(['checkedInCount', 'occupancyCount'])),
+      // que el dueño también satisface vía canDoData/isOwnerData.
       allow update: if (isOwnerData(resource.data) || isAdmin()) && eventContentCapsOk()
           && concessionsEnableChangeIsAllowed(resource.data, request.resource.data)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['checkinsByHour'])
         // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
         // invitación en 1 (guestCount), sumando entre 1 y 21 personas
         // (peopleCount): el invitado más los acompañantes que el organizador le
@@ -1117,24 +1134,22 @@ service cloud.firestore {
             && request.resource.data.peopleCount <= eventPeopleCountBefore(resource.data) + 21
             && request.resource.data.get('rsvpYesCount', 0) == resource.data.get('rsvpYesCount', 0) + 1
             && attendeeLimitOk(resource.data, request.resource.data))
-        // Check-in/checkout individual o contador walk-in (Opciones A y C): solo
-        // quien tiene el permiso `scanQr` (dueño siempre lo tiene vía canDo),
-        // y solo tocando los dos contadores de presencia. checkedInCount
-        // (asistencia acumulada) y occupancyCount (ocupación en vivo) pueden
-        // cambiar juntos (checkInGuest/walkIn) o solo el segundo (checkOutGuest,
-        // un reingreso vía checkInGuest, o walkOut cuando checkedInCount ya
-        // está en 0) — por eso se valida cada uno por separado en vez de
-        // exigir que ambos cambien a la vez. Antes esta rama solo exigía
-        // isOwnerOrCoOrg (cualquier coanfitrión, tuviera o no scanQr) — un
-        // coanfitrión con SOLO otro permiso (ej. viewGuestList) podía escribir
-        // estos contadores directo a Firestore sin pasar por checkInGuest.
-        // 'checkinsByHour' (auditoría F4): checkInGuest suma 1 al bucket de
-        // la hora actual en la MISMA escritura — no se valida su delta con
-        // counterDeltaOk (es un mapa de a lo sumo 24 claves, sin riesgo de
-        // tamaño, y solo alimenta un gráfico informativo en Reports, no
-        // ninguna decisión de capacidad/pago).
+        // Contador walk-in (Opciones A y C, src/firebase/capacity.ts —
+        // walkIn/walkOut): solo quien tiene el permiso `scanQr` (dueño
+        // siempre lo tiene vía canDo), y solo tocando los dos contadores de
+        // presencia. checkInGuest/checkOutGuest/confirmPaymentAndCheckIn ya
+        // NO pasan por esta rama (migrados a Cloud Functions, Admin SDK —
+        // ver functions/src/checkin/); walkIn/walkOut siguen siendo
+        // transacciones de cliente (fuera del alcance de esa migración, es
+        // un problema distinto de alta/capacidad), así que la rama se
+        // angosta pero no desaparece. checkedInCount (asistencia acumulada)
+        // y occupancyCount (ocupación en vivo) pueden cambiar juntos
+        // (walkIn) o solo el segundo (walkOut cuando checkedInCount ya está
+        // en 0) — por eso se valida cada uno por separado en vez de exigir
+        // que ambos cambien a la vez. 'checkinsByHour' salió del hasOnly:
+        // solo lo escribía checkInGuest, que ya es Admin SDK.
         || (canDoData(resource.data, 'scanQr', true)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount', 'checkinsByHour'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount'])
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
             && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount))
         // Un co-organizador (no dueño, así que no cae en la primera rama de
@@ -1272,12 +1287,11 @@ service cloud.firestore {
         allow get: if true;
         // Rama del organizador: updateGuest (nombre/apellido/companions/
         // customData/rsvpStatus/lockToken) no restringe campos, igual que
-        // antes — solo cambia de qué permiso depende. Check-in/checkout sí
-        // queda acotado a sus campos exactos, para que un co-organizador con
-        // SOLO scanQr (sin editGuests) pueda escanear sin heredar acceso al
-        // resto del invitado. Confirmar pago YA NO tiene una rama de cliente
-        // propia — ver setGuestPaymentStatus/bulkSetGuestPaymentStatus
-        // (Cloud Functions, Admin SDK) — y paymentConfirmationFieldsUntouched
+        // antes — solo cambia de qué permiso depende. Check-in/checkout/
+        // confirmar pago/habilitar reingreso YA NO tienen rama de cliente
+        // propia — ver checkInGuest/checkOutGuest/confirmPaymentAndCheckIn/
+        // allowGuestReentry/setGuestPaymentStatus/bulkSetGuestPaymentStatus
+        // (Cloud Functions, Admin SDK) — y accessControlFieldsUntouched
         // bloquea que esta rama sin restricción de campos (o isAdmin() más
         // abajo) los toque de rebote. companionsWithinLimit (grandfathered)
         // es la única rama de `update` que valida el tope de acompañantes —
@@ -1286,21 +1300,17 @@ service cloud.firestore {
         // canDoData/companionsWithinLimitData (vía eventDataFor, ver esa
         // función más arriba) en vez de canDo(eventId,...): cada canDo()
         // internamente hace su propio isOwner+isCoOrganizer+coOrgPerm, 3
-        // get()s encadenados por llamada. Antes de este cambio, checkInGuest
-        // (transacción que escribe a la vez guests/{guestId} Y
-        // events/{eventId}) llegó a rechazarse con "maximum of 1000
-        // expressions to evaluate" al sumar el costo de evaluar ESTA regla
-        // (hasta 6 llamadas a canDo()) más el de events/{eventId} en la misma
-        // transacción — mismo incidente ya documentado y resuelto ahí (ver
-        // isOwnerData/canDoData más arriba), ahora resuelto acá con el mismo
-        // patrón.
-        allow update: if (canDoData(eventDataFor(eventId), 'editGuests', true) && companionsWithinLimitData(eventDataFor(eventId), request.resource.data, true) && paymentConfirmationFieldsUntouched(resource.data, request.resource.data)) ||
-          (isAdmin() && paymentConfirmationFieldsUntouched(resource.data, request.resource.data)) ||
-          (
-            canDoData(eventDataFor(eventId), 'scanQr', true) &&
-            request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail', 'checkedOutAt', 'checkedOutByEmail', 'exitType'])
-          ) ||
+        // get()s encadenados por llamada. Antes de la migración de check-in a
+        // Cloud Functions, la transacción de cliente que escribía a la vez
+        // guests/{guestId} Y events/{eventId} llegó a rechazarse con "maximum
+        // of 1000 expressions to evaluate" al sumar el costo de evaluar ESTA
+        // regla (hasta 6 llamadas a canDo()) más el de events/{eventId} en la
+        // misma transacción — mismo incidente ya documentado y resuelto ahí
+        // (ver isOwnerData/canDoData más arriba). La migración a Admin SDK
+        // (que ignora estas reglas) elimina esa rama por completo en vez de
+        // solo optimizarla.
+        allow update: if (canDoData(eventDataFor(eventId), 'editGuests', true) && companionsWithinLimitData(eventDataFor(eventId), request.resource.data, true) && accessControlFieldsUntouched(resource.data, request.resource.data)) ||
+          (isAdmin() && accessControlFieldsUntouched(resource.data, request.resource.data)) ||
           // assignGuestToTable (Seating Chart, src/firebase/seating.ts): un
           // coanfitrión con SOLO manageSeating (sin editGuests) puede mover
           // invitados de mesa sin heredar edición completa del invitado —
@@ -1469,7 +1479,10 @@ service cloud.firestore {
       match /checkins/{checkinId} {
         // También lo lee Reports (viewReports) — no solo el escáner.
         allow read: if canDo(eventId, 'scanQr', true) || canDo(eventId, 'viewReports', true) || isAdmin();
-        allow create: if canDo(eventId, 'scanQr', true) || isAdmin();
+        // Los únicos 3 escritores (check-in, check-out, bloqueo por salida
+        // definitiva) son Cloud Functions (Admin SDK, ignora esta regla) —
+        // ver functions/src/checkin/. Ningún cliente crea estos docs directo.
+        allow create: if false;
         allow delete: if isOwner(eventId) || isAdmin();
         allow update: if false;
       }

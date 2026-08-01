@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { doc, setDoc, updateDoc } from 'firebase/firestore'
 import { createTestEnv, getEventDoc, getGuestContactDoc, getGuestDoc, getWaitlistEntries, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
-import { getCheckins } from '../reports'
 
 // Mismo mock que capacity.test.ts: redirige el `db` singleton de guests.ts/capacity.ts
 // al Firestore del emulador activo en cada test (ver comentario en capacity.test.ts).
@@ -27,7 +26,7 @@ vi.mock('../attendeeLimit', async (importOriginal) => {
 })
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, addGuestsFromRows, checkInGuest, checkOutGuest, claimGuestPass, deleteGuest, getAllGuests, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, addGuestsFromRows, claimGuestPass, deleteGuest, getAllGuests, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -49,176 +48,91 @@ describe('guests.ts', () => {
     await testEnv.cleanup()
   })
 
-  it('should check in a guest and increment checkedInCount', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+  // checkInGuest/checkOutGuest/allowGuestReentry se migraron a Cloud
+  // Functions (Admin SDK — ver functions/src/checkin/) — ningún cliente,
+  // sin importar el permiso que tenga, puede seguir escribiendo estos campos
+  // directo a Firestore. La máquina de estados en sí (idempotencia,
+  // reingreso, bloqueo por salida definitiva, gate de pago, contadores) ya
+  // no se prueba acá — se movió a functions/src/checkin/*.test.ts (Admin
+  // SDK contra el emulador, mismo criterio que
+  // functions/src/payments/confirmPayment.test.ts). Mismo patrón que el
+  // bloque de pago más abajo ("confirmación de pago bloqueada para el
+  // cliente").
+  describe('check-in/check-out/reingreso bloqueados para el cliente (migrados a Cloud Functions)', () => {
+    it('rejects the event owner writing status/checkedInAt/checkedInBy directly to a guest', async () => {
+      await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-    const result = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-
-    expect(result.status).toBe('success')
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkedInCount).toBe(1)
-    const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
-    expect(guest?.status).toBe('checked_in')
-    expect(guest?.checkedInBy).toBe(OWNER_UID)
-  })
-
-  // Auditoría de escalabilidad (F4): "Llegadas por hora" en Reports.tsx ya
-  // no recorre toda la subcolección `checkins` — lee este contador agregado.
-  it('increments checkinsByHour for the current hour bucket on check-in', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-
-    const expectedHourLabel = `${new Date().getHours().toString().padStart(2, '0')}:00`
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkinsByHour).toEqual({ [expectedHourLabel]: 1 })
-  })
-
-  it('should sum companions into checkedInCount on check-in (and not get blocked by the security rule)', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
-      qrToken: QR_TOKEN,
-      companions: [{ name: 'Uno' }, { name: 'Dos' }, { name: 'Tres' }],
-    })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    const result = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-
-    expect(result.status).toBe('success')
-    // 1 (el invitado) + 3 acompañantes = 4, en una sola escritura.
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkedInCount).toBe(4)
-  })
-
-  it('should reject a duplicate check-in for the same guest', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    const first = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    expect(first.status).toBe('success')
-
-    const second = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-
-    expect(second.status).toBe('already_checked_in')
-    // El segundo intento no debe volver a incrementar el contador.
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkedInCount).toBe(1)
-  })
-
-  it('should return not_checked_in when checking out a guest without a prior check-in', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    const result = await checkOutGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'temporary')
-
-    expect(result.status).toBe('not_checked_in')
-  })
-
-  it('should reject a double check-out for the same guest', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    const first = await checkOutGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'temporary')
-    expect(first.status).toBe('success')
-
-    const second = await checkOutGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'temporary')
-    expect(second.status).toBe('already_checked_out')
-  })
-
-  it('should allow re-entry after a temporary exit without double-counting checkedInCount', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    const checkout = await checkOutGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'temporary')
-    expect(checkout.status).toBe('success')
-
-    const reentry = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    expect(reentry.status).toBe('success')
-    if (reentry.status === 'success') expect(reentry.reentry).toBe(true)
-
-    // La reentrada no vuelve a sumar al contador de asistencia (ya se contó en el primer check-in),
-    // pero sí vuelve a subir la ocupación en vivo (bajó al salir, vuelve a subir al reingresar).
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkedInCount).toBe(1)
-    expect(event?.occupancyCount).toBe(1)
-    const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
-    expect(guest?.checkedOutAt).toBe(null)
-  })
-
-  it('should track live occupancy across check-in, temporary exit and re-entry, including companions', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0, occupancyCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, {
-      qrToken: QR_TOKEN,
-      companions: [{ name: 'Uno' }, { name: 'Dos' }],
-    })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    // 1 invitado + 2 acompañantes = 3, tanto en asistencia acumulada como en ocupación en vivo.
-    let event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkedInCount).toBe(3)
-    expect(event?.occupancyCount).toBe(3)
-
-    await checkOutGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'temporary')
-    // La salida libera la ocupación en vivo (los 3) sin tocar la asistencia acumulada.
-    event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkedInCount).toBe(3)
-    expect(event?.occupancyCount).toBe(0)
-
-    await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    // El reingreso vuelve a ocupar los 3 lugares sin duplicar la asistencia acumulada.
-    event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkedInCount).toBe(3)
-    expect(event?.occupancyCount).toBe(3)
-  })
-
-  it('should block re-entry after a final exit', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    const checkout = await checkOutGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'final')
-    expect(checkout.status).toBe('success')
-
-    const reentry = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    expect(reentry.status).toBe('blocked_final_exit')
-
-    // Anfitrión en Vivo lee este registro para mostrar "rechazados" — el
-    // único caso real de rechazo (payment_required no escribe nada, se
-    // resuelve en el momento desde el propio escáner).
-    const checkins = await getCheckins(EVENT_ID)
-    const blocked = checkins.filter((c) => c.type === 'entry_blocked')
-    expect(blocked).toHaveLength(1)
-    expect(blocked[0].reason).toBe('final_exit_blocked')
-    expect(blocked[0].guestId).toBe(GUEST_ID)
-  })
-
-  it('should allow re-entry even if payment status changed to unpaid while the guest was out', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0, requiresPayment: true })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid' })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    await checkOutGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com', 'temporary')
-
-    // El organizador marca el pago como no pagado (p.ej. una disputa) mientras el invitado está afuera.
-    await testEnv.withSecurityRulesDisabled(async (context) => {
-      await updateDoc(doc(context.firestore(), 'events', EVENT_ID, 'guests', GUEST_ID), { paymentStatus: 'unpaid' })
+      await assertFails(
+        updateDoc(doc(ownerDb, 'events', EVENT_ID, 'guests', GUEST_ID), {
+          status: 'checked_in',
+          checkedInAt: Date.now(),
+          checkedInBy: OWNER_UID,
+          checkedInByEmail: 'owner@test.com',
+        }),
+      )
     })
 
-    const reentry = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    expect(reentry.status).toBe('success')
+    it('rejects a co-organizer with scanQr writing checkedOutAt/exitType directly to a guest', async () => {
+      const COORG_UID = 'coorg-scan-uid'
+      await seedEvent(testEnv, EVENT_ID, {
+        coOrganizersMap: { [COORG_UID]: true },
+        coOrganizerPermissions: { [COORG_UID]: { scanQr: true } },
+      })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, status: 'checked_in' })
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(coOrgDb, 'events', EVENT_ID, 'guests', GUEST_ID), {
+          checkedOutAt: Date.now(),
+          checkedOutByEmail: 'coorg@test.com',
+          exitType: 'temporary',
+        }),
+      )
+    })
+
+    it('rejects a direct write to checkedInCount/checkinsByHour on the event, even with scanQr', async () => {
+      await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0, checkinsByHour: {} })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      // occupancyCount solo sube junto con checkedInCount/checkinsByHour acá
+      // porque walkIn/walkOut (fuera de esta migración) siguen necesitando
+      // escribir occupancyCount+checkedInCount directo — pero checkinsByHour
+      // ya es exclusivo de la Cloud Function checkInGuest.
+      await assertFails(
+        updateDoc(doc(ownerDb, 'events', EVENT_ID), {
+          checkedInCount: 1,
+          occupancyCount: 1,
+          'checkinsByHour.10:00': 1,
+        }),
+      )
+    })
+
+    it('rejects a direct create in the checkins audit subcollection, even with scanQr', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertFails(
+        setDoc(doc(ownerDb, 'events', EVENT_ID, 'checkins', 'fake-checkin'), {
+          guestId: GUEST_ID,
+          type: 'check_in',
+          timestamp: Date.now(),
+        }),
+      )
+    })
+
+    it('lets walkIn/walkOut keep writing checkedInCount/occupancyCount directly (out of this migration\'s scope)', async () => {
+      await seedEvent(testEnv, EVENT_ID, { checkedInCount: 0 })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const result = await walkIn(EVENT_ID)
+
+      expect(result).toBe('success')
+      const event = await getEventDoc(testEnv, EVENT_ID)
+      expect(event?.checkedInCount).toBe(1)
+      expect(event?.occupancyCount).toBe(1)
+    })
   })
 
   it('should move a guest to pending_confirmation on submitPaymentProof without touching guestCount/peopleCount', async () => {
@@ -416,26 +330,30 @@ describe('guests.ts', () => {
     expect(event?.paidCount).toBe(6)
   })
 
-  it('should complete the full walkIn -> checkInGuest -> walkOut transaction flow', async () => {
+  // checkInGuest se migró a Cloud Functions (ver más abajo, bloque "check-in/
+  // check-out/reingreso bloqueados para el cliente") — walkIn/walkOut siguen
+  // siendo transacciones de cliente (fuera de esa migración, ver
+  // firestore.rules: la rama scanQr de events/{eventId} se angostó pero no
+  // se eliminó justamente porque estas dos todavía la necesitan), así que
+  // este test ya no puede combinar los tres pasos en el mismo emulador de
+  // solo Firestore. El flujo con checkInGuest se prueba en
+  // functions/src/checkin/checkIn.test.ts (test "tracks live occupancy...").
+  it('should complete the walkIn -> walkOut transaction flow', async () => {
     await seedEvent(testEnv, EVENT_ID, { capacity: 5, checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
     const walkInResult = await walkIn(EVENT_ID)
     expect(walkInResult).toBe('success')
 
-    const checkin = await checkInGuest(EVENT_ID, QR_TOKEN, OWNER_UID, 'owner@test.com')
-    expect(checkin.status).toBe('success')
-
     let event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkedInCount).toBe(2)
-    expect(event?.occupancyCount).toBe(2)
+    expect(event?.checkedInCount).toBe(1)
+    expect(event?.occupancyCount).toBe(1)
 
     await walkOut(EVENT_ID)
 
     event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.checkedInCount).toBe(1)
-    expect(event?.occupancyCount).toBe(1)
+    expect(event?.checkedInCount).toBe(0)
+    expect(event?.occupancyCount).toBe(0)
   })
 
   it('should increment guestCount by 1 and peopleCount by partySize on addGuest (family/group)', async () => {

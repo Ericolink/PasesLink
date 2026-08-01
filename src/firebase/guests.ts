@@ -1194,15 +1194,6 @@ export function guestPresence(guest: Pick<GuestData, 'status' | 'checkedOutAt' |
   return guest.exitType === 'final' ? 'final_out' : 'temp_out'
 }
 
-// Bucket de EventData.checkinsByHour ("20:00" = 20:00-20:59), calculado con
-// la hora del CLIENTE en el momento del escaneo (no serverTimestamp(): ese
-// valor es un sentinel dentro de la transacción, no se puede leer como fecha
-// hasta después del commit). Coarse a propósito — es solo para el gráfico
-// "Llegadas por hora" de Reports, no para nada que dependa de precisión.
-function checkinHourLabel(): string {
-  return `${new Date().getHours().toString().padStart(2, '0')}:00`
-}
-
 export type CheckInResult =
   | { status: 'success'; guest: GuestData; reentry: boolean }
   | { status: 'already_checked_in'; guest: GuestData }
@@ -1210,96 +1201,18 @@ export type CheckInResult =
   | { status: 'blocked_final_exit'; guest: GuestData }
   | { status: 'not_found' }
 
+// Toda la máquina de estados (guestPresence, gate de pago, escritura
+// combinada de guests/{guestId}+events/{eventId}, doc de auditoría en
+// checkins) vive en la Cloud Function `checkInGuest` (Admin SDK, ver
+// functions/src/checkin/checkIn.ts) — este archivo ya no corre la
+// transacción, solo invoca la Callable y propaga el resultado.
 export async function checkInGuest(
   eventId: string,
   qrToken: string,
-  scannedBy: string,
-  scannedByEmail: string | null,
 ): Promise<CheckInResult> {
-  const guestRef = await findGuestRefByToken(eventId, qrToken)
-  if (!guestRef) {
-    return { status: 'not_found' }
-  }
-
-  const eventRef = doc(db, 'events', eventId)
-
-  return measureSpan('firestore.checkInGuest', 'db.firestore', () => runTransaction(db, async (transaction) => {
-    const guestSnap = await transaction.get(guestRef)
-    if (!guestSnap.exists()) {
-      return { status: 'not_found' } as CheckInResult
-    }
-    const guest = mapGuest(guestSnap.id, guestSnap.data())
-    const presence = guestPresence(guest)
-    if (presence === 'inside') {
-      return { status: 'already_checked_in', guest } as CheckInResult
-    }
-    if (presence === 'final_out') {
-      // Único caso real de "entrada rechazada" (a diferencia de
-      // payment_required, que el propio escáner resuelve en el momento) —
-      // se registra para que Anfitrión en Vivo pueda mostrar rechazos.
-      const blockedRef = doc(collection(db, 'events', eventId, 'checkins'))
-      transaction.set(blockedRef, {
-        guestId: guest.id,
-        guestName: guest.name,
-        type: 'entry_blocked',
-        reason: 'final_exit_blocked',
-        timestamp: serverTimestamp(),
-        scannedBy,
-        scannedByEmail,
-      })
-      return { status: 'blocked_final_exit', guest } as CheckInResult
-    }
-    const isReentry = presence === 'temp_out'
-
-    // El gate de pago solo aplica a la primera entrada — un reingreso ya pasó
-    // ese control antes; si el organizador cambia el estado de pago mientras
-    // el invitado está afuera (p.ej. por una disputa), no debe bloquearle el
-    // reingreso al mismo evento que ya estaba autorizado a estar.
-    if (!isReentry) {
-      const eventSnap = await transaction.get(eventRef)
-      if (eventSnap.data()?.requiresPayment && guest.paymentStatus !== 'paid') {
-        return { status: 'payment_required', guest } as CheckInResult
-      }
-    }
-
-    transaction.update(guestRef, {
-      status: 'checked_in',
-      checkedOutAt: null,
-      checkedOutByEmail: null,
-      exitType: null,
-      // En un reingreso se preserva el checkedInAt/checkedInBy originales
-      // (el "primer check-in" que ya muestra ScanResultModal) — solo se
-      // pisan en la primera entrada real.
-      ...(isReentry ? {} : { checkedInAt: serverTimestamp(), checkedInBy: scannedBy, checkedInByEmail: scannedByEmail }),
-    })
-    // checkedInCount es asistencia acumulada (cuánta gente entró alguna vez):
-    // solo suma en la primera entrada, nunca en un reingreso. occupancyCount
-    // es ocupación en vivo (gatea `capacity` en walkIn/registerWalkInGuest):
-    // sube en CUALQUIER ingreso, primero o reingreso — un solo update para no
-    // llamar transaction.update() dos veces sobre el mismo doc.
-    transaction.update(eventRef, {
-      occupancyCount: increment(partySize(guest)),
-      ...(isReentry ? {} : { checkedInCount: increment(partySize(guest)) }),
-      [`checkinsByHour.${checkinHourLabel()}`]: increment(1),
-    })
-
-    const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
-    transaction.set(checkinRef, {
-      guestId: guest.id,
-      guestName: guest.name,
-      type: 'check_in',
-      ...(isReentry ? { reentry: true } : {}),
-      timestamp: serverTimestamp(),
-      scannedBy,
-      scannedByEmail,
-    })
-
-    return {
-      status: 'success',
-      guest: { ...guest, status: 'checked_in', checkedOutAt: null, exitType: null },
-      reentry: isReentry,
-    } as CheckInResult
-  }))
+  const callable = httpsCallable<{ eventId: string; qrToken: string }, CheckInResult>(functions, 'checkInGuest')
+  const result = await measureSpan('functions.checkInGuest', 'db.firestore', () => callable({ eventId, qrToken }))
+  return result.data
 }
 
 export type CheckOutResult =
@@ -1308,68 +1221,50 @@ export type CheckOutResult =
   | { status: 'already_checked_out'; guest: GuestData }
   | { status: 'not_found' }
 
+// Misma máquina de estados que checkInGuest, ahora en la Cloud Function
+// `checkOutGuest` (ver functions/src/checkin/checkOut.ts).
 export async function checkOutGuest(
   eventId: string,
   qrToken: string,
-  scannedBy: string,
-  scannedByEmail: string | null,
   kind: 'temporary' | 'final',
 ): Promise<CheckOutResult> {
-  const guestRef = await findGuestRefByToken(eventId, qrToken)
-  if (!guestRef) {
-    return { status: 'not_found' }
-  }
-  const eventRef = doc(db, 'events', eventId)
+  const callable = httpsCallable<{ eventId: string; qrToken: string; kind: 'temporary' | 'final' }, CheckOutResult>(functions, 'checkOutGuest')
+  const result = await measureSpan('functions.checkOutGuest', 'db.firestore', () => callable({ eventId, qrToken, kind }))
+  return result.data
+}
 
-  return measureSpan('firestore.checkOutGuest', 'db.firestore', () => runTransaction(db, async (transaction) => {
-    const guestSnap = await transaction.get(guestRef)
-    if (!guestSnap.exists()) {
-      return { status: 'not_found' } as CheckOutResult
-    }
-    const guest = mapGuest(guestSnap.id, guestSnap.data())
-    const presence = guestPresence(guest)
-    if (presence === 'invited') {
-      return { status: 'not_checked_in' } as CheckOutResult
-    }
-    if (presence === 'temp_out' || presence === 'final_out') {
-      return { status: 'already_checked_out', guest } as CheckOutResult
-    }
+export type ConfirmPaymentAndCheckInResult =
+  | { ok: true; checkIn: 'success'; reentry: boolean; guest: GuestData }
+  | { ok: true; checkIn: 'already_checked_in'; guest: GuestData }
+  | { ok: true; checkIn: 'blocked_final_exit'; guest: GuestData }
 
-    transaction.update(guestRef, {
-      checkedOutAt: serverTimestamp(),
-      checkedOutByEmail: scannedByEmail,
-      exitType: kind,
-    })
-    // Toda salida (temporal o definitiva) libera ocupación en vivo — a
-    // diferencia de checkedInCount (asistencia acumulada), que no se toca acá.
-    transaction.update(eventRef, { occupancyCount: increment(-partySize(guest)) })
-
-    const checkinRef = doc(collection(db, 'events', eventId, 'checkins'))
-    transaction.set(checkinRef, {
-      guestId: guest.id,
-      guestName: guest.name,
-      type: 'check_out',
-      exitKind: kind,
-      timestamp: serverTimestamp(),
-      scannedBy,
-      scannedByEmail,
-    })
-
-    return {
-      status: 'success',
-      guest: { ...guest, checkedOutAt: Date.now(), checkedOutByEmail: scannedByEmail, exitType: kind },
-      kind,
-    } as CheckOutResult
-  }))
+// Botón "Sí, ya pagó" del escáner (evento de pago, invitado sin pagar) —
+// confirma el pago y hace el check-in en una sola llamada atómica del
+// servidor (ver functions/src/checkin/confirmPaymentAndCheckIn.ts), en vez
+// de las dos llamadas secuenciales no atómicas (setGuestPaymentStatus +
+// checkInGuest) que este archivo usaba antes de esta migración.
+export async function confirmPaymentAndCheckIn(
+  eventId: string,
+  guestId: string,
+  method?: PaymentMethod,
+): Promise<ConfirmPaymentAndCheckInResult> {
+  const callable = httpsCallable<
+    { eventId: string; guestId: string; method?: PaymentMethod },
+    ConfirmPaymentAndCheckInResult
+  >(functions, 'confirmPaymentAndCheckIn')
+  const result = await measureSpan('functions.confirmPaymentAndCheckIn', 'db.firestore', () => callable({ eventId, guestId, method }))
+  return result.data
 }
 
 // Excepción del organizador (pedida explícitamente): revierte una salida
 // "definitiva" a un estado que vuelve a permitir reingreso por escáner —
 // limpia `exitType` sin tocar `checkedOutAt` (el invitado sigue figurando
 // "afuera" hasta que efectivamente reingrese, checkInGuest se encarga de
-// resetear checkedOutAt en ese momento).
+// resetear checkedOutAt en ese momento). Cloud Function
+// functions/src/callable/allowGuestReentry.ts.
 export async function allowGuestReentry(eventId: string, guestId: string) {
-  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { exitType: null })
+  const callable = httpsCallable<{ eventId: string; guestId: string }, { ok: boolean }>(functions, 'allowGuestReentry')
+  await callable({ eventId, guestId })
 }
 
 // Compatibilidad con invitados creados antes de este cambio, donde

@@ -22,7 +22,6 @@ vi.mock('../attendeeLimit', async (importOriginal) => {
 
 import { registerWalkInGuest, walkIn, walkOut } from '../capacity'
 import { CapacityFullError } from '../attendeeLimit'
-import { checkInGuest } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -561,13 +560,17 @@ describe('capacity.ts', () => {
     }))
   })
 
-  it('should enforce the same checkedInCount limit for normal check-ins and walk-ins', async () => {
-    await seedEvent(testEnv, EVENT_ID, { capacity: 1, checkedInCount: 0 })
-    await seedGuest(testEnv, EVENT_ID, 'guest-1', { qrToken: 'qr-1' })
+  // checkInGuest se migró a Cloud Functions (ver
+  // functions/src/checkin/checkIn.ts, probado aparte contra Admin SDK) — ya
+  // no puede invocarse desde este archivo (emulador de solo Firestore, sin
+  // Functions). walkIn/occupancyCount comparten el mismo `capacity` que
+  // checkInGuest respeta (occupancyCount, no checkedInCount — ver comentario
+  // de walkIn en capacity.ts), así que alcanza con sembrar occupancyCount
+  // directo para probar que walkIn respeta el mismo cupo que dejaría un
+  // check-in real.
+  it('should respect the same occupancyCount limit a real check-in would leave behind', async () => {
+    await seedEvent(testEnv, EVENT_ID, { capacity: 1, checkedInCount: 1, occupancyCount: 1 })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    const checkin = await checkInGuest(EVENT_ID, 'qr-1', OWNER_UID, 'owner@test.com')
-    expect(checkin.status).toBe('success')
 
     const walkInResult = await walkIn(EVENT_ID)
 

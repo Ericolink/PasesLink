@@ -21,7 +21,9 @@ function paidByFromSource(source: PaymentSource): string {
 // dato crudo de Firestore (sin pasar por mapGuest/normalizeCompanions) —
 // `companions` puede ser un array (formato actual) o un número legacy
 // (formato con el que confirmWaitlistOffer.ts todavía crea invitados).
-function partySizeFromRaw(companions: unknown): number {
+// Exportada para que functions/src/checkin/ (confirmPaymentAndCheckIn) la
+// reuse sin duplicar el cálculo.
+export function partySizeFromRaw(companions: unknown): number {
   if (Array.isArray(companions)) return companions.length + 1
   if (typeof companions === 'number' && companions > 0) return companions + 1
   return 1
@@ -29,9 +31,11 @@ function partySizeFromRaw(companions: unknown): number {
 
 // Calcula los campos a escribir en el invitado + el delta de paidCount para
 // UNA transición de pago — compartido por confirmGuestPayment (invitado
-// suelto) y bulkConfirmGuestPayments (cada invitado del lote), para que las
-// dos rutas apliquen exactamente la misma máquina de estados.
-function computePaymentChange(
+// suelto), bulkConfirmGuestPayments (cada invitado del lote) y
+// functions/src/checkin/confirmPaymentAndCheckIn.ts (pago + check-in
+// atómicos), para que las tres rutas apliquen exactamente la misma máquina
+// de estados.
+export function computePaymentChange(
   guest: DocumentData,
   target: 'paid' | 'unpaid',
   method: PaymentMethod | undefined,
