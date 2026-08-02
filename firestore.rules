@@ -748,87 +748,17 @@ service cloud.firestore {
       return exists(guestPath) && guestLockTokensOk(get(guestPath).data, lockToken);
     }
 
-    // Solo forma/tipos — NO valida que el precio/stock declarado coincida con
-    // el catálogo real: eso lo hace la transacción del cliente (ver
-    // createConcessionOrder en src/firebase/concessions.ts), que relee
-    // concessionsCatalog dentro de la misma transacción antes de escribir.
-    // Mismo criterio ya aceptado en todo este archivo para contenido que solo
-    // el cliente de confianza (no un adversario con algo que ganar más allá
-    // de mentirse a sí mismo) puede fabricar — ni siquiera se puede iterar
-    // `items` elemento por elemento en Firestore Rules (ver comentario de
-    // isValidGuestSelfEdit más arriba sobre esta misma limitación).
-    function isValidConcessionOrderCreate(d) {
-      return d.guestId is string && d.guestId.size() > 0
-        && d.guestNameSnapshot is string && d.guestNameSnapshot.size() <= 121
-        && d.items is list && d.items.size() >= 1 && d.items.size() <= 30
-        && d.subtotalMinorUnits is int && d.subtotalMinorUnits >= 0
-        && d.totalMinorUnits == d.subtotalMinorUnits
-        && d.currency is string && d.currency.size() > 0 && d.currency.size() <= 10
-        && d.itemCount is int && d.itemCount > 0
-        && d.paymentMethod in [null, 'transfer', 'cash']
-        && (
-          (d.totalMinorUnits == 0 && d.paymentMethod == null && d.paymentPhase == 'confirmed')
-          || (d.totalMinorUnits > 0 && d.paymentMethod in ['transfer', 'cash'] && d.paymentPhase == 'awaiting_payment')
-        )
-        && d.get('paymentNote', '') == ''
-        && d.get('paymentProofUrl', '') == ''
-        && d.get('rejectionReason', '') == ''
-        && !('cancelReason' in d)
-        && (!('lockToken' in d) || (d.lockToken is string && d.lockToken.size() <= 100));
-    }
-
-    // Descuento de inventario del checkout (createConcessionOrder) — lo
-    // dispara un invitado sin cuenta obligatoria, así que no hay ningún uid
-    // contra el cual atar esta escritura (a diferencia del pedido en sí, que
-    // sí se puede probar con isGuestOrderActor). Misma resignación ya
-    // aceptada en este archivo para reactionCounterDeltaOk (contador público,
-    // sin identidad verificable, acotado por un delta razonable en vez de por
-    // un permiso) — acá el delta es "hasta 50 unidades en un solo pedido"
-    // (mismo techo que counterDeltaOk) y la resta de `stockRemaining` debe
-    // coincidir EXACTO con la suma de `soldCount`, así que un cliente
-    // hablando directo contra Firestore no puede inflar ventas sin agotar
-    // stock real, ni viceversa.
-    function isValidConcessionStockDecrement(oldItem, newItem) {
-      let delta = newItem.get('soldCount', 0) - oldItem.get('soldCount', 0);
-      return oldItem.status == 'active'
-        && oldItem.get('stockMode', 'unlimited') == 'limited'
-        && newItem.diff(oldItem).affectedKeys().hasOnly(['stockRemaining', 'soldCount', 'status', 'updatedAt'])
-        && delta >= 1 && delta <= 50
-        && newItem.stockRemaining is int && newItem.stockRemaining >= 0
-        && (oldItem.get('stockRemaining', 0) - newItem.stockRemaining) == delta
-        && newItem.status in [oldItem.status, 'outOfStock'];
-    }
-
-    // Mismo checkout, para un ítem de stock ilimitado: solo sube soldCount,
-    // no hay `stockRemaining` que cuadrar.
-    function isValidConcessionSoldCountBump(oldItem, newItem) {
-      let delta = newItem.get('soldCount', 0) - oldItem.get('soldCount', 0);
-      return oldItem.status == 'active'
-        && oldItem.get('stockMode', 'unlimited') == 'unlimited'
-        && newItem.diff(oldItem).affectedKeys().hasOnly(['soldCount', 'updatedAt'])
-        && delta >= 1 && delta <= 50;
-    }
-
-    // Liberar stock reservado al cancelar un pedido (cancelConcessionOrder) —
-    // a propósito SIN una rama equivalente para el invitado anónimo (a
-    // diferencia del descuento del checkout de arriba): la dirección
-    // "sumar stock" no tiene ningún límite natural que la autolimite (restar
-    // no puede pasar de 0, pero sumar sí podría inflarse sin techo real si
-    // cualquiera pudiera llamar a esto), así que exige la MISMA cuenta de
-    // confianza que ya administra dinero de este módulo. Consecuencia: la
-    // autocancelación del invitado (cancelOwnConcessionOrder) cancela el
-    // PEDIDO pero no libera stock por sí sola — el organizador/staff libera
-    // el stock reservado cuando cancela ese pedido desde su bandeja (ver RFC
-    // §14.1: mismo criterio de "sin cronómetros automáticos, un humano de
-    // confianza decide" ya aplicado ahí).
-    function isValidConcessionStockRelease(evData, oldItem, newItem) {
-      return (canDoData(evData, 'manageConcessions', false) || canDoData(evData, 'confirmPayments', false) || isAdmin())
-        && oldItem.get('stockMode', 'unlimited') == 'limited'
-        && newItem.diff(oldItem).affectedKeys().hasOnly(['stockRemaining', 'status', 'updatedAt'])
-        && newItem.stockRemaining is int
-        && newItem.stockRemaining > oldItem.get('stockRemaining', 0)
-        && newItem.status in [oldItem.status, 'active'];
-    }
+    // isValidConcessionOrderCreate/isValidConcessionStockDecrement/
+    // isValidConcessionSoldCountBump/isValidConcessionStockRelease existieron
+    // acá (solo validaban forma/tipos, nunca podían verificar que el
+    // precio/stock declarado coincidiera con el catálogo real) hasta que
+    // createConcessionOrder/cancelConcessionOrder se migraron a Cloud
+    // Functions (ver FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md Fase B): ahora
+    // ambas transacciones corren con Admin SDK, releen concessionsCatalog
+    // como única fuente de verdad, y escriben bypasseando estas reglas —
+    // así que la escritura directa de cliente sobre `concessionsOrders`
+    // (`create`) y sobre `stockRemaining`/`soldCount` de `concessionsCatalog`
+    // (`update`) ya no tiene ninguna rama que la autorice más abajo.
 
     function isValidConcessionItem(d) {
       return d.name is string && d.name.size() > 0 && d.name.size() <= 80
@@ -1537,6 +1467,13 @@ service cloud.firestore {
         // manageConcessions edita cualquier campo (catálogo, precios, stock);
         // el Menu Manager SOLO puede tocar `status` (agotado manual, ver RFC
         // §11.4) — nunca precio, nombre ni stock.
+        // Checkout (reserva/descuento de stock) y cancelación de un pedido
+        // (liberación de stock) ya NO tienen rama de cliente acá — ambas
+        // corren en Cloud Functions con Admin SDK (ver
+        // createConcessionOrder/cancelConcessionOrder), que bypassean estas
+        // reglas. `stockRemaining`/`soldCount` quedan así reservados
+        // exclusivamente al organizador (vía isValidConcessionItem) y al
+        // servidor.
         allow update: if concessionsEnabled(eventDataFor(eventId)) && (
           ((canDo(eventId, 'manageConcessions', false) || isAdmin()) && isValidConcessionItem(request.resource.data))
           || (
@@ -1544,13 +1481,6 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
             && request.resource.data.status in ['active', 'outOfStock']
           )
-          // Checkout de un invitado (createConcessionOrder) — ver
-          // isValidConcessionStockDecrement/isValidConcessionSoldCountBump.
-          || isValidConcessionStockDecrement(resource.data, request.resource.data)
-          || isValidConcessionSoldCountBump(resource.data, request.resource.data)
-          // Liberar stock al cancelar un pedido (cancelConcessionOrder) — ver
-          // isValidConcessionStockRelease.
-          || isValidConcessionStockRelease(eventDataFor(eventId), resource.data, request.resource.data)
         );
         allow delete: if false;
       }
@@ -1571,9 +1501,12 @@ service cloud.firestore {
             get(/databases/$(database)/documents/events/$(eventId)/guests/$(resource.data.guestId)).data.get('guestUid', null) == request.auth.uid
           )
         );
-        allow create: if concessionsEnabled(eventDataFor(eventId))
-          && isGuestOrderActor(eventId, request.resource.data.guestId, request.resource.data.get('lockToken', null))
-          && isValidConcessionOrderCreate(request.resource.data);
+        // El pedido se crea SIEMPRE vía la Callable `createConcessionOrder`
+        // (Admin SDK, bypassea estas reglas) — nunca directo desde el
+        // cliente, único punto donde antes se podía fabricar
+        // subtotalMinorUnits/totalMinorUnits sin que coincidieran con el
+        // catálogo real (ver FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md Fase B).
+        allow create: if false;
         allow update: if concessionsEnabled(eventDataFor(eventId)) && (
           // Invitado dueño: subir comprobante (transferencia) o cancelar su
           // propio pedido, solo mientras no esté ya confirmado.
@@ -1618,16 +1551,11 @@ service cloud.firestore {
           canDo(eventId, 'manageConcessions', false) || canDo(eventId, 'confirmPayments', false) || isAdmin()
           || (isConcessionsStaff(eventDataFor(eventId)) && resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered'])
         );
-        // Se crea SIEMPRE junto con concessionsOrders, desde la misma
-        // transacción de checkout del invitado — mismo `isGuestOrderActor`
-        // que autoriza al hermano, sin volver a exigir `isValidConcessionOrderCreate`
-        // (ese documento no tiene dinero que validar, solo nombres/cantidades).
-        allow create: if concessionsEnabled(eventDataFor(eventId))
-          && isGuestOrderActor(eventId, request.resource.data.get('guestId', ''), request.resource.data.get('lockToken', null))
-          && request.resource.data.fulfillmentStatus in ['not_ready', 'queued']
-          && request.resource.data.guestNameSnapshot is string && request.resource.data.guestNameSnapshot.size() <= 121
-          && request.resource.data.orderNumber is string && request.resource.data.orderNumber.size() <= 20
-          && request.resource.data.lines is list && request.resource.data.lines.size() >= 1 && request.resource.data.lines.size() <= 30;
+        // Se crea SIEMPRE junto con concessionsOrders, dentro de la misma
+        // transacción de checkout de la Callable `createConcessionOrder`
+        // (Admin SDK, bypassea estas reglas) — nunca directo desde el
+        // cliente.
+        allow create: if false;
         allow update: if concessionsEnabled(eventDataFor(eventId)) && (
           canDo(eventId, 'manageConcessions', false) || isAdmin()
           // confirmPayments: puede sacar un pedido de 'not_ready' (mismo

@@ -44,6 +44,7 @@ export const createConcessionOrder = onCall<CreateConcessionOrderInput>(async (r
   if (result.status === 'event_not_found') throw new HttpsError('not-found', 'El evento no existe.')
   if (result.status === 'not_enabled') throw new HttpsError('failed-precondition', 'Este evento no tiene el menú activado.')
   if (result.status === 'forbidden') throw new HttpsError('permission-denied', 'No tienes permiso para hacer este pedido.')
+  if (result.status === 'invalid_lines') throw new HttpsError('invalid-argument', 'El carrito tiene productos o cantidades inválidas.')
   // checkout_error: precio/stock/disponibilidad del catálogo — el `details`
   // lleva `itemId` para que el cliente resalte la línea puntual del carrito.
   throw new HttpsError('failed-precondition', result.message, { itemId: result.itemId })

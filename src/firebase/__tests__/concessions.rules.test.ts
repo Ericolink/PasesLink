@@ -197,6 +197,97 @@ describe('Concessions — venta de comida/bebida durante el evento', () => {
   // ahora en functions/src/concessions/createConcessionOrder.test.ts,
   // probados contra el emulador vía Admin SDK.
 
+  // Ahora que Fase B angostó las rules (2026-08-02), estos 3 tests prueban lo
+  // contrario de lo que probaban las versiones viejas de
+  // isValidConcessionOrderCreate/isValidConcessionStockDecrement/
+  // isValidConcessionStockRelease: que ya NO existe ninguna rama que autorice
+  // a un cliente a fabricar estos documentos directo contra Firestore, ni
+  // siquiera con un payload perfectamente formado y un lockToken legítimo —
+  // la única vía posible es la Callable (Admin SDK, bypassea estas reglas).
+  describe('escritura directa de cliente sobre dinero/stock — debe estar cerrada', () => {
+    it('rechaza crear un pedido directo en concessionsOrders, aunque el payload sea válido y el lockToken sea del propio invitado', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { lockTokens: [LOCK_TOKEN] })
+      const anonDb = testEnv.unauthenticatedContext().firestore()
+
+      await assertFails(
+        setDoc(doc(anonDb, 'events', EVENT_ID, 'concessionsOrders', 'order-fabricado'), {
+          guestId: GUEST_ID,
+          guestNameSnapshot: 'Invitado de prueba',
+          items: [{ itemId: ITEM_ID, nameSnapshot: 'Soda italiana', categorySnapshot: 'drink', unitPriceMinorUnitsSnapshot: 1, quantity: 1, lineTotalMinorUnits: 1 }],
+          subtotalMinorUnits: 1,
+          totalMinorUnits: 1,
+          currency: 'MXN',
+          itemCount: 1,
+          paymentMethod: 'cash',
+          paymentPhase: 'awaiting_payment',
+          lockToken: LOCK_TOKEN,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }),
+      )
+    })
+
+    it('rechaza que un invitado descuente stock/suba soldCount directo en concessionsCatalog', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { stockMode: 'limited', stockRemaining: 10, soldCount: 0, status: 'active' })
+      const anonDb = testEnv.unauthenticatedContext().firestore()
+
+      await assertFails(
+        updateDoc(doc(anonDb, 'events', EVENT_ID, 'concessionsCatalog', ITEM_ID), {
+          stockRemaining: 9,
+          soldCount: 1,
+          updatedAt: Date.now(),
+        }),
+      )
+    })
+
+    // Antes, un coanfitrión con `confirmPayments` (pero SIN `manageConcessions`)
+    // podía "liberar" stock con un update angosto vía isValidConcessionStockRelease
+    // — era su única vía para que cancelConcessionOrder (organizador) funcionara
+    // del lado cliente. Ahora esa cancelación corre en la Cloud Function (que
+    // revisa el mismo permiso del lado servidor, ver canConfirmPayments en
+    // functions/src/lib/permissions.ts), así que este actor ya no necesita
+    // ni debe tener una vía directa contra concessionsCatalog.
+    it('un coanfitrión con confirmPayments (sin manageConcessions) ya no puede tocar stockRemaining directo en concessionsCatalog', async () => {
+      await seedEvent(testEnv, EVENT_ID, {
+        ownerId: OWNER_UID,
+        concessions: enabledConcessions,
+        coOrganizersMap: { [COORG_UID]: 'coorg@test.com' },
+        coOrganizerPermissions: { [COORG_UID]: { confirmPayments: true, manageConcessions: false } },
+      })
+      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { stockMode: 'limited', stockRemaining: 5, status: 'outOfStock' })
+      const coOrgDb = testEnv.authenticatedContext(COORG_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(coOrgDb, 'events', EVENT_ID, 'concessionsCatalog', ITEM_ID), {
+          stockRemaining: 6,
+          status: 'active',
+          updatedAt: Date.now(),
+        }),
+      )
+    })
+
+    it('rechaza crear la proyección de cocina directo en concessionsFulfillment', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { lockTokens: [LOCK_TOKEN] })
+      const anonDb = testEnv.unauthenticatedContext().firestore()
+
+      await assertFails(
+        setDoc(doc(anonDb, 'events', EVENT_ID, 'concessionsFulfillment', 'order-fabricado'), {
+          guestId: GUEST_ID,
+          guestNameSnapshot: 'Invitado de prueba',
+          orderNumber: 'FAKE01',
+          lines: [{ nameSnapshot: 'Soda italiana', categorySnapshot: 'drink', quantity: 1 }],
+          fulfillmentStatus: 'not_ready',
+          lockToken: LOCK_TOKEN,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }),
+      )
+    })
+  })
+
   describe('flujo de pago', () => {
     it('el invitado dueño puede subir su comprobante (nota + foto)', async () => {
       await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
