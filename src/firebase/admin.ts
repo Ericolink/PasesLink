@@ -42,10 +42,13 @@ export interface AdminAuditLogEntry {
   createdAt: number
 }
 
-// Admin = tener un documento propio en /admins/{uid} (ver firestore.rules
-// para por qué no se usa customClaims: requeriría Cloud Functions, y este
-// proyecto está deliberadamente en el plan Spark/gratis). Alta de admins:
-// a mano desde la consola de Firebase, nunca desde la app.
+// Documento propio en /admins/{uid} — sigue siendo la fuente de verdad
+// legible/auditable desde la UI (por eso este chequeo cliente sigue leyendo
+// el doc), aunque ya no es lo único que evalúa `isAdmin()` en firestore.rules
+// (ver ese archivo: pasó a `token.admin == true`, sincronizado por
+// functions/src/triggers/onAdminWritten.ts — FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md
+// Fase C). Alta de admins: a mano desde la consola de Firebase, nunca desde
+// la app.
 export async function checkIsAdmin(uid: string): Promise<boolean> {
   const snap = await getDoc(doc(db, 'admins', uid))
   return snap.exists()

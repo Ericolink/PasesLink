@@ -10,6 +10,7 @@ if (getApps().length === 0) {
 }
 
 export { onCapacityFreed } from './triggers/onCapacityFreed.js'
+export { onAdminWritten } from './triggers/onAdminWritten.js'
 export { confirmWaitlistOffer } from './callable/confirmWaitlistOffer.js'
 export { declineWaitlistOffer } from './callable/declineWaitlistOffer.js'
 export { promoteWaitlistEntry } from './callable/promoteWaitlistEntry.js'
@@ -17,6 +18,7 @@ export { cancelWaitlistOffer } from './callable/cancelWaitlistOffer.js'
 export { getOfferedWaitlistCount } from './callable/getOfferedWaitlistCount.js'
 export { startReconfirmCampaign } from './callable/startReconfirmCampaign.js'
 export { sweepReconfirmations } from './scheduled/sweepReconfirmations.js'
+export { reconcileGuestCounters } from './scheduled/reconcileGuestCounters.js'
 export { setGuestPaymentStatus } from './callable/setGuestPaymentStatus.js'
 export { bulkSetGuestPaymentStatus } from './callable/bulkSetGuestPaymentStatus.js'
 export { checkInGuest } from './callable/checkInGuest.js'

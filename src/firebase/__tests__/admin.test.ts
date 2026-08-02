@@ -65,6 +65,20 @@ describe('admin.ts — getAllEvents/getAllUsers (auditoría F10)', () => {
     expect(users.map((u) => u.displayName).sort()).toEqual(['A', 'B'])
   })
 
+  // Fase C (FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md): isAdmin() ahora acepta
+  // el custom claim `admin: true` sin necesitar el doc admins/{uid} — el
+  // trigger onAdminWritten lo sincroniza en producción, acá se simula
+  // directo con el segundo argumento de authenticatedContext (soportado por
+  // @firebase/rules-unit-testing sin necesitar el emulador de Auth).
+  it('getAllUsers lets a user with the admin custom claim list every user, even without an admins/{uid} doc', async () => {
+    await seedUserProfile(testEnv, 'user-a', { displayName: 'A', createdAt: 100 })
+    dbHolder.db = testEnv.authenticatedContext('claim-admin-uid', { admin: true }).firestore()
+
+    const users = await getAllUsers()
+
+    expect(users.map((u) => u.displayName)).toEqual(['A'])
+  })
+
   it('getAllUsers rejects a non-admin authenticated user', async () => {
     await seedUserProfile(testEnv, 'user-a')
     dbHolder.db = testEnv.authenticatedContext(OTHER_UID).firestore()

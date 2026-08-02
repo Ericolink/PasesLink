@@ -82,16 +82,30 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/events/$(eventId)).data;
     }
 
-    // Admin = tener un documento propio en /admins/{uid}. Se eligió esta
-    // colección en vez de customClaims (Fase 4D) porque asignar customClaims
-    // requiere el Admin SDK, que en este proyecto solo está disponible vía
-    // Cloud Functions — y este proyecto está deliberadamente en el plan
-    // Spark (gratis), sin Blaze. Agregar/quitar admins se hace a mano desde
-    // la consola de Firebase (Firestore → admins), nunca desde la app: ver
-    // `allow write: if false` en el match de abajo.
+    // Admin = tener el custom claim `admin: true` en el token, sincronizado
+    // por functions/src/triggers/onAdminWritten.ts cada vez que se crea/borra
+    // un documento en /admins/{uid} (FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md
+    // Fase C). El claim evita la lectura extra de Firestore que antes hacía
+    // esta función en más de 20 ramas del archivo — una de las dos causas ya
+    // documentadas de haber excedido el límite de 1000 expresiones (ver
+    // comentario de canDoData más abajo).
+    //
+    // El `exists(...)` se conserva como red de seguridad TRANSICIONAL, no
+    // como mecanismo final: cubre admins que ya existían antes de este
+    // trigger y todavía no corrieron scripts/backfill-admin-claims.mjs, y
+    // cualquier sesión activa que no haya refrescado su ID token todavía
+    // (hasta 1h de desfase natural). Retirar esta rama es un paso aparte,
+    // después de confirmar en producción que todos los admins actuales ya
+    // tienen el claim — no lo hagas sin esa confirmación.
+    //
+    // Agregar/quitar admins se sigue haciendo a mano desde la consola de
+    // Firebase (Firestore → admins), nunca desde la app: ver `allow write: if
+    // false` en el match de abajo.
     function isAdmin() {
-      return request.auth != null &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return request.auth != null && (
+        request.auth.token.get('admin', false) == true ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
     }
 
     function isOpenEvent(eventId) {
