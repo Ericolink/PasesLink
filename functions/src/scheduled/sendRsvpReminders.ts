@@ -7,11 +7,12 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { getFirestore } from 'firebase-admin/firestore'
 import { sendDueRsvpReminders } from '../rsvp/reminders.js'
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
+import { withScheduledObservability } from '../lib/observability/withObservability.js'
 
 export const sendRsvpReminders = onSchedule(
   { schedule: '0 13 * * *', timeZone: 'UTC', secrets: [brevoApiKey, brevoSenderEmail] },
-  async () => {
+  () => withScheduledObservability('sendRsvpReminders', async () => {
     const db = getFirestore()
     await sendDueRsvpReminders(db, Date.now())
-  },
+  }),
 )

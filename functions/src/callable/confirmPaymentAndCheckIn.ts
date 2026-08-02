@@ -7,6 +7,8 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { confirmPaymentAndCheckIn as confirmPaymentAndCheckInService } from '../checkin/confirmPaymentAndCheckIn.js'
 import { canConfirmPayments, canScanQr } from '../lib/permissions.js'
 import type { PaymentMethod } from '../payments/confirmPayment.js'
+import { withCallableObservability } from '../lib/observability/withObservability.js'
+import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
 
 interface ConfirmPaymentAndCheckInInput {
   eventId: string
@@ -20,11 +22,12 @@ const VALID_METHODS: PaymentMethod[] = ['transfer', 'cash']
 // escáner, momento de mayor tráfico del evento).
 export const confirmPaymentAndCheckIn = onCall<ConfirmPaymentAndCheckInInput>(
   { region: 'us-central1', minInstances: 1, maxInstances: 20 },
-  async (request) => {
+  (request) => withCallableObservability(request, 'confirmPaymentAndCheckIn', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
     const { eventId, guestId, method } = request.data || {}
+    ctx.addContext({ uid: request.auth.uid, eventId, guestId })
     if (!eventId || !guestId) {
       throw new HttpsError('invalid-argument', 'Faltan datos para confirmar el pago y registrar el ingreso.')
     }
@@ -53,6 +56,8 @@ export const confirmPaymentAndCheckIn = onCall<ConfirmPaymentAndCheckInInput>(
     if (!result.ok) {
       throw new HttpsError('not-found', result.reason === 'event_not_found' ? 'El evento no existe.' : 'El invitado no existe en este evento.')
     }
+    logBusinessEvent(ctx.logger, BUSINESS_EVENTS.PAYMENT_CONFIRMED, { eventId, guestId, method })
+    logBusinessEvent(ctx.logger, BUSINESS_EVENTS.CHECKIN_SUCCESS, { eventId, guestId })
     return result
-  },
+  }),
 )

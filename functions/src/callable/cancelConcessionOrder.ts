@@ -11,6 +11,8 @@ import {
   type ConcessionCancelReason,
 } from '../concessions/cancelConcessionOrder.js'
 import { canConfirmPayments, canManageConcessions } from '../lib/permissions.js'
+import { withCallableObservability } from '../lib/observability/withObservability.js'
+import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
 
 interface CancelConcessionOrderInput {
   eventId: string
@@ -18,29 +20,33 @@ interface CancelConcessionOrderInput {
   cancelReason: ConcessionCancelReason
 }
 
-export const cancelConcessionOrder = onCall<CancelConcessionOrderInput>(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
-  }
-  const { eventId, orderId, cancelReason } = request.data || {}
-  if (!eventId || !orderId || !cancelReason) {
-    throw new HttpsError('invalid-argument', 'Faltan datos para cancelar el pedido.')
-  }
+export const cancelConcessionOrder = onCall<CancelConcessionOrderInput>((request) =>
+  withCallableObservability(request, 'cancelConcessionOrder', async (ctx) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
+    }
+    const { eventId, orderId, cancelReason } = request.data || {}
+    ctx.addContext({ uid: request.auth.uid, eventId })
+    if (!eventId || !orderId || !cancelReason) {
+      throw new HttpsError('invalid-argument', 'Faltan datos para cancelar el pedido.')
+    }
 
-  const db = getFirestore()
-  const eventSnap = await db.collection('events').doc(eventId).get()
-  if (!eventSnap.exists) {
-    throw new HttpsError('not-found', 'El evento no existe.')
-  }
-  const event = eventSnap.data()!
-  if (!canManageConcessions(event, request.auth.uid) && !canConfirmPayments(event, request.auth.uid)) {
-    throw new HttpsError('permission-denied', 'No tienes permiso para cancelar pedidos en este evento.')
-  }
+    const db = getFirestore()
+    const eventSnap = await db.collection('events').doc(eventId).get()
+    if (!eventSnap.exists) {
+      throw new HttpsError('not-found', 'El evento no existe.')
+    }
+    const event = eventSnap.data()!
+    if (!canManageConcessions(event, request.auth.uid) && !canConfirmPayments(event, request.auth.uid)) {
+      throw new HttpsError('permission-denied', 'No tienes permiso para cancelar pedidos en este evento.')
+    }
 
-  const result = await cancelConcessionOrderService(db, eventId, orderId, cancelReason)
-  if (result.status === 'not_found') {
-    throw new HttpsError('not-found', 'El pedido no existe.')
-  }
+    const result = await cancelConcessionOrderService(db, eventId, orderId, cancelReason)
+    if (result.status === 'not_found') {
+      throw new HttpsError('not-found', 'El pedido no existe.')
+    }
 
-  return { ok: true }
-})
+    logBusinessEvent(ctx.logger, BUSINESS_EVENTS.CONCESSION_ORDER_CANCELLED, { eventId, orderId, cancelReason })
+    return { ok: true }
+  }),
+)

@@ -12,12 +12,13 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { getFirestore } from 'firebase-admin/firestore'
 import { processMessageCampaign, type MessageCampaign } from '../messaging/campaign.js'
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
+import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
 export const onMessageCampaignQueued = onDocumentCreated(
   { document: 'events/{eventId}/messageCampaigns/{campaignId}', secrets: [brevoApiKey, brevoSenderEmail] },
-  async (event) => {
+  (event) => withTriggerObservability(event, 'onMessageCampaignQueued', async () => {
     const snap = event.data
     if (!snap) return
     await processMessageCampaign(getFirestore(), snap.ref, snap.data() as MessageCampaign)
-  },
+  }),
 )

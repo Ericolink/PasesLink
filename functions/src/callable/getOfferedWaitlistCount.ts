@@ -10,20 +10,24 @@
 // contacto, solo un número), así que no hace falta autenticación.
 import { onCall } from 'firebase-functions/v2/https'
 import { AggregateField, getFirestore } from 'firebase-admin/firestore'
+import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface GetOfferedWaitlistCountInput {
   eventId: string
 }
 
-export const getOfferedWaitlistCount = onCall<GetOfferedWaitlistCountInput>(async (request): Promise<{ count: number }> => {
-  const eventId = request.data?.eventId
-  if (!eventId) return { count: 0 }
+export const getOfferedWaitlistCount = onCall<GetOfferedWaitlistCountInput>((request) =>
+  withCallableObservability(request, 'getOfferedWaitlistCount', async (ctx): Promise<{ count: number }> => {
+    const eventId = request.data?.eventId
+    ctx.addContext({ eventId })
+    if (!eventId) return { count: 0 }
 
-  const db = getFirestore()
-  const snap = await db.collection('events').doc(eventId).collection('waitlist')
-    .where('status', '==', 'offered')
-    .aggregate({ total: AggregateField.sum('partySize') })
-    .get()
+    const db = getFirestore()
+    const snap = await db.collection('events').doc(eventId).collection('waitlist')
+      .where('status', '==', 'offered')
+      .aggregate({ total: AggregateField.sum('partySize') })
+      .get()
 
-  return { count: snap.data().total ?? 0 }
-})
+    return { count: snap.data().total ?? 0 }
+  }),
+)

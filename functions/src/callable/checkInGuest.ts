@@ -7,6 +7,8 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { checkInGuest as checkInGuestService } from '../checkin/checkIn.js'
 import { canScanQr } from '../lib/permissions.js'
+import { withCallableObservability } from '../lib/observability/withObservability.js'
+import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
 
 interface CheckInGuestInput {
   eventId: string
@@ -20,11 +22,12 @@ interface CheckInGuestInput {
 // `firebase firestore:databases:get`) para evitar latencia cross-region.
 export const checkInGuest = onCall<CheckInGuestInput>(
   { region: 'us-central1', minInstances: 1, maxInstances: 20 },
-  async (request) => {
+  (request) => withCallableObservability(request, 'checkInGuest', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
     const { eventId, qrToken } = request.data || {}
+    ctx.addContext({ uid: request.auth.uid, eventId })
     if (!eventId || !qrToken) {
       throw new HttpsError('invalid-argument', 'Faltan datos para registrar el ingreso.')
     }
@@ -38,6 +41,8 @@ export const checkInGuest = onCall<CheckInGuestInput>(
       throw new HttpsError('permission-denied', 'No tienes permiso para escanear entradas en este evento.')
     }
 
-    return checkInGuestService(db, eventId, qrToken, request.auth.uid, request.auth.token.email ?? null)
-  },
+    const result = await checkInGuestService(db, eventId, qrToken, request.auth.uid, request.auth.token.email ?? null)
+    logBusinessEvent(ctx.logger, result.status === 'success' ? BUSINESS_EVENTS.CHECKIN_SUCCESS : BUSINESS_EVENTS.CHECKIN_REJECTED, { eventId, status: result.status })
+    return result
+  }),
 )

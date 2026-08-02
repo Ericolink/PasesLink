@@ -11,6 +11,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore'
 import { sendEmail } from '../lib/emailChannel.js'
 import { brevoApiKey, brevoSenderEmail, reportAdminEmail } from '../lib/secrets.js'
+import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
 // Mismo mapeo que REPORT_CONTENT_TYPE_LABELS (src/types/index.ts) — se
 // repite acá en vez de compartirse porque functions/src nunca importa de
@@ -72,9 +73,9 @@ export async function sendReportNotificationEmail(
 
 export const onReportCreated = onDocumentCreated(
   { document: 'reports/{reportId}', secrets: [brevoApiKey, brevoSenderEmail, reportAdminEmail] },
-  async (event) => {
+  (event) => withTriggerObservability(event, 'onReportCreated', async () => {
     const snap = event.data
     if (!snap) return
     await sendReportNotificationEmail(getFirestore(), snap.ref, snap.data() as ReportData)
-  },
+  }),
 )

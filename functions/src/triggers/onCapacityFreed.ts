@@ -14,10 +14,11 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { runCascade } from '../waitlist/cascade.js'
 import { sendOfferEmail } from '../waitlist/notify.js'
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
+import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
 export const onCapacityFreed = onDocumentUpdated(
   { document: 'events/{eventId}', secrets: [brevoApiKey, brevoSenderEmail] },
-  async (event) => {
+  (event) => withTriggerObservability(event, 'onCapacityFreed', async (ctx) => {
     const before = event.data?.before.data()
     const after = event.data?.after.data()
     if (!before || !after) return
@@ -30,8 +31,11 @@ export const onCapacityFreed = onDocumentUpdated(
     const db = getFirestore()
     const eventId = event.params.eventId
     const outcome = await runCascade(db, eventId)
+    if (outcome.promoted.length > 0) {
+      ctx.logger.info('Cascada de lista de espera ofertó lugares liberados', { eventId, promotedCount: outcome.promoted.length })
+    }
     for (const promotion of outcome.promoted) {
       await sendOfferEmail(db, eventId, promotion.entryId, promotion.entry)
     }
-  },
+  }),
 )

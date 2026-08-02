@@ -16,43 +16,47 @@ import { runCascade } from '../waitlist/cascade.js'
 import { sendOfferEmail } from '../waitlist/notify.js'
 import { canManageGuests } from '../lib/permissions.js'
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
+import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface CancelWaitlistOfferInput {
   eventId: string
   entryId: string
 }
 
-export const cancelWaitlistOffer = onCall<CancelWaitlistOfferInput>({ secrets: [brevoApiKey, brevoSenderEmail] }, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
-  }
-  const { eventId, entryId } = request.data || {}
-  if (!eventId || !entryId) {
-    throw new HttpsError('invalid-argument', 'Faltan datos para cancelar la oferta.')
-  }
-
-  const db = getFirestore()
-  const eventSnap = await db.collection('events').doc(eventId).get()
-  if (!eventSnap.exists) {
-    throw new HttpsError('not-found', 'El evento no existe.')
-  }
-  if (!canManageGuests(eventSnap.data()!, request.auth.uid)) {
-    throw new HttpsError('permission-denied', 'No tienes permiso para gestionar la lista de espera de este evento.')
-  }
-
-  const result = await cancelOffer(db, eventId, entryId)
-  if (!result.ok) {
-    const messages: Record<typeof result.reason, string> = {
-      not_found: 'Esa entrada ya no existe.',
-      not_offered: 'Esa oferta ya no está activa.',
+export const cancelWaitlistOffer = onCall<CancelWaitlistOfferInput>({ secrets: [brevoApiKey, brevoSenderEmail] }, (request) =>
+  withCallableObservability(request, 'cancelWaitlistOffer', async (ctx) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
-    throw new HttpsError('failed-precondition', messages[result.reason])
-  }
+    const { eventId, entryId } = request.data || {}
+    ctx.addContext({ uid: request.auth.uid, eventId })
+    if (!eventId || !entryId) {
+      throw new HttpsError('invalid-argument', 'Faltan datos para cancelar la oferta.')
+    }
 
-  const outcome = await runCascade(db, eventId, new Set([entryId]))
-  for (const promotion of outcome.promoted) {
-    await sendOfferEmail(db, eventId, promotion.entryId, promotion.entry)
-  }
+    const db = getFirestore()
+    const eventSnap = await db.collection('events').doc(eventId).get()
+    if (!eventSnap.exists) {
+      throw new HttpsError('not-found', 'El evento no existe.')
+    }
+    if (!canManageGuests(eventSnap.data()!, request.auth.uid)) {
+      throw new HttpsError('permission-denied', 'No tienes permiso para gestionar la lista de espera de este evento.')
+    }
 
-  return { ok: true }
-})
+    const result = await cancelOffer(db, eventId, entryId)
+    if (!result.ok) {
+      const messages: Record<typeof result.reason, string> = {
+        not_found: 'Esa entrada ya no existe.',
+        not_offered: 'Esa oferta ya no está activa.',
+      }
+      throw new HttpsError('failed-precondition', messages[result.reason])
+    }
+
+    const outcome = await runCascade(db, eventId, new Set([entryId]))
+    for (const promotion of outcome.promoted) {
+      await sendOfferEmail(db, eventId, promotion.entryId, promotion.entry)
+    }
+
+    return { ok: true }
+  }),
+)

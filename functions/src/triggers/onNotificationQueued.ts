@@ -10,6 +10,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore'
 import { sendPush } from '../lib/pushChannel.js'
+import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
 interface QueuedNotification {
   type: string
@@ -75,9 +76,9 @@ export async function processQueuedNotification(
 
 export const onNotificationQueued = onDocumentCreated(
   'events/{eventId}/notificationQueue/{notifId}',
-  async (event) => {
+  (event) => withTriggerObservability(event, 'onNotificationQueued', async () => {
     const snap = event.data
     if (!snap) return
     await processQueuedNotification(getFirestore(), snap.ref, snap.data() as QueuedNotification)
-  },
+  }),
 )

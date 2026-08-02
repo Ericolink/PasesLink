@@ -10,7 +10,7 @@
     "build": "tsc",
     "build:watch": "tsc --watch",
     "test": "vitest run",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit && ./scripts/check-no-console.sh"
   },
   "dependencies": {
     "firebase-admin": "^14.1.0",

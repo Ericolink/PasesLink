@@ -13,6 +13,8 @@ import { sendGuestPassEmail } from '../capacity/guestPassEmail.js'
 import { GuestValidationError } from '../lib/guestValidation.js'
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
 import type { PaymentMethod } from '../payments/confirmPayment.js'
+import { withCallableObservability } from '../lib/observability/withObservability.js'
+import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
 
 interface RegisterWalkInGuestInput {
   eventId: string
@@ -32,8 +34,9 @@ export type RegisterWalkInGuestResponse =
 
 export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
   { secrets: [brevoApiKey, brevoSenderEmail] },
-  async (request): Promise<RegisterWalkInGuestResponse> => {
+  (request) => withCallableObservability(request, 'registerWalkInGuest', async (ctx): Promise<RegisterWalkInGuestResponse> => {
     const { eventId, name, email, phone, phoneCountry, customData, partySize, paymentMethod } = request.data || {}
+    ctx.addContext({ uid: request.auth?.uid, eventId })
     if (!eventId || !name) {
       throw new HttpsError('invalid-argument', 'Faltan datos para completar el registro.')
     }
@@ -67,10 +70,11 @@ export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
               eventName: result.eventName,
               qrToken: result.qrToken,
             })
-          } catch {
-            // Ya logueado el intento en sendLog si llegó a arrancar.
+          } catch (err) {
+            ctx.logger.warn('No se pudo enviar el correo del pase tras el registro walk-in', { error: err, eventId, guestId: result.guestId })
           }
         }
+        logBusinessEvent(ctx.logger, BUSINESS_EVENTS.GUEST_ADDED_WALKIN, { eventId, guestId: result.guestId, partySize })
         return { status: 'success', qrToken: result.qrToken }
       }
       if (result.status === 'full') return { status: 'full' }
@@ -83,5 +87,5 @@ export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
       }
       throw err
     }
-  },
+  }),
 )

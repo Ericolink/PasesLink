@@ -13,6 +13,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import type { DocumentReference } from 'firebase-admin/firestore'
 import { sendEmail } from '../lib/emailChannel.js'
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
+import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
 interface NewUserData {
   email?: string
@@ -48,9 +49,9 @@ export async function sendWelcomeEmailForNewUser(
 
 export const onUserCreated = onDocumentCreated(
   { document: 'users/{uid}', secrets: [brevoApiKey, brevoSenderEmail] },
-  async (event) => {
+  (event) => withTriggerObservability(event, 'onUserCreated', async () => {
     const snap = event.data
     if (!snap) return
     await sendWelcomeEmailForNewUser(snap.ref, snap.data() as NewUserData)
-  },
+  }),
 )

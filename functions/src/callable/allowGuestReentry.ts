@@ -7,6 +7,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { canEditGuests } from '../lib/permissions.js'
+import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface AllowGuestReentryInput {
   eventId: string
@@ -15,11 +16,12 @@ interface AllowGuestReentryInput {
 
 export const allowGuestReentry = onCall<AllowGuestReentryInput>(
   { region: 'us-central1', maxInstances: 5 },
-  async (request) => {
+  (request) => withCallableObservability(request, 'allowGuestReentry', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
     const { eventId, guestId } = request.data || {}
+    ctx.addContext({ uid: request.auth.uid, eventId, guestId })
     if (!eventId || !guestId) {
       throw new HttpsError('invalid-argument', 'Faltan datos para habilitar el reingreso.')
     }
@@ -42,5 +44,5 @@ export const allowGuestReentry = onCall<AllowGuestReentryInput>(
 
     await guestRef.update({ exitType: null })
     return { ok: true }
-  },
+  }),
 )

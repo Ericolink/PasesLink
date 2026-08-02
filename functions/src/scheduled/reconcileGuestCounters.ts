@@ -7,12 +7,14 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { getFirestore } from 'firebase-admin/firestore'
 import { reconcileAllGuestCounters } from '../reconciliation/reconcileGuestCounters.js'
+import { withScheduledObservability } from '../lib/observability/withObservability.js'
 
 export const reconcileGuestCounters = onSchedule(
   { schedule: '0 4 * * *', timeZone: 'UTC' },
-  async () => {
+  () => withScheduledObservability('reconcileGuestCounters', async (ctx) => {
     const db = getFirestore()
     const result = await reconcileAllGuestCounters(db)
-    console.log(`reconcileGuestCounters: ${result.eventsUpdated}/${result.eventsChecked} eventos corregidos`, result.updates)
-  },
+    ctx.addContext({ eventsChecked: result.eventsChecked, eventsUpdated: result.eventsUpdated })
+    ctx.logger.info(`reconcileGuestCounters: ${result.eventsUpdated}/${result.eventsChecked} eventos corregidos`, { updates: result.updates })
+  }),
 )

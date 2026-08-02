@@ -5,6 +5,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { checkOutGuest as checkOutGuestService } from '../checkin/checkOut.js'
 import { canScanQr } from '../lib/permissions.js'
+import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface CheckOutGuestInput {
   eventId: string
@@ -19,11 +20,12 @@ const VALID_KINDS = ['temporary', 'final']
 // ingreso (menor presión de tráfico que la puerta al inicio del evento).
 export const checkOutGuest = onCall<CheckOutGuestInput>(
   { region: 'us-central1', maxInstances: 10 },
-  async (request) => {
+  (request) => withCallableObservability(request, 'checkOutGuest', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
     const { eventId, qrToken, kind } = request.data || {}
+    ctx.addContext({ uid: request.auth.uid, eventId })
     if (!eventId || !qrToken || !VALID_KINDS.includes(kind)) {
       throw new HttpsError('invalid-argument', 'Faltan datos para registrar la salida.')
     }
@@ -38,5 +40,5 @@ export const checkOutGuest = onCall<CheckOutGuestInput>(
     }
 
     return checkOutGuestService(db, eventId, qrToken, request.auth.uid, request.auth.token.email ?? null, kind)
-  },
+  }),
 )

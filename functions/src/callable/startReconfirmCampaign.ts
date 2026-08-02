@@ -6,6 +6,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { startCampaign, type ReminderRuleInput } from '../reconfirm/campaign.js'
 import { canManageGuests } from '../lib/permissions.js'
+import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface StartReconfirmCampaignInput {
   eventId: string
@@ -14,28 +15,31 @@ interface StartReconfirmCampaignInput {
   reminderRules: ReminderRuleInput[]
 }
 
-export const startReconfirmCampaign = onCall<StartReconfirmCampaignInput>(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
-  }
-  const { eventId, deadline, excludeTagIds, reminderRules } = request.data || {}
-  if (!eventId || !deadline || !Array.isArray(reminderRules)) {
-    throw new HttpsError('invalid-argument', 'Faltan datos para iniciar la campaña.')
-  }
+export const startReconfirmCampaign = onCall<StartReconfirmCampaignInput>((request) =>
+  withCallableObservability(request, 'startReconfirmCampaign', async (ctx) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
+    }
+    const { eventId, deadline, excludeTagIds, reminderRules } = request.data || {}
+    ctx.addContext({ uid: request.auth.uid, eventId })
+    if (!eventId || !deadline || !Array.isArray(reminderRules)) {
+      throw new HttpsError('invalid-argument', 'Faltan datos para iniciar la campaña.')
+    }
 
-  const db = getFirestore()
-  const eventSnap = await db.collection('events').doc(eventId).get()
-  if (!eventSnap.exists) {
-    throw new HttpsError('not-found', 'El evento no existe.')
-  }
-  if (!canManageGuests(eventSnap.data()!, request.auth.uid)) {
-    throw new HttpsError('permission-denied', 'No tienes permiso para gestionar este evento.')
-  }
+    const db = getFirestore()
+    const eventSnap = await db.collection('events').doc(eventId).get()
+    if (!eventSnap.exists) {
+      throw new HttpsError('not-found', 'El evento no existe.')
+    }
+    if (!canManageGuests(eventSnap.data()!, request.auth.uid)) {
+      throw new HttpsError('permission-denied', 'No tienes permiso para gestionar este evento.')
+    }
 
-  return startCampaign(db, {
-    eventId,
-    deadline,
-    excludeTagIds: excludeTagIds ?? [],
-    reminderRules,
-  })
-})
+    return startCampaign(db, {
+      eventId,
+      deadline,
+      excludeTagIds: excludeTagIds ?? [],
+      reminderRules,
+    })
+  }),
+)

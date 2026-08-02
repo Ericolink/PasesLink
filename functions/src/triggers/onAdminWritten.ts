@@ -19,8 +19,11 @@
 // pasar a mergear en vez de reemplazar.
 import { onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { getAuth } from 'firebase-admin/auth'
+import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
-export const onAdminWritten = onDocumentWritten('admins/{uid}', async (event) => {
-  const isAdminNow = event.data?.after.exists ?? false
-  await getAuth().setCustomUserClaims(event.params.uid, isAdminNow ? { admin: true } : null)
-})
+export const onAdminWritten = onDocumentWritten('admins/{uid}', (event) =>
+  withTriggerObservability(event, 'onAdminWritten', async () => {
+    const isAdminNow = event.data?.after.exists ?? false
+    await getAuth().setCustomUserClaims(event.params.uid, isAdminNow ? { admin: true } : null)
+  }),
+)
