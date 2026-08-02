@@ -1,12 +1,13 @@
 name: Recordatorios de RSVP
 
+# DESACTIVADO (ver NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 2): la
+# Cloud Function programada sendRsvpReminders
+# (functions/src/scheduled/sendRsvpReminders.ts) reemplazó a este cron —
+# mismo horario (13:00 UTC), ahora con Secret Manager en vez de secrets de
+# GitHub Actions. Se deja sin `schedule`, solo `workflow_dispatch` como
+# respaldo manual, durante el período de transición (borrar el workflow
+# entero en la Fase 6, no antes).
 on:
-  schedule:
-    # 13:00 UTC ≈ 7-8am en México/Centroamérica — una sola corrida diaria
-    # para toda la flota de eventos (ver ReminderRule en src/types/index.ts:
-    # sin hora configurable por evento a propósito, correr cada hora costaría
-    # 12-24x más minutos de GitHub Actions sin beneficio real a esta escala).
-    - cron: '0 13 * * *'
   workflow_dispatch:
 
 permissions:

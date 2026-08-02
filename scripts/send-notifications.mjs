@@ -1,12 +1,17 @@
+// DEPRECADO (ver NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 1): el
+// trigger de Firestore onNotificationQueued
+// (functions/src/triggers/onNotificationQueued.ts) reemplazó a este script
+// como despachador primario — procesa la cola en segundos en vez de hasta
+// 10 min de latencia de polling. Este archivo se conserva solo como
+// respaldo manual (.github/workflows/send-notifications.yml quedó con
+// `workflow_dispatch` únicamente, sin cron) durante el período de
+// transición; se borra en la Fase 6 de la migración.
+//
 // Procesa la cola de notificaciones (events/{id}/notificationQueue con
 // status 'queued', encolada desde src/firebase/notifications.ts) y envía
 // por cada canal declarado en el documento — hoy solo 'push' vía FCM (ver
 // scripts/lib/pushChannel.mjs); 'email'/'whatsapp' quedan como canales
 // futuros sin implementar todavía (ver NotificationQueueDoc.channels).
-// Corre vía GitHub Actions cron (.github/workflows/send-notifications.yml)
-// — mismo patrón que scripts/send-mass-messages.mjs (firebase-admin, sin
-// Cloud Functions, plan Spark): el cliente solo ENCOLA, este script es el
-// único que despacha.
 import { cert, initializeApp } from 'firebase-admin/app'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { sendPush } from './lib/pushChannel.mjs'

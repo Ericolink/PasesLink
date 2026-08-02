@@ -20,7 +20,6 @@
     "backfill:reactions-subcollection": "node scripts/backfill-reactions-subcollection.mjs"
   },
   "dependencies": {
-    "@emailjs/browser": "^4.4.1",
     "@sentry/react": "^10.63.0",
     "canvas-confetti": "^1.9.4",
     "exceljs": "^4.4.0",

@@ -196,8 +196,8 @@ export async function getOlderReports(
 }
 
 // Lectura puntual por id — usada para abrir el detalle desde el link directo
-// del correo de aviso (ver sendReportNotificationEmail), que puede apuntar a
-// un reporte más viejo que la ventana en vivo cargada en el panel.
+// del correo de aviso (ver functions/src/triggers/onReportCreated.ts), que
+// puede apuntar a un reporte más viejo que la ventana en vivo cargada en el panel.
 export async function getReportById(reportId: string): Promise<ContentReport | null> {
   const snap = await getDoc(doc(db, 'reports', reportId))
   return snap.exists() ? mapReport(snap.id, snap.data()) : null

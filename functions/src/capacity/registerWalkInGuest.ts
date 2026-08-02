@@ -40,7 +40,7 @@ export interface RegisterWalkInGuestInput {
 }
 
 export type RegisterWalkInGuestResult =
-  | { status: 'success'; guestId: string; qrToken: string }
+  | { status: 'success'; guestId: string; qrToken: string; eventName: string; email: string }
   | { status: 'full' }
   | { status: 'event_not_found' }
   | { status: 'not_open' }
@@ -155,6 +155,6 @@ export async function registerWalkInGuest(
       rsvpYesCount: FieldValue.increment(1),
     })
 
-    return { status: 'success', guestId: guestRef.id, qrToken }
+    return { status: 'success', guestId: guestRef.id, qrToken, eventName: (event.name as string) || 'tu evento', email: trimmedEmail }
   })
 }

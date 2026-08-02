@@ -10,18 +10,19 @@ interface Props {
   tone?: 'primary' | 'warning'
 }
 
-// Toast flotante compartido — antes GlobalToastHost.tsx (avisos de email) y
-// EventDetail.tsx (check-ins en vivo) duplicaban la misma tarjeta fixed
-// top-16 right-4 sin botón de cierre: solo desaparecían solas, sin forma de
-// descartarlas antes de que expire su timer. El auto-dismiss lo sigue
-// manejando cada caller (setTimeout propio) — este componente solo agrega la
-// posibilidad de cerrarla antes.
+// Toast flotante compartido — antes GlobalToastHost.tsx (avisos de email,
+// retirado junto con EmailJS del cliente — ver
+// NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 4) y EventDetail.tsx
+// (check-ins en vivo) duplicaban la misma tarjeta fixed top-16 right-4 sin
+// botón de cierre: solo desaparecían solas, sin forma de descartarlas antes
+// de que expire su timer. El auto-dismiss lo sigue manejando cada caller
+// (setTimeout propio) — este componente solo agrega la posibilidad de
+// cerrarla antes.
 //
 // announce() en vez de un role="status" propio: como todos los llamadores
-// (GlobalToastHost, useCheckinToast, ShareEventButton) ya renderizan este
-// componente, un solo punto de anuncio cubre check-in en vivo, avisos de
-// email y "enlace copiado" de una vez — antes ninguno llegaba a lectores de
-// pantalla.
+// (useCheckinToast, ShareEventButton, MyConcessionOrderCard) ya renderizan
+// este componente, un solo punto de anuncio cubre todos los casos de una
+// vez — antes ninguno llegaba a lectores de pantalla.
 export function Toast({ message, icon, onDismiss, tone = 'primary' }: Props) {
   const { announce } = useAnnouncer()
 

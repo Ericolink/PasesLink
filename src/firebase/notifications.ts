@@ -14,10 +14,10 @@ interface EnqueueInput {
 // Único punto que encola una notificación (Feature 5) — generación de
 // eventos separada del envío por diseño: esto solo escribe un documento en
 // events/{id}/notificationQueue (ver firestore.rules para las 2 formas de
-// autorización distintas según `type`); scripts/send-notifications.mjs
-// (cron de GitHub Actions, Admin SDK) es el único que lo lee y despacha por
-// canal. Sin Cloud Functions — mismo patrón que messageCampaigns/
-// MassMessageComposer.tsx (el cliente encola, un script aparte procesa).
+// autorización distintas según `type`); el trigger de Firestore
+// onNotificationQueued (functions/src/triggers/onNotificationQueued.ts) es
+// quien lo lee y despacha por canal — ver
+// NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 1.
 //
 // Nunca debe romper el flujo que la llama (confirmar un pago, guardar un
 // RSVP): quien la usa debe envolver en try/catch silencioso, nunca `await`

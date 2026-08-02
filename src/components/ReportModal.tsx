@@ -3,9 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { createReport } from '../firebase/moderation'
-import { sendReportNotificationEmail } from '../utils/emailjs'
 import { REPORT_REASON_MAX } from '../utils/validation'
-import { REPORT_CONTENT_TYPE_LABELS } from '../types'
 import type { ReportedContentType } from '../types'
 import { IconFlag } from './accessibility/AccessibleIcon'
 import { AccessibleButton } from './accessibility/AccessibleButton'
@@ -67,7 +65,11 @@ export function ReportModal({
     setError('')
     try {
       const reporterName = profile?.displayName || user.displayName || user.email || 'Usuario'
-      const reportId = await createReport({
+      // El aviso al admin ya no se dispara desde acá — la creación de este
+      // documento es lo que dispara el trigger de Firestore onReportCreated
+      // (functions/src/triggers/onReportCreated.ts), ver
+      // NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 4.
+      await createReport({
         eventId,
         eventName,
         contentType,
@@ -83,14 +85,6 @@ export function ReportModal({
         reason,
       })
       setDone(true)
-      sendReportNotificationEmail({
-        eventName,
-        reportedUser: contentAuthorName,
-        reporter: anonymous ? 'Anónimo' : reporterName,
-        contentTypeLabel: REPORT_CONTENT_TYPE_LABELS[contentType],
-        reason,
-        reportId,
-      }).catch(() => {})
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo enviar el reporte. Intenta de nuevo.')
     } finally {

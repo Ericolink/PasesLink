@@ -4,7 +4,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 // Contenido separado del layout de página para poder reusarlo dentro de
 // LegalDocumentSheet (el modal que se abre desde el registro) sin duplicar texto.
-// Nota: pendiente de revisión legal — falta mencionar Cloudinary/EmailJS/Sentry
+// Nota: pendiente de revisión legal — falta mencionar Cloudinary/Brevo/Sentry
 // como encargados de tratamiento (hoy solo se nombra Firebase) y una cláusula
 // explícita de uso permitido/prohibido de la plataforma.
 export function TermsContent() {

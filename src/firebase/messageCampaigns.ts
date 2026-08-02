@@ -6,9 +6,11 @@ import { withListenerReporting } from '../lib/sentry'
 export type MessageCampaignStatus = 'queued' | 'processing' | 'sent' | 'partial' | 'failed'
 
 // El navegador solo crea el documento (status siempre 'queued', guestIds ya
-// resuelto) — scripts/send-mass-messages.mjs (GitHub Actions cron) es quien
-// procesa la cola y transiciona status, para que la API key de Brevo nunca
-// llegue al bundle del cliente (ver firestore.rules: update/delete: false).
+// resuelto) — el trigger de Firestore onMessageCampaignQueued
+// (functions/src/triggers/onMessageCampaignQueued.ts) es quien procesa la
+// cola y transiciona status, para que la API key de Brevo nunca llegue al
+// bundle del cliente (ver firestore.rules: update/delete: false). Ver
+// NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 3.
 export interface MessageCampaign {
   id: string
   eventId: string

@@ -41,8 +41,7 @@ function labelForWeatherCode(code: number): { label: string; icon: string } {
   return WEATHER_CODE_MAP[code] || { label: 'Sin datos', icon: '🌡️' }
 }
 
-// Gratis, sin API key (mismo criterio de "evitar plan pago" que ya rige el
-// resto del stack: EmailJS/Cloudinary/GH Actions en vez de Cloud Functions).
+// Gratis, sin API key — nada que ocultar server-side para este endpoint.
 // Devuelve null ante cualquier error, fecha fuera de horizonte, o respuesta
 // sin datos — el llamador (useEventWeather) trata null como "no hay clima
 // que mostrar", nunca como un estado de error a exhibir.

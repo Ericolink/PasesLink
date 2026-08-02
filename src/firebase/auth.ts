@@ -18,7 +18,6 @@ import {
 } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db, googleProvider } from './config'
-import { sendWelcomeEmail } from '../utils/emailjs'
 import { uploadImage } from '../utils/cloudinary'
 import { markWelcomePending } from '../utils/onboarding'
 
@@ -44,6 +43,10 @@ export async function registerWithEmail(
   const displayName = `${firstName} ${lastName}`.trim()
   const credential = await createUserWithEmailAndPassword(auth, email, password)
   await updateProfile(credential.user, { displayName, photoURL: photoURL || '' })
+  // El correo de bienvenida ya no se dispara desde acá — la creación de
+  // este documento es lo que dispara el trigger de Firestore onUserCreated
+  // (functions/src/triggers/onUserCreated.ts), ver
+  // NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 4.
   await setDoc(doc(db, 'users', credential.user.uid), {
     email,
     displayName,
@@ -53,7 +56,6 @@ export async function registerWithEmail(
     createdAt: serverTimestamp(),
   })
   await sendEmailVerification(credential.user)
-  void sendWelcomeEmail(email, displayName)
   markWelcomePending(credential.user.uid)
   return credential.user
 }
@@ -80,10 +82,13 @@ export async function loginWithEmail(email: string, password: string) {
 
 export async function loginWithGoogle() {
   const credential = await signInWithPopup(auth, googleProvider)
+  // ensureUserDoc usa merge:true — en un usuario que ya existía esto es un
+  // update y no dispara onUserCreated (Fase 4), reproduciendo el mismo gate
+  // de "solo la primera vez" que antes hacía isNewUser acá a mano para el
+  // correo de bienvenida.
   await ensureUserDoc(credential.user.uid, credential.user.email, credential.user.displayName)
   if (getAdditionalUserInfo(credential)?.isNewUser) {
     markWelcomePending(credential.user.uid)
-    if (credential.user.email) void sendWelcomeEmail(credential.user.email, credential.user.displayName || '')
   }
   return credential.user
 }

@@ -1,11 +1,13 @@
 name: Envío de notificaciones
 
+# DESACTIVADO (ver NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 1): el
+# trigger de Firestore onNotificationQueued
+# (functions/src/triggers/onNotificationQueued.ts) reemplazó a este cron
+# como despachador primario — procesa la cola en segundos en vez de hasta
+# 10 min de latencia de polling. Se deja sin `schedule`, solo
+# `workflow_dispatch` como respaldo manual, durante el período de
+# transición (borrar el workflow entero en la Fase 6, no antes).
 on:
-  schedule:
-    # Mismo cadence que mass-messages.yml/uptime-check.yml — piso práctico
-    # de "lo más rápido que un cron gratis de GitHub Actions permite" sin
-    # gastar minutos en una cola casi siempre vacía.
-    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:

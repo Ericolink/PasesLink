@@ -27,8 +27,8 @@ function scrubPii<T>(value: T, seen = new WeakSet<object>()): T {
 /**
  * Inicializa Sentry si hay DSN configurado. Sin `VITE_SENTRY_DSN` (por
  * ejemplo en desarrollo local sin configurar), esta función no hace nada —
- * igual que sendWelcomeEmail/uploadImage cuando falta su configuración, no
- * rompe el arranque de la app.
+ * igual que uploadImage cuando falta su configuración, no rompe el
+ * arranque de la app.
  */
 export function initSentry() {
   const dsn = cleanEnv(import.meta.env.VITE_SENTRY_DSN)
@@ -37,11 +37,11 @@ export function initSentry() {
   Sentry.init({
     dsn,
     environment: import.meta.env.MODE,
-    // No capturar bodies de requests salientes: nuestras llamadas a
-    // api.emailjs.com llevan email/nombre del invitado en el payload, y no
-    // necesitamos ese detalle para depurar — el evento ya queda tageado con
-    // { flow: 'emailjs' } (ver utils/emailjs.ts). userInfo:false es el
-    // default del SDK, se deja explícito para que quede documentado acá.
+    // No capturar bodies de requests salientes: varias llamadas del
+    // navegador (Cloud Functions callables, Cloudinary) llevan datos de
+    // invitados en el payload, y no necesitamos ese detalle para depurar.
+    // userInfo:false es el default del SDK, se deja explícito para que
+    // quede documentado acá.
     dataCollection: {
       userInfo: false,
       httpBodies: [],

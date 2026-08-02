@@ -90,10 +90,6 @@ Copiar `.env.example` a `.env` y completar:
 | `VITE_FIREBASE_STORAGE_BUCKET` | Sí | Idem. |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Sí | Idem. |
 | `VITE_FIREBASE_APP_ID` | Sí | Idem. |
-| `VITE_EMAILJS_SERVICE_ID` | No | [emailjs.com](https://www.emailjs.com/) — sin esto, no se envían correos de bienvenida/recordatorio (falla en silencio, no rompe el resto de la app). |
-| `VITE_EMAILJS_TEMPLATE_ID_WELCOME` | No | Idem. |
-| `VITE_EMAILJS_TEMPLATE_ID_REMINDER` | No | Idem. |
-| `VITE_EMAILJS_PUBLIC_KEY` | No | Idem. |
 | `VITE_CLOUDINARY_CLOUD_NAME` | No | [cloudinary.com](https://cloudinary.com/) — sin esto, no se pueden subir fotos de portada/perfil. |
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | No | Debe ser un *upload preset* sin firmar (unsigned), restringido a imágenes en la configuración de Cloudinary. |
 | `VITE_RECAPTCHA_SITE_KEY` | No | reCAPTCHA v3 desde [google.com/recaptcha/admin](https://www.google.com/recaptcha/admin). Sin esto, los formularios públicos (muro, lista de espera, auto-registro) quedan sin protección anti-bot. Ver checklist de lanzamiento. |

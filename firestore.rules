@@ -1664,9 +1664,12 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // Bitácora de envíos automáticos (recordatorios de RSVP + mensajería
-      // masiva) — escrita ÚNICAMENTE por los scripts Node de GitHub Actions
-      // vía firebase-admin (bypassa rules), nunca desde el cliente. El
+      // Bitácora de envíos automáticos (push, recordatorios de RSVP,
+      // mensajería masiva, lista de espera/reconfirmación) — escrita
+      // ÚNICAMENTE por Cloud Functions vía Admin SDK (bypassa rules), nunca
+      // desde el cliente. Los tres pipelines Spark-era (scripts/*.mjs +
+      // GitHub Actions cron) ya migraron acá — ver
+      // NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md, Fases 1-3. El
       // organizador solo lee, para ver el historial de qué se envió.
       match /sendLog/{logId} {
         allow read: if canDo(eventId, 'viewReports', true) || isAdmin();
@@ -1675,11 +1678,14 @@ service cloud.firestore {
 
       // Cola de notificaciones desacoplada (Feature 5: push notifications) —
       // mismo patrón que messageCampaigns arriba: el navegador solo ENCOLA
-      // (create, status siempre 'queued'); scripts/send-notifications.mjs
-      // (GitHub Actions cron, cuenta de servicio con Admin SDK) es el único
-      // que transiciona status y envía. Sin `read` para el cliente: hoy no
-      // hay ninguna UI que necesite listar la cola, solo el script (que
-      // corre con Admin SDK y no pasa por estas reglas).
+      // (create, status siempre 'queued'); el trigger de Firestore
+      // onNotificationQueued (functions/src/triggers/onNotificationQueued.ts,
+      // Admin SDK) es quien transiciona status y envía — ver
+      // NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 1.
+      // scripts/send-notifications.mjs queda solo como respaldo manual
+      // (workflow_dispatch) durante el período de transición. Sin `read`
+      // para el cliente: hoy no hay ninguna UI que necesite listar la cola,
+      // solo el trigger (que corre con Admin SDK y no pasa por estas reglas).
       //
       // Dos formas de encolar, con autorización MUY distinta:
       // - 'payment_confirmed'/'event_updated': dispara una acción YA
@@ -1720,8 +1726,10 @@ service cloud.firestore {
 
       // Mensajería masiva — el navegador solo ENCOLA (create, status
       // siempre 'queued', guestIds ya resuelto/congelado por el composer);
-      // el script Node (scripts/send-mass-messages.mjs) es el único que
-      // transiciona status a processing/sent/partial/failed. Gateado por
+      // el trigger de Firestore onMessageCampaignQueued
+      // (functions/src/triggers/onMessageCampaignQueued.ts) es quien
+      // transiciona status a processing/sent/partial/failed — ver
+      // NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 3. Gateado por
       // exportLists (misma acción masiva ya usada para exportar listas) en
       // vez de un permiso granular nuevo.
       match /messageCampaigns/{campaignId} {

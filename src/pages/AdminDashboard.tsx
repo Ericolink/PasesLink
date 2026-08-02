@@ -78,8 +78,9 @@ export function AdminDashboard() {
   const [feedbackLoading, setFeedbackLoading] = useState(true)
   const unreadFeedbackCount = useUnreadFeedbackCount()
 
-  // Link directo del correo de aviso de reportes (ver sendReportNotificationEmail):
-  // /admin?tab=reports&reportId=X abre el panel directo en el caso reportado.
+  // Link directo del correo de aviso de reportes (ver
+  // functions/src/triggers/onReportCreated.ts): /admin?tab=reports&reportId=X
+  // abre el panel directo en el caso reportado.
   const [tab, setTab] = useState<Tab>(() => (searchParams.get('tab') === 'reports' ? 'reports' : 'events'))
   const [initialReportId] = useState(() => searchParams.get('reportId'))
   const [eventsSearch, setEventsSearch] = useState('')

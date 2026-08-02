@@ -3,7 +3,6 @@ import { Navigate, Route, useParams } from 'react-router-dom'
 import { SentryRoutes } from './lib/sentry'
 import { Background } from './components/Background'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { GlobalToastHost } from './components/GlobalToastHost'
 import { RouteAnnouncer } from './components/accessibility/RouteAnnouncer'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
@@ -88,7 +87,6 @@ function App() {
   return (
     <>
       <Background />
-      <GlobalToastHost />
       <RouteAnnouncer />
       <ErrorBoundary>
       <Suspense fallback={<PageFallback />}>

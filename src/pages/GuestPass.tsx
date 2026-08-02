@@ -62,8 +62,8 @@ import { buildPassUrl, QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 
 
 // Mismo canal (WhatsApp) que ya se usa para "compartir pase con
-// acompañantes" más abajo en este archivo — reutiliza wa.me en vez de sumar
-// un proveedor nuevo (EmailJS ya está en su tope de plantillas gratis).
+// acompañantes" más abajo en este archivo — reutiliza wa.me en vez de un
+// canal nuevo, sin round-trip al servidor.
 // `context` arma el mensaje prellenado según lo que el
 // invitado necesita resolver (enviar comprobante, consultar, pedir
 // devolución o reportar un problema de acceso — todo el mismo canal, pedido

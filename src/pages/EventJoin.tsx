@@ -10,7 +10,6 @@ import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../components/CountryC
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
-import { sendGuestPassEmail } from '../utils/emailjs'
 import {
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_EMAIL_MAX,
@@ -36,7 +35,6 @@ import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useAnnouncer } from '../components/accessibility/LiveRegion'
 import type { EventData, PaymentMethod } from '../types'
-import { buildPassUrl } from '../utils/qrUrl'
 import { CustomFieldInput } from '../components/CustomFieldInput'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import { FieldError, AccessibleField } from '../components/accessibility/AccessibleField'
@@ -240,13 +238,11 @@ export function EventJoin() {
       const token = result.qrToken!
       localStorage.setItem(regKey(id), JSON.stringify({ qrToken: token }))
       localStorage.setItem('wall_guest_name', fullName)
-      // Best-effort: si no hay plantilla de EmailJS configurada, no hace
-      // nada (ver sendGuestPassEmail) — el pase sigue funcionando solo con
-      // el link de /pass, esto es una red de seguridad adicional para
-      // cuando el invitado pierde el link guardado en el navegador.
-      if (email.trim() && event) {
-        void sendGuestPassEmail(email.trim(), event.name, buildPassUrl(id, token))
-      }
+      // El envío del pase por email ya no se dispara desde acá — el
+      // callable registerWalkInGuest lo manda del lado del servidor
+      // (functions/src/capacity/guestPassEmail.ts) cuando el invitado dejó
+      // un email, best-effort, ver NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md
+      // Fase 4. El pase sigue funcionando solo con el link de /pass.
       if (user && id && event) {
         void saveUserInvitation(user.uid, {
           eventId: id,

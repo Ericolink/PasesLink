@@ -9,7 +9,9 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { registerWalkInGuest as registerWalkInGuestService } from '../capacity/registerWalkInGuest.js'
+import { sendGuestPassEmail } from '../capacity/guestPassEmail.js'
 import { GuestValidationError } from '../lib/guestValidation.js'
+import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
 import type { PaymentMethod } from '../payments/confirmPayment.js'
 
 interface RegisterWalkInGuestInput {
@@ -28,36 +30,58 @@ export type RegisterWalkInGuestResponse =
   | { status: 'full' }
   | { status: 'error' }
 
-export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(async (request): Promise<RegisterWalkInGuestResponse> => {
-  const { eventId, name, email, phone, phoneCountry, customData, partySize, paymentMethod } = request.data || {}
-  if (!eventId || !name) {
-    throw new HttpsError('invalid-argument', 'Faltan datos para completar el registro.')
-  }
-
-  const db = getFirestore()
-  try {
-    const result = await registerWalkInGuestService(db, eventId, {
-      name,
-      email,
-      phone,
-      phoneCountry,
-      customData,
-      partySize,
-      paymentMethod,
-      // Nunca un uid/foto que mande el cliente en el body — solo el uid ya
-      // verificado del token de la Callable, si hay sesión.
-      authUid: request.auth?.uid ?? null,
-    })
-
-    if (result.status === 'success') return { status: 'success', qrToken: result.qrToken }
-    if (result.status === 'full') return { status: 'full' }
-    // event_not_found / not_open: mismo contrato que ya devuelve capacity.ts
-    // hoy para "el evento ya no está disponible".
-    return { status: 'error' }
-  } catch (err) {
-    if (err instanceof GuestValidationError) {
-      throw new HttpsError('invalid-argument', err.message)
+export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
+  { secrets: [brevoApiKey, brevoSenderEmail] },
+  async (request): Promise<RegisterWalkInGuestResponse> => {
+    const { eventId, name, email, phone, phoneCountry, customData, partySize, paymentMethod } = request.data || {}
+    if (!eventId || !name) {
+      throw new HttpsError('invalid-argument', 'Faltan datos para completar el registro.')
     }
-    throw err
-  }
-})
+
+    const db = getFirestore()
+    try {
+      const result = await registerWalkInGuestService(db, eventId, {
+        name,
+        email,
+        phone,
+        phoneCountry,
+        customData,
+        partySize,
+        paymentMethod,
+        // Nunca un uid/foto que mande el cliente en el body — solo el uid ya
+        // verificado del token de la Callable, si hay sesión.
+        authUid: request.auth?.uid ?? null,
+      })
+
+      if (result.status === 'success') {
+        // Best-effort, después de comprometida la transacción (ver
+        // guestPassEmail.ts): el pase ya funciona solo con el qrToken que
+        // se devuelve al cliente, un fallo acá nunca debe convertir un
+        // registro exitoso en un error de cara al invitado.
+        if (result.email) {
+          try {
+            await sendGuestPassEmail(db, {
+              eventId,
+              guestId: result.guestId,
+              toEmail: result.email,
+              eventName: result.eventName,
+              qrToken: result.qrToken,
+            })
+          } catch {
+            // Ya logueado el intento en sendLog si llegó a arrancar.
+          }
+        }
+        return { status: 'success', qrToken: result.qrToken }
+      }
+      if (result.status === 'full') return { status: 'full' }
+      // event_not_found / not_open: mismo contrato que ya devuelve capacity.ts
+      // hoy para "el evento ya no está disponible".
+      return { status: 'error' }
+    } catch (err) {
+      if (err instanceof GuestValidationError) {
+        throw new HttpsError('invalid-argument', err.message)
+      }
+      throw err
+    }
+  },
+)

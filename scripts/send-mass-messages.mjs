@@ -1,9 +1,15 @@
+// DEPRECADO (ver NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 3): el
+// trigger de Firestore onMessageCampaignQueued
+// (functions/src/triggers/onMessageCampaignQueued.ts) reemplazó a este
+// script como despachador primario — procesa la campaña en segundos en vez
+// de hasta 10 min de latencia de polling. Este archivo se conserva solo
+// como respaldo manual (.github/workflows/mass-messages.yml quedó con
+// `workflow_dispatch` únicamente, sin cron) durante el período de
+// transición; se borra en la Fase 6 de la migración.
+//
 // Procesa la cola de mensajería masiva (events/{id}/messageCampaigns con
 // status 'queued', encolados desde MassMessageComposer.tsx) y envía el email
-// a cada guestId ya congelado en la campaña. Corre vía GitHub Actions cron
-// (.github/workflows/mass-messages.yml) — la API key de Brevo vive solo acá,
-// nunca en el navegador (ver justificación en firestore.rules:
-// messageCampaigns solo permite create desde el cliente, nunca update).
+// a cada guestId ya congelado en la campaña.
 import { cert, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { sendEmail } from './lib/emailChannel.mjs'

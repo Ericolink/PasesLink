@@ -1,10 +1,15 @@
+// DEPRECADO (ver NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 2): la
+// Cloud Function programada sendRsvpReminders
+// (functions/src/scheduled/sendRsvpReminders.ts) reemplazó a este script
+// como despachador primario, mismo horario (13:00 UTC) vía Secret Manager
+// en vez de secrets de GitHub Actions. Este archivo se conserva solo como
+// respaldo manual (.github/workflows/rsvp-reminders.yml quedó con
+// `workflow_dispatch` únicamente, sin cron) durante el período de
+// transición; se borra en la Fase 6 de la migración.
+//
 // Envía recordatorios de RSVP por email a invitados con rsvpStatus 'pending',
 // una vez al día, para eventos con remindersEnabled + reglas de
-// "días antes de rsvpDeadline" vencidas hoy. Corre vía GitHub Actions cron
-// (.github/workflows/rsvp-reminders.yml) — mismo patrón que
-// scripts/backup-firestore.mjs (firebase-admin, sin Cloud Functions, plan
-// Spark). No importa nada de src/ (convención ya establecida: los scripts
-// son standalone).
+// "días antes de rsvpDeadline" vencidas hoy.
 import { cert, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { sendEmail } from './lib/emailChannel.mjs'
