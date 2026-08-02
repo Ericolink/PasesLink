@@ -1,10 +1,8 @@
 import {
   addDoc,
   collection,
-  doc,
   getAggregateFromServer,
   getCountFromServer,
-  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -40,18 +38,6 @@ export interface AdminAuditLogEntry {
   targetName: string
   meta?: string
   createdAt: number
-}
-
-// Documento propio en /admins/{uid} — sigue siendo la fuente de verdad
-// legible/auditable desde la UI (por eso este chequeo cliente sigue leyendo
-// el doc), aunque ya no es lo único que evalúa `isAdmin()` en firestore.rules
-// (ver ese archivo: pasó a `token.admin == true`, sincronizado por
-// functions/src/triggers/onAdminWritten.ts — FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md
-// Fase C). Alta de admins: a mano desde la consola de Firebase, nunca desde
-// la app.
-export async function checkIsAdmin(uid: string): Promise<boolean> {
-  const snap = await getDoc(doc(db, 'admins', uid))
-  return snap.exists()
 }
 
 // Auditoría de escalabilidad (F10): antes eran listeners EN VIVO sin
