@@ -1,3 +1,8 @@
+# Sistema de backups "clásico" (fase de transición): sigue siendo la
+# fuente de verdad mientras se valida el sistema nativo en paralelo
+# (Cloud Functions programadas + Cloud Storage, ver
+# docs/firestore-backups.md). No desactivar ni reemplazar sin decisión
+# explícita — ver ese documento §11 para el plan de migración.
 name: Backup diario de Firestore
 
 on:
