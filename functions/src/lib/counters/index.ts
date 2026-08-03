@@ -1,0 +1,6 @@
+export { applyCounterDeltas, buildHourlyCheckinPatch, getCounterTotal } from './counterService.js'
+export type { CounterWriter } from './counterService.js'
+export { COUNTER_REGISTRY } from './config.js'
+export { deleteCounterShards, seedShardsFromCurrentValue, validateShardsAgainstCache } from './migration.js'
+export type { SeedShardsResult, ValidateShardsResult } from './migration.js'
+export type { CounterDefinition, CounterName, CounterObservation, CounterRegistry, CounterStrategy } from './types.js'

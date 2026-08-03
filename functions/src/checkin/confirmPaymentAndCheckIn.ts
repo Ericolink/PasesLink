@@ -7,6 +7,8 @@
 // ver payments/confirmPayment.ts) y el mismo árbol de decisión de check-in
 // que checkIn.ts, sin duplicar ninguna de las dos.
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
+import { applyCounterDeltas, buildHourlyCheckinPatch } from '../lib/counters/index.js'
+import type { CounterName } from '../lib/counters/index.js'
 import { computePaymentChange, partySizeFromRaw, type PaymentMethod, type PaymentSource } from '../payments/confirmPayment.js'
 import { checkinHourLabel, guestPresence, mapGuestForResponse } from './shared.js'
 
@@ -42,8 +44,7 @@ export async function confirmPaymentAndCheckIn(
     const guestAfterPayment = { ...guest, ...change.guestUpdates }
 
     const guestUpdates: Record<string, unknown> = { ...change.guestUpdates }
-    const eventUpdates: Record<string, unknown> = {}
-    if (change.paidCountDelta !== 0) eventUpdates.paidCount = FieldValue.increment(change.paidCountDelta)
+    const counterDeltas: Partial<Record<CounterName, number>> = { paidCount: change.paidCountDelta }
 
     // Presencia evaluada YA con el pago aplicado (en memoria, todavía sin
     // escribir) — el gate de pago de checkIn.ts nunca puede bloquear acá
@@ -52,13 +53,13 @@ export async function confirmPaymentAndCheckIn(
 
     if (presence === 'inside') {
       if (Object.keys(guestUpdates).length > 0) tx.update(guestRef, guestUpdates)
-      if (Object.keys(eventUpdates).length > 0) tx.update(eventRef, eventUpdates)
+      applyCounterDeltas(db, tx, eventRef, eventId, counterDeltas)
       return { ok: true, checkIn: 'already_checked_in', guest: mapGuestForResponse(guestId, guestAfterPayment) }
     }
 
     if (presence === 'final_out') {
       if (Object.keys(guestUpdates).length > 0) tx.update(guestRef, guestUpdates)
-      if (Object.keys(eventUpdates).length > 0) tx.update(eventRef, eventUpdates)
+      applyCounterDeltas(db, tx, eventRef, eventId, counterDeltas)
       const blockedRef = eventRef.collection('checkins').doc()
       tx.set(blockedRef, {
         guestId,
@@ -83,15 +84,14 @@ export async function confirmPaymentAndCheckIn(
       exitType: null,
       ...(isReentry ? {} : { checkedInAt: FieldValue.serverTimestamp(), checkedInBy: opts.scannedBy, checkedInByEmail: opts.scannedByEmail }),
     })
-    eventUpdates.occupancyCount = FieldValue.increment(partySize)
-    if (!isReentry) eventUpdates.checkedInCount = FieldValue.increment(partySize)
-    eventUpdates[`checkinsByHour.${checkinHourLabel()}`] = FieldValue.increment(1)
+    counterDeltas.occupancyCount = partySize
+    if (!isReentry) counterDeltas.checkedInCount = partySize
 
     // Un solo update() por documento (evento + invitado) — la razón original
     // por la que este flujo se había partido en dos llamadas: Firestore no
     // permite dos transaction.update() separados sobre el mismo doc.
     tx.update(guestRef, guestUpdates)
-    tx.update(eventRef, eventUpdates)
+    applyCounterDeltas(db, tx, eventRef, eventId, counterDeltas, buildHourlyCheckinPatch(checkinHourLabel()))
 
     const checkinRef = eventRef.collection('checkins').doc()
     tx.set(checkinRef, {

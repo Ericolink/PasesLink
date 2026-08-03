@@ -1,7 +1,8 @@
-import { doc, increment, runTransaction } from 'firebase/firestore'
+import { doc, runTransaction } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './config'
 import { CapacityFullError } from './attendeeLimit'
+import { applyCounterDeltas } from './counters'
 import {
   GUEST_CUSTOM_FIELD_MAX_COUNT,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
@@ -33,7 +34,7 @@ export async function walkIn(eventId: string): Promise<'success' | 'full'> {
     const capacity = data.capacity as number | null
     const currentOccupancy = (data.occupancyCount as number) || 0
     if (capacity && currentOccupancy >= capacity) return 'full'
-    tx.update(eventRef, { checkedInCount: increment(1), occupancyCount: increment(1) })
+    applyCounterDeltas(tx, eventRef, { checkedInCount: 1, occupancyCount: 1 })
     return 'success'
   })
 }
@@ -45,10 +46,10 @@ export async function walkOut(eventId: string): Promise<void> {
     const snap = await tx.get(eventRef)
     if (!snap.exists()) return
     const data = snap.data()
-    const updates: Record<string, unknown> = {}
-    if (((data.checkedInCount as number) || 0) > 0) updates.checkedInCount = increment(-1)
-    if (((data.occupancyCount as number) || 0) > 0) updates.occupancyCount = increment(-1)
-    if (Object.keys(updates).length > 0) tx.update(eventRef, updates)
+    applyCounterDeltas(tx, eventRef, {
+      checkedInCount: ((data.checkedInCount as number) || 0) > 0 ? -1 : 0,
+      occupancyCount: ((data.occupancyCount as number) || 0) > 0 ? -1 : 0,
+    })
   })
 }
 

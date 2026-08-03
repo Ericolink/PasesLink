@@ -1,6 +1,7 @@
 // Servicio puro de check-out — mismo criterio que checkIn.ts. Puerto directo
 // de checkOutGuest() en src/firebase/guests.ts.
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
+import { applyCounterDeltas } from '../lib/counters/index.js'
 import { partySizeFromRaw } from '../payments/confirmPayment.js'
 import { guestPresence, mapGuestForResponse } from './shared.js'
 
@@ -44,7 +45,7 @@ export async function checkOutGuest(
       exitType: kind,
     }
     tx.update(guestRef, guestUpdates)
-    tx.update(eventRef, { occupancyCount: FieldValue.increment(-partySize) })
+    applyCounterDeltas(db, tx, eventRef, eventId, { occupancyCount: -partySize })
 
     const checkinRef = eventRef.collection('checkins').doc()
     tx.set(checkinRef, {

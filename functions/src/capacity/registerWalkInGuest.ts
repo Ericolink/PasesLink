@@ -15,6 +15,7 @@
 import { AggregateField, FieldValue, type Firestore } from 'firebase-admin/firestore'
 import { randomUUID } from 'node:crypto'
 import { hasCapacityFor } from '../lib/attendeeLimit.js'
+import { applyCounterDeltas } from '../lib/counters/index.js'
 import {
   GUEST_EMAIL_MAX,
   GUEST_FULL_NAME_MAX,
@@ -146,13 +147,18 @@ export async function registerWalkInGuest(
       })
     }
 
-    // Valor absoluto, no increment(): mismo motivo ya documentado en
+    // guestCount/peopleCount van como valor absoluto en `extraFields`, no
+    // como delta de applyCounterDeltas: mismo motivo ya documentado en
     // src/firebase/capacity.ts (eventos legacy sin peopleCount/guestCount no
-    // deben terminar en un total inconsistente con lo que ya muestra la app).
-    tx.update(eventRef, {
+    // deben terminar en un total inconsistente con lo que ya muestra la
+    // app) — un `increment()` sobre un campo ausente arrancaría en 0, no en
+    // `currentGuestCount`, perdiendo el fallback. rsvpYesCount sí es un
+    // delta puro, así que ese sí pasa por el registro de contadores (queda
+    // listo para shardearse si hace falta; guestCount/peopleCount NO, hasta
+    // que este call site puntual se revise — ver docs/sharded-counters.md).
+    applyCounterDeltas(db, tx, eventRef, eventId, { rsvpYesCount: 1 }, {
       guestCount: currentGuestCount + 1,
       peopleCount: currentPeopleCount + clampedPartySize,
-      rsvpYesCount: FieldValue.increment(1),
     })
 
     return { status: 'success', guestId: guestRef.id, qrToken, eventName: (event.name as string) || 'tu evento', email: trimmedEmail }

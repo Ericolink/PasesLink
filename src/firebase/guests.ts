@@ -5,7 +5,6 @@ import {
   documentId,
   getDoc,
   getDocs,
-  increment,
   limit,
   onSnapshot,
   orderBy,
@@ -20,6 +19,7 @@ import type { Unsubscribe } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './config'
 import { assertCapacityAvailable, fetchOfferedWaitlistCount, remainingCapacity } from './attendeeLimit'
+import { applyCounterDeltas } from './counters'
 import { enqueueNotification } from './notifications'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
 import type { CompanionData, CustomField, EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
@@ -192,12 +192,8 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
           ...(input.phoneCountry ? { phoneCountry: input.phoneCountry } : {}),
         })
       }
-      tx.update(eventRef, {
-        guestCount: increment(1),
-        peopleCount: increment(size),
-        // buildNewGuestPayload siempre arranca en 'pending' (ver ahí).
-        rsvpPendingCount: increment(1),
-      })
+      // buildNewGuestPayload siempre arranca en 'pending' (ver ahí).
+      applyCounterDeltas(tx, eventRef, { guestCount: 1, peopleCount: size, rsvpPendingCount: 1 })
     })
     return { id: guestRef.id }
   })
@@ -268,10 +264,10 @@ export async function addGuestsBulk(eventId: string, names: string[]): Promise<B
         // Cada invitado de una carga masiva es individual sin acompañantes
         // (partySize == 1), así que peopleCount sube lo mismo que guestCount acá.
         if (fitting.length > 0) {
-          tx.update(eventRef, {
-            guestCount: increment(fitting.length),
-            peopleCount: increment(fitting.length),
-            rsvpPendingCount: increment(fitting.length),
+          applyCounterDeltas(tx, eventRef, {
+            guestCount: fitting.length,
+            peopleCount: fitting.length,
+            rsvpPendingCount: fitting.length,
           })
         }
       })
@@ -341,10 +337,10 @@ export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[
           }
         }
         if (fitting.length > 0) {
-          tx.update(eventRef, {
-            guestCount: increment(fitting.length),
-            peopleCount: increment(fitting.length),
-            rsvpPendingCount: increment(fitting.length),
+          applyCounterDeltas(tx, eventRef, {
+            guestCount: fitting.length,
+            peopleCount: fitting.length,
+            rsvpPendingCount: fitting.length,
           })
         }
       })
@@ -437,11 +433,10 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
         transaction.set(contactRef(eventId, guestId), { phone, ...(phoneCountry !== undefined ? { phoneCountry } : {}) }, { merge: true })
       }
       if (after !== before) {
-        const eventUpdates: Record<string, unknown> = { peopleCount: increment(after - before) }
-        if (existing.paymentStatus === 'paid') {
-          eventUpdates.paidCount = increment(after - before)
-        }
-        transaction.update(eventRef, eventUpdates)
+        applyCounterDeltas(transaction, eventRef, {
+          peopleCount: after - before,
+          paidCount: existing.paymentStatus === 'paid' ? after - before : 0,
+        })
       }
     })
     return
@@ -564,21 +559,14 @@ export async function deleteGuest(
   const batch = writeBatch(db)
   batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
   batch.delete(contactRef(eventId, guest.id))
-  const updates: Record<string, unknown> = {
-    guestCount: increment(-1),
-    peopleCount: increment(-size),
-    [rsvpCountField(guest.rsvpStatus)]: increment(-1),
-  }
-  if (guest.status === 'checked_in') {
-    updates.checkedInCount = increment(-size)
-    if (guestPresence(guest) === 'inside') {
-      updates.occupancyCount = increment(-size)
-    }
-  }
-  if (guest.paymentStatus === 'paid') {
-    updates.paidCount = increment(-size)
-  }
-  batch.update(doc(db, 'events', eventId), updates)
+  applyCounterDeltas(batch, doc(db, 'events', eventId), {
+    guestCount: -1,
+    peopleCount: -size,
+    [rsvpCountField(guest.rsvpStatus)]: -1,
+    checkedInCount: guest.status === 'checked_in' ? -size : 0,
+    occupancyCount: guest.status === 'checked_in' && guestPresence(guest) === 'inside' ? -size : 0,
+    paidCount: guest.paymentStatus === 'paid' ? -size : 0,
+  })
   await batch.commit()
 }
 
@@ -602,21 +590,14 @@ export async function moveGuestToWaitlist(
 
   batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
   batch.delete(contactRef(eventId, guest.id))
-  const updates: Record<string, unknown> = {
-    guestCount: increment(-1),
-    peopleCount: increment(-size),
-    [rsvpCountField(guest.rsvpStatus)]: increment(-1),
-  }
-  if (guest.status === 'checked_in') {
-    updates.checkedInCount = increment(-size)
-    if (guestPresence(guest) === 'inside') {
-      updates.occupancyCount = increment(-size)
-    }
-  }
-  if (guest.paymentStatus === 'paid') {
-    updates.paidCount = increment(-size)
-  }
-  batch.update(doc(db, 'events', eventId), updates)
+  applyCounterDeltas(batch, doc(db, 'events', eventId), {
+    guestCount: -1,
+    peopleCount: -size,
+    [rsvpCountField(guest.rsvpStatus)]: -1,
+    checkedInCount: guest.status === 'checked_in' ? -size : 0,
+    occupancyCount: guest.status === 'checked_in' && guestPresence(guest) === 'inside' ? -size : 0,
+    paidCount: guest.paymentStatus === 'paid' ? -size : 0,
+  })
 
   batch.set(doc(collection(db, 'events', eventId, 'waitlist')), {
     name: fullName,
@@ -718,17 +699,14 @@ export async function bulkDeleteGuests(
         if (guest.paymentStatus === 'paid') paidCountDelta -= size
         rsvpDeltas[rsvpCountField(guest.rsvpStatus)] -= 1
       }
-      const updates: Record<string, unknown> = {
-        guestCount: increment(guestCountDelta),
-        peopleCount: increment(peopleCountDelta),
-      }
-      if (checkedInCountDelta !== 0) updates.checkedInCount = increment(checkedInCountDelta)
-      if (occupancyCountDelta !== 0) updates.occupancyCount = increment(occupancyCountDelta)
-      if (paidCountDelta !== 0) updates.paidCount = increment(paidCountDelta)
-      for (const [field, delta] of Object.entries(rsvpDeltas)) {
-        if (delta !== 0) updates[field] = increment(delta)
-      }
-      batch.update(doc(db, 'events', eventId), updates)
+      applyCounterDeltas(batch, doc(db, 'events', eventId), {
+        guestCount: guestCountDelta,
+        peopleCount: peopleCountDelta,
+        checkedInCount: checkedInCountDelta,
+        occupancyCount: occupancyCountDelta,
+        paidCount: paidCountDelta,
+        ...rsvpDeltas,
+      })
       await batch.commit()
       ok += chunk.length
     } catch (err) {
@@ -974,9 +952,9 @@ export async function setGuestRsvp(eventId: string, qrToken: string, rsvpStatus:
     transaction.update(guestRef, { rsvpStatus })
     let notifyResult: { ownerId: string; eventName: string; guestName: string } | null = null
     if (oldRsvp !== rsvpStatus) {
-      transaction.update(eventRef, {
-        [rsvpCountField(oldRsvp)]: increment(-1),
-        [rsvpCountField(rsvpStatus)]: increment(1),
+      applyCounterDeltas(transaction, eventRef, {
+        [rsvpCountField(oldRsvp)]: -1,
+        [rsvpCountField(rsvpStatus)]: 1,
       })
       // Solo 'pending' -> 'yes'/'no' notifica (una respuesta nueva, de
       // verdad accionable) — un invitado que cambia de 'yes' a 'no' o
@@ -1014,9 +992,9 @@ export async function resetGuestRsvp(eventId: string, guestId: string) {
     const oldRsvp = (guestSnap.data().rsvpStatus as RsvpStatus) || 'pending'
     transaction.update(guestRef, { rsvpStatus: 'pending', lockToken: null, lockTokens: [] })
     if (oldRsvp !== 'pending') {
-      transaction.update(eventRef, {
-        [rsvpCountField(oldRsvp)]: increment(-1),
-        rsvpPendingCount: increment(1),
+      applyCounterDeltas(transaction, eventRef, {
+        [rsvpCountField(oldRsvp)]: -1,
+        rsvpPendingCount: 1,
       })
     }
   })

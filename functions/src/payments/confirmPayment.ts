@@ -5,7 +5,8 @@
 // para que un futuro webhook de pasarela (Stripe/Mercado Pago/PayPal) pueda
 // llamar exactamente esta misma función con `source: { kind: 'webhook', ... }`
 // sin reimplementar nada de esto.
-import { FieldValue, type DocumentData, type Firestore } from 'firebase-admin/firestore'
+import type { DocumentData, Firestore } from 'firebase-admin/firestore'
+import { applyCounterDeltas } from '../lib/counters/index.js'
 
 export type PaymentMethod = 'transfer' | 'cash'
 
@@ -112,7 +113,7 @@ export async function confirmGuestPayment(
     if (!change.changed) return { ok: true, changed: false, notify: null }
 
     tx.update(guestRef, change.guestUpdates)
-    if (change.paidCountDelta !== 0) tx.update(eventRef, { paidCount: FieldValue.increment(change.paidCountDelta) })
+    applyCounterDeltas(db, tx, eventRef, eventId, { paidCount: change.paidCountDelta })
 
     const notify = change.paidCountDelta > 0 && event.ownerId
       ? { ownerId: event.ownerId as string, eventName: (event.name as string) || '', guestName: (guest.name as string) || '' }
@@ -194,7 +195,7 @@ export async function bulkConfirmGuestPayments(
         result.ok += 1
       })
 
-      if (paidCountDelta !== 0) tx.update(eventRef, { paidCount: FieldValue.increment(paidCountDelta) })
+      applyCounterDeltas(db, tx, eventRef, eventId, { paidCount: paidCountDelta })
     })
   }
 

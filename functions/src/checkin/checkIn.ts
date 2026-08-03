@@ -5,6 +5,7 @@
 // reusable a futuro por validaciones automáticas / otras integraciones sin
 // duplicar nada de esto (objetivo del ticket de migración).
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
+import { applyCounterDeltas, buildHourlyCheckinPatch } from '../lib/counters/index.js'
 import { partySizeFromRaw } from '../payments/confirmPayment.js'
 import { checkinHourLabel, guestPresence, mapGuestForResponse } from './shared.js'
 
@@ -75,11 +76,14 @@ export async function checkInGuest(
     }
     tx.update(guestRef, guestUpdates)
 
-    tx.update(eventRef, {
-      occupancyCount: FieldValue.increment(partySize),
-      ...(isReentry ? {} : { checkedInCount: FieldValue.increment(partySize) }),
-      [`checkinsByHour.${checkinHourLabel()}`]: FieldValue.increment(1),
-    })
+    applyCounterDeltas(
+      db,
+      tx,
+      eventRef,
+      eventId,
+      { occupancyCount: partySize, checkedInCount: isReentry ? 0 : partySize },
+      buildHourlyCheckinPatch(checkinHourLabel()),
+    )
 
     const checkinRef = eventRef.collection('checkins').doc()
     tx.set(checkinRef, {
