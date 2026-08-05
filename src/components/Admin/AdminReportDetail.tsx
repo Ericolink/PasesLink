@@ -218,7 +218,7 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Estado del reporte</label>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Estado del reporte</p>
             <div className="flex flex-wrap gap-2">
               {STATUS_ORDER.map((s) => (
                 <button
@@ -316,8 +316,9 @@ export function AdminReportDetail({ report, admin, onClose, onStatusChange, onDe
               )}
 
               <div>
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Motivo</label>
+                <label htmlFor="sanction-reason" className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Motivo</label>
                 <textarea
+                  id="sanction-reason"
                   value={sanctionReason}
                   onChange={(e) => setSanctionReason(e.target.value)}
                   rows={2}

@@ -67,6 +67,7 @@ export function ConcessionAvailabilityPanel({ eventId }: Props) {
               <span className="text-xs text-gray-500 dark:text-gray-400">Agotado</span>
               <input
                 type="checkbox"
+                aria-label={`Marcar "${item.name}" como agotado`}
                 checked={item.status === 'outOfStock'}
                 disabled={busyItemId === item.id}
                 onChange={() => handleToggle(item)}

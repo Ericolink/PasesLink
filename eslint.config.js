@@ -33,7 +33,12 @@ export default defineConfig([
       // tabIndex/keydown falso a un overlay de pantalla completa sería peor
       // (rompe el orden de tab), así que quedan documentados caso por caso
       // en vez de silenciados en bloque para siempre.
-      'jsx-a11y/label-has-associated-control': 'warn',
+      // controlComponents: Checkbox (src/components/accessibility/AccessibleField/Checkbox.tsx)
+      // envuelve un <input type="checkbox"> nativo — la regla no puede ver a
+      // través de un componente custom, así que sin esto marcaba como
+      // "sin control asociado" cada <label><Checkbox/>texto</label> aunque
+      // el wrapping ya asocia label+input de forma implícita y válida.
+      'jsx-a11y/label-has-associated-control': ['warn', { controlComponents: ['Checkbox'] }],
       'jsx-a11y/no-autofocus': 'warn',
       'jsx-a11y/click-events-have-key-events': 'warn',
       'jsx-a11y/no-static-element-interactions': 'warn',

@@ -1,6 +1,7 @@
 {
   "entry": ["vitest.firebase.config.ts", "src/__perf__/measure-baseline.tsx"],
   "project": ["src/**/*.{ts,tsx}"],
+  "ignore": ["functions/**"],
   "ignoreDependencies": ["playwright", "tailwindcss"],
   "ignoreBinaries": ["firebase"],
   "rules": {
