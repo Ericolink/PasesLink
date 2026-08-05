@@ -129,7 +129,7 @@ export function Dashboard() {
     <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
 
       {/* Header — min-w-0 en el texto: sin esto, un nombre largo empujaba el
-          botón "+ Nuevo evento" fuera de la fila (o forzaba overflow
+          botón "Crear evento" fuera de la fila (o forzaba overflow
           horizontal) en vez de truncar/envolver. El botón, siempre shrink-0,
           ahora también cumple el mínimo táctil de 44px (antes py-2 ≈ 36px). */}
       <div className="flex items-center justify-between gap-3 mb-6">
@@ -145,7 +145,7 @@ export function Dashboard() {
           to="/events/new"
           className="min-h-11 inline-flex items-center bg-primary text-white rounded-lg px-4 text-sm font-semibold hover:-translate-y-0.5 transition-all shrink-0"
         >
-          + Nuevo evento
+          Crear evento
         </Link>
       </div>
 

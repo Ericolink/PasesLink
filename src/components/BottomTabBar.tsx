@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { IconHome, IconPlus, IconTicket, IconUser } from './accessibility/AccessibleIcon'
+import { IconHome, IconTicket, IconUser } from './accessibility/AccessibleIcon'
 
 type Tab = {
   to: string
@@ -35,9 +35,9 @@ function TabLink({ to, label, icon: Icon, isActive }: Tab) {
   )
 }
 
-// Único punto de acceso permanente a los 3 destinos raíz en mobile, más
-// "Crear evento". Reemplaza al acordeón hamburguesa de Navbar (fase 1 del
-// rediseño de navegación). Desktop sigue usando Navbar hasta la fase 6.
+// Único punto de acceso permanente a los 3 destinos raíz en mobile.
+// Reemplaza al acordeón hamburguesa de Navbar (fase 1 del rediseño de
+// navegación). Desktop sigue usando Navbar hasta la fase 6.
 export function BottomTabBar() {
   const { user } = useAuth()
 
@@ -64,29 +64,6 @@ export function BottomTabBar() {
       {LEFT_TABS.map((tab) => (
         <TabLink key={tab.to} {...tab} />
       ))}
-      {/* "Crear evento" (Design Memory: "bottom-nav móvil con FAB central
-          pink+glow") es una celda flex propia, del mismo ancho que los
-          demás tabs — no un elemento "position: absolute" superpuesto a
-          toda la barra. Con 3 tabs, el centro de la barra completa cae
-          exactamente sobre el tab del medio, así que centrar el FAB ahí
-          garantizaba tapar ese botón sin importar el ajuste de píxeles.
-          Reservarle su propia columna elimina el solapamiento de raíz: el
-          "+" se posiciona absolute centrado dentro de ESA celda (no de la
-          barra) y sobresale hacia arriba para conservar el efecto flotante
-          con glow, pero nunca puede invadir el ancho de un hermano. */}
-      <div className="flex-1 relative flex flex-col items-center justify-end gap-1 py-2.5">
-        <Link
-          to="/events/new"
-          aria-label="Crear evento"
-          className="absolute left-1/2 -translate-x-1/2 -top-6 w-14 h-14 rounded-2xl flex items-center justify-center text-white bg-primary transition-transform active:scale-95"
-          style={{ boxShadow: 'var(--shadow-glow)' }}
-        >
-          <IconPlus className="w-6 h-6" />
-        </Link>
-        <span className="text-2xs font-medium" style={{ color: 'var(--color-gray-500)' }}>
-          Crear
-        </span>
-      </div>
       {RIGHT_TABS.map((tab) => (
         <TabLink key={tab.to} {...tab} />
       ))}
