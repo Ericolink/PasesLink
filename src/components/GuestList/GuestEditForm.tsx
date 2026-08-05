@@ -8,6 +8,7 @@ import { CustomFieldsEditRow } from '../CustomFieldsEditor'
 import { GUEST_GROUP_MAX_MEMBERS } from '../../utils/validation'
 import { AccessibleButton } from '../accessibility/AccessibleButton'
 import { useFocusFirstInvalidField } from '../../hooks/useFocusFirstInvalidField'
+import { useIntegerFieldInput } from '../../hooks/useIntegerFieldInput'
 import { FieldError, InputField } from '../accessibility/AccessibleField'
 
 const EDIT_ROW_INPUT_CLASS =
@@ -137,7 +138,7 @@ function EditGroupRow({
   onDone: () => void
 }) {
   const [name, setName] = useState(guest.name)
-  const [memberCount, setMemberCount] = useState(partySize(guest))
+  const memberCount = useIntegerFieldInput(partySize(guest), 1, GUEST_GROUP_MAX_MEMBERS)
   const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -147,11 +148,12 @@ function EditGroupRow({
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim() || memberCount < 1) return
+    const count = memberCount.value
+    if (!name.trim() || count === null) return
     setSaving(true)
     setError('')
     try {
-      const targetCompanionCount = Math.max(0, memberCount - 1)
+      const targetCompanionCount = Math.max(0, count - 1)
       const companions = Array.from(
         { length: targetCompanionCount },
         (_, i) => guest.companions[i] || {},
@@ -188,14 +190,15 @@ function EditGroupRow({
         <InputField
           label="Cantidad de integrantes"
           labelClassName="sr-only"
-          type="number"
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           required
-          min={1}
-          max={GUEST_GROUP_MAX_MEMBERS}
-          value={memberCount}
-          onChange={(e) => setMemberCount(Math.max(1, Math.min(GUEST_GROUP_MAX_MEMBERS, Number(e.target.value) || 1)))}
-          onFocus={(e) => e.currentTarget.select()}
-          onClick={(e) => e.currentTarget.select()}
+          value={memberCount.text}
+          onChange={memberCount.onChange}
+          onBlur={memberCount.onBlur}
+          onFocus={memberCount.onFocus}
+          onClick={memberCount.onClick}
           className={EDIT_ROW_INPUT_CLASS}
           placeholder="Integrantes"
         />

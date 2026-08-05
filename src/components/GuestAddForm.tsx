@@ -12,6 +12,7 @@ import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMB
 import { CustomFieldInput } from './CustomFieldInput'
 import { captureException } from '../lib/sentry'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
+import { useIntegerFieldInput } from '../hooks/useIntegerFieldInput'
 import { useAnnouncer } from './accessibility/LiveRegion'
 import type { CompanionData, CustomField, GuestData } from '../types'
 
@@ -52,7 +53,12 @@ export function GuestAddForm({
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [groupCustomValues, setGroupCustomValues] = useState<Record<string, string>>({})
   const [groupName, setGroupName] = useState('')
-  const [memberCount, setMemberCount] = useState(2)
+  // Sin valor inicial: si arrancara en un número (ej. 2), el organizador
+  // podía enviar el formulario sin haber elegido realmente cuántos
+  // integrantes tiene la familia. clampOnBlur:false porque acá el campo
+  // debe poder quedar vacío hasta que el organizador escriba un número —
+  // no autocompletarlo con el mínimo al salir del campo.
+  const memberCount = useIntegerFieldInput(null, 1, GUEST_GROUP_MAX_MEMBERS, { clampOnBlur: false })
   const [bulkNames, setBulkNames] = useState('')
   const [csvFileName, setCsvFileName] = useState('')
   const [csvRows, setCsvRows] = useState<ImportedGuestRow[]>([])
@@ -122,19 +128,21 @@ export function GuestAddForm({
   // exactamente el mismo pase/QR/check-in/estadísticas que ya usa
   // partySize() — no existe un modelo ni una colección paralela.
   async function submitGroupGuest() {
+    const count = memberCount.value
+    if (count === null) return
     setLoading(true)
     setError('')
     try {
       const trimmedGroupName = groupName.trim()
       await addGuest(eventId, {
         name: trimmedGroupName,
-        companions: Array.from({ length: Math.max(0, memberCount - 1) }, () => ({})),
+        companions: Array.from({ length: Math.max(0, count - 1) }, () => ({})),
         isGroup: true,
         customData: groupCustomValues,
       }, maxCompanions)
       announce(`Familia o grupo agregado: ${trimmedGroupName}`)
       setGroupName('')
-      setMemberCount(2)
+      memberCount.reset(null)
       setGroupCustomValues({})
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_group' } })
@@ -147,7 +155,7 @@ export function GuestAddForm({
 
   async function handleGroupSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!groupName.trim() || memberCount < 1) return
+    if (!groupName.trim() || memberCount.value === null) return
     if (existingNames.has(normalizeName(groupName))) {
       setPendingDuplicate({ type: 'group' })
       return
@@ -348,36 +356,37 @@ export function GuestAddForm({
         <form onSubmit={handleGroupSubmit} className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <InputField
-              label="Nombre del grupo"
-              labelClassName="sr-only"
+              label="Nombre de la familia"
               containerClassName="sm:col-span-2"
               type="text"
               required
               maxLength={GUEST_FULL_NAME_MAX}
-              placeholder="Nombre del grupo (ej. Familia Muñoz)"
+              placeholder="Ej. Familia Muñoz"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <InputField
-              label="Cantidad de integrantes"
-              labelClassName="sr-only"
-              type="number"
+              label="Número de pases"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               required
-              min={1}
-              max={GUEST_GROUP_MAX_MEMBERS}
-              placeholder="Cantidad de integrantes"
-              value={memberCount}
-              onChange={(e) => setMemberCount(Math.max(1, Math.min(GUEST_GROUP_MAX_MEMBERS, Number(e.target.value) || 1)))}
-              onFocus={(e) => e.currentTarget.select()}
-              onClick={(e) => e.currentTarget.select()}
+              placeholder="Ej. 4"
+              value={memberCount.text}
+              onChange={memberCount.onChange}
+              onBlur={memberCount.onBlur}
+              onFocus={memberCount.onFocus}
+              onClick={memberCount.onClick}
               className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-          <p className="text-xs text-gray-500">
-            Se genera un solo pase con un único código QR para todo el grupo — al escanearlo en la entrada, se suman
-            los {memberCount} integrantes de una vez.
-          </p>
+          {memberCount.value !== null && (
+            <p className="text-xs text-gray-500">
+              Se genera un solo pase con un único código QR para todo el grupo — al escanearlo en la entrada, se suman
+              los {memberCount.value} integrantes de una vez.
+            </p>
+          )}
 
           {customFields.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -399,7 +408,7 @@ export function GuestAddForm({
             </div>
           )}
 
-          <AccessibleButton type="submit" size="sm" disabled={loading} className="w-full">
+          <AccessibleButton type="submit" size="sm" disabled={loading || memberCount.value === null} className="w-full">
             {loading ? 'Agregando…' : 'Agregar familia o grupo'}
           </AccessibleButton>
         </form>
