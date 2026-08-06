@@ -46,18 +46,57 @@ const CANCELLATION_CODES = new Set([
   'auth/user-cancelled',
 ])
 
-function getAuthErrorCode(err: unknown): string | null {
+// Sin acoplarse a ninguna clase concreta (FirebaseError, FunctionsError...):
+// todos los errores de Firebase exponen `.code`, y es lo único que hace
+// falta para elegir el mensaje amigable, sea de Auth o de una Callable
+// Function.
+function getErrorCode(err: unknown): string | null {
   return (err as { code?: string } | undefined)?.code ?? null
 }
 
 export function getAuthErrorInfo(err: unknown, fallbackMessage: string): AuthErrorInfo {
-  const code = getAuthErrorCode(err)
+  const code = getErrorCode(err)
   if (code && AUTH_ERROR_INFO[code]) return AUTH_ERROR_INFO[code]
   return { message: fallbackMessage }
 }
 
 /** El usuario cerró el popup de Google a propósito — no es un error que mostrar. */
 export function isAuthCancellation(err: unknown): boolean {
-  const code = getAuthErrorCode(err)
+  const code = getErrorCode(err)
   return !!code && CANCELLATION_CODES.has(code)
+}
+
+// Códigos de Callable Functions (https://firebase.google.com/docs/reference/js/functions#functionserrorcode).
+// Cuando una llamada nunca llega a ejecutarse en el backend (bloqueo de CSP
+// contra *.cloudfunctions.net, sin conexión, timeout), @firebase/functions
+// sintetiza el error EN EL CLIENTE con `message === code` (ej.
+// `FunctionsError('internal', 'internal')`) — así se ve, sin traducir, un
+// simple bloqueo de red, y es lo que terminaba mostrando "Internal" en la
+// UI. Los errores que sí llegan a ejecutarse en el backend siempre mandan un
+// mensaje distinto del código (ver functions/src/lib/observability/errors.ts,
+// que nunca deja escapar un HttpsError sin mensaje amigable), así que esos
+// pasan tal cual: ya están en español y pensados para el usuario final.
+const FUNCTIONS_ERROR_MESSAGES: Record<string, string> = {
+  'functions/internal': 'Ocurrió un error inesperado. Intenta de nuevo en unos minutos.',
+  'functions/unknown': 'Ocurrió un error inesperado. Intenta de nuevo en unos minutos.',
+  'functions/unavailable': 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.',
+  'functions/deadline-exceeded': 'La operación tardó demasiado en responder. Intenta de nuevo.',
+  'functions/cancelled': 'La operación se canceló. Intenta de nuevo.',
+  'functions/unauthenticated': 'Tu sesión expiró. Vuelve a iniciar sesión e intenta de nuevo.',
+  'functions/permission-denied': 'No tienes permiso para realizar esta acción.',
+  'functions/resource-exhausted': 'Se alcanzó un límite del sistema. Intenta de nuevo en unos minutos.',
+}
+
+// Reemplazo directo de `err instanceof Error ? err.message : fallbackMessage`
+// en cualquier catch que pueda recibir el error de una Callable Function.
+export function getFunctionsErrorMessage(err: unknown, fallbackMessage: string): string {
+  const code = getErrorCode(err)
+  const message = (err as { message?: string } | undefined)?.message
+  if (code?.startsWith('functions/')) {
+    const bareCode = code.slice('functions/'.length)
+    if (!message || message === bareCode) return FUNCTIONS_ERROR_MESSAGES[code] ?? fallbackMessage
+    return message
+  }
+  if (err instanceof Error && err.message) return err.message
+  return fallbackMessage
 }

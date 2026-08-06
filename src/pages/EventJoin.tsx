@@ -17,6 +17,7 @@ import {
   GUEST_PHONE_MAX,
 } from '../utils/validation'
 import { CrownLoader } from '../components/CrownLoader'
+import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
 
 // Look del formulario de cara al invitado: inputs en pill (forma fija, no
 // depende del --invite-radius de cada tema — el objetivo es que se vea
@@ -274,7 +275,7 @@ export function EventJoin() {
         return
       }
       console.error('Error registering guest:', err)
-      setRegError(err instanceof Error ? err.message : 'No se pudo completar el registro. Intenta de nuevo.')
+      setRegError(getFunctionsErrorMessage(err, 'No se pudo completar el registro. Intenta de nuevo.'))
       setRegErrorAttempt((n) => n + 1)
       setState('form')
     }

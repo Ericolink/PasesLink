@@ -60,6 +60,7 @@ import { downloadPassImage } from '../utils/downloadPass'
 import { downloadIcsFile } from '../utils/calendar'
 import { getTemplate } from '../templates/registry'
 import { buildPassUrl, QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
+import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
 
 
 // Mismo canal (WhatsApp) que ya se usa para "compartir pase con
@@ -339,7 +340,7 @@ function GuestPassInner() {
       if (checkInState === 'payment_required') setCheckInState('idle')
     } catch (err) {
       console.error('Error marking guest as paid:', err)
-      setPaymentError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
+      setPaymentError(getFunctionsErrorMessage(err, 'No se pudo actualizar el estado de pago. Intenta de nuevo.'))
     } finally {
       setPaymentSaving(false)
     }

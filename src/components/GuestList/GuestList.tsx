@@ -23,6 +23,7 @@ import { GuestRow } from './GuestRow'
 import { GuestSelectionBar } from './GuestSelectionBar'
 import { SECTION_ORDER, groupGuestsByUrgency, type GuestUrgency } from './guestGrouping'
 import { useAnnouncer } from '../accessibility/LiveRegion'
+import { getFunctionsErrorMessage } from '../../utils/firebaseErrorMessages'
 
 // Paginación de RENDERIZADO, no de datos: `guests` ya llega completo a este
 // componente (EventDetail lo carga entero vía useEvent/subscribeToGuests,
@@ -201,7 +202,7 @@ export const GuestList = memo(function GuestList({
       .then(() => announce(`Pago confirmado: ${guest.name}`))
       .catch((err) => {
         console.error('Error marking guest as paid:', err)
-        setActionError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
+        setActionError(getFunctionsErrorMessage(err, 'No se pudo actualizar el estado de pago. Intenta de nuevo.'))
       })
   }, [eventId, paymentMethods, announce])
 
@@ -227,7 +228,7 @@ export const GuestList = memo(function GuestList({
       await setGuestPaymentStatus(eventId, guest.id, 'paid', method)
     } catch (err) {
       console.error('Error marking guest as paid:', err)
-      setActionError(err instanceof Error ? err.message : 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
+      setActionError(getFunctionsErrorMessage(err, 'No se pudo actualizar el estado de pago. Intenta de nuevo.'))
     }
   }
 

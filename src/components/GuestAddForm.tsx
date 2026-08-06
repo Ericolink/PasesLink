@@ -11,6 +11,7 @@ import { AccessibleField, FieldError, InputField } from './accessibility/Accessi
 import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
 import { CustomFieldInput } from './CustomFieldInput'
 import { captureException } from '../lib/sentry'
+import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
 import { trackGuestAdd, trackGuestGroupRegister, trackGuestImport } from '../lib/analytics'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { useIntegerFieldInput } from '../hooks/useIntegerFieldInput'
@@ -107,7 +108,7 @@ export function GuestAddForm({
       setCustomValues({})
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_single' } })
-      setError(err instanceof Error ? err.message : 'No se pudo agregar el invitado. Intenta de nuevo.')
+      setError(getFunctionsErrorMessage(err, 'No se pudo agregar el invitado. Intenta de nuevo.'))
       setErrorAttempt((n) => n + 1)
     } finally {
       setLoading(false)
@@ -149,7 +150,7 @@ export function GuestAddForm({
       setGroupCustomValues({})
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_group' } })
-      setError(err instanceof Error ? err.message : 'No se pudo agregar la familia o grupo. Intenta de nuevo.')
+      setError(getFunctionsErrorMessage(err, 'No se pudo agregar la familia o grupo. Intenta de nuevo.'))
       setErrorAttempt((n) => n + 1)
     } finally {
       setLoading(false)
@@ -188,9 +189,10 @@ export function GuestAddForm({
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_bulk' } })
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Ocurrió un error agregando la lista. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.',
+        getFunctionsErrorMessage(
+          err,
+          'Ocurrió un error agregando la lista. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.',
+        ),
       )
       setErrorAttempt((n) => n + 1)
     } finally {
@@ -246,9 +248,10 @@ export function GuestAddForm({
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_csv' } })
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Ocurrió un error importando el archivo. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.',
+        getFunctionsErrorMessage(
+          err,
+          'Ocurrió un error importando el archivo. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.',
+        ),
       )
       setErrorAttempt((n) => n + 1)
     } finally {

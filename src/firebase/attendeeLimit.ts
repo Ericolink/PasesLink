@@ -14,6 +14,7 @@
 // esta función lo rechaza en ese segundo intento.
 import { httpsCallable } from 'firebase/functions'
 import { functions } from './config'
+import { captureException } from '../lib/sentry'
 
 export class CapacityFullError extends Error {
   constructor() {
@@ -70,8 +71,24 @@ export function assertCapacityAvailable(event: CapacitySnapshot, additionalPeopl
 // inicialización del SDK de Functions — importa remainingCapacity/
 // assertCapacityAvailable (las funciones puras) desde un test no debería
 // requerir mockear './config'.
+// Si esta llamada falla (red caída, Cloud Function con un problema
+// transitorio, bloqueo de CSP, etc.), NO debe tumbar el alta del invitado
+// que la está esperando: es solo la optimización que evita la colisión en
+// el caso común, según el comentario de arriba, no la garantía dura. Sin
+// este try/catch, cualquier falla de esta única función (aunque el resto
+// del sistema esté sano) bloqueaba TODAS las altas de invitados de la app
+// (individual, familia/grupo, carga masiva, CSV) con un error genérico —
+// desproporcionado para un chequeo best-effort. Se degrada a 0 (equivale a
+// "sin ofertas activas ahora mismo") y se reporta a Sentry para poder
+// notar si empieza a fallar seguido.
 export async function fetchOfferedWaitlistCount(eventId: string): Promise<number> {
   const getOfferedWaitlistCount = httpsCallable<{ eventId: string }, { count: number }>(functions, 'getOfferedWaitlistCount')
-  const result = await getOfferedWaitlistCount({ eventId })
-  return result.data.count
+  try {
+    const result = await getOfferedWaitlistCount({ eventId })
+    return result.data.count
+  } catch (err) {
+    console.error('Error obteniendo el conteo de ofertas de lista de espera:', err)
+    captureException(err, { tags: { flow: 'attendeeLimit.fetchOfferedWaitlistCount' } })
+    return 0
+  }
 }
