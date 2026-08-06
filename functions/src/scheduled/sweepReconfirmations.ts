@@ -7,8 +7,12 @@ import { expireDueReconfirmations, sendDueReminders } from '../reconfirm/sweep.j
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
 import { withScheduledObservability } from '../lib/observability/withObservability.js'
 
+// timeoutSeconds por encima del default: mismo motivo que
+// sendRsvpReminders.ts (envío de recordatorios) + expireDueReconfirmations
+// (una collectionGroup query + una transacción por invitado vencido, sin
+// tope explícito). maxInstances: 1 — un solo barrido a la vez.
 export const sweepReconfirmations = onSchedule(
-  { schedule: '0 13 * * *', timeZone: 'UTC', secrets: [brevoApiKey, brevoSenderEmail] },
+  { schedule: '0 13 * * *', timeZone: 'UTC', secrets: [brevoApiKey, brevoSenderEmail], timeoutSeconds: 300, maxInstances: 1 },
   () => withScheduledObservability('sweepReconfirmations', async () => {
     const db = getFirestore()
     const now = Date.now()

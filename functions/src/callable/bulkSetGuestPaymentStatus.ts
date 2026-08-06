@@ -21,7 +21,10 @@ const VALID_METHODS: PaymentMethod[] = ['transfer', 'cash']
 // evita que una llamada mal formada dispare cientos de lotes de golpe.
 const MAX_GUEST_IDS = 1000
 
-export const bulkSetGuestPaymentStatus = onCall<BulkSetGuestPaymentStatusInput>((request) =>
+// timeoutSeconds por encima del default: bulkConfirmGuestPayments trocea en
+// lotes de 50 (MAX_GUESTS_PER_CHUNK) — con el tope de MAX_GUEST_IDS (1000)
+// eso son hasta 20 transacciones secuenciales.
+export const bulkSetGuestPaymentStatus = onCall<BulkSetGuestPaymentStatusInput>({ timeoutSeconds: 90 }, (request) =>
   withCallableObservability(request, 'bulkSetGuestPaymentStatus', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

@@ -32,7 +32,10 @@ export interface AddGuestsBulkResponse {
 // MASS_MESSAGE_MAX_RECIPIENTS (src/utils/validation.ts).
 const MAX_GUESTS_PER_CALL = 2000
 
-export const addGuestsBulk = onCall<AddGuestsBulkInput>((request) =>
+// timeoutSeconds por encima del default: createGuestsWithCapacity trocea en
+// lotes de 50 (CHUNK_SIZE), cada uno su propia transacción — con el tope de
+// MAX_GUESTS_PER_CALL (2000) eso son hasta 40 transacciones secuenciales.
+export const addGuestsBulk = onCall<AddGuestsBulkInput>({ timeoutSeconds: 120 }, (request) =>
   withCallableObservability(request, 'addGuestsBulk', async (ctx): Promise<AddGuestsBulkResponse> => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     const { eventId, names } = request.data || {}

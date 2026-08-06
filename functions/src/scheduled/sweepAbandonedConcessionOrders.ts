@@ -7,8 +7,11 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { runAbandonedConcessionOrdersSweep } from '../concessions/sweepAbandonedOrders.js'
 import { withScheduledObservability } from '../lib/observability/withObservability.js'
 
+// timeoutSeconds por encima del default: hasta 200 candidatos (limit), cada
+// uno su propia transacción de borrado. maxInstances: 1 — un solo barrido a
+// la vez.
 export const sweepAbandonedConcessionOrders = onSchedule(
-  { schedule: '0 */6 * * *', timeZone: 'UTC' },
+  { schedule: '0 */6 * * *', timeZone: 'UTC', timeoutSeconds: 180, maxInstances: 1 },
   () => withScheduledObservability('sweepAbandonedConcessionOrders', async (ctx) => {
     const db = getFirestore()
     const result = await runAbandonedConcessionOrdersSweep(db, Date.now())

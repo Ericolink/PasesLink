@@ -20,7 +20,10 @@ interface SetGuestPaymentStatusInput {
 
 const VALID_METHODS: PaymentMethod[] = ['transfer', 'cash']
 
-export const setGuestPaymentStatus = onCall<SetGuestPaymentStatusInput>((request) =>
+// timeoutSeconds bajo: una transacción + un enqueueNotification (escritura
+// de Firestore, no una llamada externa) — sin margen para el timeout de
+// 60s por defecto.
+export const setGuestPaymentStatus = onCall<SetGuestPaymentStatusInput>({ timeoutSeconds: 20 }, (request) =>
   withCallableObservability(request, 'setGuestPaymentStatus', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

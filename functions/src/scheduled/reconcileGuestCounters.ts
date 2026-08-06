@@ -17,8 +17,12 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { reconcileAllGuestCounters } from '../reconciliation/reconcileGuestCounters.js'
 import { withScheduledObservability } from '../lib/observability/withObservability.js'
 
+// timeoutSeconds generoso: red de seguridad semanal que recorre TODOS los
+// eventos y TODOS sus guests/, sin paginar — el barrido más pesado del
+// proyecto en volumen total de lecturas (aunque corre poco seguido).
+// maxInstances: 1 — un solo barrido completo a la vez.
 export const reconcileGuestCounters = onSchedule(
-  { schedule: '0 4 * * 0', timeZone: 'UTC' },
+  { schedule: '0 4 * * 0', timeZone: 'UTC', timeoutSeconds: 300, maxInstances: 1 },
   () => withScheduledObservability('reconcileGuestCounters', async (ctx) => {
     const db = getFirestore()
     const result = await reconcileAllGuestCounters(db)

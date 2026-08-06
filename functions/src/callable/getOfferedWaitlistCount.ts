@@ -16,7 +16,10 @@ interface GetOfferedWaitlistCountInput {
   eventId: string
 }
 
-export const getOfferedWaitlistCount = onCall<GetOfferedWaitlistCountInput>((request) =>
+// memory/timeoutSeconds bajos: una sola aggregate query, sin autenticación
+// ni transacción — es el endpoint más liviano y más expuesto (sin auth) del
+// proyecto.
+export const getOfferedWaitlistCount = onCall<GetOfferedWaitlistCountInput>({ memory: '128MiB', timeoutSeconds: 10 }, (request) =>
   withCallableObservability(request, 'getOfferedWaitlistCount', async (ctx): Promise<{ count: number }> => {
     const eventId = request.data?.eventId
     ctx.addContext({ eventId })

@@ -26,7 +26,12 @@ interface CreateConcessionOrderInput {
 
 export type CreateConcessionOrderResponse = { status: 'success'; orderId: string }
 
-export const createConcessionOrder = onCall<CreateConcessionOrderInput>((request) =>
+// maxInstances por encima del default global: pedidos de comida/bebida
+// llegan en ráfaga durante el evento (todos los invitados pidiendo casi al
+// mismo tiempo), sin autenticación obligatoria de por medio que limite el
+// tráfico. timeoutSeconds bajo: una sola transacción (catálogo + stock +
+// pedido), sin llamadas externas.
+export const createConcessionOrder = onCall<CreateConcessionOrderInput>({ maxInstances: 15, timeoutSeconds: 20 }, (request) =>
   withCallableObservability(request, 'createConcessionOrder', async (ctx): Promise<CreateConcessionOrderResponse> => {
     const { eventId, guestId, guestNameSnapshot, lockToken, currency, paymentMethod, lines } = request.data || {}
     ctx.addContext({ uid: request.auth?.uid, eventId, guestId })

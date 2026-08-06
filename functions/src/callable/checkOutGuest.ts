@@ -15,11 +15,13 @@ interface CheckOutGuestInput {
 
 const VALID_KINDS = ['temporary', 'final']
 
-// region fija la misma ubicación que Firestore (us-central1). Sin
+// region/maxInstances ya salen del default global (index.ts). Sin
 // minInstances: la salida es menos sensible a 1-2s de cold start que el
 // ingreso (menor presión de tráfico que la puerta al inicio del evento).
+// timeoutSeconds bajo: mismo motivo que checkInGuest.ts (una sola
+// transacción sin llamadas externas).
 export const checkOutGuest = onCall<CheckOutGuestInput>(
-  { region: 'us-central1', maxInstances: 10 },
+  { timeoutSeconds: 20 },
   (request) => withCallableObservability(request, 'checkOutGuest', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

@@ -19,7 +19,9 @@ interface PromoteWaitlistEntryInput {
   entryId: string
 }
 
-export const promoteWaitlistEntry = onCall<PromoteWaitlistEntryInput>({ secrets: [brevoApiKey, brevoSenderEmail] }, (request) =>
+// timeoutSeconds por encima del default liviano: sendOfferEmail hace una
+// llamada HTTP real a Brevo.
+export const promoteWaitlistEntry = onCall<PromoteWaitlistEntryInput>({ secrets: [brevoApiKey, brevoSenderEmail], timeoutSeconds: 20 }, (request) =>
   withCallableObservability(request, 'promoteWaitlistEntry', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

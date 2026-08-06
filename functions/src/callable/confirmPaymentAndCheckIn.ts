@@ -19,9 +19,11 @@ interface ConfirmPaymentAndCheckInInput {
 const VALID_METHODS: PaymentMethod[] = ['transfer', 'cash']
 
 // minInstances: 1 — mismo motivo que checkInGuest.ts (camino crítico del
-// escáner, momento de mayor tráfico del evento).
+// escáner, momento de mayor tráfico del evento). region ya sale del
+// default global (index.ts). timeoutSeconds bajo: mismo motivo que
+// checkInGuest.ts (una sola transacción sin llamadas externas).
 export const confirmPaymentAndCheckIn = onCall<ConfirmPaymentAndCheckInInput>(
-  { region: 'us-central1', minInstances: 1, maxInstances: 20 },
+  { minInstances: 1, maxInstances: 20, timeoutSeconds: 20 },
   (request) => withCallableObservability(request, 'confirmPaymentAndCheckIn', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

@@ -23,7 +23,10 @@ interface CancelWaitlistOfferInput {
   entryId: string
 }
 
-export const cancelWaitlistOffer = onCall<CancelWaitlistOfferInput>({ secrets: [brevoApiKey, brevoSenderEmail] }, (request) =>
+// timeoutSeconds por encima del default liviano: runCascade + sendOfferEmail
+// hacen una llamada HTTP real a Brevo por cada promoción, no solo una
+// transacción de Firestore.
+export const cancelWaitlistOffer = onCall<CancelWaitlistOfferInput>({ secrets: [brevoApiKey, brevoSenderEmail], timeoutSeconds: 30 }, (request) =>
   withCallableObservability(request, 'cancelWaitlistOffer', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

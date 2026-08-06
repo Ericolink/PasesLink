@@ -16,8 +16,12 @@ import { sendOfferEmail } from '../waitlist/notify.js'
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
 import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
+// timeoutSeconds por encima del default: la cascada puede promover a varias
+// entradas de la fila de espera de una sola vez (p.ej. el organizador borra
+// muchos invitados juntos), y sendOfferEmail hace una llamada HTTP real a
+// Brevo por cada una.
 export const onCapacityFreed = onDocumentUpdated(
-  { document: 'events/{eventId}', secrets: [brevoApiKey, brevoSenderEmail] },
+  { document: 'events/{eventId}', secrets: [brevoApiKey, brevoSenderEmail], timeoutSeconds: 120, maxInstances: 10 },
   (event) => withTriggerObservability(event, 'onCapacityFreed', async (ctx) => {
     const before = event.data?.before.data()
     const after = event.data?.after.data()

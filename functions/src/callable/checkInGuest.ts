@@ -17,11 +17,13 @@ interface CheckInGuestInput {
 
 // minInstances: 1 — camino crítico del escáner (la puerta, al inicio del
 // evento), donde un cold start es más visible y más costoso en experiencia
-// (ver BLAZE_ENTERPRISE_ARCHITECTURE_AUDIT.md §8.3). region fija la misma
-// ubicación que la base de Firestore (us-central1, confirmado con
-// `firebase firestore:databases:get`) para evitar latencia cross-region.
+// (ver BLAZE_ENTERPRISE_ARCHITECTURE_AUDIT.md §8.3). region ya sale del
+// default global (index.ts), misma ubicación que la base de Firestore.
+// timeoutSeconds bajo (vs. el default de 60s): es una sola transacción sin
+// llamadas externas — si tarda más de 20s algo ya está roto, y este tope
+// evita que el escáner se quede colgado esperando ese resto del minuto.
 export const checkInGuest = onCall<CheckInGuestInput>(
-  { region: 'us-central1', minInstances: 1, maxInstances: 20 },
+  { minInstances: 1, maxInstances: 20, timeoutSeconds: 20 },
   (request) => withCallableObservability(request, 'checkInGuest', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

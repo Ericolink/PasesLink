@@ -32,8 +32,16 @@ export type RegisterWalkInGuestResponse =
   | { status: 'full' }
   | { status: 'error' }
 
+// maxInstances por encima del default global: auto-registro público sin
+// autenticación obligatoria, con tráfico concentrado en la puerta al
+// arrancar el evento (mismo patrón de ráfaga que checkInGuest, aunque sin
+// minInstances — no es tan sensible a 1-2s de cold start como el escáner,
+// que además tiene un ingreso continuo durante todo el evento).
+// timeoutSeconds moderado: la transacción es rápida, pero el envío del
+// pase por email (best-effort, después de comprometida la transacción) es
+// una llamada HTTP real a Brevo.
 export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
-  { secrets: [brevoApiKey, brevoSenderEmail] },
+  { secrets: [brevoApiKey, brevoSenderEmail], maxInstances: 15, timeoutSeconds: 30 },
   (request) => withCallableObservability(request, 'registerWalkInGuest', async (ctx): Promise<RegisterWalkInGuestResponse> => {
     const { eventId, name, email, phone, phoneCountry, customData, partySize, paymentMethod } = request.data || {}
     ctx.addContext({ uid: request.auth?.uid, eventId })

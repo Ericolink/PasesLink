@@ -4,10 +4,37 @@
 // cada feature se agregan acá a medida que se implementan (ver
 // WAITLIST_RECONFIRMATION_ARCHITECTURE.md para la primera).
 import { initializeApp, getApps } from 'firebase-admin/app'
+import { setGlobalOptions } from 'firebase-functions/v2'
 
 if (getApps().length === 0) {
   initializeApp()
 }
+
+// Configuración por defecto de toda función que no la pise explícitamente
+// (ver CLOUD_FUNCTIONS_SIZING.md para el análisis completo función por
+// función). region: misma ubicación que la base de Firestore (us-central1,
+// confirmado con `firebase firestore:databases:get`) — evita latencia
+// cross-region en cada get()/runTransaction(). memory: 256MiB alcanza para
+// TODA función de este proyecto (ninguna hace procesamiento de imágenes ni
+// cómputo pesado — son wrappers finos de transacciones de Firestore y
+// llamadas HTTP a Brevo/FCM); las que en la práctica necesitan menos bajan a
+// 128MiB de forma explícita. timeoutSeconds: 60 (el default real de
+// Cloud Functions) en vez del máximo por función — cada función que hace
+// trabajo genuinamente largo (barridos, altas masivas, envío de campañas)
+// lo sube de forma explícita y justificada. maxInstances: 10 es la red de
+// seguridad para cualquier función sin tráfico propio conocido; las que
+// necesitan más headroom (triggers de alta frecuencia, altas públicas sin
+// autenticación) lo suben de forma explícita. cpu ya es 1 por defecto de
+// firebase-functions (a diferencia de gcloud) para memoria <= 2GiB, así que
+// concurrency=80 aplica sin tocar nada — seguro acá porque cada función
+// resuelve su propio estado con transacciones de Firestore, sin memoria
+// compartida entre invocaciones.
+setGlobalOptions({
+  region: 'us-central1',
+  memory: '256MiB',
+  timeoutSeconds: 60,
+  maxInstances: 10,
+})
 
 export { onCapacityFreed } from './triggers/onCapacityFreed.js'
 export { onAdminWritten } from './triggers/onAdminWritten.js'

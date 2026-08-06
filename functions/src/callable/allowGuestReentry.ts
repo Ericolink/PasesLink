@@ -15,8 +15,11 @@ interface AllowGuestReentryInput {
   guestId: string
 }
 
+// memory/timeoutSeconds bajos: un solo update() de un campo, sin
+// transacción ni llamadas externas — la función más liviana del camino del
+// escáner. region ya sale del default global (index.ts).
 export const allowGuestReentry = onCall<AllowGuestReentryInput>(
-  { region: 'us-central1', maxInstances: 5 },
+  { maxInstances: 5, memory: '128MiB', timeoutSeconds: 15 },
   (request) => withCallableObservability(request, 'allowGuestReentry', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

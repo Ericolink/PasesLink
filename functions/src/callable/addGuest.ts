@@ -45,7 +45,9 @@ interface AddGuestInput {
 
 export type AddGuestResponse = { status: 'success'; id: string } | { status: 'full' }
 
-export const addGuest = onCall<AddGuestInput>((request) =>
+// timeoutSeconds bajo: transacción acotada (createGuestsWithCapacity con
+// un solo invitado), sin llamadas externas.
+export const addGuest = onCall<AddGuestInput>({ timeoutSeconds: 20 }, (request) =>
   withCallableObservability(request, 'addGuest', async (ctx): Promise<AddGuestResponse> => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     const { eventId, name, lastName, phone, phoneCountry, companions, isGroup, customData } = request.data || {}

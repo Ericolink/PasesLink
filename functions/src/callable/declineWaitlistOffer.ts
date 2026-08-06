@@ -13,7 +13,9 @@ interface DeclineWaitlistOfferInput {
   offerToken: string
 }
 
-export const declineWaitlistOffer = onCall<DeclineWaitlistOfferInput>((request) =>
+// timeoutSeconds bajo: una transacción + runCascade (acotada por
+// CANDIDATE_BATCH_SIZE), sin llamadas externas.
+export const declineWaitlistOffer = onCall<DeclineWaitlistOfferInput>({ timeoutSeconds: 20 }, (request) =>
   withCallableObservability(request, 'declineWaitlistOffer', async (ctx) => {
     const { eventId, entryId, offerToken } = request.data || {}
     ctx.addContext({ uid: request.auth?.uid, eventId })

@@ -15,7 +15,10 @@ interface StartReconfirmCampaignInput {
   reminderRules: ReminderRuleInput[]
 }
 
-export const startReconfirmCampaign = onCall<StartReconfirmCampaignInput>((request) =>
+// timeoutSeconds por encima del default: fan-out sin tope explícito sobre
+// todos los invitados elegibles del evento, en lotes de 400 (WRITE_CHUNK_SIZE)
+// — puede ser una lista larga en un evento grande.
+export const startReconfirmCampaign = onCall<StartReconfirmCampaignInput>({ timeoutSeconds: 120 }, (request) =>
   withCallableObservability(request, 'startReconfirmCampaign', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

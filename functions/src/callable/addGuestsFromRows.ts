@@ -41,7 +41,9 @@ export interface AddGuestsFromRowsResponse {
 // Mismo criterio que addGuestsBulk.ts.
 const MAX_GUESTS_PER_CALL = 2000
 
-export const addGuestsFromRows = onCall<AddGuestsFromRowsInput>((request) =>
+// timeoutSeconds por encima del default: mismo motivo que addGuestsBulk.ts
+// (hasta 40 transacciones secuenciales de a 50 filas, tope de 2000 filas).
+export const addGuestsFromRows = onCall<AddGuestsFromRowsInput>({ timeoutSeconds: 120 }, (request) =>
   withCallableObservability(request, 'addGuestsFromRows', async (ctx): Promise<AddGuestsFromRowsResponse> => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     const { eventId, rows } = request.data || {}

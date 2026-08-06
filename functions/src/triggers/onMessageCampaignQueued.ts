@@ -14,8 +14,21 @@ import { processMessageCampaign, type MessageCampaign } from '../messaging/campa
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
 import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
+// timeoutSeconds al máximo permitido para triggers de Firestore (540s):
+// processMessageCampaign manda un email por destinatario, secuencial, sin
+// tope explícito más allá de MASS_MESSAGE_MAX_RECIPIENTS (2000, ver
+// src/utils/validation.ts) — una campaña a varios miles de destinatarios
+// puede no alcanzar a completar en una sola invocación (limitación conocida,
+// no resoluble solo con configuración: necesitaría trocear el envío en
+// varias invocaciones para escalar sin techo). maxInstances bajo: acción
+// poco frecuente (una por campaña que arma el organizador).
 export const onMessageCampaignQueued = onDocumentCreated(
-  { document: 'events/{eventId}/messageCampaigns/{campaignId}', secrets: [brevoApiKey, brevoSenderEmail] },
+  {
+    document: 'events/{eventId}/messageCampaigns/{campaignId}',
+    secrets: [brevoApiKey, brevoSenderEmail],
+    timeoutSeconds: 540,
+    maxInstances: 5,
+  },
   (event) => withTriggerObservability(event, 'onMessageCampaignQueued', async () => {
     const snap = event.data
     if (!snap) return

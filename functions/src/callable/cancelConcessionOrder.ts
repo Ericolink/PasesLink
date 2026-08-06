@@ -20,7 +20,8 @@ interface CancelConcessionOrderInput {
   cancelReason: ConcessionCancelReason
 }
 
-export const cancelConcessionOrder = onCall<CancelConcessionOrderInput>((request) =>
+// timeoutSeconds bajo: una sola transacción, sin llamadas externas.
+export const cancelConcessionOrder = onCall<CancelConcessionOrderInput>({ timeoutSeconds: 20 }, (request) =>
   withCallableObservability(request, 'cancelConcessionOrder', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

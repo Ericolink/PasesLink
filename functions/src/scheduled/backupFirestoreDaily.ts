@@ -10,6 +10,6 @@ import { withScheduledObservability } from '../lib/observability/withObservabili
 import { runFirestoreExport } from '../backups/exportFirestore.js'
 
 export const backupFirestoreDaily = onSchedule(
-  { schedule: '0 9 * * *', timeZone: 'UTC', region: 'us-central1', timeoutSeconds: 540, memory: '256MiB' },
+  { schedule: '0 9 * * *', timeZone: 'UTC', timeoutSeconds: 540, memory: '256MiB', maxInstances: 1 },
   () => withScheduledObservability('backupFirestoreDaily', (ctx) => runFirestoreExport('daily', ctx)),
 )

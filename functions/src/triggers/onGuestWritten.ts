@@ -19,8 +19,15 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
-export const onGuestWritten = onDocumentWritten('events/{eventId}/guests/{guestId}', (event) =>
-  withTriggerObservability(event, 'onGuestWritten', async () => {
+// El trigger de mayor frecuencia del proyecto — dispara en CADA escritura
+// de guests/{guestId} (alta, edición, check-in/out, pago, RSVP, y cada fila
+// de una importación masiva de hasta 2000 invitados). memory/timeoutSeconds
+// bajos porque es un solo merge sin lecturas; maxInstances por encima del
+// default global para no generar cola/backlog durante el fan-out de una
+// importación masiva o un alta en lote.
+export const onGuestWritten = onDocumentWritten(
+  { document: 'events/{eventId}/guests/{guestId}', memory: '128MiB', timeoutSeconds: 10, maxInstances: 50 },
+  (event) => withTriggerObservability(event, 'onGuestWritten', async () => {
     const db = getFirestore()
     await db
       .collection('events')

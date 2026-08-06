@@ -25,7 +25,8 @@ function generateQrToken(): string {
   return randomUUID().replace(/-/g, '')
 }
 
-export const confirmWaitlistOffer = onCall<ConfirmWaitlistOfferInput>((request) =>
+// timeoutSeconds bajo: una sola transacción, sin llamadas externas.
+export const confirmWaitlistOffer = onCall<ConfirmWaitlistOfferInput>({ timeoutSeconds: 20 }, (request) =>
   withCallableObservability(request, 'confirmWaitlistOffer', async (ctx): Promise<ConfirmWaitlistOfferResult> => {
     const { eventId, entryId, offerToken, paymentMethod } = request.data || {}
     ctx.addContext({ uid: request.auth?.uid, eventId })
