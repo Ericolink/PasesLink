@@ -433,7 +433,25 @@ export function EventDetail() {
       )}
 
 
-      {/* ── AUTO-REGISTRO ── arriba y compacto: es de las acciones más usadas
+      {/* ── RESUMEN RÁPIDO ── el detalle analítico completo (métricas, RSVP,
+          recaudado, hora pico, línea de tiempo) vive en Reportes; acá solo el
+          estado operativo que hace falta de un vistazo mientras se gestiona
+          el evento. Va antes que Auto-registro: durante el evento, el estado
+          de check-ins es más prioritario que gestionar el enlace de registro. */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-3">
+        <AttendanceProgressBar
+          present={event.checkedInCount}
+          expected={totalPeople}
+          unitLabel="check-ins"
+          showPercentage
+        />
+        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mt-3">
+          <span>{event.guestCount} registrados</span>
+          <span className="text-primary font-medium">{event.occupancyCount} dentro ahora</span>
+        </div>
+      </div>
+
+      {/* ── AUTO-REGISTRO ── compacto: es de las acciones más usadas
           durante la organización (copiar/compartir el enlace), así que no
           debe requerir scroll hasta el final de la pantalla. */}
       {event.entryMode !== 'list' && perms.shareInviteLink && (
@@ -452,23 +470,6 @@ export function EventDetail() {
           </div>
         </div>
       )}
-
-      {/* ── RESUMEN RÁPIDO ── el detalle analítico completo (métricas, RSVP,
-          recaudado, hora pico, línea de tiempo) vive en Reportes; acá solo el
-          estado operativo que hace falta de un vistazo mientras se gestiona
-          el evento. */}
-      <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-3">
-        <AttendanceProgressBar
-          present={event.checkedInCount}
-          expected={totalPeople}
-          unitLabel="check-ins"
-          showPercentage
-        />
-        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mt-3">
-          <span>{event.guestCount} registrados</span>
-          <span className="text-primary font-medium">{event.occupancyCount} dentro ahora</span>
-        </div>
-      </div>
 
       {/* Con el límite activado (CAPACITY_LIMIT_ARCHITECTURE.md), este bloque
           reemplaza el aviso informativo de siempre por el estado real del
