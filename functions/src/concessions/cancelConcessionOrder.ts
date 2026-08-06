@@ -7,6 +7,7 @@
 // reservado — mismo criterio que isValidConcessionStockRelease en
 // firestore.rules, ahora aplicado del lado servidor.
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
+import { releaseReservedStock } from './releaseReservedStock.js'
 
 export type CancelConcessionOrderResult =
   | { status: 'success' }
@@ -41,22 +42,7 @@ export async function cancelConcessionOrder(
     const orderLines = (order.items as { itemId: string; quantity: number }[]) || []
     const itemRefs = orderLines.map((line) => eventRef.collection('concessionsCatalog').doc(line.itemId))
     const itemSnaps = await Promise.all(itemRefs.map((ref) => tx.get(ref)))
-
-    // Devuelve al catálogo la cantidad reservada por cada línea — un ítem ya
-    // archivado no tiene a dónde devolver stock, se ignora esa línea en vez
-    // de fallar la cancelación entera (mismo criterio que releaseStock en
-    // src/firebase/concessions.ts).
-    itemSnaps.forEach((snap, i) => {
-      if (!snap.exists) return
-      const item = snap.data()!
-      if (item.stockMode !== 'limited') return
-      const remaining = ((item.stockRemaining as number) ?? 0) + orderLines[i].quantity
-      tx.update(itemRefs[i], {
-        stockRemaining: remaining,
-        ...(item.status === 'outOfStock' && remaining > 0 ? { status: 'active' } : {}),
-        updatedAt: FieldValue.serverTimestamp(),
-      })
-    })
+    releaseReservedStock(tx, itemRefs, itemSnaps, orderLines)
 
     tx.update(orderRef, { paymentPhase: 'cancelled', cancelReason, updatedAt: FieldValue.serverTimestamp() })
     if (fulfillmentSnap.exists) {

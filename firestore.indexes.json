@@ -58,6 +58,14 @@
       ]
     },
     {
+      "collectionGroup": "concessionsOrders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "paymentPhase", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "waitlist",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
