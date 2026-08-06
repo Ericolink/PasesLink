@@ -17,4 +17,5 @@ export const COUNTER_REGISTRY: CounterRegistry = {
   rsvpYesCount: { strategy: 'traditional', shardCount: 10, gated: false },
   rsvpNoCount: { strategy: 'traditional', shardCount: 10, gated: false },
   rsvpPendingCount: { strategy: 'traditional', shardCount: 10, gated: false },
+  walkInNetCount: { strategy: 'traditional', shardCount: 10, gated: false },
 }

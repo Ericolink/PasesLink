@@ -22,6 +22,7 @@ export type CounterName =
   | 'rsvpYesCount'
   | 'rsvpNoCount'
   | 'rsvpPendingCount'
+  | 'walkInNetCount'
 
 export interface CounterDefinition {
   strategy: CounterStrategy

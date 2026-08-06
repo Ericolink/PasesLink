@@ -1122,11 +1122,16 @@ service cloud.firestore {
         // (walkIn) o solo el segundo (walkOut cuando checkedInCount ya está
         // en 0) — por eso se valida cada uno por separado en vez de exigir
         // que ambos cambien a la vez. 'checkinsByHour' salió del hasOnly:
-        // solo lo escribía checkInGuest, que ya es Admin SDK.
+        // solo lo escribía checkInGuest, que ya es Admin SDK. 'walkInNetCount'
+        // (ledger de walk-ins netos que reconcileGuestCounters.ts usa para
+        // poder recomponer los dos contadores de arriba, ver counters/config.ts)
+        // solo lo escriben walkIn/walkOut, con el mismo delta ±1 que
+        // checkedInCount/occupancyCount en esa misma llamada.
         || (canDoData(resource.data, 'scanQr', true)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInCount', 'occupancyCount', 'walkInNetCount'])
             && counterDeltaOk(request.resource.data.checkedInCount, resource.data.checkedInCount)
-            && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount))
+            && counterDeltaOk(request.resource.data.occupancyCount, resource.data.occupancyCount)
+            && counterDeltaOk(request.resource.data.get('walkInNetCount', 0), resource.data.get('walkInNetCount', 0)))
         // Un co-organizador (no dueño, así que no cae en la primera rama de
         // este `allow update`) necesita poder tocar guestCount/peopleCount/
         // paidCount en estos casos: eliminar un invitado (deleteGuest,

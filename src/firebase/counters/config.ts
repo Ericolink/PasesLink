@@ -19,4 +19,11 @@ export const COUNTER_REGISTRY: CounterRegistry = {
   rsvpYesCount: { strategy: 'traditional', shardCount: 10, gated: false },
   rsvpNoCount: { strategy: 'traditional', shardCount: 10, gated: false },
   rsvpPendingCount: { strategy: 'traditional', shardCount: 10, gated: false },
+  // Ledger de walk-ins netos (walkIn - walkOut, nunca negativo) — la única
+  // porción de checkedInCount/occupancyCount que NO es derivable de
+  // guests/ (walkIn/walkOut no crean documento de invitado). Existe para
+  // que reconcileGuestCounters.ts pueda recomponer esos dos contadores como
+  // "derivado de guests/ + walkInNetCount" en vez de tener que excluirlos
+  // de la reconciliación por completo. Ver functions/src/reconciliation/reconcileGuestCounters.ts.
+  walkInNetCount: { strategy: 'traditional', shardCount: 10, gated: false },
 }

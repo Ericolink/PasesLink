@@ -23,7 +23,13 @@ import type { PaymentMethod } from '../types'
  * walk-ins aunque el venue ya no esté lleno. `checkedInCount` se sigue
  * incrementando igual, sin cambios, para no afectar las estadísticas de
  * asistencia que ya dependen de él (barra de progreso del Scanner, "Escaneados"
- * en EventDetail).
+ * en EventDetail). `walkInNetCount` (walk-ins netos, nunca negativo) es un
+ * ledger aparte: no lo lee ninguna pantalla, existe solo para que
+ * reconcileGuestCounters.ts (Cloud Functions) pueda recomponer
+ * checkedInCount/occupancyCount como "derivado de guests/ + este ledger" en
+ * vez de tener que excluirlos de la reconciliación automática — walkIn/
+ * walkOut son la única fuente de esos dos contadores que no crea un
+ * documento de invitado, así que no hay otra forma de recuperar ese dato.
  */
 export async function walkIn(eventId: string): Promise<'success' | 'full'> {
   const eventRef = doc(db, 'events', eventId)
@@ -34,7 +40,7 @@ export async function walkIn(eventId: string): Promise<'success' | 'full'> {
     const capacity = data.capacity as number | null
     const currentOccupancy = (data.occupancyCount as number) || 0
     if (capacity && currentOccupancy >= capacity) return 'full'
-    applyCounterDeltas(tx, eventRef, { checkedInCount: 1, occupancyCount: 1 })
+    applyCounterDeltas(tx, eventRef, { checkedInCount: 1, occupancyCount: 1, walkInNetCount: 1 })
     return 'success'
   })
 }
@@ -49,6 +55,7 @@ export async function walkOut(eventId: string): Promise<void> {
     applyCounterDeltas(tx, eventRef, {
       checkedInCount: ((data.checkedInCount as number) || 0) > 0 ? -1 : 0,
       occupancyCount: ((data.occupancyCount as number) || 0) > 0 ? -1 : 0,
+      walkInNetCount: ((data.walkInNetCount as number) || 0) > 0 ? -1 : 0,
     })
   })
 }

@@ -51,9 +51,10 @@ describe('capacity.ts', () => {
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.checkedInCount).toBe(2)
     expect(event?.occupancyCount).toBe(2)
+    expect(event?.walkInNetCount ?? 0).toBe(0)
   })
 
-  it('should increment checkedInCount and occupancyCount on a successful walkIn', async () => {
+  it('should increment checkedInCount, occupancyCount and walkInNetCount on a successful walkIn', async () => {
     await seedEvent(testEnv, EVENT_ID, { capacity: 5, checkedInCount: 1, occupancyCount: 1 })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
@@ -63,6 +64,7 @@ describe('capacity.ts', () => {
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.checkedInCount).toBe(2)
     expect(event?.occupancyCount).toBe(2)
+    expect(event?.walkInNetCount).toBe(1)
   })
 
   it('should allow a walkIn once occupancy drops even if checkedInCount (cumulative) stayed at capacity', async () => {
@@ -79,21 +81,24 @@ describe('capacity.ts', () => {
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.checkedInCount).toBe(3)
     expect(event?.occupancyCount).toBe(2)
+    expect(event?.walkInNetCount).toBe(1)
   })
 
-  it('should decrement checkedInCount and occupancyCount on walkOut and no-op once they reach zero', async () => {
-    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 1, occupancyCount: 1 })
+  it('should decrement checkedInCount, occupancyCount and walkInNetCount on walkOut and no-op once they reach zero', async () => {
+    await seedEvent(testEnv, EVENT_ID, { checkedInCount: 1, occupancyCount: 1, walkInNetCount: 1 })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
     await walkOut(EVENT_ID)
     let event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.checkedInCount).toBe(0)
     expect(event?.occupancyCount).toBe(0)
+    expect(event?.walkInNetCount).toBe(0)
 
     await walkOut(EVENT_ID)
     event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.checkedInCount).toBe(0)
     expect(event?.occupancyCount).toBe(0)
+    expect(event?.walkInNetCount).toBe(0)
   })
 
   it('rules should reject a raw write bypassing the client transaction, as a defense-in-depth backstop', async () => {

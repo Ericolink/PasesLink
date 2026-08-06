@@ -117,6 +117,7 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     peopleCount: 0,
     checkedInCount: 0,
     occupancyCount: 0,
+    walkInNetCount: 0,
     paidCount: 0,
     checkinsByHour: {},
     rsvpYesCount: 0,
@@ -517,15 +518,16 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (data.guestCount as number) || 0,
     checkedInCount: (data.checkedInCount as number) || 0,
     occupancyCount: (data.occupancyCount as number) || 0,
-    // Eventos creados antes de este campo caen a 0 — ver
-    // scripts/backfill-paid-count.mjs para recalcularlo a partir de guests
-    // ya pagados si hace falta reflejarlo de inmediato.
+    walkInNetCount: (data.walkInNetCount as number) || 0,
+    // Eventos creados antes de este campo caen a 0 — se autocorrige solo vía
+    // reconcileGuestCounters/reconcileDirtyGuestCounters (functions/src/
+    // reconciliation/reconcileGuestCounters.ts).
     paidCount: (data.paidCount as number) || 0,
     // Eventos con check-ins de antes de este campo caen a {} — ver
     // scripts/backfill-checkins-by-hour.mjs.
     checkinsByHour: (data.checkinsByHour as Record<string, number>) || {},
-    // Eventos con invitados de antes de estos campos caen a 0 — ver
-    // scripts/backfill-rsvp-counts.mjs.
+    // Eventos con invitados de antes de estos campos caen a 0 — se
+    // autocorrige solo, mismo mecanismo que paidCount arriba.
     rsvpYesCount: (data.rsvpYesCount as number) || 0,
     rsvpNoCount: (data.rsvpNoCount as number) || 0,
     rsvpPendingCount: (data.rsvpPendingCount as number) || 0,

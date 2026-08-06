@@ -475,14 +475,23 @@ export interface EventData {
   // (EventDetail, Reports, la barra de progreso del Scanner) que no deben
   // fluctuar hacia abajo cuando alguien sale y vuelve.
   occupancyCount: number
+  // Ledger de walk-ins netos (walkIn - walkOut, nunca negativo, ver
+  // src/firebase/capacity.ts). No lo lee ninguna pantalla directamente —
+  // existe para que reconcileGuestCounters.ts (Cloud Functions) pueda
+  // recomponer checkedInCount/occupancyCount como "derivado de guests/ +
+  // este ledger": walkIn/walkOut son la única fuente de esos dos contadores
+  // que no crea un documento de invitado, así que no son derivables de
+  // guests/ sin este campo aparte.
+  walkInNetCount?: number
   // Personas con pago aprobado (partySize(), no invitaciones) — sube SOLO al
   // aprobar (nunca al enviar comprobante), baja si se revierte el pago o se
   // borra un invitado que ya estaba pagado (ver setGuestPaymentStatus/
   // deleteGuest/updateGuest en src/firebase/guests.ts). No aplica a eventos
   // gratuitos (requiresPayment: false) — la UI no debe mostrarlo ahí.
-  // Eventos creados antes de este campo caen a 0 (ver mapEvent) — correr
-  // scripts/backfill-paid-count.mjs una vez si hace falta reflejar pagos ya
-  // aprobados antes de este cambio.
+  // Eventos creados antes de este campo caen a 0 (ver mapEvent) — se
+  // autocorrige solo vía reconcileGuestCounters/reconcileDirtyGuestCounters
+  // (functions/src/reconciliation/reconcileGuestCounters.ts), sin necesidad
+  // de correr ningún script a mano.
   paidCount: number
   // Cantidad de check-ins (escaneos QR exitosos, primera entrada o
   // reingreso — no walk-ins, que no pasan por checkInGuest) agrupados por
@@ -507,8 +516,9 @@ export interface EventData {
   // auditoría de escalabilidad, hallazgo F22. Reemplazan el cálculo que
   // antes recorría TODO el array `guests` en Reports.tsx en cada render.
   // Eventos con invitados de antes de este campo no lo tienen poblado
-  // retroactivamente — correr scripts/backfill-rsvp-counts.mjs una vez si
-  // hace falta (mismo criterio que paidCount/checkinsByHour arriba).
+  // retroactivamente — se autocorrige solo, mismo mecanismo que paidCount
+  // arriba (checkinsByHour es la excepción: ese sí sigue necesitando un
+  // backfill manual, no entra en la reconciliación de guests/).
   rsvpYesCount?: number
   rsvpNoCount?: number
   rsvpPendingCount?: number
