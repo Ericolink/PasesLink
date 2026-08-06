@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { auth } from '../firebase/config'
 import { setSentryUser } from '../lib/sentry'
+import { setAnalyticsUserId } from '../lib/analytics'
 
 interface AuthContextValue {
   user: User | null
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser)
       setLoading(false)
       setSentryUser(currentUser ? { uid: currentUser.uid, email: currentUser.email } : null)
+      setAnalyticsUserId(currentUser ? currentUser.uid : null)
     })
     return unsubscribe
   }, [])

@@ -20,6 +20,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db, googleProvider } from './config'
 import { uploadImage } from '../utils/cloudinary'
 import { markWelcomePending } from '../utils/onboarding'
+import { trackLogin, trackLogout } from '../lib/analytics'
 
 async function ensureUserDoc(uid: string, email: string | null, displayName: string | null) {
   await setDoc(
@@ -77,6 +78,7 @@ export async function checkEmailVerified(): Promise<boolean> {
 
 export async function loginWithEmail(email: string, password: string) {
   const credential = await signInWithEmailAndPassword(auth, email, password)
+  trackLogin('password')
   return credential.user
 }
 
@@ -90,11 +92,13 @@ export async function loginWithGoogle() {
   if (getAdditionalUserInfo(credential)?.isNewUser) {
     markWelcomePending(credential.user.uid)
   }
+  trackLogin('google')
   return credential.user
 }
 
 export async function logout() {
   await signOut(auth)
+  trackLogout()
 }
 
 export async function resetPassword(email: string) {

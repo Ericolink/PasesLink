@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { createEvent } from '../firebase/events'
+import { trackEventCreate } from '../lib/analytics'
 import { DEFAULT_PHONE_COUNTRY } from '../components/CountryCodeSelect'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -305,6 +306,7 @@ export function EventCreate() {
         timeline: form.timeline,
       })
       clearDraft()
+      trackEventCreate(eventId, form.templateId)
       setCreatedEventId(eventId)
     } catch (err) {
       if (isNetworkError(err)) {

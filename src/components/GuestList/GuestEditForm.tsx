@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { GuestVersionConflictError, partySize, updateGuest } from '../../firebase/guests'
+import { trackGuestEdit } from '../../lib/analytics'
 import type { CompanionData, CustomField, GuestData } from '../../types'
 import { CompanionFieldsEditor } from '../CompanionFields'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../CountryCodeSelect'
@@ -53,6 +54,7 @@ function EditGuestRow({
         companions,
         customData: customValues,
       }, maxCompanions, guest.version ?? 0)
+      trackGuestEdit(eventId)
       onDone()
     } catch (err) {
       console.error('Error updating guest:', err)

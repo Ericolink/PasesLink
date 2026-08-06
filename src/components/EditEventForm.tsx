@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { updateEventDetails } from '../firebase/events'
+import { trackEventEdit } from '../lib/analytics'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
@@ -439,6 +440,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         gifts: form.gifts,
       })
       clearDraft()
+      trackEventEdit(event.id)
       onDone()
     } catch (err) {
       if (isNetworkError(err)) {

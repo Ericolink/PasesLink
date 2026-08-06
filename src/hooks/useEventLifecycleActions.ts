@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { deleteEvent, setEventStatus } from '../firebase/events'
+import { trackEventDelete, trackEventStatusChange } from '../lib/analytics'
 import type { EventStatus } from '../types'
 
 // Extraído de EventDetail.tsx (auditoría de escalabilidad, hallazgo F13):
@@ -25,6 +26,7 @@ export function useEventLifecycleActions(eventId: string | undefined) {
     setActionError('')
     try {
       await setEventStatus(eventId, status)
+      trackEventStatusChange(eventId, status)
     } catch {
       setActionError('No se pudo actualizar el estado del evento. Intenta de nuevo.')
     } finally {
@@ -38,6 +40,7 @@ export function useEventLifecycleActions(eventId: string | undefined) {
     setActionError('')
     try {
       await deleteEvent(eventId)
+      trackEventDelete(eventId)
       navigate('/dashboard')
     } catch {
       setConfirmDelete(false)

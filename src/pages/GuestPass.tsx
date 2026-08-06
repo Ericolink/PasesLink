@@ -11,6 +11,7 @@ import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { saveUserInvitation, deleteUserInvitation } from '../firebase/userProfile'
+import { trackCheckIn, trackGuestDelete, trackRsvpConfirm, trackRsvpDecline } from '../lib/analytics'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { isOrganizerRole, resolveEventPermissions } from '../types/coOrganizerPermissions'
@@ -297,6 +298,7 @@ function GuestPassInner() {
     try {
       const result = await checkInGuest(eventId, qrToken)
       if (result.status === 'success') {
+        trackCheckIn(eventId)
         setGuest((g) => g ? { ...g, status: 'checked_in' } : g)
         setCheckInState('done')
         const tpl = getTemplate(event!.templateId).vars
@@ -413,6 +415,8 @@ function GuestPassInner() {
     setRsvpError(null)
     try {
       await setGuestRsvp(eventId!, qrToken!, rsvpStatus)
+      if (rsvpStatus === 'yes') trackRsvpConfirm(eventId!)
+      else if (rsvpStatus === 'no') trackRsvpDecline(eventId!)
       // Solo se actualiza el estado local después de confirmar que Firestore
       // guardó el cambio — si la escritura falla, el invitado se queda en el
       // estado anterior y ve el error en vez de una confirmación falsa.
@@ -465,6 +469,7 @@ function GuestPassInner() {
     setCancelError(null)
     try {
       await deleteGuest(eventId, guest)
+      trackGuestDelete(eventId)
       // Best-effort: limpia la caché de "Mis invitaciones" del propio dueño
       // de la cuenta. Solo puede hacerlo si el visor ES esa cuenta (reglas de
       // users/{uid}/invitations exigen request.auth.uid == uid, sin excepción

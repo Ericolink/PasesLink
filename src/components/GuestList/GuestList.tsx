@@ -17,6 +17,7 @@ import { EmptyState } from '../Empty/EmptyState'
 import { FormError } from '../FormError'
 import { buildPassUrl } from '../../utils/qrUrl'
 import { buildResendMailtoUrl, buildResendMessage, buildResendWhatsAppUrl } from '../../utils/resendInvitation'
+import { trackGuestDelete } from '../../lib/analytics'
 import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
 import { GuestSelectionBar } from './GuestSelectionBar'
@@ -294,6 +295,7 @@ export const GuestList = memo(function GuestList({
     setActionError('')
     try {
       await deleteGuest(eventId, deletingGuest)
+      trackGuestDelete(eventId)
       announce(`Invitado eliminado: ${deletingGuest.name}`)
     } catch (err) {
       console.error('Error deleting guest:', err)
@@ -360,6 +362,7 @@ export const GuestList = memo(function GuestList({
     setActionError('')
     const targets = guests.filter((g) => selected.has(g.id))
     const { failed } = await bulkDeleteGuests(eventId, targets)
+    if (targets.length - failed > 0) trackGuestDelete(eventId)
     if (failed > 0) setActionError(`No se pudo eliminar a ${failed} de ${targets.length} invitados.`)
     setBulkDeleteConfirmOpen(false)
     exitSelectMode()

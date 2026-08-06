@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
@@ -12,6 +12,7 @@ import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useIsAdmin } from '../hooks/useIsAdmin'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { useEventLifecycleActions } from '../hooks/useEventLifecycleActions'
+import { trackEventOpen } from '../lib/analytics'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
@@ -86,6 +87,18 @@ export function EventDetail() {
   const { handleLeaveEvent } = coOrg
   const perms = useEventPermissions(event, user)
   const { isAdmin } = useIsAdmin()
+
+  // event.id (no un booleano): useEvent puede entregar varios snapshots del
+  // mismo evento a medida que cambian datos (invitados, contadores) — sin
+  // esta guarda, cada actualización del documento dispararía un event_open
+  // nuevo. `key={eventId}` en App.tsx ya remonta este componente al cambiar
+  // de evento, así que el ref arranca en null en cada evento distinto.
+  const openedEventId = useRef<string | null>(null)
+  useEffect(() => {
+    if (!event || openedEventId.current === event.id) return
+    openedEventId.current = event.id
+    trackEventOpen(event.id)
+  }, [event])
 
   // Permite que el CTA del modal de éxito de EventCreate (u otros enlaces)
   // lleve directo a una sección con #hash.

@@ -11,6 +11,7 @@ import { AccessibleField, FieldError, InputField } from './accessibility/Accessi
 import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
 import { CustomFieldInput } from './CustomFieldInput'
 import { captureException } from '../lib/sentry'
+import { trackGuestAdd, trackGuestGroupRegister, trackGuestImport } from '../lib/analytics'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { useIntegerFieldInput } from '../hooks/useIntegerFieldInput'
 import { useAnnouncer } from './accessibility/LiveRegion'
@@ -96,6 +97,7 @@ export function GuestAddForm({
     setError('')
     try {
       await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), phoneCountry, companions, customData: customValues }, maxCompanions)
+      trackGuestAdd(eventId)
       announce(`Invitado agregado: ${name.trim()} ${lastName.trim()}`)
       setName('')
       setLastName('')
@@ -140,6 +142,7 @@ export function GuestAddForm({
         isGroup: true,
         customData: groupCustomValues,
       }, maxCompanions)
+      trackGuestGroupRegister(eventId)
       announce(`Familia o grupo agregado: ${trimmedGroupName}`)
       setGroupName('')
       memberCount.reset(null)
@@ -168,6 +171,7 @@ export function GuestAddForm({
     setError('')
     try {
       const { added, skippedNames } = await addGuestsBulk(eventId, names)
+      trackGuestImport(eventId, 'bulk', added)
       // Cupo lleno a mitad de la lista ("llenar lo que entra + reportar", ver
       // CAPACITY_LIMIT_ARCHITECTURE.md §8): no es un error, es un resultado
       // parcial esperado — se informa en el mismo lugar que un error, pero
@@ -224,6 +228,7 @@ export function GuestAddForm({
     setError('')
     try {
       const { added, skippedNames } = await addGuestsFromRows(eventId, rows)
+      trackGuestImport(eventId, 'csv', added)
       // Mismo criterio que submitBulkGuests: resultado parcial esperado, no
       // un error — ver CAPACITY_LIMIT_ARCHITECTURE.md §8.
       if (skippedNames.length > 0) {

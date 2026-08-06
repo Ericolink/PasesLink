@@ -26,6 +26,7 @@ import { SkeletonBlock } from '../components/Skeleton'
 import { buildPassUrl, extractQrToken, isArriveQr } from '../utils/qrUrl'
 import { isNetworkError } from '../utils/network'
 import { captureException } from '../lib/sentry'
+import { trackCheckIn, trackCheckOut } from '../lib/analytics'
 
 export type ScanFeedback = {
   type: 'success' | 'already' | 'invalid' | 'payment_required' | 'checkout' | 'not_checked_in' | 'already_out' | 'exit_blocked' | 'full' | 'not_found' | 'error'
@@ -159,6 +160,7 @@ export function Scanner() {
       try {
         const result = await walkIn(eventId)
         if (result === 'success') {
+          trackCheckIn(eventId)
           if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
           showFeedback({ type: 'success', detail: 'Ingreso registrado' })
         } else {
@@ -179,6 +181,7 @@ export function Scanner() {
     try {
       const result = await checkInGuest(eventId, qrToken)
       if (result.status === 'success') {
+        trackCheckIn(eventId)
         if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = eventRef.current?.welcomeMessage || undefined
         const companions = result.guest.isGroup
@@ -282,6 +285,7 @@ export function Scanner() {
     try {
       const result = await checkOutGuest(eventId, qrToken, kind)
       if (result.status === 'success') {
+        trackCheckOut(eventId, kind)
         showFeedback({
           type: 'checkout',
           guestName,
@@ -342,6 +346,7 @@ export function Scanner() {
     try {
       const result = await confirmPaymentAndCheckIn(eventId, guestId, method)
       if (result.checkIn === 'success') {
+        trackCheckIn(eventId)
         if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = ev?.welcomeMessage || undefined
         const companions = result.guest.isGroup

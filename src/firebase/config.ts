@@ -24,6 +24,10 @@ const firebaseConfig = {
   storageBucket: cleanEnv(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
   messagingSenderId: cleanEnv(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
   appId: cleanEnv(import.meta.env.VITE_FIREBASE_APP_ID),
+  // Opcional: sin esto, getAnalytics(app) (ver lib/analytics.ts) igual se
+  // puede llamar pero los eventos no quedan asociados a ningún stream de
+  // Google Analytics. Ver VITE_FIREBASE_MEASUREMENT_ID en .env.example.
+  measurementId: cleanEnv(import.meta.env.VITE_FIREBASE_MEASUREMENT_ID) || undefined,
 }
 
 export const app = initializeApp(firebaseConfig)

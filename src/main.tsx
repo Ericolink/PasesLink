@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { initSentry } from './lib/sentry'
+import { initAnalytics } from './lib/analytics'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider } from './contexts/AuthContext'
 import { AnnouncementProvider } from './components/accessibility/LiveRegion'
@@ -14,6 +15,7 @@ import { AnnouncementProvider } from './components/accessibility/LiveRegion'
 document.getElementById('app-fonts')?.setAttribute('media', 'all')
 
 initSentry()
+initAnalytics()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
