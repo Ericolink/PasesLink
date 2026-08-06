@@ -16,29 +16,6 @@ import { EmptyState } from '../components/Empty/EmptyState'
 import { formatDate, formatTime12h, isEventPast } from '../utils/time'
 import { consumeWelcomePending, hasSeenNovedades, markNovedadesSeen } from '../utils/onboarding'
 
-const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-
-// Devuelve los últimos N meses como etiquetas cortas ['Ene', 'Feb', ...]
-function lastNMonthLabels(n: number): string[] {
-  const result: string[] = []
-  const now = new Date()
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    result.push(MONTH_LABELS[d.getMonth()])
-  }
-  return result
-}
-
-// Cuenta eventos por mes (key = 'YYYY-MM') en los últimos N meses
-function eventsPerMonth(events: EventData[], n: number): number[] {
-  const now = new Date()
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (n - 1 - i), 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    return events.filter((e) => e.date.startsWith(key)).length
-  })
-}
-
 export function Dashboard() {
   useDocumentTitle('Inicio')
   const { user } = useAuth()
@@ -118,11 +95,6 @@ export function Dashboard() {
     activeEvents.find((e) => !isEventPast(e.date)) ?? null
   , [activeEvents])
 
-  const CHART_MONTHS = 6
-  const monthLabels = lastNMonthLabels(CHART_MONTHS)
-  const monthCounts = useMemo(() => eventsPerMonth(events, CHART_MONTHS), [events])
-  const maxMonthCount = Math.max(...monthCounts, 1)
-
   const firstName = profile?.firstName || user?.email?.split('@')[0] || ''
 
   return (
@@ -150,35 +122,6 @@ export function Dashboard() {
       </div>
 
       {loading && <LoadingInline label="Cargando eventos…" />}
-
-      {/* Gráfico de actividad mensual. Antes fondo/borde oscuros fijos con
-          las etiquetas gray-500 (pensadas para fondo claro) encima —
-          ilegible en modo claro. Design Memory: "fondo de gráfica
-          bg-subtle". dark: mantiene el rgba original. */}
-      {!loading && events.length >= 2 && monthCounts.some((c) => c > 0) && (
-        <div className="rounded-xl p-4 mb-6 bg-[var(--color-bg-subtle)] dark:bg-[rgba(30,20,40,.7)] border border-[var(--color-border)] dark:border-[rgba(74,50,92,.8)]">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Actividad (últimos 6 meses)
-          </p>
-          <div className="flex items-end gap-1.5 h-16">
-            {monthCounts.map((count, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full flex items-end" style={{ height: '52px' }}>
-                  <div
-                    className="w-full rounded-t transition-all"
-                    style={{
-                      height: count > 0 ? `${Math.max(16, (count / maxMonthCount) * 52)}px` : '3px',
-                      background: count > 0 ? 'linear-gradient(180deg,var(--color-primary),var(--color-primary-dark))' : 'rgba(74,50,92,.6)',
-                      boxShadow: count > 0 ? '0 0 6px rgba(255,20,100,.4)' : 'none',
-                    }}
-                  />
-                </div>
-                <span className="text-2xs text-gray-500">{monthLabels[i]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Empty state */}
       {!loading && events.length === 0 && (
