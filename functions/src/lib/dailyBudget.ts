@@ -6,6 +6,8 @@
 // consumen del mismo documento `sendBudget/{YYYY-MM-DD}`.
 import type { Firestore } from 'firebase-admin/firestore'
 
+export const DAILY_BUDGET_CAP = 300
+
 export function todayDateKey(): string {
   return new Date().toISOString().slice(0, 10)
 }

@@ -6,9 +6,8 @@
 // patrón de sendLog + presupuesto diario compartido, ahora también acá.
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
 import { sendEmail } from '../lib/emailChannel.js'
-import { reserveBudgetSlot, todayDateKey } from '../lib/dailyBudget.js'
+import { DAILY_BUDGET_CAP, reserveBudgetSlot, todayDateKey } from '../lib/dailyBudget.js'
 
-const DAILY_BUDGET_CAP = 300
 const PASELINK_ORIGIN = 'https://www.paselink.com'
 
 interface ReminderRule {

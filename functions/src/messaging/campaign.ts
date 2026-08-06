@@ -6,10 +6,8 @@
 // diario compartido que rsvp/reminders.ts y reconfirm/sweep.ts.
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore'
 import { sendEmail } from '../lib/emailChannel.js'
-import { reserveBudgetSlot, todayDateKey } from '../lib/dailyBudget.js'
+import { DAILY_BUDGET_CAP, reserveBudgetSlot, todayDateKey } from '../lib/dailyBudget.js'
 import { renderPlainTextEmailHtml } from '../lib/renderPlainTextEmailHtml.js'
-
-const DAILY_BUDGET_CAP = 300
 
 export interface MessageCampaign {
   eventId: string

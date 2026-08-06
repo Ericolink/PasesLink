@@ -4,6 +4,8 @@
 // consumir del mismo contador. Documento `sendBudget/{YYYY-MM-DD}` con
 // `{count}`, incrementado dentro de una transacción para que dos workers
 // concurrentes nunca se pasen del tope.
+export const DAILY_BUDGET_CAP = 300
+
 export function todayDateKey() {
   return new Date().toISOString().slice(0, 10)
 }

@@ -13,11 +13,10 @@
 import { cert, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { sendEmail } from './lib/emailChannel.mjs'
-import { reserveBudgetSlot, todayDateKey } from './lib/dailyBudget.mjs'
+import { DAILY_BUDGET_CAP, reserveBudgetSlot, todayDateKey } from './lib/dailyBudget.mjs'
 
 const PROJECT_ID = 'app-pases-9e6e7'
 const PASELINK_ORIGIN = 'https://www.paselink.com'
-const DAILY_BUDGET_CAP = 300 // tope de la cuenta Brevo (plan gratis)
 
 function initFirestore() {
   if (process.env.FIRESTORE_EMULATOR_HOST) {
