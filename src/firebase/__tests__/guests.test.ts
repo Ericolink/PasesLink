@@ -26,7 +26,7 @@ vi.mock('../attendeeLimit', async (importOriginal) => {
 })
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, addGuestsFromRows, claimGuestPass, deleteGuest, getAllGuests, GuestVersionConflictError, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { claimGuestPass, deleteGuest, getAllGuests, GuestVersionConflictError, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -356,121 +356,15 @@ describe('guests.ts', () => {
     expect(event?.occupancyCount).toBe(0)
   })
 
-  it('should increment guestCount by 1 and peopleCount by partySize on addGuest (family/group)', async () => {
-    await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    // maxCompanions: 0 a propósito — isGroup: true debe bypassear el límite
-    // por completo, tanto en la capa de aplicación como en firestore.rules.
-    const result = await addGuest(EVENT_ID, {
-      name: 'Familia Muñoz',
-      companions: [{}, {}, {}],
-      isGroup: true,
-    }, 0)
-
-    expect(result.id).toBeTruthy()
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(1)
-    expect(event?.peopleCount).toBe(4)
-    // Auditoría F22: buildNewGuestPayload siempre arranca en rsvpStatus
-    // 'pending' — addGuest debe sumarlo a rsvpPendingCount, no a otro balde.
-    expect(event?.rsvpPendingCount).toBe(1)
-  })
-
-  it('should let a co-organizer with addGuests but WITHOUT editGuests add a guest with a phone number', async () => {
-    const COORG_UID = 'coorg-addonly-uid'
-    await seedEvent(testEnv, EVENT_ID, {
-      guestCount: 0, peopleCount: 0,
-      coOrganizersMap: { [COORG_UID]: true },
-      coOrganizerPermissions: {
-        [COORG_UID]: {
-          addGuests: true, editGuests: false, deleteGuests: false, shareInviteLink: false,
-          confirmPayments: false, scanQr: false, viewGuestList: true, postWall: false,
-          moderateWall: false, editEvent: false, manageCoOrganizers: false, viewReports: false,
-          exportLists: false, downloadEventInfo: false,
-        },
-      },
-    })
-    dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
-
-    const result = await addGuest(EVENT_ID, { name: 'Juan', lastName: 'Pérez', phone: '11-2222-3333' }, 0)
-
-    const contact = await getGuestContactDoc(testEnv, EVENT_ID, result.id)
-    expect(contact?.phone).toBe('11-2222-3333')
-  })
-
-  it('should increment guestCount and peopleCount by the same amount on addGuestsBulk (no companions)', async () => {
-    await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    await addGuestsBulk(EVENT_ID, ['Juan Pérez', 'María López'])
-
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(2)
-    expect(event?.peopleCount).toBe(2)
-  })
-
-  it('should let a co-organizer with addGuests bulk-add more than 50 names without the batch being rejected (issue #91)', async () => {
-    const COORG_UID = 'coorg-bulk-uid'
-    await seedEvent(testEnv, EVENT_ID, {
-      guestCount: 0,
-      peopleCount: 0,
-      coOrganizersMap: { [COORG_UID]: true },
-      coOrganizerPermissions: {
-        [COORG_UID]: {
-          addGuests: true, editGuests: false, deleteGuests: false, shareInviteLink: false,
-          confirmPayments: false, scanQr: false, viewGuestList: true, postWall: false,
-          moderateWall: false, editEvent: false, manageCoOrganizers: false, viewReports: false,
-          exportLists: false, downloadEventInfo: false,
-        },
-      },
-    })
-    dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
-    const names = Array.from({ length: 120 }, (_, i) => `Invitado ${i}`)
-
-    await addGuestsBulk(EVENT_ID, names)
-
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(120)
-    expect(event?.peopleCount).toBe(120)
-  })
-
-  it('should import guests from CSV rows, creating guest + contact docs and incrementing counters', async () => {
-    await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
-    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-    await addGuestsFromRows(EVENT_ID, [
-      { name: 'Juan', lastName: 'Pérez', phone: '11-2222-3333', email: 'juan@test.com' },
-      { name: 'María', lastName: 'López' },
-    ])
-
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(2)
-    expect(event?.peopleCount).toBe(2)
-  })
-
-  it('should let a co-organizer with addGuests (but not editGuests) import CSV rows with phone/email', async () => {
-    const COORG_UID = 'coorg-csv-uid'
-    await seedEvent(testEnv, EVENT_ID, {
-      guestCount: 0,
-      peopleCount: 0,
-      coOrganizersMap: { [COORG_UID]: true },
-      coOrganizerPermissions: {
-        [COORG_UID]: {
-          addGuests: true, editGuests: false, deleteGuests: false, shareInviteLink: false,
-          confirmPayments: false, scanQr: false, viewGuestList: true, postWall: false,
-          moderateWall: false, editEvent: false, manageCoOrganizers: false, viewReports: false,
-          exportLists: false, downloadEventInfo: false,
-        },
-      },
-    })
-    dbHolder.db = testEnv.authenticatedContext(COORG_UID).firestore()
-
-    await addGuestsFromRows(EVENT_ID, [{ name: 'Ana', lastName: 'Gómez', phone: '11-4444-5555' }])
-
-    const event = await getEventDoc(testEnv, EVENT_ID)
-    expect(event?.guestCount).toBe(1)
-  })
+  // addGuest/addGuestsBulk/addGuestsFromRows se migraron a Cloud Functions
+  // (ver functions/src/capacity/createGuests.ts) — toda la lógica de negocio
+  // (contadores, tope de acompañantes, cupo, permisos de coanfitrión) se
+  // prueba ahora contra el emulador vía Admin SDK en
+  // functions/src/capacity/createGuests.test.ts y
+  // functions/src/callable/addGuest.test.ts / addGuestsBulk.test.ts /
+  // addGuestsFromRows.test.ts. Este archivo ya no puede probarlas (emulador
+  // de solo Firestore, sin Functions) — mismo criterio que checkInGuest/
+  // setGuestPaymentStatus más abajo.
 
   it('should decrement guestCount, peopleCount, checkedInCount and occupancyCount by partySize on deleteGuest while still inside', async () => {
     await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 4, checkedInCount: 4, occupancyCount: 4 })
@@ -589,25 +483,9 @@ describe('guests.ts', () => {
   })
 
   describe('maxCompanions (tope de acompañantes por invitado)', () => {
-    it('should allow addGuest with exactly the configured limit of companions', async () => {
-      await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0, maxCompanions: 2 })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      const result = await addGuest(EVENT_ID, { name: 'Ana', companions: [{}, {}] }, 2)
-
-      expect(result.id).toBeTruthy()
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.peopleCount).toBe(3)
-    })
-
-    it('should reject addGuest with more companions than the configured limit (app layer)', async () => {
-      await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0, maxCompanions: 1 })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      await expect(
-        addGuest(EVENT_ID, { name: 'Ana', companions: [{}, {}] }, 1),
-      ).rejects.toThrow()
-    })
+    // El tope aplicado por addGuest (app layer) se prueba ahora en
+    // functions/src/callable/addGuest.test.ts — ver el comentario de
+    // migración más arriba en este archivo.
 
     it('should reject a direct write exceeding the limit, bypassing the app function (rules layer)', async () => {
       await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0, maxCompanions: 1 })
@@ -647,21 +525,6 @@ describe('guests.ts', () => {
       ).rejects.toThrow()
     })
 
-    it('should let addGuest bypass the limit for a group (isGroup: true)', async () => {
-      await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0, maxCompanions: 0 })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      const result = await addGuest(EVENT_ID, {
-        name: 'Familia Grande',
-        companions: [{}, {}, {}, {}],
-        isGroup: true,
-      }, 0)
-
-      expect(result.id).toBeTruthy()
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.peopleCount).toBe(5)
-    })
-
     it('should grandfather a legacy guest already over the limit: editing other fields without increasing companions still works', async () => {
       await seedEvent(testEnv, EVENT_ID, { peopleCount: 4, maxCompanions: 0 })
       await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
@@ -685,23 +548,14 @@ describe('guests.ts', () => {
       expect(guest?.companions).toHaveLength(2)
     })
 
-    it('should treat an event without maxCompanions configured as the legacy limit of 9 (party of 10)', async () => {
+    it('should resolve the legacy default of 9 companions (party of 10) when maxCompanions is absent', () => {
       // Sin `maxCompanions` en absoluto (evento de antes de este campo): cae
       // al default legacy de 9 acompañantes (GUEST_LEGACY_MAX_COMPANIONS, el
       // grupo de 10 que esos eventos siempre permitieron) — ni a 0 (les
-      // quitaba los acompañantes en silencio) ni a "sin límite".
-      await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0 })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      // Mismo tercer argumento que pasan los llamadores reales (EventDetail →
-      // GuestAddForm): el límite ya resuelto para un evento sin el campo. Que
-      // el alta de 9 acompañantes llegue a Firestore verifica además que el
-      // default de eventMaxCompanions en las reglas coincida con el cliente.
-      const resolvedLimit = resolveMaxCompanions({})
-      await addGuest(EVENT_ID, { name: 'Ana', companions: Array.from({ length: 9 }, () => ({})) }, resolvedLimit)
-      await expect(
-        addGuest(EVENT_ID, { name: 'Beto', companions: Array.from({ length: 10 }, () => ({})) }, resolvedLimit),
-      ).rejects.toThrow()
+      // quitaba los acompañantes en silencio) ni a "sin límite". El
+      // comportamiento end-to-end de addGuest contra este límite se prueba en
+      // functions/src/callable/addGuest.test.ts.
+      expect(resolveMaxCompanions({})).toBe(9)
     })
   })
 
@@ -1258,53 +1112,11 @@ describe('guests.ts', () => {
   // respetar el mismo cupo que el autorregistro público (ver el describe
   // equivalente en capacity.test.ts para el caso de carrera concurrente).
   describe('attendeeLimitEnabled (límite duro y opcional de asistentes)', () => {
-    it('addGuest should reject once peopleCount reaches capacity', async () => {
-      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 5, guestCount: 5, peopleCount: 5 })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      await expect(addGuest(EVENT_ID, { name: 'Invitado 6' }, 0)).rejects.toThrow('Este evento ya alcanzó su capacidad máxima.')
-
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.guestCount).toBe(5)
-      expect(event?.peopleCount).toBe(5)
-    })
-
-    it('addGuest should still work normally while there is room left', async () => {
-      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 5, guestCount: 4, peopleCount: 4 })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      const result = await addGuest(EVENT_ID, { name: 'Invitado 5' }, 0)
-
-      expect(result.id).toBeTruthy()
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.peopleCount).toBe(5)
-    })
-
-    it('addGuestsBulk should fill only what fits and report the rest as skipped, without a partial write', async () => {
-      // Quedan 2 lugares (198/200) y se pide agregar 5 — "llenar lo que entra
-      // + reportar" (CAPACITY_LIMIT_ARCHITECTURE.md §8), no todo-o-nada.
-      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 200, guestCount: 198, peopleCount: 198 })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      const result = await addGuestsBulk(EVENT_ID, ['Ana', 'Beto', 'Caro', 'Dani', 'Eli'])
-
-      expect(result.added).toBe(2)
-      expect(result.skippedNames).toEqual(['Caro', 'Dani', 'Eli'])
-      const event = await getEventDoc(testEnv, EVENT_ID)
-      expect(event?.guestCount).toBe(200)
-      expect(event?.peopleCount).toBe(200)
-    })
-
-    it('addGuestsBulk should add everyone and report nothing skipped when the whole list fits', async () => {
-      await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 200, guestCount: 195, peopleCount: 195 })
-      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
-
-      const result = await addGuestsBulk(EVENT_ID, ['Ana', 'Beto'])
-
-      expect(result.added).toBe(2)
-      expect(result.skippedNames).toEqual([])
-    })
-
+    // addGuest/addGuestsBulk/addGuestsFromRows contra el cupo (incluido el
+    // caso de carrera concurrente) se prueban ahora en
+    // functions/src/capacity/createGuests.test.ts — ver el comentario de
+    // migración más arriba en este archivo. updateGuest (acompañantes de un
+    // invitado existente) sigue siendo client-side y se prueba acá.
     it('updateGuest should reject adding companions past the remaining capacity', async () => {
       await seedEvent(testEnv, EVENT_ID, { attendeeLimitEnabled: true, capacity: 5, guestCount: 4, peopleCount: 4 })
       await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [] })

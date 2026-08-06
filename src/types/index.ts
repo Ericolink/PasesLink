@@ -509,7 +509,7 @@ export interface EventData {
   // Cantidad de invitaciones/documentos `guests` (no personas — mismo
   // criterio que guestCount, no peopleCount) por cada valor de rsvpStatus.
   // Mantenidos con increment() en addGuest/addGuestsBulk/addGuestsFromRows
-  // (siempre suman a rsvpPendingCount, ver buildNewGuestPayload),
+  // (siempre suman a rsvpPendingCount, ver functions/src/capacity/createGuests.ts),
   // registerWalkInGuest (siempre a rsvpYesCount), setGuestRsvp/
   // resetGuestRsvp (mueven de un balde a otro) y deleteGuest/
   // bulkDeleteGuests (restan del balde que tenía el invitado borrado) — ver
@@ -625,8 +625,8 @@ export interface GuestData {
   // Al igual que `phone`, vive en `guestContacts/{guestId}` (no en el
   // documento público del invitado) y se fusiona en subscribeToGuests —
   // presente solo para autoregistro e invitados importados por CSV, que son
-  // los únicos flujos que hoy capturan email (ver buildNewGuestPayload/
-  // registerWalkInGuest en src/firebase/guests.ts y capacity.ts).
+  // los únicos flujos que hoy capturan email (ver functions/src/capacity/
+  // createGuests.ts y registerWalkInGuest.ts).
   email?: string
   // País (código ISO alpha-2, ej. "MX", "US") elegido junto al teléfono al
   // cargarlo — igual que `phone`, vive en `guestContacts/{guestId}`. Sin

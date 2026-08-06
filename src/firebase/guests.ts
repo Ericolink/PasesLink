@@ -19,7 +19,7 @@ import {
 import type { Unsubscribe } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './config'
-import { assertCapacityAvailable, fetchOfferedWaitlistCount, remainingCapacity } from './attendeeLimit'
+import { assertCapacityAvailable, CapacityFullError, fetchOfferedWaitlistCount } from './attendeeLimit'
 import { applyCounterDeltas } from './counters'
 import { enqueueNotification } from './notifications'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
@@ -65,59 +65,12 @@ export interface NewGuestInput {
   customData?: Record<string, string>
 }
 
-// Token que codifica el QR del pase (buildPassUrl/extractQrToken en
-// utils/qrUrl.ts). Se parte de un UUID v4 (crypto.randomUUID(), único y
-// suficientemente aleatorio para no colisionar ni ser adivinable) pero se
-// le sacan los guiones: van a parar a una URL pública (/pass/:qrToken) y a
-// la data codificada en el QR físico — menos caracteres para el mismo
-// contenido significa un QR más chico y más rápido de leer para el
-// escáner, sin perder nada de la aleatoriedad del UUID original (los
-// guiones de un UUID no aportan entropía, son puros separadores
-// posicionales). Exportada para que capacity.ts (registerWalkInGuest) use
-// la misma función en vez de reimplementar la misma línea.
-export function generateQrToken(): string {
-  return crypto.randomUUID().replace(/-/g, '')
-}
-
 // Cuántas personas representa un invitado (él + sus acompañantes). Única
 // fuente de verdad para esta cuenta — antes estaba reimplementada por
 // separado en checkInGuest y dos veces en useGuestStats.ts; cambiarla en un
 // solo lugar y no en otro desincronizaba el conteo de checkedInCount/stats.
 export function partySize(guest: { companions: CompanionData[] }): number {
   return 1 + guest.companions.length
-}
-
-// `phone` NUNCA se guarda en el documento de `guests`: ese documento es
-// legible públicamente (necesario para que el pase /pass/:eventId/:qrToken
-// funcione sin login) y es PII. Vive aparte, en `guestContacts/{guestId}`.
-// Ver firestore.rules.
-function buildNewGuestPayload(input: {
-  name: string
-  lastName?: string
-  companions?: CompanionData[]
-  isGroup?: boolean
-  customData?: Record<string, string>
-}) {
-  return {
-    name: input.name,
-    lastName: input.lastName || '',
-    companions: input.companions || [],
-    isGroup: input.isGroup || false,
-    customData: input.customData || {},
-    rsvpStatus: 'pending' as const,
-    qrToken: generateQrToken(),
-    status: 'invited' as const,
-    checkedInAt: null,
-    checkedInBy: null,
-    checkedInByEmail: null,
-    checkedOutAt: null,
-    checkedOutByEmail: null,
-    exitType: null,
-    lockToken: null,
-    paymentStatus: 'unpaid' as const,
-    paymentMethod: null,
-    createdAt: serverTimestamp(),
-  }
 }
 
 function contactRef(eventId: string, guestId: string) {
@@ -186,10 +139,19 @@ function rsvpCountField(status: RsvpStatus): 'rsvpYesCount' | 'rsvpNoCount' | 'r
 // nunca se bloquea por cupo, igual que siempre. Cuando el organizador activa
 // el límite (ver CAPACITY_LIMIT_ARCHITECTURE.md), esta alta manual tiene que
 // respetarlo con la MISMA garantía que el autorregistro público
-// (registerWalkInGuest, capacity.ts) — así que ahora corre dentro de una
-// runTransaction (antes un writeBatch, que no permite leer el cupo vigente
-// antes de escribir) que chequea assertCapacityAvailable antes de crear al
-// invitado.
+// (registerWalkInGuest, capacity.ts) — así que corre vía la Callable Function
+// `addGuest` (functions/src/callable/addGuest.ts), que delega el cupo (y la
+// escritura del invitado en sí) a createGuestsWithCapacity
+// (functions/src/capacity/createGuests.ts) — la misma implementación
+// compartida que usan addGuestsBulk/addGuestsFromRows más abajo. Ya no es
+// una runTransaction de cliente: el chequeo de cupo (incluida la cuenta de
+// ofertas activas de lista de espera) es una garantía atómica real del
+// servidor, no best-effort.
+//
+// La validación de forma de acá abajo (largo de nombre/teléfono, tope de
+// acompañantes) sigue existiendo como fail-fast de UX — evita un viaje de
+// red para errores obvios — pero ya no es la barrera de seguridad real, esa
+// vive en la Cloud Function.
 //
 // `maxCompanions` es el límite YA RESUELTO para este evento (ver
 // resolveMaxCompanions) — no se recibe el evento completo para no acoplar
@@ -213,53 +175,33 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
     )
   }
 
-  return measureSpan('firestore.addGuest', 'db.firestore', async () => {
-    const eventRef = doc(db, 'events', eventId)
-    const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-    const payload = buildNewGuestPayload({ ...input, name, lastName })
-    const size = partySize(payload)
-    // Fuera de la transacción: ver el mismo comentario en capacity.ts
-    // (registerWalkInGuest) — best-effort para no pisar una oferta de lista
-    // de espera activa.
-    const offeredCount = await fetchOfferedWaitlistCount(eventId)
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(eventRef)
-      const data = (snap.data() || {}) as Record<string, unknown>
-      assertCapacityAvailable(
-        {
-          attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
-          peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (typeof data.guestCount === 'number' ? data.guestCount : 0),
-          capacity: data.capacity as number | undefined,
-        },
-        size,
-        offeredCount,
-      )
-      tx.set(guestRef, payload)
-      if (phone) {
-        tx.set(contactRef(eventId, guestRef.id), {
-          phone,
-          ...(input.phoneCountry ? { phoneCountry: input.phoneCountry } : {}),
-        })
-      }
-      // buildNewGuestPayload siempre arranca en 'pending' (ver ahí).
-      applyCounterDeltas(tx, eventRef, { guestCount: 1, peopleCount: size, rsvpPendingCount: 1 })
-    })
-    return { id: guestRef.id }
-  })
-}
+  const addGuestCallable = httpsCallable<
+    {
+      eventId: string
+      name: string
+      lastName?: string
+      phone?: string
+      phoneCountry?: string
+      companions?: CompanionData[]
+      isGroup?: boolean
+      customData?: Record<string, string>
+    },
+    { status: 'success'; id: string } | { status: 'full' }
+  >(functions, 'addGuest')
 
-// Firestore rechaza batches de más de 500 operaciones — pero el límite real
-// acá es otro: firestore.rules (counterDeltaOk) solo permite mover
-// guestCount/peopleCount del evento en ±50 por escritura cuando quien
-// escribe es un coanfitrión (no el dueño, que no tiene ese tope). Con un
-// chunk más grande, un coanfitrión con addGuests que pega una lista de más
-// de 50 nombres se encontraba con el batch ENTERO rechazado por rules (el
-// dueño no lo notaba porque su rama no tiene ese límite). 50 evita el
-// problema para cualquiera de los dos, al costo de más idas y vueltas en
-// listas muy grandes. Si un chunk falla, los anteriores ya quedaron
-// guardados y guestCount refleja exactamente lo que se confirmó — no hay
-// overselling silencioso ni fallo total al cargar listas grandes.
-const BULK_CHUNK_SIZE = 50
+  const result = await measureSpan('functions.addGuest', 'db.firestore', () => addGuestCallable({
+    eventId,
+    name,
+    lastName,
+    phone,
+    phoneCountry: input.phoneCountry,
+    companions: input.companions,
+    isGroup: input.isGroup,
+    customData: input.customData,
+  }))
+  if (result.data.status === 'full') throw new CapacityFullError()
+  return { id: result.data.id }
+}
 
 // Resultado de una carga masiva/CSV cuando el cupo (attendeeLimitEnabled)
 // corta la lista a mitad de camino: "llenar lo que entra + reportar" (ver
@@ -268,67 +210,29 @@ const BULK_CHUNK_SIZE = 50
 // es peor experiencia que una carga parcial bien explicada. Con el cupo
 // desactivado (o sin alcanzarlo), `added` siempre es igual a la cantidad
 // pedida y `skippedNames` queda vacío — mismo resultado que antes de esta
-// feature.
+// feature. Es la forma tal cual la devuelven las Callable Functions
+// addGuestsBulk/addGuestsFromRows.
 export interface BulkAddResult {
   added: number
   skippedNames: string[]
 }
 
+// Alta masiva a partir de una lista de nombres pegada — vía la Callable
+// Function `addGuestsBulk` (functions/src/callable/addGuestsBulk.ts), misma
+// createGuestsWithCapacity compartida que addGuest/addGuestsFromRows (ver el
+// comentario de addGuest arriba). El chunking por cupo (leer cuánto entra,
+// escribir solo eso, seguir con el resto) ahora vive del lado del servidor,
+// no acá.
 export async function addGuestsBulk(eventId: string, names: string[]): Promise<BulkAddResult> {
-  // Se valida la lista completa ANTES de escribir el primer chunk: si un solo
-  // nombre es inválido, ningún chunk se guarda — evita el caso de un alta
-  // parcial (algunos guests ya creados) por un error en una línea cualquiera
-  // de la lista pegada.
+  // Se valida la lista completa ANTES de llamar a la Callable: si un solo
+  // nombre es inválido, no se manda la petición — mismo fail-fast de UX que
+  // addGuest.
   const trimmedNames = names.map((name) =>
     requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre'),
   )
-  return measureSpan('firestore.addGuestsBulk', 'db.firestore', async () => {
-    const eventRef = doc(db, 'events', eventId)
-    // Una sola lectura antes de todo el lote (no una por chunk): sigue
-    // siendo best-effort, no la garantía dura — ver el mismo comentario en
-    // addGuest.
-    const offeredCount = await fetchOfferedWaitlistCount(eventId)
-    let added = 0
-    for (let i = 0; i < trimmedNames.length; i += BULK_CHUNK_SIZE) {
-      const slice = trimmedNames.slice(i, i + BULK_CHUNK_SIZE)
-      // writeBatch → runTransaction: hace falta leer el cupo vigente antes de
-      // decidir cuántos de este chunk entran, en la MISMA operación atómica
-      // que los crea (mismo motivo que en addGuest, ver ahí).
-      let fitCount = slice.length
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(eventRef)
-        const data = (snap.data() || {}) as Record<string, unknown>
-        const remaining = remainingCapacity({
-          attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
-          peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (typeof data.guestCount === 'number' ? data.guestCount : 0),
-          capacity: data.capacity as number | undefined,
-        }, offeredCount)
-        // null = cupo ilimitado, el chunk entra completo.
-        fitCount = remaining === null ? slice.length : Math.min(slice.length, remaining)
-        const fitting = slice.slice(0, fitCount)
-        for (const name of fitting) {
-          const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-          tx.set(guestRef, buildNewGuestPayload({ name }))
-        }
-        // Cada invitado de una carga masiva es individual sin acompañantes
-        // (partySize == 1), así que peopleCount sube lo mismo que guestCount acá.
-        if (fitting.length > 0) {
-          applyCounterDeltas(tx, eventRef, {
-            guestCount: fitting.length,
-            peopleCount: fitting.length,
-            rsvpPendingCount: fitting.length,
-          })
-        }
-      })
-      added += fitCount
-      // El chunk no entró completo: ya no queda lugar, no tiene sentido seguir
-      // con los chunks siguientes.
-      if (fitCount < slice.length) {
-        return { added, skippedNames: trimmedNames.slice(i + fitCount) }
-      }
-    }
-    return { added, skippedNames: [] }
-  })
+  const callable = httpsCallable<{ eventId: string; names: string[] }, BulkAddResult>(functions, 'addGuestsBulk')
+  const result = await measureSpan('functions.addGuestsBulk', 'db.firestore', () => callable({ eventId, names: trimmedNames }))
+  return result.data
 }
 
 export interface ImportedGuestRow {
@@ -339,11 +243,10 @@ export interface ImportedGuestRow {
 }
 
 // Import de invitados desde CSV (ver src/utils/csvImport.ts, que arma este
-// array a partir del archivo) — mismo chunking/contador que addGuestsBulk,
-// pero cada fila puede traer apellido/teléfono/email por separado (el CSV
-// sí distingue columnas; pegar una lista de nombres no). guestContacts
-// necesita el permiso addGuests para su `create` (ver firestore.rules) —
-// coincide con el que ya exige `guests/{guestId}` para esta misma operación.
+// array a partir del archivo) — vía la Callable Function `addGuestsFromRows`
+// (functions/src/callable/addGuestsFromRows.ts), mismo criterio que
+// addGuestsBulk pero cada fila puede traer apellido/teléfono/email por
+// separado (el CSV sí distingue columnas; pegar una lista de nombres no).
 export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[]): Promise<BulkAddResult> {
   const validated = rows.map((row) => ({
     name: requireMaxLength(requireNonEmpty(row.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre'),
@@ -354,55 +257,9 @@ export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[
     // igualdad exacta contra el email verificado de la cuenta.
     email: row.email?.trim() ? requireMaxLength(requireValidEmail(row.email.trim().toLowerCase(), 'El email'), GUEST_EMAIL_MAX, 'El email') : '',
   }))
-
-  return measureSpan('firestore.addGuestsFromRows', 'db.firestore', async () => {
-    const eventRef = doc(db, 'events', eventId)
-    // Ver el mismo comentario en addGuestsBulk.
-    const offeredCount = await fetchOfferedWaitlistCount(eventId)
-    let added = 0
-    for (let i = 0; i < validated.length; i += BULK_CHUNK_SIZE) {
-      const slice = validated.slice(i, i + BULK_CHUNK_SIZE)
-      // Mismo motivo que addGuestsBulk: writeBatch → runTransaction para leer
-      // el cupo vigente antes de decidir cuántas filas de este chunk entran.
-      let fitCount = slice.length
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(eventRef)
-        const data = (snap.data() || {}) as Record<string, unknown>
-        const remaining = remainingCapacity({
-          attendeeLimitEnabled: data.attendeeLimitEnabled as boolean | undefined,
-          peopleCount: typeof data.peopleCount === 'number' ? data.peopleCount : (typeof data.guestCount === 'number' ? data.guestCount : 0),
-          capacity: data.capacity as number | undefined,
-        }, offeredCount)
-        fitCount = remaining === null ? slice.length : Math.min(slice.length, remaining)
-        const fitting = slice.slice(0, fitCount)
-        for (const row of fitting) {
-          const guestRef = doc(collection(db, 'events', eventId, 'guests'))
-          tx.set(guestRef, buildNewGuestPayload({ name: row.name, lastName: row.lastName }))
-          if (row.phone || row.email) {
-            const contact: Record<string, string> = {}
-            if (row.phone) contact.phone = row.phone
-            if (row.email) contact.email = row.email
-            tx.set(contactRef(eventId, guestRef.id), contact)
-          }
-        }
-        if (fitting.length > 0) {
-          applyCounterDeltas(tx, eventRef, {
-            guestCount: fitting.length,
-            peopleCount: fitting.length,
-            rsvpPendingCount: fitting.length,
-          })
-        }
-      })
-      added += fitCount
-      if (fitCount < slice.length) {
-        return {
-          added,
-          skippedNames: validated.slice(i + fitCount).map((row) => `${row.name} ${row.lastName || ''}`.trim()),
-        }
-      }
-    }
-    return { added, skippedNames: [] }
-  })
+  const callable = httpsCallable<{ eventId: string; rows: typeof validated }, BulkAddResult>(functions, 'addGuestsFromRows')
+  const result = await measureSpan('functions.addGuestsFromRows', 'db.firestore', () => callable({ eventId, rows: validated }))
+  return result.data
 }
 
 export interface UpdateGuestInput {
@@ -438,8 +295,12 @@ export async function updateGuest(
   const guestRef = doc(db, 'events', eventId, 'guests', guestId)
   const eventRef = doc(db, 'events', eventId)
   const companionsChanged = guestFields.companions !== undefined
-  // Fuera de la transacción: ver el mismo comentario en addGuest. Solo hace
-  // falta cuando `companions` cambia (puede sumar ocupación nueva).
+  // Fuera de la transacción: a diferencia de addGuest/addGuestsBulk/
+  // addGuestsFromRows (migradas a Cloud Functions, ver
+  // functions/src/capacity/createGuests.ts), updateGuest sigue siendo una
+  // runTransaction de cliente — este chequeo sigue siendo best-effort (ver
+  // fetchOfferedWaitlistCount en attendeeLimit.ts), no la garantía dura.
+  // Solo hace falta cuando `companions` cambia (puede sumar ocupación nueva).
   const offeredCount = companionsChanged ? await fetchOfferedWaitlistCount(eventId) : 0
 
   await runTransaction(db, async (transaction) => {
@@ -837,7 +698,7 @@ export async function bulkSetGuestTags(
 
 // El organizador necesita el teléfono (y, si existe, el email) junto con el
 // resto del invitado (lista, exportación), pero esos campos viven en
-// `guestContacts` (ver buildNewGuestPayload). Se suscribe a ambas colecciones
+// `guestContacts` (ver functions/src/capacity/createGuests.ts). Se suscribe a ambas colecciones
 // y se fusionan por id antes de emitir, así el resto de la app sigue
 // recibiendo el mismo `GuestData[]` de siempre sin saber que los datos vienen
 // de dos lugares.

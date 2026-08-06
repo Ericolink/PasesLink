@@ -2,6 +2,7 @@
 // del lado cliente (src/firebase/capacity.ts) para el auto-registro público.
 // Constantes duplicadas a propósito (functions/ no importa nada de src/, ver
 // functions/src/index.ts) — deben coincidir con src/utils/validation.ts.
+export const GUEST_NAME_PART_MAX = 60
 export const GUEST_FULL_NAME_MAX = 121
 export const GUEST_EMAIL_MAX = 120
 export const GUEST_PHONE_MAX = 30
@@ -23,6 +24,18 @@ export function requireMaxLength(value: string, max: number, label: string): str
     throw new GuestValidationError(`${label} no puede superar los ${max} caracteres.`)
   }
   return value
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// Puerto de requireValidEmail (src/utils/validation.ts) — usada por
+// addGuestsFromRows.ts, la única de las tres altas manuales que acepta email.
+export function requireValidEmail(value: string, label: string): string {
+  const trimmed = requireNonEmpty(value, label)
+  if (!EMAIL_REGEX.test(trimmed)) {
+    throw new GuestValidationError(`${label} no tiene un formato válido.`)
+  }
+  return trimmed
 }
 
 // Mismo criterio que resolveMaxCompanions en src/firebase/guests.ts.
