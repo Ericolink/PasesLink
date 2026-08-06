@@ -16,10 +16,13 @@ interface GetOfferedWaitlistCountInput {
   eventId: string
 }
 
-// memory/timeoutSeconds bajos: una sola aggregate query, sin autenticación
-// ni transacción — es el endpoint más liviano y más expuesto (sin auth) del
-// proyecto.
-export const getOfferedWaitlistCount = onCall<GetOfferedWaitlistCountInput>({ memory: '128MiB', timeoutSeconds: 10 }, (request) =>
+// Sin memory/timeoutSeconds propios (hereda 256MiB/60s del default global,
+// ver index.ts) aunque el trabajo real es una sola aggregate query: bajarlos
+// a 128MiB/10s rompió el despliegue de otra función de este mismo codebase
+// (onGuestWritten) — con un solo codebase, el contenedor de CUALQUIER
+// función carga el módulo completo del proyecto al arrancar, y 128MiB no le
+// alcanzaba ni para terminar de cargar antes del healthcheck de Cloud Run.
+export const getOfferedWaitlistCount = onCall<GetOfferedWaitlistCountInput>((request) =>
   withCallableObservability(request, 'getOfferedWaitlistCount', async (ctx): Promise<{ count: number }> => {
     const eventId = request.data?.eventId
     ctx.addContext({ eventId })

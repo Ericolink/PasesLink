@@ -15,11 +15,13 @@ interface AllowGuestReentryInput {
   guestId: string
 }
 
-// memory/timeoutSeconds bajos: un solo update() de un campo, sin
-// transacción ni llamadas externas — la función más liviana del camino del
-// escáner. region ya sale del default global (index.ts).
+// Sin memory/timeoutSeconds propios (hereda 256MiB/60s del default global)
+// aunque el trabajo real es un solo update() de un campo — ver el mismo
+// comentario en getOfferedWaitlistCount.ts: con un solo codebase, bajar la
+// memoria de una función liviana rompe su cold start igual, porque carga el
+// módulo completo del proyecto al arrancar, no solo su propio código.
 export const allowGuestReentry = onCall<AllowGuestReentryInput>(
-  { maxInstances: 5, memory: '128MiB', timeoutSeconds: 15 },
+  { maxInstances: 5 },
   (request) => withCallableObservability(request, 'allowGuestReentry', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

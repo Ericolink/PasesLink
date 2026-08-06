@@ -143,7 +143,8 @@ function rsvpCountField(status: RsvpStatus): 'rsvpYesCount' | 'rsvpNoCount' | 'r
 // `addGuest` (functions/src/callable/addGuest.ts), que delega el cupo (y la
 // escritura del invitado en sí) a createGuestsWithCapacity
 // (functions/src/capacity/createGuests.ts) — la misma implementación
-// compartida que usan addGuestsBulk/addGuestsFromRows más abajo. Ya no es
+// compartida que usa addGuestsBulk más abajo (y el import CSV, ver
+// functions/src/csvImport/processChunk.ts). Ya no es
 // una runTransaction de cliente: el chequeo de cupo (incluida la cuenta de
 // ofertas activas de lista de espera) es una garantía atómica real del
 // servidor, no best-effort.
@@ -203,15 +204,17 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
   return { id: result.data.id }
 }
 
-// Resultado de una carga masiva/CSV cuando el cupo (attendeeLimitEnabled)
-// corta la lista a mitad de camino: "llenar lo que entra + reportar" (ver
-// CAPACITY_LIMIT_ARCHITECTURE.md §8), nunca todo-o-nada — desperdiciar
-// lugares realmente disponibles porque el resto de una lista larga no entera
-// es peor experiencia que una carga parcial bien explicada. Con el cupo
-// desactivado (o sin alcanzarlo), `added` siempre es igual a la cantidad
-// pedida y `skippedNames` queda vacío — mismo resultado que antes de esta
-// feature. Es la forma tal cual la devuelven las Callable Functions
-// addGuestsBulk/addGuestsFromRows.
+// Resultado de la carga masiva por lista pegada cuando el cupo
+// (attendeeLimitEnabled) corta la lista a mitad de camino: "llenar lo que
+// entra + reportar" (ver CAPACITY_LIMIT_ARCHITECTURE.md §8), nunca
+// todo-o-nada — desperdiciar lugares realmente disponibles porque el resto
+// de una lista larga no entera es peor experiencia que una carga parcial
+// bien explicada. Con el cupo desactivado (o sin alcanzarlo), `added`
+// siempre es igual a la cantidad pedida y `skippedNames` queda vacío —
+// mismo resultado que antes de esta feature. Es la forma tal cual la
+// devuelve la Callable Function addGuestsBulk (el import CSV usa un
+// resultado con más forma, progresivo — ver CsvImportJob en
+// src/firebase/csvImportJobs.ts).
 export interface BulkAddResult {
   added: number
   skippedNames: string[]
@@ -219,10 +222,10 @@ export interface BulkAddResult {
 
 // Alta masiva a partir de una lista de nombres pegada — vía la Callable
 // Function `addGuestsBulk` (functions/src/callable/addGuestsBulk.ts), misma
-// createGuestsWithCapacity compartida que addGuest/addGuestsFromRows (ver el
-// comentario de addGuest arriba). El chunking por cupo (leer cuánto entra,
-// escribir solo eso, seguir con el resto) ahora vive del lado del servidor,
-// no acá.
+// createGuestsWithCapacity compartida que addGuest (ver el comentario de
+// addGuest arriba) y que el import CSV (functions/src/csvImport/
+// processChunk.ts). El chunking por cupo (leer cuánto entra, escribir solo
+// eso, seguir con el resto) ahora vive del lado del servidor, no acá.
 export async function addGuestsBulk(eventId: string, names: string[]): Promise<BulkAddResult> {
   // Se valida la lista completa ANTES de llamar a la Callable: si un solo
   // nombre es inválido, no se manda la petición — mismo fail-fast de UX que
@@ -235,31 +238,18 @@ export async function addGuestsBulk(eventId: string, names: string[]): Promise<B
   return result.data
 }
 
+// Fila cruda del CSV (ver src/utils/csvImport.ts, que arma este array a
+// partir del archivo) — el import en sí ya no es una Callable Function
+// síncrona: ver src/firebase/csvImportJobs.ts (startCsvImportJob), que
+// dispara un job procesado en background vía Cloud Tasks
+// (functions/src/csvImport/). La validación por fila (largo, formato de
+// email) se mudó al backend, que ahora puede rechazar una fila puntual sin
+// abortar el resto del archivo.
 export interface ImportedGuestRow {
   name: string
   lastName?: string
   phone?: string
   email?: string
-}
-
-// Import de invitados desde CSV (ver src/utils/csvImport.ts, que arma este
-// array a partir del archivo) — vía la Callable Function `addGuestsFromRows`
-// (functions/src/callable/addGuestsFromRows.ts), mismo criterio que
-// addGuestsBulk pero cada fila puede traer apellido/teléfono/email por
-// separado (el CSV sí distingue columnas; pegar una lista de nombres no).
-export async function addGuestsFromRows(eventId: string, rows: ImportedGuestRow[]): Promise<BulkAddResult> {
-  const validated = rows.map((row) => ({
-    name: requireMaxLength(requireNonEmpty(row.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre'),
-    lastName: row.lastName?.trim() ? requireMaxLength(row.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido') : '',
-    phone: row.phone?.trim() ? requireMaxLength(row.phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : '',
-    // Minúsculas: ver el mismo comentario en capacity.ts (registerWalkInGuest)
-    // — permite que reclaimInvitationsByEmail encuentre este contacto por
-    // igualdad exacta contra el email verificado de la cuenta.
-    email: row.email?.trim() ? requireMaxLength(requireValidEmail(row.email.trim().toLowerCase(), 'El email'), GUEST_EMAIL_MAX, 'El email') : '',
-  }))
-  const callable = httpsCallable<{ eventId: string; rows: typeof validated }, BulkAddResult>(functions, 'addGuestsFromRows')
-  const result = await measureSpan('functions.addGuestsFromRows', 'db.firestore', () => callable({ eventId, rows: validated }))
-  return result.data
 }
 
 export interface UpdateGuestInput {

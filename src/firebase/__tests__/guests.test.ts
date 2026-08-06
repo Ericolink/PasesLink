@@ -356,15 +356,16 @@ describe('guests.ts', () => {
     expect(event?.occupancyCount).toBe(0)
   })
 
-  // addGuest/addGuestsBulk/addGuestsFromRows se migraron a Cloud Functions
-  // (ver functions/src/capacity/createGuests.ts) — toda la lógica de negocio
+  // addGuest/addGuestsBulk se migraron a Cloud Functions (ver
+  // functions/src/capacity/createGuests.ts) — toda la lógica de negocio
   // (contadores, tope de acompañantes, cupo, permisos de coanfitrión) se
   // prueba ahora contra el emulador vía Admin SDK en
   // functions/src/capacity/createGuests.test.ts y
-  // functions/src/callable/addGuest.test.ts / addGuestsBulk.test.ts /
-  // addGuestsFromRows.test.ts. Este archivo ya no puede probarlas (emulador
-  // de solo Firestore, sin Functions) — mismo criterio que checkInGuest/
-  // setGuestPaymentStatus más abajo.
+  // functions/src/callable/addGuest.test.ts / addGuestsBulk.test.ts. El
+  // import CSV corre el mismo camino compartido, un chunk a la vez, desde
+  // functions/src/csvImport/processChunk.test.ts. Este archivo ya no puede
+  // probar ninguna de las tres (emulador de solo Firestore, sin Functions) —
+  // mismo criterio que checkInGuest/setGuestPaymentStatus más abajo.
 
   it('should decrement guestCount, peopleCount, checkedInCount and occupancyCount by partySize on deleteGuest while still inside', async () => {
     await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 4, checkedInCount: 4, occupancyCount: 4 })

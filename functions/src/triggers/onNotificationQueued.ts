@@ -74,13 +74,14 @@ export async function processQueuedNotification(
   await notifRef.update({ status: finalStatus })
 }
 
-// memory/timeoutSeconds bajos: un solo envío de FCM (o un no-op si el canal
-// no es 'push'). maxInstances por encima del default global: una
-// confirmación de pago en lote (bulkSetGuestPaymentStatus) encola una
-// notificación por invitado, así que puede haber cientos de estas en
-// paralelo.
+// Sin memory/timeoutSeconds propios (hereda 256MiB/60s del default global)
+// aunque el trabajo real es un solo envío de FCM (o un no-op si el canal no
+// es 'push') — ver el mismo comentario en getOfferedWaitlistCount.ts.
+// maxInstances por encima del default global: una confirmación de pago en
+// lote (bulkSetGuestPaymentStatus) encola una notificación por invitado,
+// así que puede haber cientos de estas en paralelo.
 export const onNotificationQueued = onDocumentCreated(
-  { document: 'events/{eventId}/notificationQueue/{notifId}', memory: '128MiB', timeoutSeconds: 15, maxInstances: 20 },
+  { document: 'events/{eventId}/notificationQueue/{notifId}', maxInstances: 20 },
   (event) => withTriggerObservability(event, 'onNotificationQueued', async () => {
     const snap = event.data
     if (!snap) return

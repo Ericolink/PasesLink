@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
-import { addGuest, addGuestsBulk, addGuestsFromRows, type ImportedGuestRow } from '../firebase/guests'
+import { addGuest, addGuestsBulk, type ImportedGuestRow } from '../firebase/guests'
+import { cancelCsvImportJob, startCsvImportJob, subscribeToCsvImportJob, type CsvImportJob } from '../firebase/csvImportJobs'
 import { parseGuestsCsv } from '../utils/csvImport'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -27,6 +28,25 @@ function parseBulkNames(raw: string): string[] {
     .split('\n')
     .map((n) => n.trim())
     .filter(Boolean)
+}
+
+function csvJobStatusLabel(job: CsvImportJob): string {
+  switch (job.status) {
+    case 'pending':
+      return 'Preparando la importación…'
+    case 'processing':
+      return `Importando… ${job.processedRows} / ${job.totalRows}`
+    case 'completed':
+      return `Importación completa: ${job.successCount} invitado${job.successCount === 1 ? '' : 's'} agregado${job.successCount === 1 ? '' : 's'}`
+    case 'completed_with_errors':
+      return `Importación completa con ${job.failedCount} rechazo${job.failedCount === 1 ? '' : 's'}: ${job.successCount} agregado${job.successCount === 1 ? '' : 's'}`
+    case 'failed':
+      return 'La importación falló.'
+    case 'cancelled':
+      return 'Importación cancelada.'
+    default:
+      return ''
+  }
 }
 
 type PendingDuplicate =
@@ -66,6 +86,14 @@ export function GuestAddForm({
   const [csvRows, setCsvRows] = useState<ImportedGuestRow[]>([])
   const [csvRowErrors, setCsvRowErrors] = useState<string[]>([])
   const [csvHeaderError, setCsvHeaderError] = useState<string | null>(null)
+  // Solo cubre el viaje de red para CREAR el job (rápido, no espera a que
+  // termine de importar) — separado de `loading` a propósito: mientras el
+  // job corre en background (csvJob.status pending/processing) el resto del
+  // formulario (agregar uno, familia, lista pegada) sigue disponible.
+  const [csvStarting, setCsvStarting] = useState(false)
+  const [csvJobId, setCsvJobId] = useState<string | null>(null)
+  const [csvJob, setCsvJob] = useState<CsvImportJob | null>(null)
+  const announcedCsvJobIdRef = useRef<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [errorAttempt, setErrorAttempt] = useState(0)
@@ -73,6 +101,52 @@ export function GuestAddForm({
   const containerRef = useRef<HTMLDivElement>(null)
   useFocusFirstInvalidField(containerRef, errorAttempt)
   const { announce } = useAnnouncer()
+
+  // Sigue el progreso del job de importación mientras exista un jobId — el
+  // job en sí lo procesa Cloud Tasks en background (ver
+  // src/firebase/csvImportJobs.ts). La reacción a un estado TERMINAL
+  // (anunciar, trackear, limpiar el formulario) vive DENTRO del callback de
+  // la suscripción a propósito — es "llamar a setState en un callback
+  // cuando cambia un sistema externo", el patrón recomendado, no un cuerpo
+  // de efecto que dispara setState en cascada por sí mismo. `current` de
+  // announcedCsvJobIdRef evita repetir la reacción en cada snapshot
+  // mientras el job sigue 'processing'.
+  useEffect(() => {
+    if (!csvJobId) return
+    const unsubscribe = subscribeToCsvImportJob(eventId, csvJobId, (job) => {
+      setCsvJob(job)
+      if (!job) return
+      const terminal = job.status === 'completed' || job.status === 'completed_with_errors'
+        || job.status === 'failed' || job.status === 'cancelled'
+      if (!terminal || announcedCsvJobIdRef.current === job.id) return
+      announcedCsvJobIdRef.current = job.id
+
+      if (job.status === 'completed' || job.status === 'completed_with_errors') {
+        trackGuestImport(eventId, 'csv', job.successCount)
+        announce(`${job.successCount} invitado${job.successCount === 1 ? '' : 's'} importado${job.successCount === 1 ? '' : 's'}`)
+        if (job.failedCount > 0) {
+          setError(
+            `Se importaron ${job.successCount} de ${job.totalRows} invitados. ` +
+            `${job.failedCount} fila${job.failedCount === 1 ? '' : 's'} se rechazó${job.failedCount === 1 ? '' : 'aron'} ` +
+            '(formato inválido o cupo del evento alcanzado).',
+          )
+          setErrorAttempt((n) => n + 1)
+        }
+        setCsvFileName('')
+        setCsvRows([])
+        setCsvRowErrors([])
+        setCsvHeaderError(null)
+      } else if (job.status === 'failed') {
+        setError(job.errorMessage || 'Ocurrió un error importando el archivo. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.')
+        setErrorAttempt((n) => n + 1)
+      } else if (job.status === 'cancelled') {
+        announce('Importación cancelada')
+      }
+    }, (err) => {
+      captureException(err, { tags: { component: 'guest_add_form', action: 'csv_import_progress' } })
+    })
+    return unsubscribe
+  }, [eventId, csvJobId, announce])
 
   // Nombre completo normalizado de cada invitado ya cargado — usado para
   // avisar antes de crear un duplicado (mismo invitado agregado 2 veces),
@@ -225,48 +299,47 @@ export function GuestAddForm({
     setCsvRowErrors(result.rowErrors.map((e) => `Fila ${e.line}: ${e.message}`))
   }
 
+  // Solo INICIA el job (rápido) — el procesamiento pesado corre en
+  // background vía Cloud Tasks, ver processCsvImportChunk.ts. El resultado
+  // (added/rejected) llega después por el listener de csvJob, no acá.
   async function submitCsvGuests(rows: ImportedGuestRow[]) {
-    setLoading(true)
+    setCsvStarting(true)
     setError('')
     try {
-      const { added, skippedNames } = await addGuestsFromRows(eventId, rows)
-      trackGuestImport(eventId, 'csv', added)
-      // Mismo criterio que submitBulkGuests: resultado parcial esperado, no
-      // un error — ver CAPACITY_LIMIT_ARCHITECTURE.md §8.
-      if (skippedNames.length > 0) {
-        setError(
-          `Se importaron ${added} de ${rows.length} invitados. El evento alcanzó su capacidad máxima. ` +
-          `No se pudieron importar: ${skippedNames.join(', ')}.`,
-        )
-        setErrorAttempt((n) => n + 1)
-      }
-      announce(`${added} invitado${added === 1 ? '' : 's'} importado${added === 1 ? '' : 's'}`)
-      setCsvFileName('')
-      setCsvRows([])
-      setCsvRowErrors([])
-      setCsvHeaderError(null)
+      const jobId = await startCsvImportJob(eventId, rows, csvFileName)
+      announcedCsvJobIdRef.current = null
+      setCsvJob(null)
+      setCsvJobId(jobId)
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_csv' } })
-      setError(
-        getFunctionsErrorMessage(
-          err,
-          'Ocurrió un error importando el archivo. Es posible que parte de los invitados ya se hayan guardado — revisa la lista de invitados antes de reintentar.',
-        ),
-      )
+      setError(getFunctionsErrorMessage(err, 'No se pudo iniciar la importación. Intenta de nuevo.'))
       setErrorAttempt((n) => n + 1)
     } finally {
-      setLoading(false)
+      setCsvStarting(false)
     }
   }
 
+  const csvJobBusy = csvJob !== null && (csvJob.status === 'pending' || csvJob.status === 'processing')
+
   function handleCsvImport() {
-    if (csvRows.length === 0) return
+    if (csvRows.length === 0 || csvStarting || csvJobBusy) return
     const duplicates = findBulkDuplicates(csvRows.map((r) => `${r.name} ${r.lastName || ''}`))
     if (duplicates.length > 0) {
       setPendingDuplicate({ type: 'csv', duplicates })
       return
     }
     void submitCsvGuests(csvRows)
+  }
+
+  async function handleCancelCsvImport() {
+    if (!csvJob) return
+    try {
+      await cancelCsvImportJob(eventId, csvJob.id)
+    } catch (err) {
+      captureException(err, { tags: { component: 'guest_add_form', action: 'cancel_csv_import' } })
+      setError(getFunctionsErrorMessage(err, 'No se pudo cancelar la importación.'))
+      setErrorAttempt((n) => n + 1)
+    }
   }
 
   function handleConfirmDuplicate() {
@@ -477,9 +550,32 @@ export function GuestAddForm({
             </div>
           )}
 
-          <AccessibleButton type="button" size="sm" onClick={handleCsvImport} disabled={loading || csvRows.length === 0} className="w-full">
-            {loading ? 'Importando…' : `Importar ${csvRows.length || ''} invitado${csvRows.length === 1 ? '' : 's'}`}
+          {csvJob && (
+            <div className="border border-gray-200 rounded-md p-3 space-y-2">
+              <p className="text-sm font-medium text-gray-700">{csvJobStatusLabel(csvJob)}</p>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden" role="progressbar" aria-valuenow={csvJob.progressPercent} aria-valuemin={0} aria-valuemax={100}>
+                <div className="h-full bg-primary transition-all duration-500" style={{ width: `${csvJob.progressPercent}%` }} />
+              </div>
+              <p className="text-xs text-gray-500">
+                {csvJob.processedRows} / {csvJob.totalRows} procesados · {csvJob.successCount} agregados
+                {csvJob.failedCount > 0 ? ` · ${csvJob.failedCount} rechazados` : ''}
+              </p>
+              {csvJobBusy && (
+                <AccessibleButton type="button" size="sm" variant="secondary" onClick={() => void handleCancelCsvImport()} className="w-full">
+                  Cancelar importación
+                </AccessibleButton>
+              )}
+            </div>
+          )}
+
+          <AccessibleButton type="button" size="sm" onClick={handleCsvImport} disabled={csvStarting || csvJobBusy || csvRows.length === 0} className="w-full">
+            {csvStarting ? 'Iniciando…' : csvJobBusy ? 'Importando…' : `Importar ${csvRows.length || ''} invitado${csvRows.length === 1 ? '' : 's'}`}
           </AccessibleButton>
+          {csvJobBusy && (
+            <p className="text-xs text-gray-500">
+              La importación sigue en segundo plano — puedes seguir usando el resto del formulario mientras tanto.
+            </p>
+          )}
         </div>
         </TabPanel>
       </Tabs>

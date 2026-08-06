@@ -71,10 +71,12 @@ export async function sendReportNotificationEmail(
   await logRef.update({ status: result.ok ? 'sent' : 'failed' })
 }
 
-// memory bajo, maxInstances bajo: un solo email al admin, disparado por
-// reportes de contenido — evento poco frecuente.
+// Sin memory propia (hereda 256MiB del default global) aunque el trabajo
+// real es un solo email al admin — ver el mismo comentario en
+// getOfferedWaitlistCount.ts. maxInstances bajo: reportes de contenido,
+// evento poco frecuente.
 export const onReportCreated = onDocumentCreated(
-  { document: 'reports/{reportId}', secrets: [brevoApiKey, brevoSenderEmail, reportAdminEmail], memory: '128MiB', timeoutSeconds: 30, maxInstances: 5 },
+  { document: 'reports/{reportId}', secrets: [brevoApiKey, brevoSenderEmail, reportAdminEmail], maxInstances: 5 },
   (event) => withTriggerObservability(event, 'onReportCreated', async () => {
     const snap = event.data
     if (!snap) return

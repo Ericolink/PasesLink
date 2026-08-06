@@ -47,12 +47,14 @@ export async function sendWelcomeEmailForNewUser(
   await logRef.update({ status: result.ok ? 'sent' : 'failed' })
 }
 
-// memory bajo: un solo email de bienvenida. maxInstances moderado (por
-// encima de eventos rarísimos como onReportCreated/onAdminWritten): los
-// registros de cuenta nueva pueden concentrarse si un evento se vuelve
-// viral, a diferencia de los reportes de contenido o las altas de admin.
+// Sin memory propia (hereda 256MiB del default global) aunque el trabajo
+// real es un solo email de bienvenida — ver el mismo comentario en
+// getOfferedWaitlistCount.ts. maxInstances moderado (por encima de eventos
+// rarísimos como onReportCreated/onAdminWritten): los registros de cuenta
+// nueva pueden concentrarse si un evento se vuelve viral, a diferencia de
+// los reportes de contenido o las altas de admin.
 export const onUserCreated = onDocumentCreated(
-  { document: 'users/{uid}', secrets: [brevoApiKey, brevoSenderEmail], memory: '128MiB', timeoutSeconds: 30, maxInstances: 10 },
+  { document: 'users/{uid}', secrets: [brevoApiKey, brevoSenderEmail], maxInstances: 10 },
   (event) => withTriggerObservability(event, 'onUserCreated', async () => {
     const snap = event.data
     if (!snap) return

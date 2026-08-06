@@ -1709,6 +1709,30 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // Jobs de importación masiva de invitados por CSV, procesados en
+      // background vía Cloud Tasks (ver functions/src/csvImport/,
+      // functions/src/callable/startCsvImport.ts,
+      // functions/src/tasks/processCsvImportChunk.ts). El cliente NUNCA
+      // escribe acá — ni siquiera para encolar, a diferencia de
+      // messageCampaigns/notificationQueue de arriba: startCsvImport (Admin
+      // SDK, bypassa estas reglas) crea el job y sus chunks de una, y
+      // processCsvImportChunk es quien avanza el estado. El organizador solo
+      // LEE para mostrar una barra de progreso vía onSnapshot mientras sigue
+      // usando el resto de la app.
+      match /csvImportJobs/{jobId} {
+        allow read: if canDo(eventId, 'addGuests', true) || isAdmin();
+        allow write: if false;
+
+        // Cada chunk trae las filas crudas del CSV (incluye email/teléfono
+        // sin validar todavía) — mismo permiso de lectura que el job
+        // (addGuests), solo para diagnóstico si hace falta ver por qué se
+        // rechazó una fila puntual.
+        match /chunks/{chunkId} {
+          allow read: if canDo(eventId, 'addGuests', true) || isAdmin();
+          allow write: if false;
+        }
+      }
+
       // Lista de espera (WAITLIST_RECONFIRMATION_ARCHITECTURE.md). Mismo
       // patrón de lectura por token que `guests` (allow get: if true — el id
       // del documento no es adivinable ni listable; allow list acotado a

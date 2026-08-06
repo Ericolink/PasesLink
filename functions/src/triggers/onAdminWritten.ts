@@ -21,11 +21,13 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { getAuth } from 'firebase-admin/auth'
 import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
-// memory/timeoutSeconds bajos, maxInstances bajo: una sola llamada al Admin
-// SDK, disparada solo por altas/bajas manuales de admins/{uid} desde la
-// consola — evento rarísimo, sin ningún motivo para más headroom.
+// Sin memory/timeoutSeconds propios (hereda 256MiB/60s del default global)
+// aunque el trabajo real es una sola llamada al Admin SDK — ver el mismo
+// comentario en getOfferedWaitlistCount.ts. maxInstances bajo: disparado
+// solo por altas/bajas manuales de admins/{uid} desde la consola, evento
+// rarísimo.
 export const onAdminWritten = onDocumentWritten(
-  { document: 'admins/{uid}', memory: '128MiB', timeoutSeconds: 30, maxInstances: 5 },
+  { document: 'admins/{uid}', maxInstances: 5 },
   (event) => withTriggerObservability(event, 'onAdminWritten', async () => {
     const isAdminNow = event.data?.after.exists ?? false
     await getAuth().setCustomUserClaims(event.params.uid, isAdminNow ? { admin: true } : null)

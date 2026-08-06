@@ -14,21 +14,25 @@ if (getApps().length === 0) {
 // (ver CLOUD_FUNCTIONS_SIZING.md para el análisis completo función por
 // función). region: misma ubicación que la base de Firestore (us-central1,
 // confirmado con `firebase firestore:databases:get`) — evita latencia
-// cross-region en cada get()/runTransaction(). memory: 256MiB alcanza para
-// TODA función de este proyecto (ninguna hace procesamiento de imágenes ni
-// cómputo pesado — son wrappers finos de transacciones de Firestore y
-// llamadas HTTP a Brevo/FCM); las que en la práctica necesitan menos bajan a
-// 128MiB de forma explícita. timeoutSeconds: 60 (el default real de
-// Cloud Functions) en vez del máximo por función — cada función que hace
-// trabajo genuinamente largo (barridos, altas masivas, envío de campañas)
-// lo sube de forma explícita y justificada. maxInstances: 10 es la red de
-// seguridad para cualquier función sin tráfico propio conocido; las que
-// necesitan más headroom (triggers de alta frecuencia, altas públicas sin
-// autenticación) lo suben de forma explícita. cpu ya es 1 por defecto de
-// firebase-functions (a diferencia de gcloud) para memoria <= 2GiB, así que
-// concurrency=80 aplica sin tocar nada — seguro acá porque cada función
-// resuelve su propio estado con transacciones de Firestore, sin memoria
-// compartida entre invocaciones.
+// cross-region en cada get()/runTransaction(). memory: 256MiB — NINGUNA
+// función de este proyecto baja de acá, ni las más livianas (un solo
+// update() o un email): con un solo codebase, el contenedor de CUALQUIER
+// función carga el módulo completo del proyecto al arrancar (todos los
+// triggers/callables/scheduled, no solo el código propio de esa función), y
+// bajar la memoria de una función puntual a 128MiB rompió ese cold start —
+// Cloud Run rechazaba el healthcheck antes de terminar de cargar (ver el
+// mismo comentario en getOfferedWaitlistCount.ts, primer caso encontrado).
+// timeoutSeconds: 60 (el default real de Cloud Functions) en vez del máximo
+// por función — cada función que hace trabajo genuinamente largo (barridos,
+// altas masivas, envío de campañas) lo sube de forma explícita y
+// justificada; ninguna lo baja, por el mismo motivo que la memoria.
+// maxInstances: 10 es la red de seguridad para cualquier función sin
+// tráfico propio conocido; las que necesitan más headroom (triggers de alta
+// frecuencia, altas públicas sin autenticación) lo suben de forma explícita.
+// cpu ya es 1 por defecto de firebase-functions (a diferencia de gcloud)
+// para memoria <= 2GiB, así que concurrency=80 aplica sin tocar nada —
+// seguro acá porque cada función resuelve su propio estado con
+// transacciones de Firestore, sin memoria compartida entre invocaciones.
 setGlobalOptions({
   region: 'us-central1',
   memory: '256MiB',
@@ -63,7 +67,9 @@ export { allowGuestReentry } from './callable/allowGuestReentry.js'
 export { registerWalkInGuest } from './callable/registerWalkInGuest.js'
 export { addGuest } from './callable/addGuest.js'
 export { addGuestsBulk } from './callable/addGuestsBulk.js'
-export { addGuestsFromRows } from './callable/addGuestsFromRows.js'
+export { startCsvImport } from './callable/startCsvImport.js'
+export { cancelCsvImportJob } from './callable/cancelCsvImportJob.js'
+export { processCsvImportChunk } from './tasks/processCsvImportChunk.js'
 export { createConcessionOrder } from './callable/createConcessionOrder.js'
 export { cancelConcessionOrder } from './callable/cancelConcessionOrder.js'
 export { sweepAbandonedConcessionOrders } from './scheduled/sweepAbandonedConcessionOrders.js'
