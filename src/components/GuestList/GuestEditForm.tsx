@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
-import { partySize, updateGuest } from '../../firebase/guests'
+import { GuestVersionConflictError, partySize, updateGuest } from '../../firebase/guests'
 import type { CompanionData, CustomField, GuestData } from '../../types'
 import { CompanionFieldsEditor } from '../CompanionFields'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../CountryCodeSelect'
@@ -52,11 +52,15 @@ function EditGuestRow({
         phoneCountry,
         companions,
         customData: customValues,
-      }, maxCompanions)
+      }, maxCompanions, guest.version ?? 0)
       onDone()
     } catch (err) {
       console.error('Error updating guest:', err)
-      setError('No se pudo guardar el invitado. Intenta de nuevo.')
+      setError(
+        err instanceof GuestVersionConflictError
+          ? err.message
+          : 'No se pudo guardar el invitado. Intenta de nuevo.',
+      )
       setErrorAttempt((n) => n + 1)
     } finally {
       setSaving(false)
@@ -162,11 +166,15 @@ function EditGroupRow({
       // bypassea leyendo isGroup del documento existente, así que el valor
       // que se pasa acá es irrelevante; GUEST_GROUP_MAX_MEMBERS ya limita
       // memberCount arriba.
-      await updateGuest(eventId, guest.id, { name: name.trim(), companions, customData: customValues }, 0)
+      await updateGuest(eventId, guest.id, { name: name.trim(), companions, customData: customValues }, 0, guest.version ?? 0)
       onDone()
     } catch (err) {
       console.error('Error updating group:', err)
-      setError('No se pudo guardar el grupo. Intenta de nuevo.')
+      setError(
+        err instanceof GuestVersionConflictError
+          ? err.message
+          : 'No se pudo guardar el grupo. Intenta de nuevo.',
+      )
       setErrorAttempt((n) => n + 1)
     } finally {
       setSaving(false)

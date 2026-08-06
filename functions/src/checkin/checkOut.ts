@@ -2,6 +2,7 @@
 // de checkOutGuest() en src/firebase/guests.ts.
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
 import { applyCounterDeltas } from '../lib/counters/index.js'
+import { guestVersionFields } from '../lib/guestVersion.js'
 import { partySizeFromRaw } from '../payments/confirmPayment.js'
 import { guestPresence, mapGuestForResponse } from './shared.js'
 
@@ -44,7 +45,7 @@ export async function checkOutGuest(
       checkedOutByEmail: scannedByEmail,
       exitType: kind,
     }
-    tx.update(guestRef, guestUpdates)
+    tx.update(guestRef, { ...guestUpdates, ...guestVersionFields() })
     applyCounterDeltas(db, tx, eventRef, eventId, { occupancyCount: -partySize })
 
     const checkinRef = eventRef.collection('checkins').doc()

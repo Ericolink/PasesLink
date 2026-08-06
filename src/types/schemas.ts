@@ -320,6 +320,8 @@ export const GuestSchema = z.object({
   createdAt: z.number(),
   reconfirmStatus: z.enum(['requested', 'confirmed', 'expired']).optional(),
   reconfirmDeadline: z.number().nullable().optional(),
+  version: z.number().optional(),
+  updatedAt: z.number().nullable().optional(),
 })
 
 export const WaitlistEntrySchema = z.object({

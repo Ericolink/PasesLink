@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, setDoc, updateDoc } from 'firebase/firestore'
+import { doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
 import { createTestEnv, getEventDoc, getGuestContactDoc, getGuestDoc, getWaitlistEntries, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
 
 // Mismo mock que capacity.test.ts: redirige el `db` singleton de guests.ts/capacity.ts
@@ -26,7 +26,7 @@ vi.mock('../attendeeLimit', async (importOriginal) => {
 })
 
 import { walkIn, walkOut } from '../capacity'
-import { addGuest, addGuestsBulk, addGuestsFromRows, claimGuestPass, deleteGuest, getAllGuests, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { addGuest, addGuestsBulk, addGuestsFromRows, claimGuestPass, deleteGuest, getAllGuests, GuestVersionConflictError, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -323,7 +323,7 @@ describe('guests.ts', () => {
     await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid', companions: [{}, {}, {}] })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-    await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}, {}, {}, {}] }, 20)
+    await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}, {}, {}, {}] }, 20, 0)
 
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.peopleCount).toBe(6)
@@ -582,7 +582,7 @@ describe('guests.ts', () => {
     await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-    await updateGuest(EVENT_ID, GUEST_ID, { name: 'Familia Muñoz', companions: [{}, {}, {}, {}, {}] }, 20)
+    await updateGuest(EVENT_ID, GUEST_ID, { name: 'Familia Muñoz', companions: [{}, {}, {}, {}, {}] }, 20, 0)
 
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.peopleCount).toBe(6)
@@ -643,7 +643,7 @@ describe('guests.ts', () => {
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
       await expect(
-        updateGuest(EVENT_ID, GUEST_ID, { companions: [{}] }, 0),
+        updateGuest(EVENT_ID, GUEST_ID, { companions: [{}] }, 0, 0),
       ).rejects.toThrow()
     })
 
@@ -667,7 +667,7 @@ describe('guests.ts', () => {
       await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Nombre editado' }, 0)
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Nombre editado' }, 0, 0)
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
       expect(guest?.name).toBe('Nombre editado')
@@ -679,7 +679,7 @@ describe('guests.ts', () => {
       await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-      await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}] }, 0)
+      await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}] }, 0, 0)
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
       expect(guest?.companions).toHaveLength(2)
@@ -720,6 +720,7 @@ describe('guests.ts', () => {
         null,
         { name: 'Juan', lastName: 'Pérez', phone: '+54 9 11 1234-5678', email: 'juan@test.com', companions: [], customData: {} },
         [],
+        0,
       )
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
@@ -756,6 +757,7 @@ describe('guests.ts', () => {
           customData: {},
         },
         [],
+        0,
       )
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
@@ -794,6 +796,7 @@ describe('guests.ts', () => {
           'device-b',
           { name: 'Intento', lastName: '', phone: '', email: '', companions: [], customData: {} },
           [],
+          0,
         ),
       ).rejects.toThrow()
     })
@@ -809,6 +812,7 @@ describe('guests.ts', () => {
         'device-a',
         { name: 'Editado desde el primer dispositivo', lastName: '', phone: '', email: '', companions: [], customData: {} },
         [],
+        0,
       )
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
@@ -826,6 +830,7 @@ describe('guests.ts', () => {
         null,
         { name: 'Nuevo Nombre', lastName: '', phone: '', email: '', companions: [], customData: {} },
         [],
+        0,
       )
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
@@ -862,6 +867,7 @@ describe('guests.ts', () => {
         null,
         { name: 'Lista', lastName: '', phone: '11-2222-3333', email: '', companions: [], customData: {} },
         [],
+        0,
       )
 
       const contact = await getGuestContactDoc(testEnv, EVENT_ID, GUEST_ID)
@@ -873,7 +879,7 @@ describe('guests.ts', () => {
       await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: 'device-a' })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Editado por organizador' }, 0)
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Editado por organizador' }, 0, 0)
 
       const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
       expect(guest?.name).toBe('Editado por organizador')
@@ -1306,7 +1312,7 @@ describe('guests.ts', () => {
 
       // partySize pasaría de 1 a 3 (2 acompañantes nuevos) — solo queda 1 lugar.
       await expect(
-        updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}] }, 20),
+        updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}] }, 20, 0),
       ).rejects.toThrow('Este evento ya alcanzó su capacidad máxima.')
 
       const event = await getEventDoc(testEnv, EVENT_ID)
@@ -1318,10 +1324,99 @@ describe('guests.ts', () => {
       await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}] })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-      await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}] }, 20)
+      await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}] }, 20, 0)
 
       const event = await getEventDoc(testEnv, EVENT_ID)
       expect(event?.peopleCount).toBe(4)
+    })
+  })
+
+  // Control de concurrencia optimista (version/updatedAt) — evita que dos
+  // organizadores, o el mismo invitado desde dos dispositivos, se pisen en
+  // silencio al editar el mismo invitado (ver assertGuestVersion/
+  // guestVersionStamp en guests.ts y guestVersionOk en firestore.rules).
+  describe('control de concurrencia optimista (version)', () => {
+    it('should stamp version 1 and a real updatedAt on the first updateGuest of a legacy guest without version', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Primera edición' }, 0, 0)
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.version).toBe(1)
+      expect(guest?.updatedAt).toBeTruthy()
+    })
+
+    it('should reject updateGuest with a stale expectedVersion once another save already bumped it (two organizers editing at once)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      // Organizador A guarda primero, con la versión 0 que ambos habían leído al abrir el formulario.
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Guardado por A' }, 0, 0)
+
+      // Organizador B seguía con la versión vieja (0) cargada en su propio formulario.
+      await expect(
+        updateGuest(EVENT_ID, GUEST_ID, { name: 'Guardado por B' }, 0, 0),
+      ).rejects.toThrow(GuestVersionConflictError)
+
+      // El cambio de A no quedó pisado por el intento fallido de B.
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.name).toBe('Guardado por A')
+      expect(guest?.version).toBe(1)
+    })
+
+    it('should let the second organizer save successfully after reloading the guest (retrying with the current version)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Guardado por A' }, 0, 0)
+      const reloaded = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Guardado por B tras recargar' }, 0, reloaded!.version as number)
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.name).toBe('Guardado por B tras recargar')
+      expect(guest?.version).toBe(2)
+    })
+
+    it('should reject updateGuestSelf with a stale expectedVersion (same guest editing from two devices)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], lockToken: null })
+      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+      await updateGuestSelf(
+        EVENT_ID, GUEST_ID, null,
+        { name: 'Desde el celular', lastName: '', phone: '', email: '', companions: [], customData: {} },
+        [], 0,
+      )
+
+      await expect(
+        updateGuestSelf(
+          EVENT_ID, GUEST_ID, null,
+          { name: 'Desde la compu (versión vieja)', lastName: '', phone: '', email: '', companions: [], customData: {} },
+          [], 0,
+        ),
+      ).rejects.toThrow(GuestVersionConflictError)
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.name).toBe('Desde el celular')
+    })
+
+    it('should reject a direct client write to guests/{guestId} whose version does not advance by exactly +1 (rules-level enforcement, defensa en profundidad)', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, lockToken: null })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(ownerDb, 'events', EVENT_ID, 'guests', GUEST_ID), {
+          name: 'Intento directo',
+          version: 5,
+          updatedAt: serverTimestamp(),
+        }),
+      )
     })
   })
 })

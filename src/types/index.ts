@@ -705,6 +705,15 @@ export interface GuestData {
   // riesgo" que el organizador resuelve a mano (liberar o dar más tiempo).
   reconfirmStatus?: 'requested' | 'confirmed' | 'expired'
   reconfirmDeadline?: number | null
+  // Control de concurrencia optimista: se incrementa en +1 en cada escritura
+  // que lo chequea (updateGuest/updateGuestSelf, ver src/firebase/guests.ts).
+  // Ausente/0 en invitados creados antes de este campo. NO todas las
+  // escrituras lo incrementan (ver el comentario de nextGuestVersion en
+  // firebase/guests.ts) — es una protección dirigida a la edición de
+  // formulario (organizador/auto-edición), no un contador universal de
+  // cualquier cambio del documento.
+  version?: number
+  updatedAt?: number | null
 }
 
 // Entrada en la lista de espera de un evento con cupo lleno (ver

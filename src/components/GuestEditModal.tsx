@@ -24,7 +24,7 @@ export function GuestEditModal({
   guest: GuestData
   lockToken: string | null
   onClose: () => void
-  onSaved: (patch: Pick<GuestData, 'name' | 'lastName' | 'companions' | 'customData' | 'menuSelection'>) => void
+  onSaved: (patch: Pick<GuestData, 'name' | 'lastName' | 'companions' | 'customData' | 'menuSelection' | 'version'>) => void
 }) {
   const [loadingContact, setLoadingContact] = useState(true)
   const [name, setName] = useState(guest.name)
@@ -65,16 +65,30 @@ export function GuestEditModal({
     setSaving(true)
     setError('')
     try {
+      const expectedVersion = guest.version ?? 0
       await updateGuestSelf(
         eventId,
         guest.id,
         lockToken,
         { name, lastName, phone, phoneCountry, email, companions, customData: customValues, menuSelection },
         event.customFields || [],
+        expectedVersion,
       )
       const trimmedName = name.trim()
       const trimmedLastName = lastName.trim()
-      onSaved({ name: trimmedName, lastName: trimmedLastName, companions, customData: customValues, menuSelection })
+      onSaved({
+        name: trimmedName,
+        lastName: trimmedLastName,
+        companions,
+        customData: customValues,
+        menuSelection,
+        // Refleja localmente el mismo incremento que acaba de aplicar el
+        // servidor (ver guestVersionStamp) — sin esto, reabrir el modal en
+        // la misma visita para editar de nuevo comparaba contra la versión
+        // vieja y fallaba con un conflicto contra el propio guardado
+        // anterior.
+        version: expectedVersion + 1,
+      })
       setSaved(true)
     } catch (err) {
       console.error('Error al guardar la edición del invitado:', err)

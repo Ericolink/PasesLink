@@ -7,6 +7,7 @@
 // sin reimplementar nada de esto.
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
 import { applyCounterDeltas } from '../lib/counters/index.js'
+import { guestVersionFields } from '../lib/guestVersion.js'
 
 export type PaymentMethod = 'transfer' | 'cash'
 
@@ -112,7 +113,7 @@ export async function confirmGuestPayment(
     const change = computePaymentChange(guest, target, opts.method, opts.source)
     if (!change.changed) return { ok: true, changed: false, notify: null }
 
-    tx.update(guestRef, change.guestUpdates)
+    tx.update(guestRef, { ...change.guestUpdates, ...guestVersionFields() })
     applyCounterDeltas(db, tx, eventRef, eventId, { paidCount: change.paidCountDelta })
 
     const notify = change.paidCountDelta > 0 && event.ownerId
@@ -186,7 +187,7 @@ export async function bulkConfirmGuestPayments(
         const resolvedMethod = ((guest.paymentMethod as PaymentMethod | null) ?? opts.defaultMethod) || undefined
         const change = computePaymentChange(guest, target, resolvedMethod, opts.source)
         if (change.changed) {
-          tx.update(guestsCol.doc(guestId), change.guestUpdates)
+          tx.update(guestsCol.doc(guestId), { ...change.guestUpdates, ...guestVersionFields() })
           paidCountDelta += change.paidCountDelta
           if (change.paidCountDelta > 0 && event.ownerId) {
             result.notifications.push({ ownerId: event.ownerId as string, eventName: (event.name as string) || '', guestName: (guest.name as string) || '' })

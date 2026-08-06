@@ -9,6 +9,7 @@
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
 import { sendEmail } from '../lib/emailChannel.js'
 import { reserveBudgetSlot, todayDateKey } from '../lib/dailyBudget.js'
+import { guestVersionFields } from '../lib/guestVersion.js'
 
 const DAILY_BUDGET_CAP = 300
 const PASELINK_ORIGIN = 'https://www.paselink.com'
@@ -130,7 +131,7 @@ export async function expireDueReconfirmations(db: Firestore, now: number): Prom
       if (!fresh.exists) return false
       const data = fresh.data()!
       if (data.reconfirmStatus !== 'requested' || (data.reconfirmDeadline ?? 0) > now) return false
-      tx.update(docSnap.ref, { reconfirmStatus: 'expired' })
+      tx.update(docSnap.ref, { reconfirmStatus: 'expired', ...guestVersionFields() })
       return true
     })
     if (didExpire) expiredCount += 1

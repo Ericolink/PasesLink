@@ -3,6 +3,7 @@
 // testearlo directo contra el emulador, mismo principio que
 // waitlist/cascade.ts.
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
+import { guestVersionFields } from '../lib/guestVersion.js'
 
 export interface ReminderRuleInput {
   id: string
@@ -44,7 +45,7 @@ export async function startCampaign(db: Firestore, input: StartCampaignInput): P
   let batch = db.batch()
   let opsInBatch = 0
   for (const guestDoc of eligibleDocs) {
-    batch.update(guestDoc.ref, { reconfirmStatus: 'requested', reconfirmDeadline: input.deadline })
+    batch.update(guestDoc.ref, { reconfirmStatus: 'requested', reconfirmDeadline: input.deadline, ...guestVersionFields() })
     opsInBatch += 1
     if (opsInBatch >= WRITE_CHUNK_SIZE) {
       await batch.commit()

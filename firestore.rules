@@ -705,6 +705,37 @@ service cloud.firestore {
       ]);
     }
 
+    // Control de concurrencia optimista de guests/{guestId} (evitar que dos
+    // organizadores/dispositivos editando el mismo invitado se pisen en
+    // silencio, ver src/firebase/guests.ts:assertGuestVersion). Exige que
+    // `version` avance en EXACTAMENTE +1 respecto del valor ya guardado (no
+    // un increment() relativo — así, si el cliente arrancó su edición desde
+    // una versión que ya quedó vieja porque alguien más escribió antes,
+    // `version` que manda ya no calza contra la actual y la escritura se
+    // rechaza) y que `updatedAt` sea el timestamp real del servidor (mismo
+    // patrón que `createdAt == request.time` en otras colecciones de este
+    // archivo).
+    //
+    // Se exige en la rama de auto-edición del invitado (hasOnly acotado,
+    // caso de uso claro: updateGuestSelf) y en las 2 ramas del organizador/
+    // admin (editGuests/isAdmin) que NO restringen qué campos se pueden
+    // tocar — esas dos son el fallback de CUALQUIER escritura del
+    // organizador que no encaje en una rama más específica (tableId,
+    // reconfirmDeadline, etc. tienen la suya propia), así que no solo cubren
+    // updateGuest: también resetGuestRsvp, unlockGuestPass y
+    // bulkSetGuestTags cotizan contra esta misma rama y por eso ellas
+    // también avanzan `version` (con increment(), ver guestVersionBump en
+    // src/firebase/guests.ts — no necesitan detectar conflicto, solo
+    // mantener el campo consistente). El resto de las ramas de
+    // `guests/{guestId}` (RSVP del invitado, comprobante de pago, reconfirmar,
+    // dispositivos reconocidos, vincular cuenta) son transiciones de estado
+    // de 1-2 campos ya protegidas por su propia lectura fresca / gate de
+    // lockTokens y no llevan este chequeo.
+    function guestVersionOk(oldData, newData) {
+      return newData.version == oldData.get('version', 0) + 1
+        && newData.updatedAt == request.time;
+    }
+
     // Cruza con guests/{guestId} (que sí tiene lockTokens) para autorizar la
     // auto-edición de guestContacts (email/phone) del mismo invitado — ese
     // documento no tiene su propia lista de dispositivos.
@@ -1253,8 +1284,8 @@ service cloud.firestore {
         // (ver isOwnerData/canDoData más arriba). La migración a Admin SDK
         // (que ignora estas reglas) elimina esa rama por completo en vez de
         // solo optimizarla.
-        allow update: if (canDoData(eventDataFor(eventId), 'editGuests', true) && companionsWithinLimitData(eventDataFor(eventId), request.resource.data, true) && accessControlFieldsUntouched(resource.data, request.resource.data)) ||
-          (isAdmin() && accessControlFieldsUntouched(resource.data, request.resource.data)) ||
+        allow update: if (canDoData(eventDataFor(eventId), 'editGuests', true) && companionsWithinLimitData(eventDataFor(eventId), request.resource.data, true) && accessControlFieldsUntouched(resource.data, request.resource.data) && guestVersionOk(resource.data, request.resource.data)) ||
+          (isAdmin() && accessControlFieldsUntouched(resource.data, request.resource.data) && guestVersionOk(resource.data, request.resource.data)) ||
           // assignGuestToTable (Seating Chart, src/firebase/seating.ts): un
           // coanfitrión con SOLO manageSeating (sin editGuests) puede mover
           // invitados de mesa sin heredar edición completa del invitado —
@@ -1325,9 +1356,10 @@ service cloud.firestore {
           // toca cualquiera de esos campos junto con estos, cae toda la
           // rama (no solo esos campos).
           (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'lastName', 'companions', 'customData', 'menuSelection', 'lockToken']) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'lastName', 'companions', 'customData', 'menuSelection', 'lockToken', 'version', 'updatedAt']) &&
             guestLockTokensOk(resource.data, request.resource.data.lockToken) &&
-            isValidGuestSelfEdit()
+            isValidGuestSelfEdit() &&
+            guestVersionOk(resource.data, request.resource.data)
           ) ||
           // claimGuestPass (src/firebase/guests.ts): reconoce un dispositivo
           // nuevo agregándolo a `lockTokens` (o inicializándola). Cualquiera

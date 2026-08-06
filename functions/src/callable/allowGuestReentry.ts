@@ -6,6 +6,7 @@
 // servicio separado — va directo acá.
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
+import { guestVersionFields } from '../lib/guestVersion.js'
 import { canEditGuests } from '../lib/permissions.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 
@@ -42,7 +43,7 @@ export const allowGuestReentry = onCall<AllowGuestReentryInput>(
       throw new HttpsError('not-found', 'El invitado no existe en este evento.')
     }
 
-    await guestRef.update({ exitType: null })
+    await guestRef.update({ exitType: null, ...guestVersionFields() })
     return { ok: true }
   }),
 )

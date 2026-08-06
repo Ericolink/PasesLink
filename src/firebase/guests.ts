@@ -5,6 +5,7 @@ import {
   documentId,
   getDoc,
   getDocs,
+  increment,
   limit,
   onSnapshot,
   orderBy,
@@ -121,6 +122,54 @@ function buildNewGuestPayload(input: {
 
 function contactRef(eventId: string, guestId: string) {
   return doc(db, 'events', eventId, 'guestContacts', guestId)
+}
+
+// Control de concurrencia optimista sobre guests/{guestId}: evita que dos
+// organizadores (o el organizador y el propio invitado desde otro
+// dispositivo) editando el mismo invitado a la vez se pisen en silencio.
+// `expectedVersion` es el `guest.version` que el llamador tenía cargado al
+// abrir el formulario de edición — updateGuest/updateGuestSelf lo comparan,
+// DENTRO de la misma transacción de Firestore, contra la versión recién
+// leída del servidor antes de escribir nada. Si no coinciden, alguien más ya
+// guardó un cambio desde entonces: se aborta con un error reconocible en vez
+// de sobrescribirlo. firestore.rules espeja el mismo chequeo
+// (guestVersionOk) para las escrituras del cliente que llegan por esta
+// misma rama, así que el servidor lo verifica aunque el código del cliente
+// tuviera un bug.
+export class GuestVersionConflictError extends Error {
+  constructor() {
+    super('Este invitado fue modificado por otro dispositivo. Cierra y vuelve a abrir la edición para ver los datos actuales.')
+    this.name = 'GuestVersionConflictError'
+  }
+}
+
+function assertGuestVersion(data: Record<string, unknown>, expectedVersion: number) {
+  const currentVersion = typeof data.version === 'number' ? data.version : 0
+  if (currentVersion !== expectedVersion) {
+    throw new GuestVersionConflictError()
+  }
+}
+
+// Campos a fusionar en cada `update()` de guests/{guestId} que pasa por el
+// chequeo de arriba — SIEMPRE el siguiente número entero, nunca un
+// increment() (ver comentario de assertGuestVersion: acá interesa detectar
+// el conflicto, no solo que el contador avance).
+function guestVersionStamp(expectedVersion: number) {
+  return { version: expectedVersion + 1, updatedAt: serverTimestamp() }
+}
+
+// Variante con increment() para escrituras del ORGANIZADOR que no pasan por
+// una rama de campos acotados propia en firestore.rules (resetGuestRsvp,
+// unlockGuestPass, bulkSetGuestTags) y por eso cotizan contra la MISMA rama
+// sin restricción de campos que updateGuest (editGuests/isAdmin,
+// accessControlFieldsUntouched) — esa rama exige guestVersionOk() sin
+// excepción, así que estas escrituras también tienen que avanzar `version`.
+// A diferencia de guestVersionStamp, acá no hace falta detectar conflicto
+// (no son ediciones de formulario con un valor "esperado" cargado de
+// antemano) — increment() alcanza y evita una lectura extra antes de
+// escribir.
+function guestVersionBump() {
+  return { version: increment(1), updatedAt: serverTimestamp() }
 }
 
 // Nombre del contador desnormalizado de EventData que corresponde a cada
@@ -371,31 +420,44 @@ export interface UpdateGuestInput {
 // lee del documento existente dentro de la transacción, no de `input`: esta
 // función no distingue de antemano si el invitado que está editando es un
 // grupo o no).
-export async function updateGuest(eventId: string, guestId: string, input: UpdateGuestInput, maxCompanions: number) {
+//
+// `expectedVersion` es `guest.version` tal como lo tenía cargado quien llama
+// (GuestEditForm) — siempre corre dentro de una runTransaction (antes solo
+// la rama que tocaba `companions` la usaba; el resto hacía un writeBatch sin
+// releer) para poder comparar esa versión contra la recién leída del
+// servidor y detectar una edición concurrente ANTES de escribir nada (ver
+// assertGuestVersion). Lanza GuestVersionConflictError si no coinciden.
+export async function updateGuest(
+  eventId: string,
+  guestId: string,
+  input: UpdateGuestInput,
+  maxCompanions: number,
+  expectedVersion: number,
+) {
   const { phone, phoneCountry, ...guestFields } = input
+  const guestRef = doc(db, 'events', eventId, 'guests', guestId)
+  const eventRef = doc(db, 'events', eventId)
+  const companionsChanged = guestFields.companions !== undefined
+  // Fuera de la transacción: ver el mismo comentario en addGuest. Solo hace
+  // falta cuando `companions` cambia (puede sumar ocupación nueva).
+  const offeredCount = companionsChanged ? await fetchOfferedWaitlistCount(eventId) : 0
 
-  // Si `companions` cambia de largo (acompañantes agregados/quitados, o
-  // cantidad de integrantes editada en una familia), partySize() de este
-  // invitado cambia — hay que ajustar peopleCount (y paidCount, si ya había
-  // pagado) por la diferencia exacta, en la misma transacción que guarda el
-  // nuevo array, para que no quede desalineado con la suma real de personas
-  // del evento.
-  if (guestFields.companions !== undefined) {
-    const guestRef = doc(db, 'events', eventId, 'guests', guestId)
-    const eventRef = doc(db, 'events', eventId)
-    // Fuera de la transacción: ver el mismo comentario en addGuest. Se pide
-    // siempre que `companions` esté en el input (no solo cuando termina
-    // aumentando) para no tener que decidir adentro de la transacción si
-    // hace falta o no — el costo de una lectura de más en el caso que
-    // termina bajando/igual es bajo comparado con la complejidad de pedirla
-    // condicionalmente.
-    const offeredCount = await fetchOfferedWaitlistCount(eventId)
-    await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(guestRef)
-      if (!snap.exists()) return
-      const existing = mapGuest(snap.id, snap.data())
-      const before = partySize(existing)
-      const after = 1 + guestFields.companions!.length
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(guestRef)
+    if (!snap.exists()) return
+    assertGuestVersion(snap.data(), expectedVersion)
+    const existing = mapGuest(snap.id, snap.data())
+    const before = partySize(existing)
+    let after = before
+
+    // Si `companions` cambia de largo (acompañantes agregados/quitados, o
+    // cantidad de integrantes editada en una familia), partySize() de este
+    // invitado cambia — hay que ajustar peopleCount (y paidCount, si ya
+    // había pagado) por la diferencia exacta, en la misma transacción que
+    // guarda el nuevo array, para que no quede desalineado con la suma real
+    // de personas del evento.
+    if (companionsChanged) {
+      after = 1 + guestFields.companions!.length
       // Grandfathering: si el invitado ya tenía más acompañantes que el
       // límite actual (evento cargado antes de configurarlo, o el
       // organizador lo bajó después), se sigue permitiendo guardar mientras
@@ -428,28 +490,21 @@ export async function updateGuest(eventId: string, guestId: string, input: Updat
           offeredCount,
         )
       }
-      transaction.update(guestRef, { ...guestFields })
-      if (phone !== undefined) {
-        transaction.set(contactRef(eventId, guestId), { phone, ...(phoneCountry !== undefined ? { phoneCountry } : {}) }, { merge: true })
-      }
-      if (after !== before) {
-        applyCounterDeltas(transaction, eventRef, {
-          peopleCount: after - before,
-          paidCount: existing.paymentStatus === 'paid' ? after - before : 0,
-        })
-      }
-    })
-    return
-  }
+    }
 
-  const batch = writeBatch(db)
-  if (Object.keys(guestFields).length > 0) {
-    batch.update(doc(db, 'events', eventId, 'guests', guestId), { ...guestFields })
-  }
-  if (phone !== undefined) {
-    batch.set(contactRef(eventId, guestId), { phone, ...(phoneCountry !== undefined ? { phoneCountry } : {}) }, { merge: true })
-  }
-  await batch.commit()
+    if (Object.keys(guestFields).length > 0) {
+      transaction.update(guestRef, { ...guestFields, ...guestVersionStamp(expectedVersion) })
+    }
+    if (phone !== undefined) {
+      transaction.set(contactRef(eventId, guestId), { phone, ...(phoneCountry !== undefined ? { phoneCountry } : {}) }, { merge: true })
+    }
+    if (after !== before) {
+      applyCounterDeltas(transaction, eventRef, {
+        peopleCount: after - before,
+        paidCount: existing.paymentStatus === 'paid' ? after - before : 0,
+      })
+    }
+  })
 }
 
 export interface GuestSelfEditInput {
@@ -484,17 +539,22 @@ export async function getGuestContact(eventId: string, guestId: string): Promise
 // Auto-edición del propio invitado desde su pase (GuestPass, "Editar mis
 // datos") — a diferencia de updateGuest() (organizador), NUNCA cambia la
 // CANTIDAD de acompañantes (isValidGuestSelfEdit en firestore.rules lo
-// exige), así que no hay ningún contador de evento que ajustar y un
-// writeBatch alcanza (no hace falta runTransaction). Valida cada campo
-// individualmente porque Firestore Rules no puede iterar el contenido de
-// `companions`/`customData` elemento por elemento — esta es la única
+// exige), así que no hay ningún contador de evento que ajustar. Valida cada
+// campo individualmente porque Firestore Rules no puede iterar el contenido
+// de `companions`/`customData` elemento por elemento — esta es la única
 // barrera real de longitud para esos valores.
+//
+// `expectedVersion` es `guest.version` tal como lo tenía cargado GuestPass
+// al abrir el modal — corre en runTransaction (antes writeBatch, sin releer)
+// para poder comparar esa versión contra la recién leída del servidor antes
+// de escribir, mismo mecanismo que updateGuest (ver assertGuestVersion).
 export async function updateGuestSelf(
   eventId: string,
   guestId: string,
   lockToken: string | null,
   input: GuestSelfEditInput,
   customFields: CustomField[],
+  expectedVersion: number,
 ): Promise<void> {
   const name = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
   const lastName = requireMaxLength((input.lastName || '').trim(), GUEST_NAME_PART_MAX, 'El apellido')
@@ -531,17 +591,22 @@ export async function updateGuestSelf(
     throw new Error('El formulario tiene demasiados campos.')
   }
 
-  const batch = writeBatch(db)
-  batch.update(doc(db, 'events', eventId, 'guests', guestId), {
-    name,
-    lastName,
-    companions,
-    customData,
-    menuSelection: input.menuSelection ?? deleteField(),
-    lockToken,
+  const guestRef = doc(db, 'events', eventId, 'guests', guestId)
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(guestRef)
+    if (!snap.exists()) return
+    assertGuestVersion(snap.data(), expectedVersion)
+    transaction.update(guestRef, {
+      name,
+      lastName,
+      companions,
+      customData,
+      menuSelection: input.menuSelection ?? deleteField(),
+      lockToken,
+      ...guestVersionStamp(expectedVersion),
+    })
+    transaction.set(contactRef(eventId, guestId), { email, phone, phoneCountry, lockToken }, { merge: true })
   })
-  batch.set(contactRef(eventId, guestId), { email, phone, phoneCountry, lockToken }, { merge: true })
-  await batch.commit()
 }
 
 // Recibe el invitado completo (no solo su id) porque descontar los 4
@@ -758,7 +823,7 @@ export async function bulkSetGuestTags(
     try {
       const batch = writeBatch(db)
       for (const guestId of chunk) {
-        batch.update(doc(db, 'events', eventId, 'guests', guestId), { tags: tagIds })
+        batch.update(doc(db, 'events', eventId, 'guests', guestId), { tags: tagIds, ...guestVersionBump() })
       }
       await batch.commit()
       ok += chunk.length
@@ -990,7 +1055,7 @@ export async function resetGuestRsvp(eventId: string, guestId: string) {
     const guestSnap = await transaction.get(guestRef)
     if (!guestSnap.exists()) return
     const oldRsvp = (guestSnap.data().rsvpStatus as RsvpStatus) || 'pending'
-    transaction.update(guestRef, { rsvpStatus: 'pending', lockToken: null, lockTokens: [] })
+    transaction.update(guestRef, { rsvpStatus: 'pending', lockToken: null, lockTokens: [], ...guestVersionBump() })
     if (oldRsvp !== 'pending') {
       applyCounterDeltas(transaction, eventRef, {
         [rsvpCountField(oldRsvp)]: -1,
@@ -1004,7 +1069,7 @@ export async function resetGuestRsvp(eventId: string, guestId: string) {
 // que pueda abrirse desde otro dispositivo (invitado que cambió de teléfono,
 // borró el navegador, o lo abrió por error desde el dispositivo equivocado).
 export async function unlockGuestPass(eventId: string, guestId: string) {
-  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { lockToken: null, lockTokens: [] })
+  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { lockToken: null, lockTokens: [], ...guestVersionBump() })
 }
 
 // Acción del ORGANIZADOR: aprobar (`'paid'`) o revertir/rechazar (`'unpaid'`)
@@ -1312,6 +1377,10 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     guestUid: (data.guestUid as string) || null,
     guestPhotoURL: (data.guestPhotoURL as string) || null,
     createdAt: toMillisOrNull(data.createdAt) || 0,
+    reconfirmStatus: (data.reconfirmStatus as GuestData['reconfirmStatus']) || undefined,
+    reconfirmDeadline: typeof data.reconfirmDeadline === 'number' ? data.reconfirmDeadline : null,
+    version: typeof data.version === 'number' ? data.version : 0,
+    updatedAt: toMillisOrNull(data.updatedAt),
   }
   warnIfInvalidShape(GuestSchema, 'Guest', guest)
   return guest

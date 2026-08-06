@@ -6,6 +6,7 @@
 // duplicar nada de esto (objetivo del ticket de migración).
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
 import { applyCounterDeltas, buildHourlyCheckinPatch } from '../lib/counters/index.js'
+import { guestVersionFields } from '../lib/guestVersion.js'
 import { partySizeFromRaw } from '../payments/confirmPayment.js'
 import { checkinHourLabel, guestPresence, mapGuestForResponse } from './shared.js'
 
@@ -74,7 +75,7 @@ export async function checkInGuest(
       exitType: null,
       ...(isReentry ? {} : { checkedInAt: FieldValue.serverTimestamp(), checkedInBy: scannedBy, checkedInByEmail: scannedByEmail }),
     }
-    tx.update(guestRef, guestUpdates)
+    tx.update(guestRef, { ...guestUpdates, ...guestVersionFields() })
 
     applyCounterDeltas(
       db,

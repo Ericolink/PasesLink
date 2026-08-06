@@ -9,6 +9,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
 import { applyCounterDeltas, buildHourlyCheckinPatch } from '../lib/counters/index.js'
 import type { CounterName } from '../lib/counters/index.js'
+import { guestVersionFields } from '../lib/guestVersion.js'
 import { computePaymentChange, partySizeFromRaw, type PaymentMethod, type PaymentSource } from '../payments/confirmPayment.js'
 import { checkinHourLabel, guestPresence, mapGuestForResponse } from './shared.js'
 
@@ -52,13 +53,13 @@ export async function confirmPaymentAndCheckIn(
     const presence = guestPresence(guestAfterPayment)
 
     if (presence === 'inside') {
-      if (Object.keys(guestUpdates).length > 0) tx.update(guestRef, guestUpdates)
+      if (Object.keys(guestUpdates).length > 0) tx.update(guestRef, { ...guestUpdates, ...guestVersionFields() })
       applyCounterDeltas(db, tx, eventRef, eventId, counterDeltas)
       return { ok: true, checkIn: 'already_checked_in', guest: mapGuestForResponse(guestId, guestAfterPayment) }
     }
 
     if (presence === 'final_out') {
-      if (Object.keys(guestUpdates).length > 0) tx.update(guestRef, guestUpdates)
+      if (Object.keys(guestUpdates).length > 0) tx.update(guestRef, { ...guestUpdates, ...guestVersionFields() })
       applyCounterDeltas(db, tx, eventRef, eventId, counterDeltas)
       const blockedRef = eventRef.collection('checkins').doc()
       tx.set(blockedRef, {
@@ -90,7 +91,7 @@ export async function confirmPaymentAndCheckIn(
     // Un solo update() por documento (evento + invitado) — la razón original
     // por la que este flujo se había partido en dos llamadas: Firestore no
     // permite dos transaction.update() separados sobre el mismo doc.
-    tx.update(guestRef, guestUpdates)
+    tx.update(guestRef, { ...guestUpdates, ...guestVersionFields() })
     applyCounterDeltas(db, tx, eventRef, eventId, counterDeltas, buildHourlyCheckinPatch(checkinHourLabel()))
 
     const checkinRef = eventRef.collection('checkins').doc()
