@@ -27,8 +27,16 @@ export function classifySentryHealth(unresolvedCount: number, hasMore: boolean):
 // `limit=25`: suficiente para distinguir las 3 bandas (0 / 1-9 / 10+) sin
 // paginar — si hay más de 25, el header `Link` trae `rel="next"`, que ya de
 // por sí alcanza para clasificar como 'error' sin necesitar el conteo exacto.
+//
+// `lastSeen:-24h` (NO `statsPeriod=24h`) es lo que de verdad filtra por
+// ventana de tiempo acá — confirmado en producción (issue real: con
+// `statsPeriod` el endpoint devolvía TODOS los issues sin resolver de toda
+// la historia del proyecto, statsPeriod solo anota el gráfico de cada
+// issue, no filtra la lista. `lastSeen:-24h` sí restringe a issues con
+// actividad en las últimas 24h, que es lo que la UI de Sentry muestra por
+// defecto en su vista de 24h).
 export async function getSentryHealth(token: string, orgSlug: string, projectSlug: string): Promise<SentryHealthResult> {
-  const url = `https://sentry.io/api/0/projects/${orgSlug}/${projectSlug}/issues/?query=${encodeURIComponent('is:unresolved')}&statsPeriod=24h&limit=25`
+  const url = `https://sentry.io/api/0/projects/${orgSlug}/${projectSlug}/issues/?query=${encodeURIComponent('is:unresolved lastSeen:-24h')}&limit=25`
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     throw new Error(`Sentry API respondió ${res.status}: ${await res.text().catch(() => '')}`)
