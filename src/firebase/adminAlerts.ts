@@ -1,5 +1,5 @@
 import { collectionGroup, doc, getDoc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore'
-import type { Unsubscribe } from 'firebase/firestore'
+import type { DocumentReference, Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
 import type { SendLogStatus } from './sendLog'
@@ -14,9 +14,24 @@ import type { CsvImportJobStatus } from './csvImportJobs'
 // `snap.ref.parent.parent.id` (el doc del evento dueño de la subcolección),
 // ya que ni sendLog ni csvImportJobs guardan ese campo en el propio doc.
 
+// `sendLog` NO es exclusivamente de eventos — es el único de los 3
+// collectionGroup con un escritor fuera de events/: el email de bienvenida
+// (functions/src/triggers/onUserCreated.ts) escribe en
+// `users/{uid}/sendLog/welcome`, no en `events/{eventId}/sendLog/{id}`.
+// Sin esta distinción, `d.ref.parent.parent.id` devolvía el UID del usuario
+// interpretado como si fuera un eventId, y el link "Ver evento" del panel
+// apuntaba a un evento inexistente (bug real, encontrado en producción).
+// notificationQueue/csvImportJobs sí son siempre de eventos — no necesitan
+// este chequeo.
+function sendLogSource(ref: DocumentReference): 'event' | 'welcome_email' {
+  return ref.parent.parent?.parent.id === 'events' ? 'event' : 'welcome_email'
+}
+
 export interface SendFailureEntry {
   id: string
-  eventId: string
+  source: 'event' | 'welcome_email'
+  /** Solo presente cuando source === 'event' — un fallo de email de bienvenida no pertenece a ningún evento. */
+  eventId?: string
   toEmail: string
   status: SendLogStatus
   errorMessage?: string
@@ -39,9 +54,11 @@ export function subscribeToRecentSendFailures(
       callback(
         snapshot.docs.map((d) => {
           const data = d.data()
+          const source = sendLogSource(d.ref)
           return {
             id: d.id,
-            eventId: d.ref.parent.parent?.id || '',
+            source,
+            eventId: source === 'event' ? d.ref.parent.parent?.id : undefined,
             toEmail: (data.toEmail as string) || '',
             status: data.status as SendLogStatus,
             errorMessage: (data.errorMessage as string) || undefined,

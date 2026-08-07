@@ -38,6 +38,10 @@ describe('sendWelcomeEmailForNewUser', () => {
     expect(logSnap.exists).toBe(true)
     // Sin BREVO_API_KEY en el entorno de test, sendEmail falla limpio.
     expect(logSnap.data()?.status).toBe('failed')
+    // Antes se descartaba el motivo del fallo (bug real, encontrado en
+    // producción con un email de bienvenida fallido sin forma de saber por
+    // qué) — ahora queda guardado, mismo campo que messaging/campaign.ts.
+    expect(logSnap.data()?.errorMessage).toBe('Falta BREVO_API_KEY o BREVO_SENDER_EMAIL')
   })
 
   it('never sends twice for the same user (dedup vía sendLog.create())', async () => {

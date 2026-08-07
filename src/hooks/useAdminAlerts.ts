@@ -63,7 +63,9 @@ export function useAdminAlerts() {
     ...sendFailures.map((f): AdminAlert => ({
       id: `send_${f.id}`,
       severity: 'warning',
-      text: `Envío fallido a ${f.toEmail || 'un invitado'}${f.errorMessage ? `: ${f.errorMessage}` : ''}`,
+      text: f.source === 'welcome_email'
+        ? `Email de bienvenida fallido para ${f.toEmail || 'un usuario nuevo'}${f.errorMessage ? `: ${f.errorMessage}` : ''}`
+        : `Envío fallido a ${f.toEmail || 'un invitado'}${f.errorMessage ? `: ${f.errorMessage}` : ''}`,
       eventId: f.eventId,
       timestamp: f.sentAt,
     })),

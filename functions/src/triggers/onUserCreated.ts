@@ -14,6 +14,7 @@ import type { DocumentReference } from 'firebase-admin/firestore'
 import { sendEmail } from '../lib/emailChannel.js'
 import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
 import { withTriggerObservability } from '../lib/observability/withObservability.js'
+import type { ObservabilityContext } from '../lib/observability/withObservability.js'
 
 interface NewUserData {
   email?: string
@@ -27,6 +28,7 @@ interface NewUserData {
 export async function sendWelcomeEmailForNewUser(
   userRef: DocumentReference,
   data: NewUserData,
+  logger?: ObservabilityContext['logger'],
 ): Promise<void> {
   if (!data.email) return
 
@@ -44,7 +46,15 @@ export async function sendWelcomeEmailForNewUser(
     html: `<p>Hola${data.displayName ? ` ${data.displayName}` : ''},</p><p>Gracias por registrarte en PaseLink. Ya puedes crear tu primer evento o unirte a uno con el código de invitación que te compartieron.</p>`,
   })
 
-  await logRef.update({ status: result.ok ? 'sent' : 'failed' })
+  // Antes se descartaba result.error acá — el motivo real de un fallo
+  // quedaba irrecuperable para siempre (ni en Firestore ni en logs). Mismo
+  // campo `errorMessage` que ya usa messaging/campaign.ts, para que las
+  // Alertas inteligentes del admin (ver src/firebase/adminAlerts.ts) lo
+  // muestren sin cambios del lado del cliente.
+  if (!result.ok) {
+    logger?.warn(`sendWelcomeEmailForNewUser: envío fallido a ${data.email}`, { error: result.error })
+  }
+  await logRef.update({ status: result.ok ? 'sent' : 'failed', errorMessage: result.error || null })
 }
 
 // Sin memory propia (hereda 256MiB del default global) aunque el trabajo
@@ -55,9 +65,9 @@ export async function sendWelcomeEmailForNewUser(
 // los reportes de contenido o las altas de admin.
 export const onUserCreated = onDocumentCreated(
   { document: 'users/{uid}', secrets: [brevoApiKey, brevoSenderEmail], maxInstances: 10 },
-  (event) => withTriggerObservability(event, 'onUserCreated', async () => {
+  (event) => withTriggerObservability(event, 'onUserCreated', async (ctx) => {
     const snap = event.data
     if (!snap) return
-    await sendWelcomeEmailForNewUser(snap.ref, snap.data() as NewUserData)
+    await sendWelcomeEmailForNewUser(snap.ref, snap.data() as NewUserData, ctx.logger)
   }),
 )
