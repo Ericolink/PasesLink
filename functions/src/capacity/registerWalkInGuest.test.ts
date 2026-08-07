@@ -143,11 +143,110 @@ describe('registerWalkInGuest (servicio)', () => {
 
   it('rejects a customData value that is too long', async () => {
     const eventId = uniqueId('event')
-    await seedEvent(db, eventId, { entryMode: 'open' })
+    await seedEvent(db, eventId, {
+      entryMode: 'open',
+      customFields: [{ id: 'field', label: 'Campo', type: 'text', required: false }],
+    })
 
     await expect(
       registerWalkInGuest(db, eventId, { name: 'Ana López', customData: { field: 'x'.repeat(301) } }),
     ).rejects.toThrow('300 caracteres')
+  })
+
+  it('rejects a customData field id that does not correspond to this event', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, {
+      entryMode: 'open',
+      customFields: [{ id: 'allergy', label: 'Alergias', type: 'text', required: false }],
+    })
+
+    await expect(
+      registerWalkInGuest(db, eventId, { name: 'Ana López', customData: { injected: 'valor' } }),
+    ).rejects.toThrow('no corresponde a este evento')
+  })
+
+  it('rejects registration missing a required custom field', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, {
+      entryMode: 'open',
+      customFields: [{ id: 'tshirt', label: 'Talla de camiseta', type: 'text', required: true }],
+    })
+
+    await expect(registerWalkInGuest(db, eventId, { name: 'Ana López' })).rejects.toThrow('obligatorio')
+  })
+
+  it('rejects a select custom field value that is not one of the configured options', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, {
+      entryMode: 'open',
+      customFields: [
+        {
+          id: 'menu',
+          label: 'Menú',
+          type: 'select',
+          required: true,
+          options: [{ id: 'veg', label: 'Vegetariano' }, { id: 'meat', label: 'Con carne' }],
+        },
+      ],
+    })
+
+    await expect(
+      registerWalkInGuest(db, eventId, { name: 'Ana López', customData: { menu: 'fake-option' } }),
+    ).rejects.toThrow('no es una opción válida')
+  })
+
+  it('accepts a valid select custom field value and stores the option id', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, {
+      entryMode: 'open',
+      customFields: [
+        {
+          id: 'menu',
+          label: 'Menú',
+          type: 'select',
+          required: true,
+          options: [{ id: 'veg', label: 'Vegetariano' }, { id: 'meat', label: 'Con carne' }],
+        },
+      ],
+    })
+
+    const result = await registerWalkInGuest(db, eventId, { name: 'Ana López', customData: { menu: 'veg' } })
+
+    if (result.status !== 'success') throw new Error('expected success')
+    const guest = await getGuestDoc(db, eventId, result.guestId)
+    expect(guest?.customData).toEqual({ menu: 'veg' })
+  })
+
+  it('rejects a partySize that is not a real number (payload manipulado)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open' })
+
+    await expect(
+      registerWalkInGuest(db, eventId, { name: 'Ana López', partySize: 'muchos' as unknown as number }),
+    ).rejects.toThrow('cantidad de personas')
+    const event = await db.collection('events').doc(eventId).get()
+    // El evento no debe quedar contaminado con NaN.
+    expect(Number.isFinite(event.data()?.peopleCount)).toBe(true)
+  })
+
+  it('rejects a paymentMethod that is not enabled for this event', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', requiresPayment: true, paymentMethods: ['transfer'] })
+
+    await expect(
+      registerWalkInGuest(db, eventId, { name: 'Ana López', paymentMethod: 'cash' }),
+    ).rejects.toThrow('método de pago')
+  })
+
+  it('auto-selects the single enabled paymentMethod when the client sends none', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', requiresPayment: true, paymentMethods: ['cash'] })
+
+    const result = await registerWalkInGuest(db, eventId, { name: 'Ana López' })
+
+    if (result.status !== 'success') throw new Error('expected success')
+    const guest = await getGuestDoc(db, eventId, result.guestId)
+    expect(guest?.paymentMethod).toBe('cash')
   })
 
   it('rejects a party size that would exceed capacity even with some room left', async () => {

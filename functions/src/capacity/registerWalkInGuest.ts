@@ -17,15 +17,50 @@ import { randomUUID } from 'node:crypto'
 import { hasCapacityFor } from '../lib/attendeeLimit.js'
 import { applyCounterDeltas } from '../lib/counters/index.js'
 import {
+  type CustomFieldDef,
   GUEST_EMAIL_MAX,
   GUEST_FULL_NAME_MAX,
   GUEST_PHONE_MAX,
+  GuestValidationError,
   requireMaxLength,
   requireNonEmpty,
   resolveMaxCompanions,
-  validateCustomData,
+  validatePublicCustomData,
 } from '../lib/guestValidation.js'
 import type { PaymentMethod } from '../payments/confirmPayment.js'
+
+// Clampeado, no rechazado — mismo criterio que el cliente hoy: un valor
+// fuera de rango (incluido ausente) cae a un tamaño de grupo válido en vez
+// de romper el registro. Un valor que ni siquiera es un número (payload
+// manipulado a mano, ej. partySize: "muchos") sí se rechaza — de lo
+// contrario Math.trunc()/Math.max() lo convierten en NaN, que después
+// contamina companions y el contador peopleCount del evento en Firestore.
+function resolvePartySize(rawPartySize: unknown, maxPartySize: number): number {
+  if (rawPartySize === undefined || rawPartySize === null) return 1
+  if (typeof rawPartySize !== 'number' || !Number.isFinite(rawPartySize)) {
+    throw new GuestValidationError('La cantidad de personas no es válida.')
+  }
+  return Math.min(Math.max(Math.trunc(rawPartySize), 1), maxPartySize)
+}
+
+// El cliente nunca decide por sí mismo con qué método quedó el registro:
+// requiresPayment y la lista de métodos habilitados (event.paymentMethods)
+// son configuración del organizador, así que un paymentMethod que no esté
+// en esa lista se rechaza en vez de guardarse tal cual. Con un solo método
+// habilitado, el organizador espera que el registro público funcione sin
+// que el invitado tenga que elegir nada (mismo criterio que EventJoin.tsx,
+// que en ese caso ni le muestra el selector) — se completa solo.
+function resolvePaymentMethod(
+  requiresPayment: boolean,
+  allowedMethods: PaymentMethod[] | undefined,
+  candidate: PaymentMethod | undefined,
+): PaymentMethod | null {
+  if (!requiresPayment) return null
+  const allowed = allowedMethods || []
+  if (candidate && allowed.includes(candidate)) return candidate
+  if (!candidate && allowed.length === 1) return allowed[0]
+  throw new GuestValidationError('Elige un método de pago válido para este evento.')
+}
 
 export interface RegisterWalkInGuestInput {
   name: string
@@ -63,7 +98,6 @@ export async function registerWalkInGuest(
     ? requireMaxLength(input.email.trim().toLowerCase(), GUEST_EMAIL_MAX, 'El email')
     : ''
   const trimmedPhone = input.phone?.trim() ? requireMaxLength(input.phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
-  const customData = validateCustomData(input.customData)
 
   const eventRef = db.collection('events').doc(eventId)
   const guestsCol = eventRef.collection('guests')
@@ -76,6 +110,10 @@ export async function registerWalkInGuest(
 
     const entryMode = event.entryMode as string | undefined
     if (entryMode !== 'open' && entryMode !== 'hybrid') return { status: 'not_open' }
+
+    // Contra la definición REAL de campos del evento, nunca contra lo que
+    // el cliente diga que son sus campos — ver validatePublicCustomData.
+    const customData = validatePublicCustomData(input.customData, event.customFields as CustomFieldDef[] | undefined)
 
     let offeredCount = 0
     if (event.attendeeLimitEnabled === true) {
@@ -91,17 +129,14 @@ export async function registerWalkInGuest(
       guestPhotoURL = (userSnap.data()?.photoURL as string | undefined) ?? null
     }
 
-    // Clampeado, no rechazado — mismo criterio que el cliente hoy: un valor
-    // fuera de rango (incluido ausente) cae a un tamaño de grupo válido en
-    // vez de romper el registro.
     const maxPartySize = 1 + resolveMaxCompanions(event.maxCompanions as number | undefined)
-    const clampedPartySize = Math.min(Math.max(Math.trunc(input.partySize || 1), 1), maxPartySize)
+    const clampedPartySize = resolvePartySize(input.partySize, maxPartySize)
 
     const currentGuestCount = typeof event.guestCount === 'number' ? event.guestCount : 0
     const currentPeopleCount = typeof event.peopleCount === 'number' ? event.peopleCount : currentGuestCount
 
     const requiresPayment = (event.requiresPayment as boolean) || false
-    const resolvedMethod = requiresPayment ? input.paymentMethod || null : null
+    const resolvedMethod = resolvePaymentMethod(requiresPayment, event.paymentMethods as PaymentMethod[] | undefined, input.paymentMethod)
 
     if (
       !hasCapacityFor(

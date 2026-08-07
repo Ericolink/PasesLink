@@ -108,10 +108,6 @@ service cloud.firestore {
       );
     }
 
-    function isOpenEvent(eventId) {
-      return get(/databases/$(database)/documents/events/$(eventId)).data.entryMode in ['open', 'hybrid'];
-    }
-
     // Evita crear un evento con `requiresPayment: true` y precio 0/ausente —
     // el cliente ya bloquea esto antes de enviar (ver EventCreate.tsx/
     // canProceedStep y EditEventForm.tsx/handleReviewSubmit), esta es la
@@ -371,96 +367,6 @@ service cloud.firestore {
         && isValidWallReply(newReplies[oldReplies.size()], eventId);
     }
 
-    // Auto-registro público de invitados (registerWalkInGuest, eventos
-    // open/hybrid). Solo se valida esta rama pública — el alta hecha por el
-    // organizador (addGuest/addGuestsBulk) no pasa por isOpenEvent y queda
-    // fuera de esta validación, sin cambiar su comportamiento actual.
-    // customData.size() limita la CANTIDAD de campos (Firestore rules no
-    // puede iterar un mapa para validar el largo de cada valor individual —
-    // eso solo lo cubren la UI y src/firebase/capacity.ts). Límites deben
-    // coincidir con src/utils/validation.ts.
-    //
-    // Los campos de estado (status/rsvpStatus/checkedInAt/paymentStatus/
-    // holdExpiresAt/paymentMethod) se pinean a los valores exactos que
-    // escribe registerWalkInGuest: sin esto, un cliente que hable directo
-    // contra Firestore (evitando src/firebase/capacity.ts) podía crearse a
-    // sí mismo ya 'checked_in' o 'paid' en el mismo request de alta pública,
-    // saltándose por completo el gate de pago del check-in y el cobro real.
-    //
-    // Ya no existe el "apartado temporal de lugar" (cronómetro/vencimiento):
-    // el registro nunca se bloquea por cupo y el invitado puede subir su
-    // comprobante cuando quiera, sin plazo. holdExpiresAt siempre debe
-    // llegar en null — se sigue exigiendo el campo (no se omite) para que
-    // este chequeo no dependa de leer una clave ausente (que Firestore
-    // Rules trata como error, no como null). Queda como defensa en
-    // profundidad: nadie, ni hablando directo contra Firestore, puede
-    // fabricarse un cronómetro que ya no existe en la app.
-    // Recibe `evData` ya cargado en vez de `eventId` (mismo motivo que
-    // canDoData/companionsWithinLimitData más arriba, auditoría F17): el
-    // caller de más abajo (canSelfRegisterGuest) hace UN solo get() al
-    // evento y lo reusa acá y para el chequeo de entryMode — antes,
-    // isOpenEvent(eventId) + companionsWithinLimit(eventId,...) (llamada
-    // indirectamente desde acá) pedían el mismo documento dos veces en la
-    // rama de auto-registro público, el flujo más expuesto a ráfagas de
-    // tráfico sin autenticar de toda la app.
-    function isValidPublicGuestRegistrationData(evData, d) {
-      return d.name is string && d.name.size() > 0 && d.name.size() <= 121
-        && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30))
-        && (!('paymentNote' in d) || (d.paymentNote is string && d.paymentNote.size() <= 300))
-        && d.status == 'invited'
-        && d.rsvpStatus == 'yes'
-        && d.checkedInAt == null
-        && d.paymentStatus == 'unpaid'
-        && d.paymentMethod in [null, 'transfer', 'cash']
-        && d.holdExpiresAt == null
-        && companionsWithinLimitData(evData, d, false)
-        && (
-          // guestUid/guestPhotoURL: src/firebase/capacity.ts los escribe SIEMPRE
-          // en el auto-registro (null si no hay sesión). Sin esta validación, un
-          // cliente que hable directo contra Firestore podría adjudicarse el uid
-          // de otra persona (apareciendo en el dashboard del organizador como si
-          // esa cuenta ajena se hubiera autoregistrado) o mandar cualquier URL
-          // arbitraria como foto. Defensa: guestUid debe ser el uid autenticado
-          // del propio request, y guestPhotoURL (si viene) debe coincidir con el
-          // photoURL que ESE usuario ya tiene en su propio perfil — nunca inventado.
-          //
-          // guestUid/guestPhotoURL en null se acepta CON o SIN sesión (antes la
-          // primera rama exigía request.auth == null): null no reclama ninguna
-          // identidad ni publica ninguna URL, así que no hay nada que suplantar.
-          // Exigir sesión nula acá rompía el registro real: si el listener de
-          // perfil (useAuth) todavía no había emitido cuando el usuario envió el
-          // formulario, EventJoin mandaba null teniendo el request una sesión
-          // activa, y el registro entero moría con permission-denied.
-          (d.guestUid == null && d.guestPhotoURL == null)
-          || (
-            request.auth != null
-            && d.guestUid == request.auth.uid
-            && (
-              // Registrarse sin foto siempre es válido, aunque el perfil sí
-              // tenga una (perfil aún no cargado en el cliente, o usuario de
-              // Google sin documento users/{uid} — en ambos casos el get() de
-              // abajo denegaría un registro legítimo). El corto-circuito además
-              // evita ese get() cuando no hay foto que verificar.
-              d.guestPhotoURL == null
-              // .data.get('photoURL', null), no .data.photoURL: leer una clave
-              // ausente de un mapa en reglas de Firestore lanza error, no null —
-              // un usuario sin foto debe poder autoregistrarse igual.
-              || d.guestPhotoURL == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('photoURL', null)
-            )
-          )
-        );
-    }
-
-    // Un solo get() al evento para las dos condiciones de auto-registro
-    // público (antes eran dos: isOpenEvent(eventId) + el que dispara
-    // companionsWithinLimit dentro de isValidPublicGuestRegistration) — ver
-    // comentario de isValidPublicGuestRegistrationData arriba.
-    function canSelfRegisterGuest(eventId, d) {
-      let evData = eventDataFor(eventId);
-      return evData.entryMode in ['open', 'hybrid']
-        && isValidPublicGuestRegistrationData(evData, d);
-    }
-
     // Alta pública en la lista de espera (WAITLIST_RECONFIRMATION_ARCHITECTURE.md).
     // Reemplaza el bloque `match /waitlist/{entryId}` que existía más abajo
     // (huérfano desde que se eliminó el sistema de reserva/hold — ver el
@@ -473,19 +379,19 @@ service cloud.firestore {
     // promotedGuestId, promotionReason) son EXCLUSIVAS de Cloud Functions
     // (Admin SDK, ignora estas reglas) — el cliente público solo puede crear
     // una entrada 'waiting', nunca fabricarse una oferta ni promoverse a sí
-    // mismo. Por eso esta validación es más chica que
-    // isValidPublicGuestRegistrationData: no hay tantos campos de estado que
-    // pinear porque casi ninguno es escribible por el cliente para empezar.
+    // mismo. Por eso esta validación es más chica que un alta de invitado:
+    // no hay tantos campos de estado que pinear porque casi ninguno es
+    // escribible por el cliente para empezar.
     function isValidWaitlistJoinData(evData, d) {
       return d.name is string && d.name.size() > 0 && d.name.size() <= 121
         && d.partySize is int && d.partySize >= 1 && d.partySize <= evData.get('maxCompanions', 9) + 1
         && (!('phone' in d) || (d.phone is string && d.phone.size() <= 40))
         && (!('phoneCountry' in d) || (d.phoneCountry is string && d.phoneCountry.size() <= 2))
         && (!('email' in d) || (d.email is string && d.email.size() <= 254))
-        // Respuestas a los campos personalizados del evento — mismo tope
-        // que isValidPublicGuestRegistrationData (customData.size() <= 30);
-        // el largo de cada valor individual no se puede validar acá (misma
-        // limitación ya documentada ahí), solo lo valida el cliente.
+        // Respuestas a los campos personalizados del evento — tope de
+        // customData.size() <= 30; el largo de cada valor individual no se
+        // puede validar acá (Firestore rules no puede iterar un mapa),
+        // solo lo valida el cliente.
         && (!('customData' in d) || (d.customData is map && d.customData.size() <= 30))
         && d.waitlistToken is string && d.waitlistToken.size() > 0
         && d.status == 'waiting'
@@ -498,7 +404,6 @@ service cloud.firestore {
         && d.promotionReason == null;
     }
 
-    // Un solo get() al evento, mismo motivo que canSelfRegisterGuest.
     // attendeeLimitEnabled == false también bloquea: sin cupo duro no existe
     // "lleno", así que no debería poder crearse ninguna entrada (evita ruido/
     // abuso de una colección que en ese caso nunca la va a procesar nadie).
@@ -1109,44 +1014,6 @@ service cloud.firestore {
       allow update: if (isOwnerData(resource.data) || isAdmin()) && eventContentCapsOk()
           && concessionsEnableChangeIsAllowed(resource.data, request.resource.data)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['checkinsByHour'])
-        // Auto-registro público (Opción B, eventos abiertos): anónimo pero de a 1
-        // invitación en 1 (guestCount), sumando entre 1 y 21 personas
-        // (peopleCount): el invitado más los acompañantes que el organizador le
-        // permita traer — el 21 es 1 + GUEST_MAX_COMPANIONS (techo de
-        // EventData.maxCompanions, ver src/utils/validation.ts e
-        // isValidMaxCompanions arriba; antes decía 10, copiado de una constante
-        // GUEST_MAX_PARTY_SIZE que ya no existe, y rechazaba registros legítimos
-        // en eventos con maxCompanions entre 10 y 20). eventGuestCountBefore/
-        // eventPeopleCountBefore y no resource.data.guestCount/peopleCount a
-        // secas: ver el comentario de esas funciones (eventos legacy sin esos
-        // campos denegaban el registro entero).
-        // rsvpYesCount (auditoría F22): registerWalkInGuest crea al invitado
-        // con rsvpStatus 'yes' siempre (se registra a sí mismo, ya confirma
-        // que asiste, ver capacity.ts) — mismo criterio que guestCount de
-        // abajo, sube exactamente en 1.
-        //
-        // Ubicada como SEGUNDA rama (justo después del dueño, antes de las
-        // gateadas por canDoData) a propósito: isValidPublicGuestRegistration
-        // (para un usuario logueado) ya hace su propio get() al perfil del
-        // usuario para verificar guestPhotoURL — es el flujo más caro de todo
-        // este bloque, y encima lo dispara alguien SIN ningún permiso de
-        // coanfitrión. Dejarlo al final de la cadena de ||, como estaba antes,
-        // obligaba a evaluar TODAS las ramas de canDoData (cada una con su
-        // propio costo) antes de llegar a esta — la transacción completa
-        // (guests/{guestId} create + events/{eventId} update) llegó a
-        // rechazarse con "maximum of 1000 expressions to evaluate" para el
-        // caso de un usuario logueado autoregistrándose. Subirla acá evita esa
-        // cadena entera para el caso más común de este bloque.
-        // attendeeLimitOk (CAPACITY_LIMIT_ARCHITECTURE.md): red de seguridad
-        // del límite duro y opcional de asistentes — ver el comentario de esa
-        // función. Con el límite desactivado (default) es un no-op.
-        || (resource.data.entryMode in ['open', 'hybrid']
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestCount', 'peopleCount', 'rsvpYesCount'])
-            && request.resource.data.guestCount == eventGuestCountBefore(resource.data) + 1
-            && request.resource.data.peopleCount >= eventPeopleCountBefore(resource.data) + 1
-            && request.resource.data.peopleCount <= eventPeopleCountBefore(resource.data) + 21
-            && request.resource.data.get('rsvpYesCount', 0) == resource.data.get('rsvpYesCount', 0) + 1
-            && attendeeLimitOk(resource.data, request.resource.data))
         // Contador walk-in (Opciones A y C, src/firebase/capacity.ts —
         // walkIn/walkOut): solo quien tiene el permiso `scanQr` (dueño
         // siempre lo tiene vía canDo), y solo tocando los dos contadores de
@@ -1299,8 +1166,7 @@ service cloud.firestore {
         allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin()
           || resource.data.get('status', 'invited') != 'checked_in';
         allow create: if (canDo(eventId, 'addGuests', true) && companionsWithinLimit(eventId, request.resource.data, false))
-          || isAdmin()
-          || canSelfRegisterGuest(eventId, request.resource.data);
+          || isAdmin();
         allow list: if request.query.limit <= 1;
         allow get: if true;
         // Rama del organizador: updateGuest (nombre/apellido/companions/
@@ -1476,11 +1342,9 @@ service cloud.firestore {
         // ese contacto: el guest se creaba pero el batch entero fallaba en
         // el `set` de guestContacts, dejando el teléfono/email perdido.
         allow create: if canDo(eventId, 'editGuests', true) || canDo(eventId, 'addGuests', true) || isAdmin()
-          || (isOpenEvent(eventId) && isValidPublicGuestContact())
           // Primer guardado de contacto del propio invitado (p.ej. un
           // invitado de lista, agregado sin teléfono, que ahora carga el
-          // suyo por primera vez) — a diferencia de la rama de arriba, no
-          // exige isOpenEvent: esto aplica a cualquier invitado con pase,
+          // suyo por primera vez) — aplica a cualquier invitado con pase,
           // venga de lista o autoregistro.
           || (
             request.resource.data.keys().hasOnly(['email', 'phone', 'phoneCountry', 'lockToken']) &&
@@ -1523,10 +1387,9 @@ service cloud.firestore {
       }
 
       // Catálogo del módulo de comida/bebida (ver RFC §4.2). Lectura pública
-      // para cualquier invitado del evento (isOpenEvent cubre el caso de
-      // autoregistro; un evento 'list' de todas formas es legible por
-      // cualquiera que tenga el link del GuestPass, igual que el resto del
-      // contenido del evento en este archivo) más el propio staff/organizador
+      // para cualquier invitado del evento (un evento 'list' de todas formas
+      // es legible por cualquiera que tenga el link del GuestPass, igual
+      // que el resto del contenido del evento en este archivo) más el propio staff/organizador
       // para poder armar el pedido/administrar el catálogo. `delete` real
       // nunca — solo `status: 'archived'` (soft delete, ver comentario de
       // ConcessionItem.status).
