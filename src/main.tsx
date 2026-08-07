@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { initSentry } from './lib/sentry'
 import { initAnalytics } from './lib/analytics'
+import { installChunkReloadRecovery } from './lib/chunkReload'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider } from './contexts/AuthContext'
 import { AnnouncementProvider } from './components/accessibility/LiveRegion'
@@ -14,6 +15,7 @@ import { AnnouncementProvider } from './components/accessibility/LiveRegion'
 // una Content-Security-Policy sin 'unsafe-inline' bloquea.
 document.getElementById('app-fonts')?.setAttribute('media', 'all')
 
+installChunkReloadRecovery()
 initSentry()
 initAnalytics()
 
