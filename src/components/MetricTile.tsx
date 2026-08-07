@@ -1,8 +1,17 @@
 import type { ComponentType } from 'react'
 import { SkeletonBlock } from './Skeleton'
+import { IconTrendingDown, IconTrendingUp } from './accessibility/AccessibleIcon'
 
 type MetricAccent = 'primary' | 'success' | 'warning' | 'gray'
 type MetricAlign = 'center' | 'start'
+
+export interface MetricTrend {
+  /** Ya formateado por quien llama (ej. "+12%", "-3") — MetricTile no asume unidad. */
+  value: string
+  direction: 'up' | 'down' | 'flat'
+  /** Ej. "vs. semana anterior" */
+  label: string
+}
 
 interface MetricTileProps {
   label: string
@@ -13,6 +22,8 @@ interface MetricTileProps {
       'start' (ver Admin): ícono+label arriba a la izquierda, valor debajo. */
   align?: MetricAlign
   accent?: MetricAccent
+  /** Comparación contra el período anterior (Centro de Control) — opcional, ningún caller existente se ve afectado. */
+  trend?: MetricTrend
 }
 
 // success-ink/warning-ink ya se ramifican solos entre temas (ver
@@ -34,13 +45,19 @@ const ACCENT_CLASS: Record<MetricAccent, string> = {
 // (hallazgo C7 de la auditoría). `invite-stat-card` (ver templates.css /
 // index.css) es un no-op fuera de EventDetail/Reports — deja intacto el
 // borde de acento que ya aplica ahí vía [data-dash-template].
-export function MetricTile({ label, value, sub, icon: Icon, align = 'center', accent = 'gray' }: MetricTileProps) {
-  // role="group" + aria-label combinando label+valor+sub: sin esto, un
+const TREND_CLASS: Record<MetricTrend['direction'], string> = {
+  up: 'text-success-ink',
+  down: 'text-warning-ink',
+  flat: 'text-gray-400 dark:text-gray-500',
+}
+
+export function MetricTile({ label, value, sub, icon: Icon, align = 'center', accent = 'gray', trend }: MetricTileProps) {
+  // role="group" + aria-label combinando label+valor+sub+trend: sin esto, un
   // lector de pantalla depende del orden del DOM (que además cambia según
   // `align`, ver abajo) para asociar el número con lo que significa — con el
   // grupo nombrado, "Escaneados: 42, 84% del total" se lee como una unidad
   // sin importar el orden visual.
-  const groupLabel = `${label}: ${value}${sub ? `, ${sub}` : ''}`
+  const groupLabel = `${label}: ${value}${sub ? `, ${sub}` : ''}${trend ? `, ${trend.value} ${trend.label}` : ''}`
 
   return (
     <div
@@ -63,6 +80,14 @@ export function MetricTile({ label, value, sub, icon: Icon, align = 'center', ac
         </>
       )}
       {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 leading-tight">{sub}</p>}
+      {trend && (
+        <p aria-hidden="true" className={`flex items-center gap-1 text-xs mt-1 ${align === 'center' ? 'justify-center' : ''} ${TREND_CLASS[trend.direction]}`}>
+          {trend.direction === 'up' && <IconTrendingUp className="w-3 h-3 shrink-0" />}
+          {trend.direction === 'down' && <IconTrendingDown className="w-3 h-3 shrink-0" />}
+          <span className="tabular-nums">{trend.value}</span>
+          <span className="text-gray-400 dark:text-gray-500">{trend.label}</span>
+        </p>
+      )}
     </div>
   )
 }

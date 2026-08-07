@@ -5,111 +5,64 @@ import {
   getAllUsers,
   getEventStats,
   getUserStats,
-  subscribeToAdminAuditLog,
-  logAdminAction,
-  type AdminAuditLogEntry,
   type AdminEventStats,
   type AdminUser,
   type AdminUserStats,
 } from '../firebase/admin'
-import {
-  deleteFeedback,
-  markFeedbackRead,
-  subscribeToAllFeedback,
-  toggleFeedbackFavorite,
-  updateFeedbackNotes,
-  updateFeedbackPriority,
-  updateFeedbackStatus,
-  updateFeedbackTags,
-} from '../firebase/feedback'
-import { reviewCommunityTemplate, subscribeToAllCommunityTemplates } from '../firebase/communityTemplates'
-import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { useUnreadFeedbackCount } from '../hooks/useUnreadFeedbackCount'
-import { deleteEvent, setEventStatus } from '../firebase/events'
-import { attendancePercent } from '../utils/attendance'
-import type { CommunityTemplate, EventData, EventStatus, Feedback, FeedbackPriority, FeedbackStatus } from '../types'
-import { ConfirmDialog } from '../components/ConfirmDialog'
+import type { EventData } from '../types'
 import { Tab as TabButton, TabList, TabPanel, Tabs } from '../components/accessibility/AccessibleTabs'
-import { MetricTile } from '../components/MetricTile'
-import { AdminActivityChart } from '../components/Admin/AdminActivityChart'
-import { AdminEventsTable } from '../components/Admin/AdminEventsTable'
-import { AdminUsersTable } from '../components/Admin/AdminUsersTable'
-import { AdminActivityLog } from '../components/Admin/AdminActivityLog'
-import { AdminFeedbackTable } from '../components/Admin/AdminFeedbackTable'
-import { AdminFeedbackDetail } from '../components/Admin/AdminFeedbackDetail'
-import { AdminCommunityTemplatesTable } from '../components/Admin/AdminCommunityTemplatesTable'
-import { AdminCommunityTemplateDetail } from '../components/Admin/AdminCommunityTemplateDetail'
-import { AdminReportsTab } from '../components/Admin/AdminReportsTab'
 import { ScreenHeader } from '../components/ScreenHeader'
-import {
-  IconBarChart,
-  IconBarChart2,
-  IconCalendar,
-  IconCheckCircle,
-  IconTicket,
-  IconUserPlus,
-  IconUsers,
-} from '../components/accessibility/AccessibleIcon'
-
-const STATUS_LABELS: Record<EventStatus, string> = {
-  active: 'Activo',
-  cancelled: 'Cancelado',
-  archived: 'Archivado',
-}
-
-type Tab = 'events' | 'users' | 'activity' | 'feedback' | 'reports' | 'templates'
-type BulkAction = 'archive' | 'cancel' | 'delete'
+import { AdminManagement, MANAGEMENT_TAB_VALUES, type ManagementTab } from './Admin/AdminManagement'
+import { AdminControlCenter } from './Admin/AdminControlCenter'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
+type MacroTab = 'control' | 'gestion'
+
 export function AdminDashboard() {
   useDocumentTitle('Admin')
-  const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<EventData[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
-  const [feedback, setFeedback] = useState<Feedback[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [eventStats, setEventStats] = useState<AdminEventStats | null>(null)
   const [userStats, setUserStats] = useState<AdminUserStats | null>(null)
   const [statsLoading, setStatsLoading] = useState(true)
-  const [feedbackLoading, setFeedbackLoading] = useState(true)
-  const unreadFeedbackCount = useUnreadFeedbackCount()
+  // Incrementarlo vuelve a pedir events/users (botón "Actualizar" de Gestión,
+  // y automáticamente tras archivar/cancelar/borrar un evento desde ahí —
+  // ver AdminManagement.tsx).
+  const [refreshToken, setRefreshToken] = useState(0)
 
   // Link directo del correo de aviso de reportes (ver
   // functions/src/triggers/onReportCreated.ts): /admin?tab=reports&reportId=X
-  // abre el panel directo en el caso reportado.
-  const [tab, setTab] = useState<Tab>(() => (searchParams.get('tab') === 'reports' ? 'reports' : 'events'))
+  // sigue aterrizando directo en Gestión → Reportes con el caso abierto —
+  // Centro de Control es la pantalla de aterrizaje solo cuando `?tab` NO
+  // coincide con ninguna pestaña de Gestión.
+  const [initialManagementTab] = useState<ManagementTab | undefined>(() => {
+    const t = searchParams.get('tab')
+    return MANAGEMENT_TAB_VALUES.includes(t as ManagementTab) ? (t as ManagementTab) : undefined
+  })
   const [initialReportId] = useState(() => searchParams.get('reportId'))
-  const [eventsSearch, setEventsSearch] = useState('')
-  const [feedbackSearch, setFeedbackSearch] = useState('')
+  const [macroTab, setMacroTab] = useState<MacroTab>(() => (initialManagementTab ? 'gestion' : 'control'))
+  const [managementTab, setManagementTab] = useState<ManagementTab>(initialManagementTab || 'events')
 
-  const [deletingEvent, setDeletingEvent] = useState<EventData | null>(null)
-  const [bulkAction, setBulkAction] = useState<{ events: EventData[]; action: BulkAction } | null>(null)
-  // Se guarda el id (no el objeto) para que el modal de detalle y el diálogo
-  // de borrado siempre reflejen la versión más reciente del doc — la
-  // suscripción en vivo puede actualizar `feedback` mientras el admin lo
-  // tiene abierto (ej. después de cambiar su propio estado/prioridad).
-  const [openFeedbackId, setOpenFeedbackId] = useState<string | null>(null)
-  const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null)
-  const [communityTemplates, setCommunityTemplates] = useState<CommunityTemplate[]>([])
-  const [communityTemplatesLoading, setCommunityTemplatesLoading] = useState(true)
-  const [openTemplateId, setOpenTemplateId] = useState<string | null>(null)
-  const [actionBusy, setActionBusy] = useState(false)
-  const [actionError, setActionError] = useState('')
-  const [actionMessage, setActionMessage] = useState('')
-  // Incrementarlo vuelve a pedir events/users (botón "Actualizar" de abajo,
-  // y automáticamente tras archivar/cancelar/borrar un evento desde este
-  // panel — ver handleStatusChange/confirmDeleteEvent/confirmBulkAction).
-  const [refreshToken, setRefreshToken] = useState(0)
+  // Usado por "Acciones rápidas" del Centro de Control (ver
+  // AdminControlCenter → QuickActionsBar) para saltar directo a una pestaña
+  // puntual de Gestión, sin pasar por la URL.
+  function goToManagement(tab: ManagementTab) {
+    setManagementTab(tab)
+    setMacroTab('gestion')
+  }
 
   // Auditoría F10: antes eran listeners en vivo (subscribeToAllEvents/
   // subscribeToAllUsers) — cualquier escritura a CUALQUIER evento/usuario de
   // toda la plataforma reenviaba la colección completa a cada admin con el
   // panel abierto. Ahora son lecturas puntuales (getAllEvents/getAllUsers),
-  // refrescadas a pedido — ver refreshToken arriba.
+  // refrescadas a pedido — ver refreshToken arriba. events/users cargados
+  // acá (no en AdminManagement/AdminControlCenter) para que ambas pestañas
+  // compartan la misma descarga en vez de duplicarla.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     let cancelled = false
@@ -132,11 +85,9 @@ export function AdminDashboard() {
   }, [refreshToken])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Tarjetas de resumen: agregaciones server-side, una sola vez al montar
-  // (no en vivo — Firestore no ofrece un listener para agregaciones, mismo
-  // límite que ya acepta getReportCountForContent en moderation.ts). A
-  // diferencia de `events`/`users` de arriba, esto ya NO descarga la
-  // colección completa solo para sumar/contar unos pocos números.
+  // Tarjetas de resumen del Centro de Control: agregaciones server-side, una
+  // sola vez al montar (no en vivo — Firestore no ofrece un listener para
+  // agregaciones).
   useEffect(() => {
     let cancelled = false
     Promise.all([getEventStats(), getUserStats(Date.now() - WEEK_MS)])
@@ -154,46 +105,9 @@ export function AdminDashboard() {
     return () => { cancelled = true }
   }, [])
 
-  // Colección completa de feedback: solo hace falta para listar mensajes en
-  // la pestaña "Buzón" — el badge de no leídos (siempre visible) ya usa
-  // subscribeToUnreadFeedbackCount vía useUnreadFeedbackCount, que es una
-  // query acotada (where read==false), no esta descarga completa. Así, un
-  // admin que nunca abre "Buzón" no paga por ella.
-  useEffect(() => {
-    if (tab !== 'feedback') return
-    return subscribeToAllFeedback(
-      (data) => {
-        setFeedback(data)
-        setFeedbackLoading(false)
-      },
-      (err) => {
-        console.error('Error loading feedback:', err)
-        setLoadError('No se pudieron cargar los mensajes del buzón. Verifica tu conexión o tus permisos.')
-        setFeedbackLoading(false)
-      },
-    )
-  }, [tab])
-
-  // Mismo criterio que el efecto de feedback arriba: solo se suscribe
-  // mientras la pestaña "Plantillas" está activa, así un admin que nunca la
-  // abre no paga por este listener.
-  useEffect(() => {
-    if (tab !== 'templates') return
-    return subscribeToAllCommunityTemplates(
-      (data) => {
-        setCommunityTemplates(data)
-        setCommunityTemplatesLoading(false)
-      },
-      (err) => {
-        console.error('Error loading community templates:', err)
-        setCommunityTemplatesLoading(false)
-      },
-    )
-  }, [tab])
-
   // Memoizado: recorrer eventos+usuarios para construir estos mapas es
   // O(n) — intrascendente hoy, pero deja de serlo con miles de filas si se
-  // recalculara en cada render (p.ej. al escribir en el buscador).
+  // recalculara en cada render (p.ej. al escribir en el buscador de Gestión).
   const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
   const eventCountByUser = useMemo(() => {
     const counts = new Map<string, number>()
@@ -202,209 +116,6 @@ export function AdminDashboard() {
     }
     return counts
   }, [events])
-  // totalPeople (suma de peopleCount, personas reales incluyendo
-  // acompañantes/familias) es el denominador correcto para checkinRate —
-  // totalGuests (invitaciones) da porcentajes >100% en cuanto hay
-  // acompañantes, igual que el bug corregido en Reports.tsx. totalGuests se
-  // sigue mostrando aparte como "Invitados totales" (conteo de invitaciones,
-  // una métrica válida por sí misma). Ambos vienen ahora de getEventStats
-  // (agregación server-side, ver efecto de arriba) en vez de recorrer el
-  // array completo de eventos.
-  const stats = useMemo(() => ({
-    activeEvents: eventStats?.activeEvents ?? 0,
-    totalEvents: eventStats?.totalEvents ?? 0,
-    totalUsers: userStats?.totalUsers ?? 0,
-    newUsers7d: userStats?.newUsers7d ?? 0,
-    totalGuests: eventStats?.totalGuests ?? 0,
-    totalCheckins: eventStats?.totalCheckins ?? 0,
-    checkinRate: eventStats && eventStats.totalPeople > 0
-      ? Math.round(attendancePercent(eventStats.totalCheckins, eventStats.totalPeople))
-      : null,
-  }), [eventStats, userStats])
-
-  function auditContext() {
-    if (!user) throw new Error('No hay sesión de admin activa')
-    return { adminUid: user.uid, adminEmail: user.email }
-  }
-
-  async function handleStatusChange(eventId: string, status: EventStatus) {
-    setActionError('')
-    const event = events.find((e) => e.id === eventId)
-    try {
-      await setEventStatus(eventId, status)
-      if (event) {
-        await logAdminAction({
-          ...auditContext(),
-          action: 'event_status_change',
-          targetType: 'event',
-          targetId: eventId,
-          targetName: event.name,
-          meta: STATUS_LABELS[status],
-        })
-      }
-    } catch (err) {
-      console.error('Error updating event status:', err)
-      setActionError('No se pudo actualizar el estado del evento. Intenta de nuevo.')
-    } finally {
-      // events ya no es un listener en vivo (auditoría F10) — hay que
-      // volver a pedirlo para reflejar el cambio, éxito o no.
-      setRefreshToken((n) => n + 1)
-    }
-  }
-
-  async function confirmDeleteEvent() {
-    if (!deletingEvent) return
-    setActionBusy(true)
-    setActionError('')
-    try {
-      await deleteEvent(deletingEvent.id)
-      await logAdminAction({
-        ...auditContext(),
-        action: 'event_delete',
-        targetType: 'event',
-        targetId: deletingEvent.id,
-        targetName: deletingEvent.name,
-      })
-      setActionMessage(`"${deletingEvent.name}" fue eliminado.`)
-    } catch (err) {
-      console.error('Error deleting event:', err)
-      setActionError('No se pudo eliminar el evento por completo. Es posible que parte de los datos ya se haya borrado — revisa el evento e intenta de nuevo.')
-    } finally {
-      setActionBusy(false)
-      setDeletingEvent(null)
-      setRefreshToken((n) => n + 1)
-    }
-  }
-
-  async function confirmBulkAction() {
-    if (!bulkAction) return
-    setActionBusy(true)
-    setActionError('')
-    let ok = 0
-    let failed = 0
-    for (const event of bulkAction.events) {
-      try {
-        if (bulkAction.action === 'delete') {
-          await deleteEvent(event.id)
-          await logAdminAction({ ...auditContext(), action: 'event_delete', targetType: 'event', targetId: event.id, targetName: event.name })
-        } else {
-          const status: EventStatus = bulkAction.action === 'archive' ? 'archived' : 'cancelled'
-          await setEventStatus(event.id, status)
-          await logAdminAction({ ...auditContext(), action: 'event_status_change', targetType: 'event', targetId: event.id, targetName: event.name, meta: STATUS_LABELS[status] })
-        }
-        ok++
-      } catch (err) {
-        console.error('Error en acción masiva sobre evento', event.id, err)
-        failed++
-      }
-    }
-    setActionBusy(false)
-    setBulkAction(null)
-    setRefreshToken((n) => n + 1)
-    if (failed === 0) setActionMessage(`${ok} evento${ok === 1 ? '' : 's'} actualizado${ok === 1 ? '' : 's'} correctamente.`)
-    else setActionError(`${ok} evento(s) actualizados, ${failed} fallaron. Intenta de nuevo con los restantes.`)
-  }
-
-  function handleFilterEventsByOwner(owner: AdminUser) {
-    setTab('events')
-    setEventsSearch(owner.email || owner.id)
-  }
-
-  const openFeedbackItem = feedback.find((f) => f.id === openFeedbackId) || null
-  const deletingFeedbackItem = feedback.find((f) => f.id === deletingFeedbackId) || null
-  const openTemplateItem = communityTemplates.find((t) => t.id === openTemplateId) || null
-  const inReviewTemplatesCount = communityTemplates.filter((t) => t.status === 'in_review').length
-
-  function handleOpenFeedback(item: Feedback) {
-    setOpenFeedbackId(item.id)
-    if (!item.read) {
-      markFeedbackRead(item.id).catch((err) => console.error('Error marcando feedback como leído:', err))
-    }
-  }
-
-  async function handleFeedbackStatusChange(id: string, status: FeedbackStatus) {
-    try {
-      await updateFeedbackStatus(id, status)
-    } catch (err) {
-      console.error('Error actualizando estado del feedback:', err)
-      setActionError('No se pudo actualizar el estado del mensaje. Intenta de nuevo.')
-    }
-  }
-
-  async function handleFeedbackPriorityChange(id: string, priority: FeedbackPriority) {
-    try {
-      await updateFeedbackPriority(id, priority)
-    } catch (err) {
-      console.error('Error actualizando prioridad del feedback:', err)
-      setActionError('No se pudo actualizar la prioridad del mensaje. Intenta de nuevo.')
-    }
-  }
-
-  async function handleSaveFeedbackTags(id: string, tags: string[]) {
-    try {
-      await updateFeedbackTags(id, tags)
-    } catch (err) {
-      console.error('Error actualizando etiquetas del feedback:', err)
-      setActionError('No se pudieron actualizar las etiquetas. Intenta de nuevo.')
-    }
-  }
-
-  async function handleSaveFeedbackNotes(id: string, notes: string) {
-    try {
-      await updateFeedbackNotes(id, notes)
-    } catch (err) {
-      console.error('Error guardando notas del feedback:', err)
-      setActionError('No se pudieron guardar las notas. Intenta de nuevo.')
-    }
-  }
-
-  async function handleToggleFeedbackFavorite(item: Feedback) {
-    try {
-      await toggleFeedbackFavorite(item.id, item.favorite)
-    } catch (err) {
-      console.error('Error actualizando favorito del feedback:', err)
-      setActionError('No se pudo actualizar el favorito. Intenta de nuevo.')
-    }
-  }
-
-  async function confirmDeleteFeedback() {
-    if (!deletingFeedbackItem) return
-    setActionBusy(true)
-    setActionError('')
-    try {
-      await deleteFeedback(deletingFeedbackItem.id)
-      setActionMessage('El mensaje fue eliminado.')
-      if (openFeedbackId === deletingFeedbackItem.id) setOpenFeedbackId(null)
-    } catch (err) {
-      console.error('Error eliminando feedback:', err)
-      setActionError('No se pudo eliminar el mensaje. Intenta de nuevo.')
-    } finally {
-      setActionBusy(false)
-      setDeletingFeedbackId(null)
-    }
-  }
-
-  async function handleReviewTemplate(id: string, status: 'approved' | 'rejected' | 'archived', reviewNotes: string) {
-    if (!user) return
-    setActionBusy(true)
-    setActionError('')
-    try {
-      await reviewCommunityTemplate(id, { status, reviewerUid: user.uid, reviewNotes })
-      setActionMessage(status === 'approved' ? 'Plantilla aprobada.' : status === 'rejected' ? 'Plantilla rechazada.' : 'Plantilla archivada.')
-      setOpenTemplateId(null)
-    } catch (err) {
-      console.error('Error revisando plantilla comunitaria:', err)
-      setActionError('No se pudo actualizar la plantilla. Intenta de nuevo.')
-    } finally {
-      setActionBusy(false)
-    }
-  }
-
-  const bulkActionCopy: Record<BulkAction, { title: string; verb: string; danger: boolean }> = {
-    archive: { title: 'Archivar eventos', verb: 'archivar', danger: false },
-    cancel: { title: 'Cancelar eventos', verb: 'cancelar', danger: false },
-    delete: { title: 'Eliminar eventos', verb: 'eliminar', danger: true },
-  }
 
   if (loadError) return <p className="text-center text-red-500 mt-16">{loadError}</p>
 
@@ -412,184 +123,37 @@ export function AdminDashboard() {
     <div className="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
       <ScreenHeader title="Panel de administración" subtitle="Visión general de eventos y clientes de PaseLink" backTo="/profile" />
 
-      {actionError && (
-        <p role="alert" className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md px-3 py-2 mb-4">{actionError}</p>
-      )}
-      {actionMessage && (
-        <p role="status" className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md px-3 py-2 mb-4">{actionMessage}</p>
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        {statsLoading ? (
-          Array.from({ length: 7 }).map((_, i) => <MetricTile.Skeleton key={i} />)
-        ) : (
-          <>
-            <MetricTile label="Eventos activos" value={stats.activeEvents} icon={IconCalendar} align="start" accent="primary" />
-            <MetricTile label="Eventos totales" value={stats.totalEvents} icon={IconBarChart2} align="start" />
-            <MetricTile label="Clientes totales" value={stats.totalUsers} icon={IconUsers} align="start" />
-            <MetricTile label="Nuevos (7 días)" value={stats.newUsers7d} icon={IconUserPlus} align="start" accent="success" />
-            <MetricTile label="Invitados totales" value={stats.totalGuests} icon={IconTicket} align="start" />
-            <MetricTile label="Check-ins totales" value={stats.totalCheckins} icon={IconCheckCircle} align="start" />
-            <MetricTile label="Tasa de check-in" value={stats.checkinRate !== null ? `${stats.checkinRate}%` : '—'} icon={IconBarChart} align="start" accent="warning" />
-          </>
-        )}
-      </div>
-
-      {!loading && events.length >= 2 && (
-        <div className="mb-6">
-          <AdminActivityChart events={events} />
-        </div>
-      )}
-
-      <Tabs value={tab} onChange={setTab}>
-        <TabList aria-label="Secciones de administración" className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
-          <TabButton value="events" label="Eventos" count={events.length} />
-          <TabButton value="users" label="Clientes" count={users.length} />
-          <TabButton value="feedback" label="Buzón" unreadCount={unreadFeedbackCount} />
-          <TabButton value="reports" label="Reportes" />
-          <TabButton value="templates" label="Plantillas" unreadCount={inReviewTemplatesCount} />
-          <TabButton value="activity" label="Actividad" />
+      <Tabs value={macroTab} onChange={setMacroTab}>
+        <TabList aria-label="Panel de administración" className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
+          <TabButton value="control" label="Centro de Control" />
+          <TabButton value="gestion" label="Gestión" />
         </TabList>
 
-        <TabPanel value="events">
-          {/* events/users ya no son listeners en vivo (auditoría F10) — este
-              botón los refresca sin salir de la pantalla. Se actualizan solos
-              después de archivar/cancelar/borrar un evento desde este mismo
-              panel (ver setRefreshToken en esos handlers). */}
-          <div className="flex justify-end mb-2">
-            <button
-              onClick={() => setRefreshToken((n) => n + 1)}
-              disabled={loading}
-              className="text-sm text-primary font-medium disabled:opacity-50"
-            >
-              {loading ? 'Actualizando…' : 'Actualizar'}
-            </button>
-          </div>
-          <AdminEventsTable
+        <TabPanel value="control">
+          <AdminControlCenter
             events={events}
-            usersById={usersById}
-            loading={loading}
-            search={eventsSearch}
-            onSearchChange={setEventsSearch}
-            onStatusChange={handleStatusChange}
-            onRequestDelete={setDeletingEvent}
-            onRequestBulkAction={(evts, action) => setBulkAction({ events: evts, action })}
+            eventsLoading={loading}
+            eventStats={eventStats}
+            userStats={userStats}
+            statsLoading={statsLoading}
+            onGoToManagement={goToManagement}
           />
         </TabPanel>
 
-        <TabPanel value="users">
-          <div className="flex justify-end mb-2">
-            <button
-              onClick={() => setRefreshToken((n) => n + 1)}
-              disabled={loading}
-              className="text-sm text-primary font-medium disabled:opacity-50"
-            >
-              {loading ? 'Actualizando…' : 'Actualizar'}
-            </button>
-          </div>
-          <AdminUsersTable
+        <TabPanel value="gestion">
+          <AdminManagement
+            events={events}
             users={users}
-            loading={loading}
+            usersById={usersById}
             eventCountByUser={eventCountByUser}
-            onFilterEventsByOwner={handleFilterEventsByOwner}
+            loading={loading}
+            onRefresh={() => setRefreshToken((n) => n + 1)}
+            tab={managementTab}
+            onTabChange={setManagementTab}
+            initialReportId={initialReportId}
           />
-        </TabPanel>
-
-        <TabPanel value="feedback">
-          <AdminFeedbackTable
-            items={feedback}
-            loading={feedbackLoading}
-            search={feedbackSearch}
-            onSearchChange={setFeedbackSearch}
-            onOpen={handleOpenFeedback}
-            onToggleFavorite={handleToggleFeedbackFavorite}
-            onRequestDelete={(item) => setDeletingFeedbackId(item.id)}
-          />
-        </TabPanel>
-
-        <TabPanel value="reports">
-          <AdminReportsTab initialReportId={initialReportId} />
-        </TabPanel>
-
-        <TabPanel value="templates">
-          <AdminCommunityTemplatesTable
-            items={communityTemplates}
-            loading={communityTemplatesLoading}
-            onOpen={(item) => setOpenTemplateId(item.id)}
-          />
-        </TabPanel>
-
-        <TabPanel value="activity">
-          <ActivityTab />
         </TabPanel>
       </Tabs>
-
-      <ConfirmDialog
-        open={!!deletingEvent}
-        title="Eliminar evento"
-        message={`¿Eliminar "${deletingEvent?.name}" definitivamente? Se borrarán todos sus invitados y el historial de check-ins. Esta acción no se puede deshacer. Si el evento tiene muchos invitados, puede tardar varios segundos — no cierres esta ventana.`}
-        confirmLabel={actionBusy ? 'Eliminando…' : 'Eliminar'}
-        danger
-        onConfirm={confirmDeleteEvent}
-        onCancel={() => setDeletingEvent(null)}
-      />
-
-      <ConfirmDialog
-        open={!!bulkAction}
-        title={bulkAction ? bulkActionCopy[bulkAction.action].title : ''}
-        message={bulkAction ? `¿Seguro que quieres ${bulkActionCopy[bulkAction.action].verb} ${bulkAction.events.length} evento(s)? ${bulkAction.action === 'delete' ? 'Esta acción no se puede deshacer.' : ''}` : ''}
-        confirmLabel={actionBusy ? 'Procesando…' : 'Confirmar'}
-        danger={bulkAction ? bulkActionCopy[bulkAction.action].danger : false}
-        onConfirm={confirmBulkAction}
-        onCancel={() => setBulkAction(null)}
-      />
-
-      <ConfirmDialog
-        open={!!deletingFeedbackItem}
-        title="Eliminar mensaje"
-        message={`¿Eliminar "${deletingFeedbackItem?.subject}" definitivamente? Esta acción no se puede deshacer.`}
-        confirmLabel={actionBusy ? 'Eliminando…' : 'Eliminar'}
-        danger
-        onConfirm={confirmDeleteFeedback}
-        onCancel={() => setDeletingFeedbackId(null)}
-      />
-
-      <AdminFeedbackDetail
-        feedback={openFeedbackItem}
-        onClose={() => setOpenFeedbackId(null)}
-        onStatusChange={handleFeedbackStatusChange}
-        onPriorityChange={handleFeedbackPriorityChange}
-        onSaveTags={handleSaveFeedbackTags}
-        onSaveNotes={handleSaveFeedbackNotes}
-        onToggleFavorite={handleToggleFeedbackFavorite}
-        onRequestDelete={(item) => setDeletingFeedbackId(item.id)}
-      />
-
-      <AdminCommunityTemplateDetail
-        template={openTemplateItem}
-        onClose={() => setOpenTemplateId(null)}
-        onReview={handleReviewTemplate}
-      />
     </div>
   )
-}
-
-function ActivityTab() {
-  const [entries, setEntries] = useState<AdminAuditLogEntry[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    return subscribeToAdminAuditLog(
-      (data) => {
-        setEntries(data)
-        setLoading(false)
-      },
-      (err) => {
-        console.error('Error loading admin audit log:', err)
-        setLoading(false)
-      },
-    )
-  }, [])
-
-  return <AdminActivityLog entries={entries} loading={loading} />
 }

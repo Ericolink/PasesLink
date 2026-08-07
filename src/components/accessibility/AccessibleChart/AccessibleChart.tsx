@@ -9,7 +9,7 @@ interface AccessibleChartProps {
   /** Título corto y visible debajo del gráfico (ej. "Hora del día"). */
   caption: string
   /** Las barras/columnas del gráfico — deben llevar `aria-hidden="true"` en
-      el nivel que las contiene (ver EventAnalytics/AdminActivityChart): con
+      el nivel que las contiene (ver EventAnalytics/Admin/ControlCenter/charts): con
       `summary` ya cubriendo el contenido, un lector de pantalla no debe
       además leer cada barra suelta. */
   children: ReactNode

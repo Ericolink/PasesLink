@@ -25,6 +25,13 @@ export default defineConfig({
         // explícito es lo que permite ese filtro.
         manualChunks(id) {
           if (id.includes('node_modules/@sentry/replay')) return 'sentry-replay'
+          // Recharts (~90-120 KB gzip, con sus dependencias d3-*) solo lo
+          // importan los 3 charts del Centro de Control admin (ver
+          // Admin/ControlCenter/charts/*.tsx), cada uno vía React.lazy() —
+          // aislarlo en su propio chunk nombrado evita que quede pegado al
+          // chunk de AdminDashboard/AdminControlCenter (que si se precachea o
+          // se visita sin abrir ninguna gráfica, no debería arrastrar esto).
+          if (id.includes('node_modules/recharts') || /node_modules\/d3-[^/]+\//.test(id)) return 'admin-charts'
         },
       },
     },
@@ -32,11 +39,15 @@ export default defineConfig({
       // Vite precarga por defecto TODO chunk alcanzable por un import()
       // dinámico desde el entrypoint, aunque nunca se ejecute hasta idle —
       // eso anula el ahorro de ancho de banda de loadReplayLazily, porque el
-      // navegador igual lo baja de entrada. Se excluye únicamente el chunk
-      // de replay (ver manualChunks arriba); el resto de los dynamic
-      // imports legítimos (páginas lazy, exportPdf, etc.) se siguen
-      // precargando normalmente.
-      resolveDependencies: (_filename, deps) => deps.filter((dep) => !dep.includes('sentry-replay')),
+      // navegador igual lo baja de entrada. Mismo problema con admin-charts
+      // (Recharts): sin este filtro, Vite agregaba
+      // <link rel="modulepreload" href="/assets/admin-charts-*.js"> directo
+      // en index.html (confirmado con `npm run build` + grep), porque es
+      // alcanzable por un import() dinámico desde AdminDashboard — aunque
+      // NINGÚN visitante público llegue nunca a montar ese chunk. Se
+      // excluyen ambos; el resto de los dynamic imports legítimos (páginas
+      // lazy, exportPdf, etc.) se siguen precargando normalmente.
+      resolveDependencies: (_filename, deps) => deps.filter((dep) => !dep.includes('sentry-replay') && !dep.includes('admin-charts')),
     },
   },
   plugins: [
@@ -93,7 +104,14 @@ export default defineConfig({
         // precache — quedan disponibles igual la primera vez que alguien SÍ
         // visita esa ruta, vía el runtimeCaching de abajo, y de ahí en
         // adelante sí quedan cacheados para esa persona puntual.
-        globIgnores: ['**/AdminDashboard-*.js', '**/Scanner-*.js', '**/exportPdf-*.js', '**/exportExcel-*.js', '**/html2canvas-*.js'],
+        globIgnores: [
+          '**/AdminDashboard-*.js',
+          '**/Scanner-*.js',
+          '**/exportPdf-*.js',
+          '**/exportExcel-*.js',
+          '**/html2canvas-*.js',
+          '**/admin-charts-*.js',
+        ],
         navigateFallback: '/index.html',
         // /__/* son los helpers de Firebase Hosting (p. ej. /__/auth para el
         // popup de Google/Facebook) — nunca deben caer en el fallback del SW.

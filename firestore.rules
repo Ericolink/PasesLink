@@ -1025,11 +1025,49 @@ service cloud.firestore {
 
     // Presupuesto diario compartido de envíos de email (recordatorios +
     // mensajería masiva), consumido por los scripts Node vía firebase-admin
-    // para no exceder el tope diario del proveedor (Brevo). Uso puramente
-    // interno entre scripts — ni el cliente ni siquiera el admin necesitan
-    // leerlo.
+    // para no exceder el tope diario del proveedor (Brevo). Lectura admin
+    // habilitada para la alerta "cerca del límite de envío diario" del
+    // Centro de Control (ver src/firebase/adminAlerts.ts) — sigue siendo
+    // uso puramente interno para escritura (scripts/Cloud Functions).
     match /sendBudget/{dateKey} {
-      allow read, write: if false;
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Contadores agregados de plataforma mantenidos SOLO por Admin SDK
+    // (triggers/Cloud Functions) — nunca por el cliente. Hoy solo
+    // `funnel` (usersWithEventsCount, ver functions/src/triggers/
+    // onEventCreated.ts) y el marcador interno `funnelMarkers/users/{uid}`
+    // usado para dedup de "primer evento". No se usa CounterService/
+    // sharding acá: son escrituras de baja frecuencia (una vez por evento
+    // creado), sin la contención de alta frecuencia que sí justifica el
+    // sharding en contadores por-evento (ver src/firebase/counters/).
+    match /platformStats/{document=**} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Contadores de sesión por sistema operativo/navegador (Centro de
+    // Control → "Dispositivos", ver src/firebase/deviceStats.ts). Sin PII:
+    // solo una categoría cerrada (bucketId) y un conteo agregado, nunca un
+    // user-agent completo ni un id de usuario. Escritura DIRECTA de
+    // cliente (no vía Cloud Function) porque el dato es de bajísimo riesgo
+    // — a lo sumo un cliente hostil infla un contador de analítica interna,
+    // nunca puede leer ni tocar el conteo de otro bucket ni ningún otro
+    // documento.
+    match /deviceStats/{bucketId} {
+      allow read: if isAdmin();
+      allow create: if request.auth != null
+        && bucketId in [
+          'os_android', 'os_ios', 'os_windows', 'os_mac', 'os_linux', 'os_other',
+          'browser_chrome', 'browser_safari', 'browser_firefox', 'browser_edge', 'browser_other'
+        ]
+        && request.resource.data.keys().hasOnly(['kind', 'key', 'count'])
+        && request.resource.data.count == 1;
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count'])
+        && request.resource.data.count == resource.data.count + 1;
+      allow delete: if false;
     }
 
     match /users/{userId} {
@@ -1917,6 +1955,33 @@ service cloud.firestore {
         request.auth.token.get('email_verified', false) == true &&
         request.query.limit <= 25 &&
         resource.data.email == request.auth.token.email.lower();
+    }
+
+    // Centro de Control del admin (Alertas inteligentes + Actividad en
+    // vivo, ver src/firebase/adminAlerts.ts y adminActivity.ts) — 4 lecturas
+    // `collectionGroup` nuevas, todas gateadas por `isAdmin()` puro (a
+    // diferencia de guestContacts arriba, esta condición NO depende de
+    // comparar resource.data contra el query, así que es demostrable de
+    // antemano sin exigir ningún where() particular, solo un limit()
+    // razonable). Declaradas acá (match de colección completo) en vez de
+    // como condición extra en las reglas anidadas por-evento de más arriba,
+    // por el mismo motivo documentado en el comentario de guestContacts:
+    // una regla anidada bajo events/{eventId}/... nunca cubre una query
+    // collectionGroup(), sin importar la condición. Son aditivas: no
+    // reemplazan ni modifican ninguna regla anidada existente (sendLog,
+    // notificationQueue, csvImportJobs, guests siguen sirviendo sus
+    // lecturas por-evento exactamente igual que antes).
+    match /{path=**}/sendLog/{logId} {
+      allow list: if isAdmin() && request.query.limit <= 20;
+    }
+    match /{path=**}/notificationQueue/{notifId} {
+      allow list: if isAdmin() && request.query.limit <= 20;
+    }
+    match /{path=**}/csvImportJobs/{jobId} {
+      allow list: if isAdmin() && request.query.limit <= 20;
+    }
+    match /{path=**}/guests/{guestId} {
+      allow list: if isAdmin() && request.query.limit <= 20;
     }
   }
 }

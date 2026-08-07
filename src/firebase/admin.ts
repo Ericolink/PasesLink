@@ -175,6 +175,51 @@ export function subscribeToAdminAuditLog(
   )
 }
 
+export interface TimeSeriesPoint {
+  date: string
+  count: number
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// Serie diaria de altas (eventos/usuarios) para "Crecimiento" del Centro de
+// Control — ventana acotada (30 días por defecto, nunca todo el historial)
+// vía N `getCountFromServer` en paralelo, uno por día. Cada uno es una
+// lectura de agregación (1 lectura facturada sin importar cuántos docs
+// matcheen), así que 30 días son 30 lecturas baratas, no 30 escaneos de
+// colección. Días en UTC (mismo criterio simple que el resto del proyecto,
+// sin traer una librería de zonas horarias para esto).
+async function getDailyCounts(collectionName: 'events' | 'users', days: number): Promise<TimeSeriesPoint[]> {
+  const col = collection(db, collectionName)
+  const todayStart = Math.floor(Date.now() / DAY_MS) * DAY_MS
+  const dayStarts = Array.from({ length: days }, (_, i) => todayStart - (days - 1 - i) * DAY_MS)
+
+  const counts = await Promise.all(
+    dayStarts.map((start) =>
+      getCountFromServer(
+        query(
+          col,
+          where('createdAt', '>=', Timestamp.fromMillis(start)),
+          where('createdAt', '<', Timestamp.fromMillis(start + DAY_MS)),
+        ),
+      ),
+    ),
+  )
+
+  return dayStarts.map((start, i) => ({
+    date: new Date(start).toISOString().slice(0, 10),
+    count: counts[i].data().count,
+  }))
+}
+
+export function getEventStatsTimeSeries(days = 30): Promise<TimeSeriesPoint[]> {
+  return getDailyCounts('events', days)
+}
+
+export function getUserStatsTimeSeries(days = 30): Promise<TimeSeriesPoint[]> {
+  return getDailyCounts('users', days)
+}
+
 function toMillis(value: unknown): number {
   if (value && typeof value === 'object' && 'toMillis' in value) {
     return (value as { toMillis: () => number }).toMillis()

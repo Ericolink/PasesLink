@@ -21,6 +21,21 @@ import { auth, db, googleProvider } from './config'
 import { uploadImage } from '../utils/cloudinary'
 import { markWelcomePending } from '../utils/onboarding'
 import { trackLogin, trackLogout } from '../lib/analytics'
+import { recordDeviceSession } from './deviceStats'
+
+// Contador de "Dispositivos" del Centro de Control admin (ver
+// src/firebase/deviceStats.ts) — a lo sumo una vez por pestaña/sesión de
+// navegador (no por login: un usuario puede cerrar y volver a entrar varias
+// veces sin inflar el conteo). Nunca debe poder romper un login real, así
+// que va envuelto en try/catch silencioso — un fallo acá es, en el peor
+// caso, un dato de analítica interna perdido.
+const DEVICE_SESSION_GUARD_KEY = 'pl_device_tracked'
+
+function trackDeviceSessionOnce() {
+  if (sessionStorage.getItem(DEVICE_SESSION_GUARD_KEY)) return
+  sessionStorage.setItem(DEVICE_SESSION_GUARD_KEY, '1')
+  recordDeviceSession(navigator.userAgent).catch(() => {})
+}
 
 async function ensureUserDoc(uid: string, email: string | null, displayName: string | null) {
   await setDoc(
@@ -79,6 +94,7 @@ export async function checkEmailVerified(): Promise<boolean> {
 export async function loginWithEmail(email: string, password: string) {
   const credential = await signInWithEmailAndPassword(auth, email, password)
   trackLogin('password')
+  trackDeviceSessionOnce()
   return credential.user
 }
 
@@ -93,6 +109,7 @@ export async function loginWithGoogle() {
     markWelcomePending(credential.user.uid)
   }
   trackLogin('google')
+  trackDeviceSessionOnce()
   return credential.user
 }
 

@@ -706,3 +706,55 @@ export function IconGift({ className = 'w-5 h-5' }: IconProps) {
     </svg>
   )
 }
+
+// Centro de Control admin (MetricTile trend, ver HeroKpiGrid).
+export function IconTrendingUp({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M23 6l-9.5 9.5-5-5L1 18" />
+      <path d="M17 6h6v6" />
+    </svg>
+  )
+}
+
+// Centro de Control admin (MetricTile trend, ver HeroKpiGrid).
+export function IconTrendingDown({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M23 18l-9.5-9.5-5 5L1 6" />
+      <path d="M17 18h6v-6" />
+    </svg>
+  )
+}
+
+// Centro de Control admin (DeviceBreakdownSection).
+export function IconSmartphone({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+      <path d="M12 18h.01" />
+    </svg>
+  )
+}
+
+// Centro de Control admin (PlatformHealthPanel — tarjeta de Cloud Functions).
+export function IconServer({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+      <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+      <path d="M6 6h.01M6 18h.01" />
+    </svg>
+  )
+}
+
+// Centro de Control admin (PlatformHealthPanel — tarjetas de Firestore/Storage).
+export function IconDatabase({ className = 'w-5 h-5' }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+    </svg>
+  )
+}
