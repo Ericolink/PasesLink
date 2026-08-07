@@ -61,6 +61,21 @@ describe('processQueuedNotification', () => {
     expect(notifSnap.data()?.status).toBe('failed')
   })
 
+  it('handles a malformed notification (no payload/channels, unknown recipient) without throwing', async () => {
+    const eventId = uniqueId('event')
+    const notifId = uniqueId('notif')
+    const uid = uniqueId('user') // nunca se crea el doc de usuario
+    const notifRef = db.collection('events').doc(eventId).collection('notificationQueue').doc(notifId)
+    await notifRef.set({ type: 'rsvp_new', recipientUid: uid, status: 'queued' })
+
+    await expect(
+      processQueuedNotification(db, notifRef, { type: 'rsvp_new', recipientUid: uid }),
+    ).resolves.toBeUndefined()
+
+    const notifSnap = await notifRef.get()
+    expect(notifSnap.data()?.status).toBe('sent')
+  })
+
   it('never processes twice for the same notification (dedup vía sendLog.create())', async () => {
     const eventId = uniqueId('event')
     const notifId = uniqueId('notif')
