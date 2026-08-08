@@ -12,6 +12,13 @@ import {
 } from '../__tests__/helpers.js'
 import { registerWalkInGuest } from './registerWalkInGuest.js'
 
+// Datos mínimos válidos para un acompañante (nombre+apellido, siempre
+// obligatorios en este flujo) — usado por los tests que solo quieren probar
+// el tamaño del grupo, sin que sea el foco del test.
+function makeCompanions(count: number) {
+  return Array.from({ length: count }, (_, i) => ({ name: `Compa${i}`, lastName: 'Apellido' }))
+}
+
 describe('registerWalkInGuest (servicio)', () => {
   let db: Firestore
 
@@ -74,18 +81,115 @@ describe('registerWalkInGuest (servicio)', () => {
     expect(result.status).toBe('event_not_found')
   })
 
-  it('clamps partySize to 1 + maxCompanions', async () => {
+  it('stores the real per-companion data sent by the client, not just a count', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'open', maxCompanions: 2, peopleCount: 0 })
 
-    const result = await registerWalkInGuest(db, eventId, { name: 'Ana López', partySize: 10 })
+    const result = await registerWalkInGuest(db, eventId, {
+      name: 'Ana López',
+      companions: [{ name: 'Beto', lastName: 'López', phone: '6561234567', phoneCountry: 'MX' }],
+    })
 
     if (result.status !== 'success') throw new Error('expected success')
     const guest = await getGuestDoc(db, eventId, result.guestId)
-    // partySize clampeado a 1 + maxCompanions (2) = 3 -> companions = 2.
-    expect(guest?.companions).toBe(2)
+    expect(guest?.companions).toEqual([{ name: 'Beto', lastName: 'López', phone: '6561234567', phoneCountry: 'MX' }])
     const event = await db.collection('events').doc(eventId).get()
-    expect(event.data()?.peopleCount).toBe(3)
+    expect(event.data()?.peopleCount).toBe(2)
+  })
+
+  it('rejects a companions array longer than 1 + maxCompanions instead of silently truncating it', async () => {
+    // A diferencia del viejo partySize (un conteo sin dueño, seguro de
+    // recortar), acá cada elemento trae datos reales que la persona
+    // tecleó — truncar en silencio perdería esa información sin avisar.
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', maxCompanions: 2, peopleCount: 0 })
+
+    await expect(
+      registerWalkInGuest(db, eventId, { name: 'Ana López', companions: makeCompanions(3) }),
+    ).rejects.toThrow('máximo de acompañantes')
+  })
+
+  it('requires every companion to provide name and lastName', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open' })
+
+    await expect(
+      registerWalkInGuest(db, eventId, { name: 'Ana López', companions: [{ name: 'Sin Apellido' }] }),
+    ).rejects.toThrow('apellido')
+  })
+
+  it('rejects a companions payload that is not an array (manipulated request)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open' })
+
+    await expect(
+      registerWalkInGuest(db, eventId, { name: 'Ana López', companions: 'muchos' as unknown as [] }),
+    ).rejects.toThrow('no son válidos')
+  })
+
+  it('requires each companion to answer a custom field that is required for the primary guest', async () => {
+    // Misma configuración de EventData.customFields que ve el invitado
+    // principal — no una lista de campos obligatorios aparte para
+    // acompañantes (ver validatePublicCompanions).
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, {
+      entryMode: 'open',
+      customFields: [{ id: 'tshirt', label: 'Talla de camiseta', type: 'text', required: true }],
+    })
+
+    await expect(
+      registerWalkInGuest(db, eventId, {
+        name: 'Ana López',
+        customData: { tshirt: 'M' },
+        companions: [{ name: 'Beto', lastName: 'López' }],
+      }),
+    ).rejects.toThrow('obligatorio')
+  })
+
+  it('accepts a companion who answers the required custom field, and stores it on that companion', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, {
+      entryMode: 'open',
+      customFields: [{ id: 'tshirt', label: 'Talla de camiseta', type: 'text', required: true }],
+    })
+
+    const result = await registerWalkInGuest(db, eventId, {
+      name: 'Ana López',
+      customData: { tshirt: 'M' },
+      companions: [{ name: 'Beto', lastName: 'López', customData: { tshirt: 'L' } }],
+    })
+
+    if (result.status !== 'success') throw new Error('expected success')
+    const guest = await getGuestDoc(db, eventId, result.guestId)
+    expect(guest?.companions).toEqual([{ name: 'Beto', lastName: 'López', customData: { tshirt: 'L' } }])
+  })
+
+  it('does not require a companion to answer a custom field that is optional for the primary guest', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, {
+      entryMode: 'open',
+      customFields: [{ id: 'allergy', label: 'Alergias', type: 'text', required: false }],
+    })
+
+    const result = await registerWalkInGuest(db, eventId, {
+      name: 'Ana López',
+      companions: [{ name: 'Beto', lastName: 'López' }],
+    })
+
+    expect(result.status).toBe('success')
+  })
+
+  it('registers with no companions when none are sent', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', peopleCount: 0 })
+
+    const result = await registerWalkInGuest(db, eventId, { name: 'Sola' })
+
+    if (result.status !== 'success') throw new Error('expected success')
+    const guest = await getGuestDoc(db, eventId, result.guestId)
+    expect(guest?.companions).toEqual([])
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.peopleCount).toBe(1)
   })
 
   it('rejects registration when it would exceed capacity', async () => {
@@ -217,18 +321,6 @@ describe('registerWalkInGuest (servicio)', () => {
     expect(guest?.customData).toEqual({ menu: 'veg' })
   })
 
-  it('rejects a partySize that is not a real number (payload manipulado)', async () => {
-    const eventId = uniqueId('event')
-    await seedEvent(db, eventId, { entryMode: 'open' })
-
-    await expect(
-      registerWalkInGuest(db, eventId, { name: 'Ana López', partySize: 'muchos' as unknown as number }),
-    ).rejects.toThrow('cantidad de personas')
-    const event = await db.collection('events').doc(eventId).get()
-    // El evento no debe quedar contaminado con NaN.
-    expect(Number.isFinite(event.data()?.peopleCount)).toBe(true)
-  })
-
   it('rejects a paymentMethod that is not enabled for this event', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'open', requiresPayment: true, paymentMethods: ['transfer'] })
@@ -250,14 +342,14 @@ describe('registerWalkInGuest (servicio)', () => {
   })
 
   it('rejects a party size that would exceed capacity even with some room left', async () => {
-    // Queda 1 lugar (199/200) pero pide traer 1 acompañante (partySize 2) —
-    // no entra, aunque el evento no esté técnicamente lleno todavía.
+    // Queda 1 lugar (199/200) pero pide traer 1 acompañante (2 personas en
+    // total) — no entra, aunque el evento no esté técnicamente lleno todavía.
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, {
       entryMode: 'open', attendeeLimitEnabled: true, capacity: 200, peopleCount: 199, maxCompanions: 5,
     })
 
-    const result = await registerWalkInGuest(db, eventId, { name: 'Con Acompañante', partySize: 2 })
+    const result = await registerWalkInGuest(db, eventId, { name: 'Con Acompañante', companions: makeCompanions(1) })
 
     expect(result.status).toBe('full')
     const event = await db.collection('events').doc(eventId).get()
@@ -291,30 +383,31 @@ describe('registerWalkInGuest (servicio)', () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'open', peopleCount: 0 })
 
-    const result = await registerWalkInGuest(db, eventId, { name: 'Sin Límite Configurado', partySize: 4 })
+    const result = await registerWalkInGuest(db, eventId, { name: 'Sin Límite Configurado', companions: makeCompanions(3) })
 
     expect(result.status).toBe('success')
     const event = await db.collection('events').doc(eventId).get()
     expect(event.data()?.peopleCount).toBe(4)
   })
 
-  it('clamps the party size to 10 on a legacy event without maxCompanions', async () => {
+  it('rejects more than 9 companions on a legacy event without maxCompanions (party of 10 max)', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'open', peopleCount: 0 })
 
-    const result = await registerWalkInGuest(db, eventId, { name: 'Grupo Legacy', partySize: 15 })
-
-    expect(result.status).toBe('success')
-    const event = await db.collection('events').doc(eventId).get()
-    expect(event.data()?.peopleCount).toBe(10)
+    await expect(
+      registerWalkInGuest(db, eventId, { name: 'Grupo Legacy', companions: makeCompanions(14) }),
+    ).rejects.toThrow('máximo de acompañantes')
   })
 
-  it('still allows no companions when maxCompanions is explicitly 0', async () => {
+  it('rejects any companion when maxCompanions is explicitly 0', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'open', peopleCount: 0, maxCompanions: 0 })
 
-    const result = await registerWalkInGuest(db, eventId, { name: 'Sin Acompañantes', partySize: 4 })
+    await expect(
+      registerWalkInGuest(db, eventId, { name: 'Sin Acompañantes', companions: makeCompanions(3) }),
+    ).rejects.toThrow('máximo de acompañantes')
 
+    const result = await registerWalkInGuest(db, eventId, { name: 'Sin Acompañantes' })
     expect(result.status).toBe('success')
     const event = await db.collection('events').doc(eventId).get()
     expect(event.data()?.peopleCount).toBe(1)
@@ -337,7 +430,7 @@ describe('registerWalkInGuest (servicio)', () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'open', peopleCount: 0, maxCompanions: 20, attendeeLimitEnabled: false })
 
-    const result = await registerWalkInGuest(db, eventId, { name: 'Grupo Grande', partySize: 21 })
+    const result = await registerWalkInGuest(db, eventId, { name: 'Grupo Grande', companions: makeCompanions(20) })
 
     expect(result.status).toBe('success')
     const event = await db.collection('events').doc(eventId).get()

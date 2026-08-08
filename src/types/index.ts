@@ -615,6 +615,12 @@ export interface CompanionData {
   // Selección de menú propia del acompañante — un grupo puede tener
   // necesidades de catering distintas por persona (ver MenuSelection).
   menuSelection?: MenuSelection
+  // Respuestas a los EventData.customFields marcados `required: true` —
+  // solo se piden/guardan para acompañantes agregados vía autoregistro
+  // (EventJoin.tsx), donde la invitación exige que cada acompañante nuevo
+  // complete lo mismo que el invitado principal. Ausente en acompañantes
+  // cargados por el organizador (GuestAddForm), que nunca piden esto.
+  customData?: Record<string, string>
 }
 
 export interface GuestData {

@@ -1178,6 +1178,10 @@ function normalizeCompanions(value: unknown): CompanionData[] {
       phone: (c as CompanionData)?.phone || '',
       phoneCountry: (c as CompanionData)?.phoneCountry || '',
       menuSelection: (c as CompanionData)?.menuSelection || undefined,
+      // Respuestas a customFields obligatorios, capturadas por acompañante
+      // agregado vía autoregistro (ver registerWalkInGuest.ts) — ausente en
+      // acompañantes cargados por el organizador.
+      customData: (c as CompanionData)?.customData || undefined,
     }))
   }
   if (typeof value === 'number' && value > 0) {

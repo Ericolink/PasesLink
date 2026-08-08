@@ -25,23 +25,10 @@ import {
   requireMaxLength,
   requireNonEmpty,
   resolveMaxCompanions,
+  validatePublicCompanions,
   validatePublicCustomData,
 } from '../lib/guestValidation.js'
 import type { PaymentMethod } from '../payments/confirmPayment.js'
-
-// Clampeado, no rechazado — mismo criterio que el cliente hoy: un valor
-// fuera de rango (incluido ausente) cae a un tamaño de grupo válido en vez
-// de romper el registro. Un valor que ni siquiera es un número (payload
-// manipulado a mano, ej. partySize: "muchos") sí se rechaza — de lo
-// contrario Math.trunc()/Math.max() lo convierten en NaN, que después
-// contamina companions y el contador peopleCount del evento en Firestore.
-function resolvePartySize(rawPartySize: unknown, maxPartySize: number): number {
-  if (rawPartySize === undefined || rawPartySize === null) return 1
-  if (typeof rawPartySize !== 'number' || !Number.isFinite(rawPartySize)) {
-    throw new GuestValidationError('La cantidad de personas no es válida.')
-  }
-  return Math.min(Math.max(Math.trunc(rawPartySize), 1), maxPartySize)
-}
 
 // El cliente nunca decide por sí mismo con qué método quedó el registro:
 // requiresPayment y la lista de métodos habilitados (event.paymentMethods)
@@ -68,7 +55,13 @@ export interface RegisterWalkInGuestInput {
   phone?: string
   phoneCountry?: string
   customData?: Record<string, string>
-  partySize?: number
+  // Datos reales de cada acompañante (nombre/apellido/teléfono/customData),
+  // no un conteo — el tamaño del grupo se deriva de este array
+  // (1 + companions.length), nunca de un `partySize` aparte que pudiera
+  // desincronizarse de los datos que realmente se guardan. Validado contra
+  // la definición real del evento en validatePublicCompanions, nunca
+  // confiado tal cual (ver ese comentario para el porqué).
+  companions?: unknown
   paymentMethod?: PaymentMethod
   // uid del request.auth verificado de la Callable, si lo hay — nunca un
   // valor que mande el cliente en el body (ver comentario de archivo).
@@ -129,8 +122,16 @@ export async function registerWalkInGuest(
       guestPhotoURL = (userSnap.data()?.photoURL as string | undefined) ?? null
     }
 
-    const maxPartySize = 1 + resolveMaxCompanions(event.maxCompanions as number | undefined)
-    const clampedPartySize = resolvePartySize(input.partySize, maxPartySize)
+    const maxCompanions = resolveMaxCompanions(event.maxCompanions as number | undefined)
+    // Contra la definición REAL de campos del evento (mismo criterio que
+    // customData arriba): cada acompañante debe traer nombre/apellido, más
+    // los customFields obligatorios para el invitado principal — no una
+    // lista de campos requeridos aparte. Rechaza en vez de recortar en
+    // silencio un array que exceda el máximo: a diferencia del viejo
+    // `partySize` (un número sin dueño), acá truncar perdería datos reales
+    // que la persona ya tecleó.
+    const companions = validatePublicCompanions(input.companions, maxCompanions, event.customFields as CustomFieldDef[] | undefined)
+    const clampedPartySize = 1 + companions.length
 
     const currentGuestCount = typeof event.guestCount === 'number' ? event.guestCount : 0
     const currentPeopleCount = typeof event.peopleCount === 'number' ? event.peopleCount : currentGuestCount
@@ -155,8 +156,7 @@ export async function registerWalkInGuest(
       qrToken,
       status: 'invited',
       rsvpStatus: 'yes',
-      // Formato numérico legacy — normalizeCompanions (cliente) sabe traducirlo.
-      companions: clampedPartySize - 1,
+      companions,
       checkedInAt: null,
       checkedInBy: null,
       checkedInByEmail: null,

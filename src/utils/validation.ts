@@ -1,3 +1,5 @@
+import type { CompanionData, CustomField } from '../types'
+
 // Límites compartidos para contenido público (Wall). Estos valores deben
 // coincidir con los que validan firestore.rules — son la última línea de
 // defensa real, ya que cualquier cliente puede escribir directo a Firestore
@@ -136,6 +138,39 @@ export function requireValidEmail(value: string, label: string): string {
     throw new Error(`${label} no tiene un formato válido.`)
   }
   return trimmed
+}
+
+export interface CompanionFieldErrors {
+  name?: string
+  lastName?: string
+  customData?: Record<string, string>
+}
+
+const REQUIRED_FIELD_MESSAGE = 'Completa este campo para continuar.'
+
+// Un acompañante agregado durante el autoregistro (EventJoin.tsx) debe
+// completar los mismos datos que la invitación exige al invitado principal:
+// nombre/apellido, siempre obligatorios en ese formulario, más los
+// EventData.customFields marcados `required: true` — no existe una
+// configuración aparte de campos obligatorios para acompañantes, así que
+// esta función reutiliza `requiredCustomFields` (derivado de la misma
+// EventData.customFields que ve el invitado principal) en vez de una lista
+// propia. Si el organizador agrega/quita un campo obligatorio, el próximo
+// autoregistro lo refleja solo, sin tocar este archivo.
+export function validateCompanionFields(companion: CompanionData, requiredCustomFields: CustomField[]): CompanionFieldErrors {
+  const errors: CompanionFieldErrors = {}
+  if (!companion.name?.trim()) errors.name = REQUIRED_FIELD_MESSAGE
+  if (!companion.lastName?.trim()) errors.lastName = REQUIRED_FIELD_MESSAGE
+  for (const field of requiredCustomFields) {
+    if (!companion.customData?.[field.id]?.trim()) {
+      errors.customData = { ...errors.customData, [field.id]: REQUIRED_FIELD_MESSAGE }
+    }
+  }
+  return errors
+}
+
+export function companionFieldsHaveErrors(errors: CompanionFieldErrors): boolean {
+  return !!errors.name || !!errors.lastName || !!(errors.customData && Object.keys(errors.customData).length > 0)
 }
 
 // Quita caracteres de control (incluido null byte) que no aportan nada a un

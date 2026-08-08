@@ -116,3 +116,77 @@ export function validatePublicCustomData(
 
   return customData || {}
 }
+
+export interface PublicCompanionInput {
+  name: string
+  lastName: string
+  phone?: string
+  phoneCountry?: string
+  customData?: Record<string, string>
+}
+
+// Cada acompañante agregado durante el autoregistro público debe completar
+// los mismos datos que la invitación exige al invitado principal: nombre y
+// apellido (siempre obligatorios en este flujo, ver registerWalkInGuest.ts)
+// más los `fields` marcados `required: true` — la MISMA definición real de
+// campos del evento que ya usa validatePublicCustomData para el invitado
+// principal, nunca una lista aparte para acompañantes. Por eso reutiliza esa
+// función tal cual para la porción de customData de cada acompañante, en vez
+// de duplicar su lógica de campo desconocido/opción de `select` inválida/
+// obligatoriedad.
+export function validatePublicCompanions(
+  rawCompanions: unknown,
+  maxCompanions: number,
+  fields: CustomFieldDef[] | undefined,
+): PublicCompanionInput[] {
+  if (rawCompanions === undefined || rawCompanions === null) return []
+  if (!Array.isArray(rawCompanions)) {
+    throw new GuestValidationError('Los datos de los acompañantes no son válidos.')
+  }
+  if (rawCompanions.length > maxCompanions) {
+    throw new GuestValidationError('Se superó el máximo de acompañantes permitido para este evento.')
+  }
+
+  return rawCompanions.map((raw, index) => {
+    const humanIndex = index + 1
+    if (typeof raw !== 'object' || raw === null) {
+      throw new GuestValidationError(`Los datos del acompañante ${humanIndex} no son válidos.`)
+    }
+    const c = raw as Record<string, unknown>
+    const name = requireMaxLength(
+      requireNonEmpty(typeof c.name === 'string' ? c.name : '', `El nombre del acompañante ${humanIndex}`),
+      GUEST_NAME_PART_MAX,
+      `El nombre del acompañante ${humanIndex}`,
+    )
+    const lastName = requireMaxLength(
+      requireNonEmpty(typeof c.lastName === 'string' ? c.lastName : '', `El apellido del acompañante ${humanIndex}`),
+      GUEST_NAME_PART_MAX,
+      `El apellido del acompañante ${humanIndex}`,
+    )
+    const phone = typeof c.phone === 'string' && c.phone.trim()
+      ? requireMaxLength(c.phone.trim(), GUEST_PHONE_MAX, `El teléfono del acompañante ${humanIndex}`)
+      : undefined
+    const phoneCountry = typeof c.phoneCountry === 'string' ? c.phoneCountry : undefined
+
+    let customData: Record<string, string>
+    try {
+      customData = validatePublicCustomData(
+        typeof c.customData === 'object' && c.customData !== null ? (c.customData as Record<string, string>) : undefined,
+        fields,
+      )
+    } catch (err) {
+      if (err instanceof GuestValidationError) {
+        throw new GuestValidationError(`${err.message} (acompañante ${humanIndex})`)
+      }
+      throw err
+    }
+
+    return {
+      name,
+      lastName,
+      ...(phone ? { phone } : {}),
+      ...(phoneCountry ? { phoneCountry } : {}),
+      ...(Object.keys(customData).length ? { customData } : {}),
+    }
+  })
+}

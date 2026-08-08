@@ -23,7 +23,7 @@ interface RegisterWalkInGuestInput {
   phone?: string
   phoneCountry?: string
   customData?: Record<string, string>
-  partySize?: number
+  companions?: unknown
   paymentMethod?: PaymentMethod
 }
 
@@ -43,7 +43,7 @@ export type RegisterWalkInGuestResponse =
 export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
   { secrets: [brevoApiKey, brevoSenderEmail], maxInstances: 15, timeoutSeconds: 30 },
   (request) => withCallableObservability(request, 'registerWalkInGuest', async (ctx): Promise<RegisterWalkInGuestResponse> => {
-    const { eventId, name, email, phone, phoneCountry, customData, partySize, paymentMethod } = request.data || {}
+    const { eventId, name, email, phone, phoneCountry, customData, companions, paymentMethod } = request.data || {}
     ctx.addContext({ uid: request.auth?.uid, eventId })
     if (!eventId || !name) {
       throw new HttpsError('invalid-argument', 'Faltan datos para completar el registro.')
@@ -57,7 +57,7 @@ export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
         phone,
         phoneCountry,
         customData,
-        partySize,
+        companions,
         paymentMethod,
         // Nunca un uid/foto que mande el cliente en el body — solo el uid ya
         // verificado del token de la Callable, si hay sesión.
@@ -82,6 +82,7 @@ export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
             ctx.logger.warn('No se pudo enviar el correo del pase tras el registro walk-in', { error: err, eventId, guestId: result.guestId })
           }
         }
+        const partySize = 1 + (Array.isArray(companions) ? companions.length : 0)
         logBusinessEvent(ctx.logger, BUSINESS_EVENTS.GUEST_ADDED_WALKIN, { eventId, guestId: result.guestId, partySize })
         return { status: 'success', qrToken: result.qrToken }
       }

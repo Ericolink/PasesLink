@@ -11,10 +11,13 @@ import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { saveUserInvitation } from '../firebase/userProfile'
 import {
+  companionFieldsHaveErrors,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_EMAIL_MAX,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
+  validateCompanionFields,
+  type CompanionFieldErrors,
 } from '../utils/validation'
 import { CrownLoader } from '../components/CrownLoader'
 import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
@@ -35,7 +38,7 @@ import { IconBan, IconClock } from '../components/accessibility/AccessibleIcon'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useAnnouncer } from '../components/accessibility/LiveRegion'
-import type { EventData, PaymentMethod } from '../types'
+import type { CompanionData, EventData, PaymentMethod } from '../types'
 import { CustomFieldInput } from '../components/CustomFieldInput'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import { FieldError, AccessibleField } from '../components/accessibility/AccessibleField'
@@ -85,7 +88,20 @@ export function EventJoin() {
   const [phone, setPhone] = useState('')
   const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_PHONE_COUNTRY)
   const [email, setEmail] = useState('')
+  // Cantidad de personas para el formulario de LISTA DE ESPERA (más abajo,
+  // state === 'full') — ese flujo no crea un invitado todavía (solo una
+  // oferta a confirmar más tarde), así que sigue siendo un conteo simple,
+  // sin datos por persona. El registro real (state === 'form') usa
+  // `companions` (abajo), que sí guarda un invitado con datos por persona.
   const [partySize, setPartySize] = useState(1)
+  // Datos reales de cada acompañante del registro — cada nuevo acompañante
+  // debe completar los mismos datos que esta invitación exige al invitado
+  // principal (nombre/apellido, siempre; teléfono, opcional; los
+  // customFields que el organizador marcó obligatorios), ver
+  // validateCompanionFields. El tamaño del grupo para cupo/precio se deriva
+  // de este array (1 + companions.length) en vez de un contador aparte.
+  const [companions, setCompanions] = useState<CompanionData[]>([])
+  const [companionErrors, setCompanionErrors] = useState<CompanionFieldErrors[]>([])
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
   const [regError, setRegError] = useState('')
@@ -206,9 +222,67 @@ export function EventJoin() {
       ? paymentMethod || undefined
       : event.paymentMethods[0]
 
+  const customFields = event?.customFields || []
+  // Los mismos campos personalizados que el organizador marcó obligatorios
+  // para el invitado principal (más abajo, customFields.map) — un
+  // acompañante nuevo debe completarlos también (ver validateCompanionFields
+  // en utils/validation.ts). Los campos opcionales no se piden a los
+  // acompañantes, solo al invitado principal.
+  const requiredCustomFields = customFields.filter((f) => f.required)
+  // Tamaño real del grupo del formulario de registro — se deriva de los
+  // datos de acompañantes ya cargados, nunca de un contador aparte que
+  // pudiera desincronizarse de lo que realmente se va a guardar.
+  const registrationPartySize = 1 + companions.length
+
+  function addCompanion() {
+    if (registrationPartySize >= maxPartySize) return
+    setCompanions((cs) => [...cs, {}])
+    setCompanionErrors((errs) => [...errs, {}])
+    announce(`${registrationPartySize + 1} ${registrationPartySize + 1 === 1 ? 'persona' : 'personas'} en total`)
+  }
+
+  function removeCompanion() {
+    if (companions.length === 0) return
+    setCompanions((cs) => cs.slice(0, -1))
+    setCompanionErrors((errs) => errs.slice(0, -1))
+    announce(`${registrationPartySize - 1} ${registrationPartySize - 1 === 1 ? 'persona' : 'personas'} en total`)
+  }
+
+  function updateCompanion(index: number, patch: Partial<CompanionData>) {
+    setCompanions((cs) => cs.map((c, i) => (i === index ? { ...c, ...patch } : c)))
+    setCompanionErrors((errs) =>
+      errs.map((e, i) => {
+        if (i !== index) return e
+        const next = { ...e }
+        if (patch.name !== undefined) delete next.name
+        if (patch.lastName !== undefined) delete next.lastName
+        return next
+      }),
+    )
+  }
+
+  function updateCompanionCustomField(index: number, fieldId: string, value: string) {
+    setCompanions((cs) => cs.map((c, i) => (i === index ? { ...c, customData: { ...c.customData, [fieldId]: value } } : c)))
+    setCompanionErrors((errs) =>
+      errs.map((e, i) => {
+        if (i !== index || !e.customData?.[fieldId]) return e
+        const nextCustomData = { ...e.customData }
+        delete nextCustomData[fieldId]
+        return { ...e, customData: nextCustomData }
+      }),
+    )
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!id || !name.trim() || !lastName.trim()) return
+    const nextCompanionErrors = companions.map((c) => validateCompanionFields(c, requiredCustomFields))
+    if (nextCompanionErrors.some(companionFieldsHaveErrors)) {
+      setCompanionErrors(nextCompanionErrors)
+      setRegError('Completa los datos de tus acompañantes para continuar.')
+      setRegErrorAttempt((n) => n + 1)
+      return
+    }
     if (needsMethodChoice && !resolvedPaymentMethod) {
       setRegError('Elige cómo vas a pagar antes de continuar.')
       setRegErrorAttempt((n) => n + 1)
@@ -224,7 +298,7 @@ export function EventJoin() {
         email,
         phone,
         customValues,
-        partySize,
+        companions,
         resolvedPaymentMethod,
         user?.uid,
         profile?.photoURL,
@@ -320,8 +394,6 @@ export function EventJoin() {
       </div>
     )
   }
-
-  const customFields = event?.customFields || []
 
   if (state === 'full') {
     return (
@@ -579,25 +651,25 @@ export function EventJoin() {
               <div className="flex items-center justify-between rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] px-2 py-1">
                 <button
                   type="button"
-                  onClick={() => setPartySize(Math.max(partySize - 1, 1))}
-                  disabled={partySize <= 1}
+                  onClick={removeCompanion}
+                  disabled={registrationPartySize <= 1}
                   aria-label="Restar acompañante"
                   className="w-11 h-11 shrink-0 rounded-full text-xl font-bold text-[var(--invite-text)] disabled:opacity-30 active:bg-[var(--invite-accent-soft)] transition-colors"
                 >
                   −
                 </button>
-                <span className="text-base font-semibold text-[var(--invite-text)] tabular-nums">{partySize}</span>
+                <span className="text-base font-semibold text-[var(--invite-text)] tabular-nums">{registrationPartySize}</span>
                 <button
                   type="button"
-                  onClick={() => setPartySize(Math.min(partySize + 1, maxPartySize))}
-                  disabled={partySize >= maxPartySize}
+                  onClick={addCompanion}
+                  disabled={registrationPartySize >= maxPartySize}
                   aria-label="Sumar acompañante"
                   className="w-11 h-11 shrink-0 rounded-full text-xl font-bold text-[var(--invite-text)] disabled:opacity-30 active:bg-[var(--invite-accent-soft)] transition-colors"
                 >
                   +
                 </button>
               </div>
-              {partySize >= maxPartySize && (
+              {registrationPartySize >= maxPartySize && (
                 <p className="text-xs mt-1 text-[var(--invite-text-muted)]">
                   {maxPartySize <= 1
                     ? 'Este evento no permite acompañantes.'
@@ -605,6 +677,101 @@ export function EventJoin() {
                 </p>
               )}
             </fieldset>
+
+            {/* Cada acompañante debe completar los mismos datos que esta
+                invitación exige al invitado principal — ver
+                validateCompanionFields (utils/validation.ts). Sin edición
+                individual (solo el stepper de arriba agrega/quita al final):
+                mismo criterio simple que ya tenía este formulario, ahora con
+                datos reales en vez de un conteo. */}
+            {companions.map((companion, index) => {
+              const humanIndex = index + 1
+              const errors = companionErrors[index] || {}
+              return (
+                <fieldset
+                  key={index}
+                  className="rounded-2xl border border-[var(--invite-border)] bg-[var(--invite-surface)] p-3 space-y-2.5"
+                >
+                  <legend className={`${labelClass} px-1`}>Acompañante {humanIndex}</legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    <AccessibleField label="Nombre" required error={errors.name} labelClassName={labelClass}>
+                      {(fieldProps) => (
+                        <input
+                          {...fieldProps}
+                          type="text"
+                          autoComplete="off"
+                          maxLength={GUEST_NAME_PART_MAX}
+                          value={companion.name || ''}
+                          onChange={(e) => updateCompanion(index, { name: e.target.value })}
+                          placeholder="Nombre"
+                          className={inputClass}
+                        />
+                      )}
+                    </AccessibleField>
+                    <AccessibleField label="Apellido" required error={errors.lastName} labelClassName={labelClass}>
+                      {(fieldProps) => (
+                        <input
+                          {...fieldProps}
+                          type="text"
+                          autoComplete="off"
+                          maxLength={GUEST_NAME_PART_MAX}
+                          value={companion.lastName || ''}
+                          onChange={(e) => updateCompanion(index, { lastName: e.target.value })}
+                          placeholder="Apellido"
+                          className={inputClass}
+                        />
+                      )}
+                    </AccessibleField>
+                  </div>
+                  <AccessibleField
+                    label={<>Teléfono <span className="font-normal normal-case">(opcional)</span></>}
+                    labelClassName={labelClass}
+                  >
+                    {(fieldProps) => (
+                      <div className="flex items-center gap-1.5">
+                        <CountryCodeSelect
+                          value={(companion.phoneCountry as CountryCode) || phoneCountry}
+                          onChange={(v) => updateCompanion(index, { phoneCountry: v })}
+                          aria-label={`País del teléfono del acompañante ${humanIndex}`}
+                          className="rounded-full border border-[var(--invite-border)] bg-[var(--invite-surface)] text-[var(--invite-text)] px-2.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--invite-accent)]"
+                        />
+                        <input
+                          {...fieldProps}
+                          type="tel"
+                          autoComplete="off"
+                          maxLength={GUEST_PHONE_MAX}
+                          value={companion.phone || ''}
+                          onChange={(e) => updateCompanion(index, { phone: e.target.value })}
+                          placeholder="656 123 4567"
+                          className={`flex-1 min-w-0 ${inputClass}`}
+                        />
+                      </div>
+                    )}
+                  </AccessibleField>
+                  {requiredCustomFields.map((field) => (
+                    <AccessibleField
+                      key={field.id}
+                      label={field.label}
+                      required
+                      error={errors.customData?.[field.id]}
+                      labelClassName={labelClass}
+                    >
+                      {(fieldProps) => (
+                        <CustomFieldInput
+                          field={field}
+                          fieldProps={fieldProps}
+                          maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
+                          value={companion.customData?.[field.id] || ''}
+                          onChange={(v) => updateCompanionCustomField(index, field.id, v)}
+                          className={inputClass}
+                        />
+                      )}
+                    </AccessibleField>
+                  ))}
+                </fieldset>
+              )
+            })}
+
             <AccessibleField label={<>Teléfono <span className="font-normal normal-case">(opcional)</span></>} labelClassName={labelClass}>
               {(fieldProps) => (
                 <div className="flex items-center gap-1.5">
@@ -664,7 +831,7 @@ export function EventJoin() {
             {event?.requiresPayment && (
               <fieldset className="border-0 p-0 m-0">
                 <legend className={labelClass}>
-                  Entrada: {event.currency}{(event.ticketPrice * partySize).toLocaleString('es')}
+                  Entrada: {event.currency}{(event.ticketPrice * registrationPartySize).toLocaleString('es')}
                   {needsMethodChoice && ' — ¿cómo vas a pagar?'}
                   {needsMethodChoice && <span aria-hidden="true" className="text-error"> *</span>}
                 </legend>

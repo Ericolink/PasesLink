@@ -12,7 +12,7 @@ import {
   requireMaxLength,
   requireNonEmpty,
 } from '../utils/validation'
-import type { PaymentMethod } from '../types'
+import type { CompanionData, PaymentMethod } from '../types'
 
 /**
  * Opción A / C — Incrementa el contador walk-in atómicamente. Respeta el cupo
@@ -88,7 +88,9 @@ export async function registerWalkInGuest(
   email?: string,
   phone?: string,
   customData?: Record<string, string>,
-  partySize?: number,
+  // Datos reales de cada acompañante (no un conteo) — ver el mismo criterio
+  // en RegisterWalkInGuestInput (functions/src/capacity/registerWalkInGuest.ts).
+  companions?: CompanionData[],
   paymentMethod?: PaymentMethod,
   // Ya no se usan del lado cliente (ver comentario de arriba) — se conservan
   // en la firma para no tener que tocar el único llamador (EventJoin.tsx) en
@@ -118,7 +120,7 @@ export async function registerWalkInGuest(
       phone?: string
       phoneCountry?: string
       customData?: Record<string, string>
-      partySize?: number
+      companions?: CompanionData[]
       paymentMethod?: PaymentMethod
     },
     { status: 'success'; qrToken: string } | { status: 'full' } | { status: 'error' }
@@ -131,7 +133,7 @@ export async function registerWalkInGuest(
     phone: trimmedPhone,
     phoneCountry,
     customData,
-    partySize,
+    companions,
     paymentMethod,
   })
 
