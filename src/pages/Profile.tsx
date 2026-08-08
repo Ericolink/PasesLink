@@ -15,7 +15,7 @@ import {
   uploadProfilePhoto,
 } from '../firebase/auth'
 import { saveUserProfile } from '../firebase/userProfile'
-import { requestPushPermission } from '../firebase/messaging'
+import { disablePushOnThisDevice, getPushPermissionState, requestPushPermission } from '../firebase/messaging'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 import { AccessibleModal } from '../components/accessibility/AccessibleModal'
@@ -140,6 +140,11 @@ export function Profile() {
      coanfitriones, activado a mano desde acá (nunca ofrecido a invitados). */
   const [pushSaving, setPushSaving] = useState(false)
   const [pushError, setPushError] = useState('')
+  const [pushDisabling, setPushDisabling] = useState(false)
+  // Se lee una sola vez al montar: Notification.permission es estado del
+  // navegador, no de React — se refresca a mano después de cada intento de
+  // activar (ver handleEnablePush) para reflejar un "denied" nuevo.
+  const [pushPermissionState, setPushPermissionState] = useState(getPushPermissionState)
   const pushEnabled = (profile?.fcmTokens?.length || 0) > 0
 
   async function handleEnablePush() {
@@ -148,7 +153,15 @@ export function Profile() {
     setPushError('')
     const result = await requestPushPermission(user.uid)
     if (!result.ok) setPushError(result.error)
+    setPushPermissionState(getPushPermissionState())
     setPushSaving(false)
+  }
+
+  async function handleDisablePush() {
+    if (!user) return
+    setPushDisabling(true)
+    await disablePushOnThisDevice(user.uid)
+    setPushDisabling(false)
   }
 
   /* Photo */
@@ -333,11 +346,27 @@ export function Profile() {
           <IconBell className="w-5 h-5 text-gray-400 shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="block text-sm font-medium text-gray-900 dark:text-white">Notificaciones push</span>
+            {pushEnabled && (
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">Recibirás notificaciones importantes en este dispositivo.</span>
+            )}
+            {!pushEnabled && pushPermissionState === 'unsupported' && (
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">Este navegador no soporta notificaciones push.</span>
+            )}
             {pushError && <span className="block text-xs text-red-500 mt-0.5">{pushError}</span>}
           </div>
           {pushEnabled ? (
-            <span className="text-xs font-medium text-green-600 dark:text-green-400 shrink-0">Activadas</span>
-          ) : (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-medium text-green-600 dark:text-green-400">Activadas</span>
+              <button
+                type="button"
+                onClick={handleDisablePush}
+                disabled={pushDisabling}
+                className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+              >
+                {pushDisabling ? 'Desactivando…' : 'Desactivar'}
+              </button>
+            </div>
+          ) : pushPermissionState === 'unsupported' ? null : (
             <button
               type="button"
               onClick={handleEnablePush}

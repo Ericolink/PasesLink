@@ -27,6 +27,17 @@ export type PushPermissionResult =
   | { ok: true }
   | { ok: false; error: string }
 
+// Estado del permiso de notificaciones del navegador, sin pedirlo — usado
+// por Profile.tsx para mostrar el estado correcto (incompatible/bloqueado)
+// antes de que el usuario toque "Activar", ya que Notification.requestPermission()
+// no vuelve a mostrar el diálogo si el usuario ya lo bloqueó antes.
+export type PushSupportState = 'unsupported' | 'default' | 'denied' | 'granted'
+
+export function getPushPermissionState(): PushSupportState {
+  if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) return 'unsupported'
+  return Notification.permission
+}
+
 // Pide permiso de notificaciones, registra el service worker dedicado
 // (firebase-messaging-sw.js, separado del que genera vite-plugin-pwa) y
 // guarda el token FCM en users/{uid}.fcmTokens — campo simple (no
@@ -45,7 +56,10 @@ export async function requestPushPermission(uid: string): Promise<PushPermission
   try {
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') {
-      return { ok: false, error: 'Permiso de notificaciones denegado.' }
+      return {
+        ok: false,
+        error: 'Bloqueaste las notificaciones en este navegador. Para activarlas, permite las notificaciones para este sitio desde la configuración de tu navegador e intenta de nuevo.',
+      }
     }
 
     const registration = await navigator.serviceWorker.register(buildServiceWorkerUrl())
