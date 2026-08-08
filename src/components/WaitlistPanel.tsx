@@ -42,10 +42,29 @@ export function WaitlistPanel({ eventId, canManage }: WaitlistPanelProps) {
   const [error, setError] = useState('')
   const [removeTarget, setRemoveTarget] = useState<WaitlistEntryData | null>(null)
   const [assignTarget, setAssignTarget] = useState<WaitlistEntryData | null>(null)
+  // Antes, un error de suscripción (ej. permission-denied) solo se mandaba a
+  // Sentry — el panel se quedaba oculto igual que "no hay nadie esperando",
+  // sin ningún indicio de que había un error real. Ahora se muestra acá.
+  const [subscriptionError, setSubscriptionError] = useState(false)
 
   useEffect(() => {
-    return subscribeToWaitlist(eventId, setEntries, (err) => captureException(err, { tags: { flow: 'waitlist-panel' } }))
+    setSubscriptionError(false)
+    return subscribeToWaitlist(eventId, setEntries, (err) => {
+      console.error('Error al suscribirse a la lista de espera:', err)
+      setSubscriptionError(true)
+      captureException(err, { tags: { flow: 'waitlist-panel' } })
+    })
   }, [eventId])
+
+  if (subscriptionError) {
+    return (
+      <div className="border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 rounded-xl p-4 mb-5">
+        <p className="text-sm text-red-700 dark:text-red-400">
+          No se pudo cargar la lista de espera. Revisa la consola del navegador para más detalles, o intenta recargar la página.
+        </p>
+      </div>
+    )
+  }
 
   if (entries.length === 0) return null
 

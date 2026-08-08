@@ -5,7 +5,7 @@
 // "rules should reject a raw write..." de capacity.test.ts.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { collection, deleteDoc, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { createTestEnv, getWaitlistDoc, seedEvent, seedWaitlistEntry } from './helpers'
 
 const OWNER_UID = 'owner-uid'
@@ -208,6 +208,82 @@ describe('firestore.rules — events/{eventId}/waitlist', () => {
       const publicDb = testEnv.unauthenticatedContext().firestore()
 
       const q = query(collection(publicDb, 'events', EVENT_ID, 'waitlist'), limit(50))
+      await assertFails(getDocs(q))
+    })
+  })
+
+  describe('list (organizador — WaitlistPanel.tsx / subscribeToWaitlist, sin limit(1))', () => {
+    // Bug real encontrado en producción: la única rama de `allow list` era
+    // la de limit(1) (arriba) — el organizador nunca pudo cargar el panel
+    // de la lista de espera, sin ningún error visible (el panel se oculta
+    // solo cuando la lista de entradas queda vacía, indistinguible de "no
+    // hay nadie esperando"). Cada test arma la misma consulta que usa
+    // subscribeToWaitlist en src/firebase/waitlist.ts (sin limit()) inline
+    // — mismo estilo que el resto de este archivo, sin extraer un helper
+    // tipado (el tipo de retorno de `context.firestore()` no coincide con
+    // el `Firestore` modular de firebase/firestore, aunque ambos funcionan
+    // igual en tiempo de ejecución).
+    it('allows the owner to list the full queue', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-2', { status: 'offered', offerToken: 'token-1' })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      const q = query(
+        collection(ownerDb, 'events', EVENT_ID, 'waitlist'),
+        where('status', 'in', ['waiting', 'offered']),
+        orderBy('priorityBoost', 'desc'),
+        orderBy('createdAt', 'asc'),
+      )
+      const snap = await assertSucceeds(getDocs(q))
+      expect(snap.docs).toHaveLength(2)
+    })
+
+    it('allows a co-organizer with viewGuestList permission (default true, no explicit entry)', async () => {
+      const COHOST_UID = 'cohost-uid'
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, coOrganizersMap: { [COHOST_UID]: true } })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      const cohostDb = testEnv.authenticatedContext(COHOST_UID).firestore()
+
+      const q = query(
+        collection(cohostDb, 'events', EVENT_ID, 'waitlist'),
+        where('status', 'in', ['waiting', 'offered']),
+        orderBy('priorityBoost', 'desc'),
+        orderBy('createdAt', 'asc'),
+      )
+      await assertSucceeds(getDocs(q))
+    })
+
+    it('rejects a co-organizer without viewGuestList permission', async () => {
+      const COHOST_UID = 'cohost-uid'
+      await seedEvent(testEnv, EVENT_ID, {
+        ownerId: OWNER_UID,
+        coOrganizersMap: { [COHOST_UID]: true },
+        coOrganizerPermissions: { [COHOST_UID]: { viewGuestList: false } },
+      })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      const cohostDb = testEnv.authenticatedContext(COHOST_UID).firestore()
+
+      const q = query(
+        collection(cohostDb, 'events', EVENT_ID, 'waitlist'),
+        where('status', 'in', ['waiting', 'offered']),
+        orderBy('priorityBoost', 'desc'),
+        orderBy('createdAt', 'asc'),
+      )
+      await assertFails(getDocs(q))
+    })
+
+    it('rejects an outsider (not owner, not co-organizer)', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      const outsiderDb = testEnv.authenticatedContext(OUTSIDER_UID).firestore()
+
+      const q = query(
+        collection(outsiderDb, 'events', EVENT_ID, 'waitlist'),
+        where('status', 'in', ['waiting', 'offered']),
+        orderBy('priorityBoost', 'desc'),
+        orderBy('createdAt', 'asc'),
+      )
       await assertFails(getDocs(q))
     })
   })

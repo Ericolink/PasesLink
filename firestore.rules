@@ -1639,10 +1639,17 @@ service cloud.firestore {
       // del documento no es adivinable ni listable; allow list acotado a
       // limit(1) habilita `where('waitlistToken','==',token)` sin permitir
       // enumerar el resto de la fila, protegiendo la privacidad de quién más
-      // está esperando).
+      // está esperando). Segunda rama, igual que `guests` (ver su `allow
+      // list` más abajo): el organizador/coanfitrión con `viewGuestList`
+      // (o admin) puede listar la fila completa sin el límite de 1 — es la
+      // consulta real que usa WaitlistPanel.tsx (subscribeToWaitlist, sin
+      // limit()) para mostrar el panel. Bug real encontrado en producción:
+      // sin esta rama, esa consulta siempre devolvía permission-denied y el
+      // panel quedaba en silencio como si nadie estuviera esperando.
       match /waitlist/{entryId} {
         allow get: if true;
-        allow list: if request.query.limit <= 1;
+        allow list: if request.query.limit <= 1
+          || canDo(eventId, 'viewGuestList', true) || isAdmin();
         allow create: if canJoinWaitlist(eventId, request.resource.data)
           || canOrganizerCreateWaitlistEntry(eventId, request.resource.data)
           || isAdmin();
