@@ -76,7 +76,7 @@ export function EventTicketCard({
         className="ticket-stub shrink-0 w-[60px] sm:w-[72px] flex flex-col items-center justify-center gap-0.5"
         style={{
           background: highlight
-            ? 'linear-gradient(180deg, color-mix(in srgb, var(--invite-accent, #FF1464) 22%, transparent), color-mix(in srgb, var(--invite-accent, #FF1464) 6%, transparent))'
+            ? 'linear-gradient(180deg, color-mix(in srgb, var(--invite-accent, #FF1464) 22%, var(--ticket-next-tint-base, transparent)), color-mix(in srgb, var(--invite-accent, #FF1464) 6%, var(--ticket-next-tint-base, transparent)))'
             : 'var(--invite-surface, rgba(74,50,92,.35))',
         }}
       >
@@ -93,7 +93,7 @@ export function EventTicketCard({
         className="flex-1 min-w-0"
         style={{
           background: highlight
-            ? 'linear-gradient(135deg, color-mix(in srgb, var(--invite-accent, #FF1464) 10%, transparent), var(--invite-surface, rgba(30,20,40,.9)))'
+            ? 'linear-gradient(135deg, color-mix(in srgb, var(--invite-accent, #FF1464) 10%, var(--ticket-next-tint-base, transparent)), var(--invite-surface, rgba(30,20,40,.9)))'
             : 'var(--invite-surface, rgba(30,20,40,.8))',
         }}
       >

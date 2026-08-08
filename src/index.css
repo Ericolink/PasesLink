@@ -1445,6 +1445,25 @@ textarea:focus {
 .ticket-card--next {
   box-shadow: 0 0 0 1px rgba(255,20,100,.18), 0 0 26px rgba(255,20,100,.12);
 }
+/* El boleto destacado ("Próximo") funde su acento con color-mix(...,
+   transparent) para que la esquina se disuelva en el fondo oscuro/orbs de
+   la app — en modo oscuro eso queda bien (se pidió mantenerlo tal cual). En
+   modo claro, esa misma esquina "transparente" deja ver la página blanca
+   detrás (efecto vidrio no buscado, reportado como bug). El ticket, con o
+   sin plantilla, está pensado para verse siempre oscuro/"nocturno" pase lo
+   que pase con el tema de la app (ver ticketTheme.ts) — y su texto fijo
+   (--invite-text) asume ese fondo oscuro, así que la corrección NO es virar
+   a un color claro (eso rompería el contraste del texto), sino resolver
+   hacia el propio --invite-surface del ticket (el de su plantilla si tiene,
+   si no el mismo gris-violeta oscuro de siempre): sólido, sin ver la
+   página, y sin cambiar cómo se ve ningún ticket en oscuro. Alcance
+   acotado a `--next`: el resto de .ticket-card no usa este token. */
+:root {
+  --ticket-next-tint-base: var(--invite-surface, rgba(30, 20, 40, .9));
+}
+.dark {
+  --ticket-next-tint-base: transparent;
+}
 .ticket-stub {
   border-right: 2px dashed var(--invite-border, rgba(74, 50, 92, .8));
 }
