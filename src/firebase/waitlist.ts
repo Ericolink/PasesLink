@@ -201,3 +201,15 @@ export async function cancelWaitlistOffer(eventId: string, entryId: string): Pro
   const callable = httpsCallable<{ eventId: string; entryId: string }, { ok: boolean }>(functions, 'cancelWaitlistOffer')
   await callable({ eventId, entryId })
 }
+
+// "Asignar lugar" (instantáneo): a diferencia de promoteWaitlistEntryManually
+// (que solo crea una oferta y espera a que el invitado confirme por correo),
+// esta acción crea el guest confirmado de inmediato — el organizador decide
+// sin pedirle confirmación a la persona. Funciona tanto sobre una entrada
+// 'waiting' como sobre una con oferta activa (la reemplaza). El invitado se
+// entera por correo (si dejó uno), no por el link de oferta de siempre.
+export async function assignWaitlistSpot(eventId: string, entryId: string, paymentMethod?: PaymentMethod): Promise<{ qrToken: string }> {
+  const callable = httpsCallable<{ eventId: string; entryId: string; paymentMethod?: PaymentMethod }, { qrToken: string }>(functions, 'assignWaitlistSpot')
+  const result = await callable({ eventId, entryId, paymentMethod })
+  return result.data
+}
