@@ -1862,5 +1862,19 @@ service cloud.firestore {
     match /{path=**}/guests/{guestId} {
       allow list: if isAdmin() && request.query.limit <= 20;
     }
+
+    // Analítica de plataforma del admin (src/firebase/platformUsage.ts) — 2
+    // lecturas `collectionGroup` más, mismo criterio que el bloque de arriba
+    // (aditivas, `isAdmin()` puro, no tocan las reglas anidadas por-evento de
+    // `waitlist`/`concessionsOrders` más arriba en el archivo). Sin el
+    // `limit()` del bloque anterior: son consultas de agregación
+    // (getCountFromServer), que no declaran `limit` — exigirlo las rechazaría
+    // siempre.
+    match /{path=**}/waitlist/{entryId} {
+      allow list: if isAdmin();
+    }
+    match /{path=**}/concessionsOrders/{orderId} {
+      allow list: if isAdmin();
+    }
   }
 }

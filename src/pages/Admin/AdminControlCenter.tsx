@@ -9,6 +9,7 @@ import { GrowthSection } from '../../components/Admin/ControlCenter/GrowthSectio
 import { FunnelSection } from '../../components/Admin/ControlCenter/FunnelSection'
 import { RecentActivityFeed } from '../../components/Admin/ControlCenter/RecentActivityFeed'
 import { UsageAnalyticsSection } from '../../components/Admin/ControlCenter/UsageAnalyticsSection'
+import { PlatformUsageSection } from '../../components/Admin/ControlCenter/PlatformUsageSection'
 import { DeviceBreakdownSection } from '../../components/Admin/ControlCenter/DeviceBreakdownSection'
 import { QuickActionsBar } from '../../components/Admin/ControlCenter/QuickActionsBar'
 import {
@@ -16,6 +17,7 @@ import {
   IconClock,
   IconMonitor,
   IconSmartphone,
+  IconTicket,
   IconTrendingUp,
   IconUsers,
 } from '../../components/accessibility/AccessibleIcon'
@@ -78,6 +80,10 @@ export function AdminControlCenter({
           <UsageAnalyticsSection events={events} loading={eventsLoading} />
         </DashboardSection>
       </div>
+
+      <DashboardSection title="Analítica de plataforma" icon={IconTicket} description="¿Cómo usan los invitados PaseLink una vez adentro del evento?">
+        <PlatformUsageSection />
+      </DashboardSection>
 
       <DashboardSection title="Dispositivos" icon={IconSmartphone} description="¿Desde qué sistema y navegador entran los organizadores?">
         <DeviceBreakdownSection />
