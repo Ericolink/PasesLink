@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Firestore } from 'firebase-admin/firestore'
 import { clearFirestoreEmulator, getTestFirestore, seedEvent, uniqueId } from '../__tests__/helpers.js'
 import { expireDueReconfirmations, sendDueReminders } from './sweep.js'
 
 const ONE_DAY_MS = 86_400_000
+const ORIGINAL_ENV = { ...process.env }
 
 async function seedGuestFn(db: Firestore, eventId: string, guestId: string, overrides: Record<string, unknown> = {}) {
   await db.collection('events').doc(eventId).collection('guests').doc(guestId).set({
@@ -23,10 +24,14 @@ describe('sendDueReminders', () => {
 
   beforeEach(() => {
     db = getTestFirestore()
+    delete process.env.WHATSAPP_ACCESS_TOKEN
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID
   })
 
   afterEach(async () => {
     await clearFirestoreEmulator()
+    process.env = { ...ORIGINAL_ENV }
+    vi.unstubAllGlobals()
   })
 
   it('sends a reminder when a rule matches exactly the days left', async () => {
@@ -116,6 +121,32 @@ describe('sendDueReminders', () => {
 
     expect(result.sent).toBe(0)
     expect(result.skipped).toBe(0)
+  })
+
+  it('uses WhatsApp when the guest contact has phone + consent and Meta is configured', async () => {
+    process.env.WHATSAPP_ACCESS_TOKEN = 'token'
+    process.env.WHATSAPP_PHONE_NUMBER_ID = '123'
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ messages: [{ id: 'wamid.reconfirm' }] }) })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const eventId = uniqueId('event')
+    const now = Date.now()
+    await seedEvent(db, eventId, {
+      reconfirmCampaign: { deadline: now + ONE_DAY_MS, reminderRules: [{ id: 'r1', daysBeforeDeadline: 1 }] },
+    })
+    await seedGuestFn(db, eventId, 'guest-1', { reconfirmStatus: 'requested' })
+    await db.collection('events').doc(eventId).collection('guestContacts').doc('guest-1').set({
+      email: 'guest1@test.com',
+      phone: '+525512345678',
+      whatsappConsent: true,
+    })
+
+    const result = await sendDueReminders(db, now)
+
+    expect(result.sent).toBe(1)
+    const log = await db.collection('events').doc(eventId).collection('sendLog')
+      .doc(`reconfirm_reminder_r1_guest-1_${new Date(now).toISOString().slice(0, 10)}`).get()
+    expect(log.data()?.channel).toBe('whatsapp')
   })
 })
 

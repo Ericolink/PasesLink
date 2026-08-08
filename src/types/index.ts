@@ -635,6 +635,17 @@ export interface GuestData {
   // indistinguible de uno mexicano) y cae a México como último recurso.
   // Ausente en invitados cargados antes de este campo.
   phoneCountry?: string
+  // Consentimiento para enviar WhatsApp automático (Meta Cloud API, ver
+  // functions/src/lib/waChannel.ts) sobre este evento — transaccional
+  // únicamente (oferta de lista de espera, reconfirmación), nunca marketing.
+  // `true` solo cuando el propio invitado tecleó su teléfono (autoregistro
+  // vía registerWalkInGuest, auto-edición vía updateGuestSelf, o promovido
+  // desde una entrada de waitlist que él mismo creó) — vive en
+  // `guestContacts/{guestId}`, igual que `phone`. Ausente/false en alta
+  // manual del organizador o importación CSV: el organizador conoce el
+  // teléfono, pero eso no es consentimiento del invitado para recibir
+  // mensajes automáticos.
+  whatsappConsent?: boolean
   qrToken: string
   status: GuestStatus
   companions: CompanionData[]
@@ -740,6 +751,13 @@ export interface WaitlistEntryData {
   phone?: string
   phoneCountry?: string
   email?: string
+  // Mismo criterio que GuestData.whatsappConsent — siempre `true` acá
+  // porque unirse a la lista de espera es, por definición, una acción que
+  // el propio invitado hace tecleando sus datos (no existe alta manual del
+  // organizador para `waitlist`, ver joinWaitlist en src/firebase/waitlist.ts).
+  // Se propaga tal cual a `guestContacts` si esta entrada se promueve a
+  // invitado (ver functions/src/waitlist/promoteToGuest.ts).
+  whatsappConsent?: boolean
   // Respuestas a los campos personalizados del evento (EventData.customFields)
   // — el formulario de lista de espera pide exactamente los mismos campos
   // que el registro normal (EventJoin.tsx), incluidos los obligatorios. Se

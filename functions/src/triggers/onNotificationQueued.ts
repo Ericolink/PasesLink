@@ -3,9 +3,14 @@
 // polling — reemplaza scripts/send-notifications.mjs (cron de GitHub
 // Actions cada 10 min), ver NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md
 // Fase 1. Hoy solo procesa el canal 'push' (FCM) — 'email'/'whatsapp'
-// quedan como canales futuros sin implementar (ver NotificationType en
+// quedan sin implementar EN ESTA COLA (ver NotificationType en
 // lib/notifications.ts), igual que en el script que reemplaza: se ignoran
-// en vez de fallar.
+// en vez de fallar. Esta cola es exclusivamente para avisar al ORGANIZADOR
+// (recipientUid, con FCM/users) — WhatsApp es un canal de invitado, sin uid
+// ni tokens FCM; se implementó por fuera de esta cola, directo en los
+// puntos que ya notifican invitados (waitlist/notify.ts,
+// reconfirm/sweep.ts vía lib/notifyGuestMultiChannel.ts) en vez de forzar
+// este pipeline a servir dos modelos de destinatario distintos.
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore'

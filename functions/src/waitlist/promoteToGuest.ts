@@ -100,6 +100,10 @@ export async function promoteEntryToGuest(
         email: email || '',
         phone: phone || '',
         ...(phone && entry.phoneCountry ? { phoneCountry: entry.phoneCountry } : {}),
+        // El teléfono de una entrada de waitlist siempre lo tecleó el propio
+        // invitado al anotarse (ver WaitlistEntryData.whatsappConsent) — se
+        // propaga tal cual, no se reevalúa.
+        ...(phone && entry.whatsappConsent ? { whatsappConsent: true } : {}),
       })
     }
 

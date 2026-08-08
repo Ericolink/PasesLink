@@ -388,6 +388,10 @@ service cloud.firestore {
         && (!('phone' in d) || (d.phone is string && d.phone.size() <= 40))
         && (!('phoneCountry' in d) || (d.phoneCountry is string && d.phoneCountry.size() <= 2))
         && (!('email' in d) || (d.email is string && d.email.size() <= 254))
+        // Ver isValidPublicGuestContact — mismo criterio: solo `true`
+        // (unirse a la lista de espera es siempre autoservicio, ver
+        // WaitlistEntryData.whatsappConsent).
+        && (!('whatsappConsent' in d) || d.whatsappConsent == true)
         // Respuestas a los campos personalizados del evento — tope de
         // customData.size() <= 30; el largo de cada valor individual no se
         // puede validar acá (Firestore rules no puede iterar un mapa),
@@ -473,7 +477,12 @@ service cloud.firestore {
       let d = request.resource.data;
       return (!('email' in d) || (d.email is string && d.email.size() <= 120))
         && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30))
-        && (!('phoneCountry' in d) || (d.phoneCountry is string && d.phoneCountry.size() <= 5));
+        && (!('phoneCountry' in d) || (d.phoneCountry is string && d.phoneCountry.size() <= 5))
+        // Solo `true` — el propio invitado nunca tiene motivo para mandar
+        // `false` (ausencia ya significa "sin consentimiento"); revocar
+        // consentimiento no es un flujo de autoservicio hoy (ver
+        // GuestData.whatsappConsent).
+        && (!('whatsappConsent' in d) || d.whatsappConsent == true);
     }
 
     // Tamaño de `companions` de un documento dado (`d`), sea cual sea su
@@ -1347,13 +1356,13 @@ service cloud.firestore {
           // suyo por primera vez) — aplica a cualquier invitado con pase,
           // venga de lista o autoregistro.
           || (
-            request.resource.data.keys().hasOnly(['email', 'phone', 'phoneCountry', 'lockToken']) &&
+            request.resource.data.keys().hasOnly(['email', 'phone', 'phoneCountry', 'lockToken', 'whatsappConsent']) &&
             isValidPublicGuestContact() &&
             guestSelfEditContactLockOk(eventId, guestId)
           );
         allow update: if canDo(eventId, 'editGuests', true) || isAdmin()
           || (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email', 'phone', 'phoneCountry', 'lockToken']) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email', 'phone', 'phoneCountry', 'lockToken', 'whatsappConsent']) &&
             isValidPublicGuestContact() &&
             guestSelfEditContactLockOk(eventId, guestId)
           );

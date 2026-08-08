@@ -16,6 +16,22 @@ export const brevoSenderEmail = defineSecret('BREVO_SENDER_EMAIL')
 // "todas las Cloud Functions consumen únicamente Secret Manager").
 export const reportAdminEmail = defineSecret('REPORT_ADMIN_EMAIL')
 
+// WhatsApp Business Platform (Meta Cloud API) — ver lib/waChannel.ts.
+// Trámite externo en Meta Business Manager (verificación de negocio, número
+// dedicado, plantillas aprobadas) antes de que estos secrets tengan un
+// valor real; hasta entonces quedan sin configurar y
+// isWhatsAppConfigured() devuelve false (ningún envío se intenta).
+export const whatsappAccessToken = defineSecret('WHATSAPP_ACCESS_TOKEN')
+export const whatsappPhoneNumberId = defineSecret('WHATSAPP_PHONE_NUMBER_ID')
+// Token propio (no lo da Meta) que se configura en el mismo formulario de
+// Meta Business Manager donde se registra la URL del webhook — Meta lo
+// reenvía tal cual en el GET de verificación (`hub.verify_token`).
+export const whatsappWebhookVerifyToken = defineSecret('WHATSAPP_WEBHOOK_VERIFY_TOKEN')
+// App Secret de la app de Meta (Configuración básica → App Secret) — firma
+// cada POST del webhook (header X-Hub-Signature-256); distinto del access
+// token de arriba.
+export const whatsappAppSecret = defineSecret('WHATSAPP_APP_SECRET')
+
 // Token de la API de Sentry (Auth Token con scope project:read/event:read),
 // DISTINTO del SENTRY_AUTH_TOKEN que ya existe como secret de GitHub Actions
 // (ese es para sentry-cli, subir source maps durante el build — su scope

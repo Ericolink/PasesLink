@@ -456,7 +456,11 @@ export async function updateGuestSelf(
       lockToken,
       ...guestVersionStamp(expectedVersion),
     })
-    transaction.set(contactRef(eventId, guestId), { email, phone, phoneCountry, lockToken }, { merge: true })
+    transaction.set(
+      contactRef(eventId, guestId),
+      { email, phone, phoneCountry, lockToken, ...(phone ? { whatsappConsent: true } : {}) },
+      { merge: true },
+    )
   })
 }
 

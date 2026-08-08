@@ -8,6 +8,15 @@ import type { Firestore } from 'firebase-admin/firestore'
 
 export const DAILY_BUDGET_CAP = 300
 
+// Techo de mensajes de WhatsApp por día — a diferencia del cap de Brevo
+// (300/día gratis, tope de CANTIDAD), acá el techo real es de COSTO: cada
+// plantilla enviada se cobra (ver WAITLIST_RECONFIRMATION_ARCHITECTURE.md
+// §10.5). 50/día es un punto de partida conservador mientras no hay datos
+// reales de uso — se reserva con el mismo `reserveBudgetSlot` de acá abajo,
+// namespacing la key del día (`${fecha}_whatsapp`) para no compartir cupo
+// con el de email. Ajustar una vez que haya volumen real.
+export const WHATSAPP_DAILY_BUDGET_CAP = 50
+
 export function todayDateKey(): string {
   return new Date().toISOString().slice(0, 10)
 }

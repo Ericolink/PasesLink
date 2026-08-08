@@ -31,7 +31,7 @@ export async function joinWaitlist(
   await addDoc(collection(db, 'events', eventId, 'waitlist'), {
     name,
     partySize,
-    ...(phone ? { phone } : {}),
+    ...(phone ? { phone, whatsappConsent: true } : {}),
     ...(phoneCountry ? { phoneCountry } : {}),
     ...(email ? { email } : {}),
     ...(customData && Object.keys(customData).length > 0 ? { customData } : {}),

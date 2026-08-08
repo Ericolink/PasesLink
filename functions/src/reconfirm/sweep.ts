@@ -7,8 +7,8 @@
 // implementar la ventana de gracia automática que recomendaba el RFC
 // original).
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
-import { sendEmail } from '../lib/emailChannel.js'
-import { DAILY_BUDGET_CAP, reserveBudgetSlot, todayDateKey } from '../lib/dailyBudget.js'
+import { todayDateKey } from '../lib/dailyBudget.js'
+import { sendGuestNotification } from '../lib/notifyGuestMultiChannel.js'
 import { guestVersionFields } from '../lib/guestVersion.js'
 
 const PASELINK_ORIGIN = 'https://www.paselink.com'
@@ -61,21 +61,23 @@ export async function sendDueReminders(db: Firestore, now: number): Promise<Send
     for (const guestDoc of guestsSnap.docs) {
       const guest = guestDoc.data() as DocumentData
       const contactSnap = await eventDoc.ref.collection('guestContacts').doc(guestDoc.id).get()
-      const email = contactSnap.exists ? (contactSnap.data()?.email as string | undefined) : undefined
-      if (!email) {
+      const contact = contactSnap.exists ? contactSnap.data() : undefined
+      const email = contact?.email as string | undefined
+      const phone = contact?.phone as string | undefined
+      if (!email && !phone) {
         tally.skipped += 1
         continue
       }
+
+      const link = `${PASELINK_ORIGIN}/pass/${eventDoc.id}/${guest.qrToken}`
 
       for (const rule of dueRules) {
         const logRef = eventDoc.ref.collection('sendLog').doc(`reconfirm_reminder_${rule.id}_${guestDoc.id}_${todayKey}`)
         try {
           await logRef.create({
             guestId: guestDoc.id,
-            channel: 'email',
             kind: 'reconfirm_reminder',
             ruleId: rule.id,
-            toEmail: email,
             status: 'processing',
             sentAt: new Date(),
           })
@@ -84,26 +86,33 @@ export async function sendDueReminders(db: Firestore, now: number): Promise<Send
           continue
         }
 
-        const budgetOk = await reserveBudgetSlot(db, todayKey, DAILY_BUDGET_CAP)
-        if (!budgetOk) {
-          await logRef.update({ status: 'skipped_budget' })
-          tally.skipped += 1
-          continue
-        }
-
-        const result = await sendEmail({
-          toEmail: email,
-          toName: guest.name as string | undefined,
-          subject: `Confirma tu asistencia a ${eventName}`,
-          html: `<p>Hola${guest.name ? ` ${guest.name}` : ''},</p>
+        const outcome = await sendGuestNotification({
+          db,
+          logRef,
+          contact: {
+            name: guest.name as string | undefined,
+            email,
+            phone,
+            phoneCountry: contact?.phoneCountry as string | undefined,
+            whatsappConsent: contact?.whatsappConsent as boolean | undefined,
+          },
+          whatsapp: {
+            templateKind: 'reconfirm_request',
+            vars: { guestName: (guest.name as string) || 'hola', organizerName: 'El organizador', eventName, deadline: 'el plazo indicado', link },
+          },
+          email: {
+            subject: `Confirma tu asistencia a ${eventName}`,
+            html: `<p>Hola${guest.name ? ` ${guest.name}` : ''},</p>
 <p>El organizador de <strong>${eventName}</strong> pidió reconfirmar tu asistencia.</p>
 <p>Responde antes del plazo para no perder tu lugar.</p>
-<p><a href="${PASELINK_ORIGIN}/pass/${eventDoc.id}/${guest.qrToken}">Reconfirmar mi asistencia</a></p>`,
+<p><a href="${link}">Reconfirmar mi asistencia</a></p>`,
+          },
+          budgetDateKey: todayKey,
         })
 
-        await logRef.update({ status: result.ok ? 'sent' : 'failed' })
-        if (result.ok) tally.sent += 1
-        else tally.failed += 1
+        if (outcome === 'sent') tally.sent += 1
+        else if (outcome === 'failed') tally.failed += 1
+        else tally.skipped += 1
       }
     }
   }

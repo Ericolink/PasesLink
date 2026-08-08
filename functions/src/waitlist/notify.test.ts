@@ -1,18 +1,24 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Firestore } from 'firebase-admin/firestore'
 import { clearFirestoreEmulator, getTestFirestore, uniqueId } from '../__tests__/helpers.js'
 import { todayDateKey } from '../lib/dailyBudget.js'
 import { sendOfferEmail } from './notify.js'
+
+const ORIGINAL_ENV = { ...process.env }
 
 describe('sendOfferEmail', () => {
   let db: Firestore
 
   beforeEach(() => {
     db = getTestFirestore()
+    delete process.env.WHATSAPP_ACCESS_TOKEN
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID
   })
 
   afterEach(async () => {
     await clearFirestoreEmulator()
+    process.env = { ...ORIGINAL_ENV }
+    vi.unstubAllGlobals()
   })
 
   it('does nothing when the entry has no email — no log, no budget consumed', async () => {
@@ -63,5 +69,51 @@ describe('sendOfferEmail', () => {
 
     const logSnap = await db.collection('events').doc(eventId).collection('sendLog').doc('waitlist_offer_entry-1').get()
     expect(logSnap.data()?.status).toBe('skipped_budget')
+  })
+
+  it('uses WhatsApp as the primary channel when the entry has phone + consent and Meta is configured', async () => {
+    process.env.WHATSAPP_ACCESS_TOKEN = 'token'
+    process.env.WHATSAPP_PHONE_NUMBER_ID = '123'
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ messages: [{ id: 'wamid.offer' }] }) })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const eventId = uniqueId('event')
+    await db.collection('events').doc(eventId).set({ name: 'Evento de prueba' })
+
+    await sendOfferEmail(db, eventId, 'entry-1', {
+      name: 'Ana',
+      email: 'ana@test.com',
+      phone: '+525512345678',
+      whatsappConsent: true,
+      waitlistToken: 'tok',
+    })
+
+    const logSnap = await db.collection('events').doc(eventId).collection('sendLog').doc('waitlist_offer_entry-1').get()
+    expect(logSnap.data()?.status).toBe('sent')
+    expect(logSnap.data()?.channel).toBe('whatsapp')
+    expect(fetchSpy).toHaveBeenCalledOnce()
+  })
+
+  it('never attempts WhatsApp for an entry without consent, even with a phone on file', async () => {
+    process.env.WHATSAPP_ACCESS_TOKEN = 'token'
+    process.env.WHATSAPP_PHONE_NUMBER_ID = '123'
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const eventId = uniqueId('event')
+    await db.collection('events').doc(eventId).set({ name: 'Evento de prueba' })
+
+    await sendOfferEmail(db, eventId, 'entry-1', {
+      name: 'Ana',
+      email: 'ana@test.com',
+      phone: '+525512345678',
+      // Sin whatsappConsent: true (ej. entrada creada por el organizador,
+      // no autoservicio) — nunca debe llamar a la API de Meta.
+      waitlistToken: 'tok',
+    })
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    const logSnap = await db.collection('events').doc(eventId).collection('sendLog').doc('waitlist_offer_entry-1').get()
+    expect(logSnap.data()?.channel).toBe('email')
   })
 })

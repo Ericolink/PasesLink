@@ -179,6 +179,10 @@ export async function registerWalkInGuest(
         email: trimmedEmail,
         phone: trimmedPhone,
         ...(trimmedPhone && input.phoneCountry ? { phoneCountry: input.phoneCountry } : {}),
+        // El propio invitado tecleó este teléfono al autoregistrarse — base
+        // válida para WhatsApp transaccional sobre este evento (ver
+        // GuestData.whatsappConsent, src/types/index.ts).
+        ...(trimmedPhone ? { whatsappConsent: true } : {}),
       })
     }
 
