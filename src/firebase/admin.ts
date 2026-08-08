@@ -1,7 +1,6 @@
 import {
   addDoc,
   collection,
-  getAggregateFromServer,
   getCountFromServer,
   getDocs,
   limit,
@@ -9,7 +8,6 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  sum,
   Timestamp,
   where,
 } from 'firebase/firestore'
@@ -77,33 +75,20 @@ export async function getAllUsers(): Promise<AdminUser[]> {
 export interface AdminEventStats {
   totalEvents: number
   activeEvents: number
-  totalGuests: number
-  totalPeople: number
-  totalCheckins: number
 }
 
-// Reemplaza el patrón anterior (descargar TODOS los eventos solo para sumar
-// 5 números en el cliente) por agregaciones server-side: cada
-// getCountFromServer/getAggregateFromServer cuesta 1 lectura sin importar
-// cuántos documentos matcheen, en vez de 1 lectura POR documento. Las
-// tarjetas de resumen del panel ya no dependen de subscribeToAllEvents.
+// Agregaciones server-side: cada getCountFromServer cuesta 1 lectura sin
+// importar cuántos documentos matcheen, en vez de 1 lectura POR documento.
+// Las tarjetas de resumen del panel ya no dependen de subscribeToAllEvents.
 export async function getEventStats(): Promise<AdminEventStats> {
   const eventsCol = collection(db, 'events')
-  const [totalSnap, activeSnap, sumsSnap] = await Promise.all([
+  const [totalSnap, activeSnap] = await Promise.all([
     getCountFromServer(eventsCol),
     getCountFromServer(query(eventsCol, where('status', '==', 'active'))),
-    getAggregateFromServer(eventsCol, {
-      totalGuests: sum('guestCount'),
-      totalPeople: sum('peopleCount'),
-      totalCheckins: sum('checkedInCount'),
-    }),
   ])
   return {
     totalEvents: totalSnap.data().count,
     activeEvents: activeSnap.data().count,
-    totalGuests: sumsSnap.data().totalGuests,
-    totalPeople: sumsSnap.data().totalPeople,
-    totalCheckins: sumsSnap.data().totalCheckins,
   }
 }
 

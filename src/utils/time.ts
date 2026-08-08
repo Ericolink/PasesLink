@@ -82,3 +82,17 @@ export function compareEventsByRelevance(
   const bMs = eventDateTimeMs(b)
   return aFuture ? aMs - bMs : bMs - aMs
 }
+
+export type EventLifecycleBucket = 'active' | 'cancelled' | 'expired'
+
+// Clasificación derivada para el panel de administración: `status` por sí
+// solo no alcanza para saber si un evento "ya pasó", porque el archivado a
+// `'archived'` no es automático a nivel de plataforma — solo ocurre cuando el
+// propio dueño abre su Dashboard después de la fecha del evento (ver
+// Dashboard.tsx). Por eso acá se combina con `isEventPast`, sin agregar
+// ningún valor nuevo a `EventStatus`.
+export function getEventLifecycleBucket(event: { status: 'active' | 'cancelled' | 'archived'; date: string }): EventLifecycleBucket {
+  if (event.status === 'cancelled') return 'cancelled'
+  if (event.status === 'archived') return 'expired'
+  return isEventPast(event.date) ? 'expired' : 'active'
+}

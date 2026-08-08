@@ -1,14 +1,10 @@
 import { MetricTile, type MetricTrend } from '../../MetricTile'
 import { useAdminGrowth } from '../../../hooks/useAdminGrowth'
-import { attendancePercent } from '../../../utils/attendance'
 import type { AdminEventStats, AdminUserStats } from '../../../firebase/admin'
 import type { TimeSeriesPoint } from '../../../firebase/admin'
 import {
-  IconBarChart,
   IconBarChart2,
   IconCalendar,
-  IconCheckCircle,
-  IconTicket,
   IconUserPlus,
   IconUsers,
 } from '../../accessibility/AccessibleIcon'
@@ -24,8 +20,8 @@ interface HeroKpiGridProps {
 // anterior" que se puede calcular sin guardar snapshots históricos de los
 // totales acumulados (eventStats/userStats son el total DE SIEMPRE, no
 // admiten un "vs. semana pasada" real sin ese historial). Por eso el resto
-// de las tarjetas (activos, totales, invitados, check-ins, tasa) se
-// muestran SIN trend — mejor sin comparación que una inventada.
+// de las tarjetas (activos, totales) se muestran SIN trend — mejor sin
+// comparación que una inventada.
 function weekOverWeekTrend(series: TimeSeriesPoint[]): { count: number; trend: MetricTrend } | null {
   if (series.length < 14) return null
   const last7 = series.slice(-7).reduce((sum, p) => sum + p.count, 0)
@@ -43,14 +39,11 @@ export function HeroKpiGrid({ eventStats, userStats, loading }: HeroKpiGridProps
 
   const eventsWeek = weekOverWeekTrend(eventsSeries)
   const usersWeek = weekOverWeekTrend(usersSeries)
-  const checkinRate = eventStats && eventStats.totalPeople > 0
-    ? Math.round(attendancePercent(eventStats.totalCheckins, eventStats.totalPeople))
-    : null
 
   if (loading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {Array.from({ length: 8 }).map((_, i) => <MetricTile.Skeleton key={i} />)}
+        {Array.from({ length: 5 }).map((_, i) => <MetricTile.Skeleton key={i} />)}
       </div>
     )
   }
@@ -76,9 +69,6 @@ export function HeroKpiGrid({ eventStats, userStats, loading }: HeroKpiGridProps
         accent="success"
         trend={usersWeek?.trend}
       />
-      <MetricTile label="Invitados totales" value={eventStats?.totalGuests ?? 0} icon={IconTicket} align="start" />
-      <MetricTile label="Check-ins totales" value={eventStats?.totalCheckins ?? 0} icon={IconCheckCircle} align="start" />
-      <MetricTile label="Tasa de check-in" value={checkinRate !== null ? `${checkinRate}%` : '—'} icon={IconBarChart} align="start" accent="warning" />
     </div>
   )
 }

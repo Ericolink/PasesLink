@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { AdminUser } from '../../firebase/admin'
 import type { EventData, EventStatus } from '../../types'
+import { getEventLifecycleBucket, type EventLifecycleBucket } from '../../utils/time'
 import { EmptyState } from '../Empty/EmptyState'
-import { IconCalendar, IconDownload, IconEye, IconBarChart2, IconTrash } from '../accessibility/AccessibleIcon'
+import { IconCalendar, IconDownload, IconEye, IconTrash } from '../accessibility/AccessibleIcon'
 import { Pagination } from './Pagination'
 import { AccessibleTable, EmptyRow, ResponsiveTable, SortableTh } from '../accessibility/AccessibleTable'
 import { SkeletonBlock } from '../Skeleton'
@@ -19,6 +20,17 @@ const STATUS_PILL_CLASSES: Record<EventStatus, string> = {
   active: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
   cancelled: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
   archived: 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600',
+}
+
+// Filtro de "qué está pasando" — distinto del `status` crudo de Firestore:
+// un evento sigue siendo `active` en Firestore hasta que alguien lo archiva
+// (manual o vía Dashboard.tsx del dueño), así que "Caducados" agrupa tanto
+// los ya archivados como los `active` cuya fecha ya pasó (ver
+// getEventLifecycleBucket).
+const LIFECYCLE_FILTER_LABELS: Record<EventLifecycleBucket, string> = {
+  active: 'Activos',
+  cancelled: 'Cancelados',
+  expired: 'Caducados',
 }
 
 type SortKey = 'name' | 'date' | 'guestCount' | 'checkedInCount'
@@ -38,7 +50,7 @@ interface Props {
 
 export function AdminEventsTable({ events, usersById, loading, search, onSearchChange, onStatusChange, onRequestDelete, onRequestBulkAction }: Props) {
   useLoadingAnnouncement(loading)
-  const [statusFilter, setStatusFilter] = useState<EventStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<EventLifecycleBucket | 'all'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)
@@ -47,7 +59,7 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     let result = events
-    if (statusFilter !== 'all') result = result.filter((e) => e.status === statusFilter)
+    if (statusFilter !== 'all') result = result.filter((e) => getEventLifecycleBucket(e) === statusFilter)
     if (q) {
       result = result.filter((e) => {
         const ownerEmail = usersById.get(e.ownerId)?.email?.toLowerCase() || ''
@@ -138,12 +150,12 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
         />
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value as EventStatus | 'all'); setPage(1) }}
+          onChange={(e) => { setStatusFilter(e.target.value as EventLifecycleBucket | 'all'); setPage(1) }}
           aria-label="Filtrar por estado"
           className="border border-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white rounded-md text-sm px-2 py-1.5"
         >
-          <option value="all">Todos los estados</option>
-          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+          <option value="all">Todos</option>
+          {Object.entries(LIFECYCLE_FILTER_LABELS).map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
@@ -227,9 +239,6 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
               <Link to={`/events/${event.id}`} title="Ver evento" aria-label={`Ver ${event.name}`} className="p-2.5 text-gray-400 hover:text-primary">
                 <IconEye className="w-4 h-4" />
               </Link>
-              <Link to={`/events/${event.id}/reports`} title="Ver reportes" aria-label={`Reportes de ${event.name}`} className="p-2.5 text-gray-400 hover:text-primary">
-                <IconBarChart2 className="w-4 h-4" />
-              </Link>
               <button onClick={() => onRequestDelete(event)} title="Eliminar" aria-label={`Eliminar ${event.name}`} className="p-2.5 text-gray-400 hover:text-red-600">
                 <IconTrash className="w-4 h-4" />
               </button>
@@ -310,9 +319,6 @@ export function AdminEventsTable({ events, usersById, loading, search, onSearchC
                   <div className="flex items-center gap-2 justify-end">
                     <Link to={`/events/${event.id}`} title="Ver evento" aria-label={`Ver ${event.name}`} className="text-gray-400 hover:text-primary">
                       <IconEye className="w-4 h-4" />
-                    </Link>
-                    <Link to={`/events/${event.id}/reports`} title="Ver reportes" aria-label={`Reportes de ${event.name}`} className="text-gray-400 hover:text-primary">
-                      <IconBarChart2 className="w-4 h-4" />
                     </Link>
                     <button onClick={() => onRequestDelete(event)} title="Eliminar" aria-label={`Eliminar ${event.name}`} className="text-gray-400 hover:text-red-600">
                       <IconTrash className="w-4 h-4" />
