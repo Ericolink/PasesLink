@@ -1,6 +1,8 @@
 {
   "projects": {
-    "default": "app-pases-9e6e7"
+    "default": "app-pases-9e6e7",
+    "production": "app-pases-9e6e7",
+    "staging": "paselink-staging"
   },
   "targets": {},
   "etags": {}

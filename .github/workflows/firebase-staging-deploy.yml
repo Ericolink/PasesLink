@@ -1,0 +1,102 @@
+name: Deploy to Firebase Staging
+
+# Contraparte de firebase-hosting-merge.yml pero apuntando al proyecto de
+# staging (paselink-staging, ver .firebaserc) — a diferencia de producción,
+# acá SÍ se despliegan Firestore Rules/índices y Cloud Functions en cada
+# push, porque romper staging es barato (ver README §Despliegue para el
+# motivo por el que producción lo mantiene manual).
+#
+# `environment: staging` en el job de deploy resuelve los secrets del
+# GitHub Environment "staging" (Settings → Environments) — mismo nombre de
+# secret que producción (VITE_FIREBASE_*, etc.) pero con el valor del
+# proyecto paselink-staging; los secrets a nivel de repo (Cloudinary,
+# Sentry DSN) se comparten con producción a propósito, no son sensibles
+# por proyecto (ver README).
+on:
+  push:
+    branches:
+      - staging
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run knip
+      - run: npm run test
+        env:
+          # Ver el mismo comentario en firebase-hosting-merge.yml.
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+
+  build_and_deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - run: npm ci
+
+      # --mode staging: vite build lee .env.staging (no existe en CI, todo
+      # llega por env vars igual) y, sobre todo, pone
+      # import.meta.env.MODE = 'staging' — src/lib/sentry.ts ya usa ese
+      # valor como `environment`, así que los errores de staging quedan
+      # separados de los de producción en Sentry sin tocar código.
+      - run: npm run build -- --mode staging
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
+          VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          # Sin VITE_RECAPTCHA_SITE_KEY ni SENTRY_AUTH_TOKEN a propósito:
+          # App Check queda inactivo en staging (la key de producción está
+          # restringida a su propio dominio) y no se crea un release de
+          # Sentry por cada push a staging — mismo criterio que los
+          # previews de PR en firebase-hosting-pull-request.yml.
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING }}'
+          channelId: live
+          projectId: paselink-staging
+
+      - name: Desplegar Firestore Rules, índices y Cloud Functions a staging
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING" > /tmp/staging-sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/staging-sa.json
+          npx firebase-tools deploy --only firestore:rules,firestore:indexes,functions --project paselink-staging --non-interactive
+        env:
+          FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING }}
+
+  notify_failure:
+    needs: [validate, build_and_deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Avisar a Discord
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"🟡 **Deploy de PaseLink Staging falló** — https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"

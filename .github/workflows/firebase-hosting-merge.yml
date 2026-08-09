@@ -38,6 +38,11 @@ jobs:
   build_and_deploy:
     needs: validate
     runs-on: ubuntu-latest
+    # GitHub Environment "production" — no cambia qué secrets ve el job (los
+    # secrets de repo siguen disponibles igual), pero deja explícito en la
+    # UI de Actions/Environments qué proyecto recibe cada deploy, en
+    # espejo con `environment: staging` de firebase-staging-deploy.yml.
+    environment: production
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

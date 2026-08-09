@@ -11,6 +11,7 @@ Aplicación web para gestionar invitaciones, listas de invitados y control de ac
 - [Flujo de desarrollo](#flujo-de-desarrollo)
 - [Testing](#testing)
 - [Despliegue](#despliegue)
+- [Staging](#staging)
 - [Checklist de lanzamiento](#checklist-de-lanzamiento)
 - [Problemas conocidos](#problemas-conocidos)
 
@@ -100,7 +101,11 @@ Copiar `.env.example` a `.env` y completar:
 
 ## Configuración Firebase
 
-Proyecto actual: `app-pases-9e6e7` (ver `.firebaserc`).
+Proyecto de producción: `app-pases-9e6e7`. Proyecto de staging: `paselink-staging`
+— ambos como aliases en `.firebaserc` (`production`/`staging`; `default` sigue
+apuntando a producción por compatibilidad). Cambiar de proyecto activo con
+`firebase use production` / `firebase use staging`. Ver [Staging](#staging)
+para el flujo completo.
 
 ### Authentication
 Providers habilitados en el código: **Email/Password**, **Google**, **Facebook**. Deben estar activados en Firebase Console → Authentication → Sign-in method para que el login/registro funcione.
@@ -137,10 +142,11 @@ No hay un modelo de branching formal todavía (proyecto de un solo desarrollador
 - Rama por feature/fix, mergeada a `main` vía Pull Request.
 
 ### CI/CD
-- **Cualquier PR** dispara `firebase-hosting-pull-request.yml`: corre lint + `tsc --noEmit` + tests (job `validate`); si pasa y la PR es del mismo repo (no de un fork), además publica un *preview channel* de Firebase Hosting.
-- **Push a `main`** dispara `firebase-hosting-merge.yml`: mismo gate `validate` y, solo si pasa, `build_and_deploy` construye y despliega a producción (`channelId: live`).
+- **Cualquier PR** dispara `firebase-hosting-pull-request.yml`: corre lint + `tsc --noEmit` + tests (job `validate`); si pasa y la PR es del mismo repo (no de un fork), además publica un *preview channel* de Firebase Hosting (sobre el proyecto de producción — es solo una URL de preview, no toca el sitio en vivo ni Firestore).
+- **Push a `staging`** dispara `firebase-staging-deploy.yml`: mismo gate `validate` y, si pasa, despliega Hosting + Firestore Rules/índices + Cloud Functions al proyecto `paselink-staging` — a diferencia de producción, acá el backend completo sí es automático (romper staging es barato).
+- **Push a `main`** dispara `firebase-hosting-merge.yml`: mismo gate `validate` y, solo si pasa, `build_and_deploy` construye y despliega **Hosting** a producción (`channelId: live`). Ambos workflows de deploy usan un [GitHub Environment](https://github.com/Ericolink/PasesLink/settings/environments) (`production` / `staging`) para dejar explícito en la UI de Actions a qué proyecto apunta cada uno.
 - Si `validate` falla (lint, tipos o tests rotos), el deploy **no se ejecuta** — ver Tarea 1 de la preparación para producción.
-- El gate de CI no corre `firebase deploy --only firestore:rules` ni tests de reglas — los cambios a `firestore.rules` se despliegan manualmente (ver [Despliegue](#despliegue)).
+- El gate de CI de producción no corre `firebase deploy --only firestore:rules` ni Functions — esos cambios se siguen desplegando manualmente a producción a propósito (ver [Despliegue](#despliegue)); en staging sí van en cada push.
 
 ### Comandos útiles
 ```bash
@@ -198,6 +204,43 @@ Usar solo si se necesita un deploy de emergencia fuera del flujo de CI — el ca
 firebase deploy
 ```
 Despliega hosting + reglas + índices juntos. Usar con cuidado: junta dos cosas (código y reglas de seguridad) que normalmente conviene desplegar y revisar por separado.
+
+---
+
+## Staging
+
+Proyecto Firebase separado (`paselink-staging`, ver `.firebaserc`) para probar cambios de backend (Functions, Rules, índices) antes de que lleguen a producción — nunca comparte datos, Auth ni secrets con `app-pases-9e6e7`.
+
+### Flujo
+```text
+feature branch → PR → merge a `staging` (auto-deploy: Hosting + Rules + índices + Functions)
+                → PR `staging` → `main` (auto-deploy: solo Hosting; Rules/Functions de prod siguen manuales)
+```
+
+### Desarrollo/build local contra staging
+```bash
+firebase apps:sdkconfig WEB <appId> --project staging   # obtener las claves del SDK de staging
+# pegarlas en .env.staging.local (ya ignorado por git vía el patrón *.local)
+npm run dev:staging     # servidor local apuntando a staging
+npm run build:staging   # build con --mode staging (Sentry lo reporta con environment: staging)
+```
+
+### Desplegar a staging manualmente (sin esperar a CI)
+```bash
+firebase use staging
+firebase deploy --only firestore:rules,firestore:indexes,functions,hosting
+```
+
+### Qué se comparte con producción (a propósito) y qué no
+- **Comparten valor** (mismos secrets de GitHub, no son sensibles por proyecto): Cloudinary, `VITE_SENTRY_DSN` — Sentry separa los eventos por el tag `environment` (`staging` vs `production`), no por proyecto.
+- **Separado por diseño de Secret Manager** (automático al ser otro proyecto GCP, sin ningún paso extra): `BREVO_API_KEY`/`BREVO_SENDER_EMAIL`, `WHATSAPP_*`, `REPORT_ADMIN_EMAIL`, `SENTRY_API_TOKEN`. **A propósito sin configurar en staging** — las Cloud Functions que los usan (`functions/src/lib/emailChannel.ts`) degradan solas si faltan, así que staging nunca manda emails/WhatsApp reales salvo que alguien setee esos secrets ahí a propósito para probar ese flujo puntual.
+- **App Check inactivo en staging** (sin `VITE_RECAPTCHA_SITE_KEY` en ese build) — la key de producción está restringida a su dominio; crear una nueva es un paso manual pendiente si se necesita probar ese flujo.
+
+### Pendiente (manual, fuera del alcance de este cambio)
+- [ ] Activar el plan **Blaze** en `paselink-staging` (Firebase Console → Uso y facturación) — Functions no se puede desplegar sin esto; ya se intentó y quedó bloqueado por este paso.
+- [ ] Activar los proveedores de **Authentication** (Email/Password, Google, Facebook) en Firebase Console → Authentication → Sign-in method del proyecto de staging — Firebase requiere el primer click de "Comenzar" desde la Consola, no tiene equivalente por API/CLI.
+- [ ] Crear un usuario admin de staging y correr `node scripts/backfill-admin-claims.mjs` apuntando a `paselink-staging` (custom claims, no hay email hardcodeado que sincronizar).
+- [ ] Una vez con Blaze activo, reintentar `firebase deploy --only functions --project staging` — si falla por permisos (no solo por Blaze), el service account `github-action-staging` puede necesitar roles adicionales de IAM más allá de los de Hosting (`roles/cloudfunctions.admin`, `roles/iam.serviceAccountUser`) — no se otorgaron de entrada por principio de menor privilegio.
 
 ---
 
