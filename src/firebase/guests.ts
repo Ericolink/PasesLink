@@ -1177,11 +1177,17 @@ function normalizeCompanions(value: unknown): CompanionData[] {
       lastName: (c as CompanionData)?.lastName || '',
       phone: (c as CompanionData)?.phone || '',
       phoneCountry: (c as CompanionData)?.phoneCountry || '',
-      menuSelection: (c as CompanionData)?.menuSelection || undefined,
+      // Claves OMITIDAS (no `undefined`) cuando el acompañante no tiene
+      // valor — Firestore rechaza `undefined` como valor de campo, incluso
+      // anidado dentro de un array (mismo criterio que updateGuestSelf).
+      // Antes quedaban como `undefined` explícito acá, y ese mismo objeto
+      // se reescribía tal cual en updateGuest (edición desde el admin) al
+      // quitar/editar un acompañante, tirando abajo la transacción entera.
+      ...((c as CompanionData)?.menuSelection !== undefined ? { menuSelection: (c as CompanionData).menuSelection } : {}),
       // Respuestas a customFields obligatorios, capturadas por acompañante
       // agregado vía autoregistro (ver registerWalkInGuest.ts) — ausente en
       // acompañantes cargados por el organizador.
-      customData: (c as CompanionData)?.customData || undefined,
+      ...((c as CompanionData)?.customData !== undefined ? { customData: (c as CompanionData).customData } : {}),
     }))
   }
   if (typeof value === 'number' && value > 0) {
