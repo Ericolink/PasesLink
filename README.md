@@ -236,11 +236,12 @@ firebase deploy --only firestore:rules,firestore:indexes,functions,hosting
 - **Separado por diseño de Secret Manager** (automático al ser otro proyecto GCP, sin ningún paso extra): `BREVO_API_KEY`/`BREVO_SENDER_EMAIL`, `WHATSAPP_*`, `REPORT_ADMIN_EMAIL`, `SENTRY_API_TOKEN`. **A propósito sin configurar en staging** — las Cloud Functions que los usan (`functions/src/lib/emailChannel.ts`) degradan solas si faltan, así que staging nunca manda emails/WhatsApp reales salvo que alguien setee esos secrets ahí a propósito para probar ese flujo puntual.
 - **App Check inactivo en staging** (sin `VITE_RECAPTCHA_SITE_KEY` en ese build) — la key de producción está restringida a su dominio; crear una nueva es un paso manual pendiente si se necesita probar ese flujo.
 
-### Pendiente (manual, fuera del alcance de este cambio)
-- [ ] Activar el plan **Blaze** en `paselink-staging` (Firebase Console → Uso y facturación) — Functions no se puede desplegar sin esto; ya se intentó y quedó bloqueado por este paso.
-- [ ] Activar los proveedores de **Authentication** (Email/Password, Google, Facebook) en Firebase Console → Authentication → Sign-in method del proyecto de staging — Firebase requiere el primer click de "Comenzar" desde la Consola, no tiene equivalente por API/CLI.
-- [ ] Crear un usuario admin de staging y correr `node scripts/backfill-admin-claims.mjs` apuntando a `paselink-staging` (custom claims, no hay email hardcodeado que sincronizar).
-- [ ] Una vez con Blaze activo, reintentar `firebase deploy --only functions --project staging` — si falla por permisos (no solo por Blaze), el service account `github-action-staging` puede necesitar roles adicionales de IAM más allá de los de Hosting (`roles/cloudfunctions.admin`, `roles/iam.serviceAccountUser`) — no se otorgaron de entrada por principio de menor privilegio.
+### IAM del service account de CI (`github-action-staging`)
+Además de los roles de Hosting con los que se crea (ver `firebase init hosting:github`), el pipeline de `firebase-staging-deploy.yml` (Rules + índices + Functions + Cloud Scheduler) necesitó agregar, uno por uno según cada error real de deploy:
+`roles/iam.serviceAccountUser` (ActAs sobre la service account de runtime), `roles/firebase.admin` (Rules/Functions), `roles/secretmanager.admin` (leer/vincular `BREVO_*`/`WHATSAPP_*`/etc.) y `roles/cloudscheduler.admin` (las funciones `scheduled`, ej. `backupFirestoreDaily`). Los cuatro están acotados al proyecto `paselink-staging` únicamente. Si se agrega una función que use un producto de GCP nuevo (ej. Cloud Tasks), es esperable necesitar un rol más ahí.
+
+### Admin de staging
+Un admin de staging ya existe (custom claim `admin:true` vía `admins/{uid}` + el trigger `onAdminWritten`, ya desplegado). Para agregar otro: crear el usuario (sign up normal contra staging, o Consola → Authentication → Add user), copiar su `uid`, y crear un documento en `admins/{uid}` desde Firestore Data (Consola) — `firestore.rules` bloquea ese `write` desde el cliente a propósito. `scripts/backfill-admin-claims.mjs` solo hace falta para admins que ya existían *antes* de que el trigger se desplegara.
 
 ---
 
