@@ -82,6 +82,12 @@ jobs:
           channelId: live
           projectId: paselink-staging
 
+      # El predeploy de functions (firebase.json) corre "npm run build" con
+      # RESOURCE_DIR=functions pero nunca instala dependencias — asume que
+      # ya están, como pasa en una laptop de dev. En un checkout de CI
+      # limpio no existen, así que tsc no encuentra firebase-functions/v2/*.
+      - run: npm ci --prefix functions
+
       - name: Desplegar Firestore Rules, índices y Cloud Functions a staging
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING" > /tmp/staging-sa.json
