@@ -35,6 +35,9 @@ const MAX_GUESTS_PER_CALL = 2000
 // timeoutSeconds por encima del default: createGuestsWithCapacity trocea en
 // lotes de 50 (CHUNK_SIZE), cada uno su propia transacción — con el tope de
 // MAX_GUESTS_PER_CALL (2000) eso son hasta 40 transacciones secuenciales.
+//
+// 2026-08-08: mismo problema de binding IAM que addGuest.ts (ver comentario
+// ahí) — se reaplicó manualmente, no es reparable con `firebase deploy`.
 export const addGuestsBulk = onCall<AddGuestsBulkInput>({ timeoutSeconds: 120 }, (request) =>
   withCallableObservability(request, 'addGuestsBulk', async (ctx): Promise<AddGuestsBulkResponse> => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

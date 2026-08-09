@@ -20,15 +20,18 @@ export interface WhatsAppTemplateDef {
 }
 
 export const WHATSAPP_TEMPLATES: Record<WhatsAppTemplateKind, WhatsAppTemplateDef> = {
-  // "Hola {{1}}, se liberó un lugar para vos en {{2}}. Confirmá tu
-  // asistencia antes de {{3}} en este link: {{4}}"
+  // "Hola {{1}}, se liberó un lugar para ti en {{2}}. Confirma tu
+  // asistencia antes de {{3}} en este link: {{4}} Te esperamos." — Meta
+  // rechaza plantillas que terminan en una variable (un simple punto
+  // después no alcanza, hace falta una palabra real).
   waitlist_offer: {
     name: 'oferta_lugar',
     language: 'es_MX',
     buildBodyParams: (vars) => [vars.guestName, vars.eventName, vars.deadline, vars.link],
   },
-  // "Hola {{1}}, {{2}} pidió reconfirmar tu asistencia a {{3}}. Respondé
-  // antes de {{4}} para no perder tu lugar: {{5}}"
+  // "Hola {{1}}, {{2}} pidió reconfirmar tu asistencia a {{3}}. Responde
+  // antes de {{4}} para no perder tu lugar: {{5}} Gracias." — mismo motivo
+  // que waitlist_offer.
   reconfirm_request: {
     name: 'reconfirmar',
     language: 'es_MX',

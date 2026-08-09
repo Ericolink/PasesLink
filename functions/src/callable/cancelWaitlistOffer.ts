@@ -15,7 +15,7 @@ import { cancelOffer } from '../waitlist/promote.js'
 import { runCascade } from '../waitlist/cascade.js'
 import { sendOfferEmail } from '../waitlist/notify.js'
 import { canManageGuests } from '../lib/permissions.js'
-import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
+import { brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId } from '../lib/secrets.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface CancelWaitlistOfferInput {
@@ -26,7 +26,9 @@ interface CancelWaitlistOfferInput {
 // timeoutSeconds por encima del default liviano: runCascade + sendOfferEmail
 // hacen una llamada HTTP real a Brevo por cada promoción, no solo una
 // transacción de Firestore.
-export const cancelWaitlistOffer = onCall<CancelWaitlistOfferInput>({ secrets: [brevoApiKey, brevoSenderEmail], timeoutSeconds: 30 }, (request) =>
+export const cancelWaitlistOffer = onCall<CancelWaitlistOfferInput>(
+  { secrets: [brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId], timeoutSeconds: 30 },
+  (request) =>
   withCallableObservability(request, 'cancelWaitlistOffer', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

@@ -48,12 +48,18 @@ export function WaitlistPanel({ eventId, canManage }: WaitlistPanelProps) {
   const [subscriptionError, setSubscriptionError] = useState(false)
 
   useEffect(() => {
-    setSubscriptionError(false)
-    return subscribeToWaitlist(eventId, setEntries, (err) => {
-      console.error('Error al suscribirse a la lista de espera:', err)
-      setSubscriptionError(true)
-      captureException(err, { tags: { flow: 'waitlist-panel' } })
-    })
+    return subscribeToWaitlist(
+      eventId,
+      (data) => {
+        setSubscriptionError(false)
+        setEntries(data)
+      },
+      (err) => {
+        console.error('Error al suscribirse a la lista de espera:', err)
+        setSubscriptionError(true)
+        captureException(err, { tags: { flow: 'waitlist-panel' } })
+      },
+    )
   }, [eventId])
 
   if (subscriptionError) {

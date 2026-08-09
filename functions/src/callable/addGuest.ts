@@ -47,6 +47,16 @@ export type AddGuestResponse = { status: 'success'; id: string } | { status: 'fu
 
 // timeoutSeconds bajo: transacción acotada (createGuestsWithCapacity con
 // un solo invitado), sin llamadas externas.
+//
+// 2026-08-08: el binding IAM público (roles/run.invoker → allUsers) del
+// servicio de Cloud Run subyacente no quedó aplicado en el deploy original
+// (causaba 403 sin headers CORS en el preflight OPTIONS). Firebase CLI solo
+// asigna ese binding al CREAR la función — nunca en updates posteriores — y
+// la opción `invoker` de onCall() no aplica a funciones callable (solo a
+// httpsTrigger), así que no es reparable con `firebase deploy` ni desde
+// código. Se reaplicó manualmente vía la API de Cloud Run
+// (services/addguest:setIamPolicy). Si el síntoma vuelve a aparecer, hay
+// que repetir ese setIamPolicy directo, no solo redeployar.
 export const addGuest = onCall<AddGuestInput>({ timeoutSeconds: 20 }, (request) =>
   withCallableObservability(request, 'addGuest', async (ctx): Promise<AddGuestResponse> => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')

@@ -13,7 +13,7 @@ import { onDocumentUpdated } from 'firebase-functions/v2/firestore'
 import { getFirestore } from 'firebase-admin/firestore'
 import { runCascade } from '../waitlist/cascade.js'
 import { sendOfferEmail } from '../waitlist/notify.js'
-import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
+import { brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId } from '../lib/secrets.js'
 import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
 // timeoutSeconds por encima del default: la cascada puede promover a varias
@@ -21,7 +21,12 @@ import { withTriggerObservability } from '../lib/observability/withObservability
 // muchos invitados juntos), y sendOfferEmail hace una llamada HTTP real a
 // Brevo por cada una.
 export const onCapacityFreed = onDocumentUpdated(
-  { document: 'events/{eventId}', secrets: [brevoApiKey, brevoSenderEmail], timeoutSeconds: 120, maxInstances: 10 },
+  {
+    document: 'events/{eventId}',
+    secrets: [brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId],
+    timeoutSeconds: 120,
+    maxInstances: 10,
+  },
   (event) => withTriggerObservability(event, 'onCapacityFreed', async (ctx) => {
     const before = event.data?.before.data()
     const after = event.data?.after.data()

@@ -11,7 +11,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { attemptPromote } from '../waitlist/promote.js'
 import { sendOfferEmail } from '../waitlist/notify.js'
 import { canManageGuests } from '../lib/permissions.js'
-import { brevoApiKey, brevoSenderEmail } from '../lib/secrets.js'
+import { brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId } from '../lib/secrets.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface PromoteWaitlistEntryInput {
@@ -21,7 +21,9 @@ interface PromoteWaitlistEntryInput {
 
 // timeoutSeconds por encima del default liviano: sendOfferEmail hace una
 // llamada HTTP real a Brevo.
-export const promoteWaitlistEntry = onCall<PromoteWaitlistEntryInput>({ secrets: [brevoApiKey, brevoSenderEmail], timeoutSeconds: 20 }, (request) =>
+export const promoteWaitlistEntry = onCall<PromoteWaitlistEntryInput>(
+  { secrets: [brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId], timeoutSeconds: 20 },
+  (request) =>
   withCallableObservability(request, 'promoteWaitlistEntry', async (ctx) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
