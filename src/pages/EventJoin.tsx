@@ -9,7 +9,9 @@ import { joinWaitlist } from '../firebase/waitlist'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../components/CountryCodeSelect'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
-import { saveUserInvitation } from '../firebase/userProfile'
+import { getUserInvitation, saveUserInvitation } from '../firebase/userProfile'
+import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
+import { trackInvitationSignupPromptShown } from '../lib/analytics'
 import {
   companionFieldsHaveErrors,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
@@ -108,6 +110,14 @@ export function EventJoin() {
   const [regErrorAttempt, setRegErrorAttempt] = useState(0)
   const [waitlistState, setWaitlistState] = useState<'form' | 'submitting' | 'joined' | 'error'>('form')
   const [waitlistToken, setWaitlistToken] = useState<string | null>(null)
+  // Tarjeta "guarda tu invitación" antes del formulario (ver GuestSignupPrompt
+  // más abajo) — un dismiss por sesión de navegador, mismo criterio que
+  // paselink_signup_prompt_* en GuestPass.tsx.
+  const [signupCardDismissed, setSignupCardDismissed] = useState(
+    () => !!id && sessionStorage.getItem(`paselink_join_signup_dismissed_${id}`) === '1',
+  )
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false)
+  const [signupPromptStep, setSignupPromptStep] = useState<'form' | 'login'>('form')
   const formRef = useRef<HTMLFormElement>(null)
   useFocusFirstInvalidField(formRef, regErrorAttempt)
 
@@ -197,18 +207,50 @@ export function EventJoin() {
   }, [event, state])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Pre-fill name/lastName from profile. Intencionalmente un efecto: profile
-  // llega async después de user, y el guard `!name` evita pisar lo que el
-  // usuario ya tipeó. Convertirlo a "ajustar estado durante el render" cambiaría
-  // cuándo se aplica el valor de profile vs. el de user.displayName.
+  // Pre-fill name/lastName/email from profile. Intencionalmente un efecto: profile
+  // llega async después de user, y los guards `!name`/`!email` evitan pisar lo
+  // que el usuario ya tipeó. Convertirlo a "ajustar estado durante el render"
+  // cambiaría cuándo se aplica el valor de profile vs. el de user.displayName.
+  // Sin teléfono: UserProfile no tiene ese campo hoy (solo vive en el guest).
   /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
-    if (user && !name) {
+    if (!user) return
+    if (!name) {
       setName(profile?.firstName || user.displayName?.split(' ')[0] || '')
       setLastName(profile?.lastName || user.displayName?.split(' ').slice(1).join(' ') || '')
     }
+    if (!email && user.email) setEmail(user.email)
   }, [profile, user])
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+
+  // Si esta cuenta ya tiene una invitación guardada para este evento (se
+  // autoregistró antes, quizás desde otro dispositivo — el check de
+  // localStorage de arriba es por navegador, no por cuenta), lo manda directo
+  // a su pase existente en vez de dejarlo llenar el formulario de nuevo y
+  // crear un segundo registro. Corre tanto si ya estaba logueado al entrar
+  // como si recién se logueó desde la tarjeta de abajo. La barrera real
+  // contra duplicados vive del lado del servidor (ver registerWalkInGuest.ts,
+  // Cloud Functions) — esto es solo la UX que evita mostrarle el formulario.
+  useEffect(() => {
+    const uid = user?.uid
+    if (!id || !uid || (state !== 'form' && state !== 'full')) return
+    let cancelled = false
+    getUserInvitation(uid, id).then((inv) => {
+      if (cancelled || !inv?.qrToken) return
+      localStorage.setItem(regKey(id), JSON.stringify({ qrToken: inv.qrToken }))
+      navigate(`/pass/${id}/${inv.qrToken}`, { replace: true })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [id, user?.uid, state, navigate])
+
+  // Tarjeta "guarda tu invitación" — visible mientras no haya sesión, el
+  // formulario esté disponible, y no se haya descartado en esta sesión.
+  const showSignupCard = !user && state === 'form' && !signupCardDismissed
+  useEffect(() => {
+    if (showSignupCard) trackInvitationSignupPromptShown('event_join')
+  }, [showSignupCard])
 
   // Tope de "¿cuántos vienen?" — límite de acompañantes configurado para
   // ESTE evento (EventData.maxCompanions), no un valor global. Mientras
@@ -613,6 +655,54 @@ export function EventJoin() {
             <p className="mb-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-left">
               {event.description}
             </p>
+          )}
+
+          {showSignupCard && (
+            <div className="mb-4 rounded-2xl border border-[var(--invite-border)] bg-[var(--invite-surface)] p-4 text-left">
+              <p className="text-sm font-bold text-[var(--invite-text)] mb-1">Guarda tu invitación en PaseLink</p>
+              <p className="text-xs text-[var(--invite-text-muted)] mb-3">
+                Crea una cuenta gratis para completar tu registro más rápido y encontrar esta invitación después, desde
+                cualquier dispositivo.
+              </p>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setSignupPromptStep('form'); setShowSignupPrompt(true) }}
+                  className="w-full text-white rounded-full py-2.5 font-bold text-sm hover:opacity-90 active:scale-[.98] transition-all bg-[var(--invite-accent)]"
+                >
+                  Crear cuenta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSignupPromptStep('login'); setShowSignupPrompt(true) }}
+                  className="w-full text-center text-[var(--invite-accent)] font-semibold text-sm py-1"
+                >
+                  Ya tengo cuenta
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (id) sessionStorage.setItem(`paselink_join_signup_dismissed_${id}`, '1')
+                  setSignupCardDismissed(true)
+                }}
+                className="w-full text-center text-xs text-[var(--invite-text-muted)] mt-2 py-1"
+              >
+                Continuar sin cuenta
+              </button>
+            </div>
+          )}
+
+          {showSignupPrompt && (
+            <GuestSignupPrompt
+              eventId={id!}
+              initialFirstName={name}
+              initialLastName={lastName}
+              initialStep={signupPromptStep}
+              source="event_join"
+              onDismiss={() => setShowSignupPrompt(false)}
+              onSuccess={() => setShowSignupPrompt(false)}
+            />
           )}
 
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-3 text-left">

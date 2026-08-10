@@ -246,6 +246,24 @@ describe('registerWalkInGuest (servicio)', () => {
     expect(guest?.guestPhotoURL).toBe('https://example.com/real.jpg')
   })
 
+  it('returns the existing guest instead of creating a duplicate when the same authUid registers twice', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', guestCount: 0, peopleCount: 0 })
+
+    const first = await registerWalkInGuest(db, eventId, { name: 'Ana López', authUid: 'user-1' })
+    if (first.status !== 'success') throw new Error('expected success')
+
+    const second = await registerWalkInGuest(db, eventId, { name: 'Ana López', authUid: 'user-1' })
+    if (second.status !== 'success') throw new Error('expected success')
+
+    expect(second.guestId).toBe(first.guestId)
+    expect(second.qrToken).toBe(first.qrToken)
+    expect(second.email).toBe('')
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.guestCount).toBe(1)
+    expect(event.data()?.peopleCount).toBe(1)
+  })
+
   it('rejects a customData with too many fields', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'open' })

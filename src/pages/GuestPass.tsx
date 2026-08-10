@@ -11,7 +11,7 @@ import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { saveUserInvitation, deleteUserInvitation } from '../firebase/userProfile'
-import { trackCheckIn, trackGuestDelete, trackRsvpConfirm, trackRsvpDecline } from '../lib/analytics'
+import { trackCheckIn, trackGuestDelete, trackInvitationSignupPromptShown, trackRsvpConfirm, trackRsvpDecline } from '../lib/analytics'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { isOrganizerRole, resolveEventPermissions } from '../types/coOrganizerPermissions'
@@ -272,6 +272,13 @@ function GuestPassInner() {
     if (!sessionStorage.getItem(dismissKey)) setShowSignupPrompt(true)
   }, [guest, user, loading, eventId, qrToken, location.state])
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Un solo punto de medición para los tres disparadores del CTA (justo al
+  // registrarse, al confirmar RSVP, y el botón persistente) en vez de
+  // instrumentar cada setShowSignupPrompt(true) por separado.
+  useEffect(() => {
+    if (showSignupPrompt) trackInvitationSignupPromptShown('guest_pass')
+  }, [showSignupPrompt])
 
   if (loading) {
     return (
@@ -999,6 +1006,7 @@ function GuestPassInner() {
         <GuestSignupPrompt
           eventId={eventId}
           guest={guest}
+          source="guest_pass"
           onDismiss={() => {
             sessionStorage.setItem(`paselink_signup_prompt_${eventId}_${qrToken}`, '1')
             setShowSignupPrompt(false)

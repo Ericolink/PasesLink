@@ -104,6 +104,28 @@ export async function registerWalkInGuest(
     const entryMode = event.entryMode as string | undefined
     if (entryMode !== 'open' && entryMode !== 'hybrid') return { status: 'not_open' }
 
+    // Idempotencia por cuenta: si esta cuenta ya tiene un guest de este
+    // evento (ej. se autoregistró antes desde otro dispositivo, o dos
+    // pestañas mandaron el mismo submit), devolver ESE guest en vez de crear
+    // uno nuevo — la única barrera real contra duplicados (el chequeo
+    // equivalente del lado del cliente en EventJoin.tsx es solo UX, no
+    // seguridad). `email: ''` a propósito: la Callable no debe reenviar el
+    // correo del pase para un registro que ya existía.
+    if (input.authUid) {
+      const existingSnap = await tx.get(guestsCol.where('guestUid', '==', input.authUid).limit(1))
+      if (!existingSnap.empty) {
+        const existing = existingSnap.docs[0]
+        const existingData = existing.data()
+        return {
+          status: 'success',
+          guestId: existing.id,
+          qrToken: existingData.qrToken as string,
+          eventName: (event.name as string) || 'tu evento',
+          email: '',
+        }
+      }
+    }
+
     // Contra la definición REAL de campos del evento, nunca contra lo que
     // el cliente diga que son sus campos — ver validatePublicCustomData.
     const customData = validatePublicCustomData(input.customData, event.customFields as CustomFieldDef[] | undefined)

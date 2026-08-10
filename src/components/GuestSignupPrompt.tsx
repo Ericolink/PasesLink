@@ -13,6 +13,7 @@ import { AccessibleModal } from './accessibility/AccessibleModal'
 import { IconCalendar, IconCheckCircle, IconGoogle, IconTicket, IconUserPlus, IconX } from './accessibility/AccessibleIcon'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
+import { trackInvitationAccountCreated } from '../lib/analytics'
 import type { GuestData } from '../types'
 
 const BENEFITS = [
@@ -23,21 +24,37 @@ const BENEFITS = [
 
 interface Props {
   eventId: string
-  guest: GuestData
+  // Ausente cuando todavía no existe un guest (oferta de cuenta ANTES de
+  // autoregistrarse, ver EventJoin.tsx) — presente cuando ya existe un pase
+  // (oferta al confirmar RSVP, ver GuestPass.tsx). initialFirstName/LastName
+  // solo se usan cuando no hay `guest` todavía.
+  guest?: GuestData
+  initialFirstName?: string
+  initialLastName?: string
+  // Permite abrir directo en 'login' (botón "Ya tengo cuenta" en EventJoin,
+  // sin pasarle antes el paso de beneficios) — 'offer' por defecto en todo lo
+  // demás.
+  initialStep?: 'offer' | 'form' | 'login'
+  // Distingue el origen para analytics y para el método guardado en
+  // recordLegalAcceptance (ver LegalAcceptanceMethod).
+  source: 'guest_pass' | 'event_join'
   onDismiss: () => void
   onSuccess: () => void
 }
 
-// Se ofrece justo al confirmar RSVP (ver handleRsvp en GuestPass.tsx) a un
-// invitado sin sesión — nunca navega fuera del pase: crear la cuenta acá
-// mismo es lo que permite "volver exactamente a la misma invitación" sin
-// construir ningún mecanismo de redirect. El vínculo cuenta↔pase no lo hace
-// este componente: en cuanto la cuenta queda autenticada, el efecto principal
-// de GuestPass (que depende de `user`) llama a saveUserInvitation solo.
-export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Props) {
-  const [step, setStep] = useState<'offer' | 'form' | 'login' | 'success'>('offer')
-  const [firstName, setFirstName] = useState(guest.name)
-  const [lastName, setLastName] = useState(guest.isGroup ? '' : guest.lastName || '')
+// Se ofrece tanto al confirmar RSVP (ver handleRsvp en GuestPass.tsx) como
+// antes de autoregistrarse (ver EventJoin.tsx) a un invitado sin sesión —
+// nunca navega fuera de la página: crear la cuenta acá mismo es lo que
+// permite "volver exactamente al mismo lugar" sin construir ningún mecanismo
+// de redirect. El vínculo cuenta↔pase no lo hace este componente: en cuanto
+// la cuenta queda autenticada, cada llamador se encarga de lo suyo (el
+// efecto principal de GuestPass llama a saveUserInvitation solo; EventJoin ya
+// prellena el formulario y detecta una invitación existente por su cuenta).
+export function GuestSignupPrompt({ eventId, guest, initialFirstName, initialLastName, initialStep, source, onDismiss, onSuccess }: Props) {
+  const isGroup = guest?.isGroup ?? false
+  const [step, setStep] = useState<'offer' | 'form' | 'login' | 'success'>(initialStep ?? 'offer')
+  const [firstName, setFirstName] = useState(guest?.name ?? initialFirstName ?? '')
+  const [lastName, setLastName] = useState(isGroup ? '' : guest?.lastName || initialLastName || '')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
@@ -57,6 +74,7 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
   useFocusOnChange(step, stepHeadingRef)
 
   useEffect(() => {
+    if (!guest) return
     let cancelled = false
     getGuestContact(eventId, guest.id).then((contact) => {
       if (!cancelled && contact.email) setEmail(contact.email)
@@ -64,7 +82,7 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
     return () => {
       cancelled = true
     }
-  }, [eventId, guest.id])
+  }, [eventId, guest?.id])
 
   useEffect(() => {
     if (step === 'success') {
@@ -85,7 +103,8 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
     setLoading('email')
     try {
       const newUser = await registerWithEmail(email, password, firstName, lastName)
-      await recordLegalAcceptance(newUser.uid, 'guest_pass_email')
+      await recordLegalAcceptance(newUser.uid, source === 'guest_pass' ? 'guest_pass_email' : 'event_join_email')
+      trackInvitationAccountCreated(source, 'email')
       setStep('success')
     } catch (err) {
       // Ya existe una cuenta con este email: en vez de mandarlo a /login
@@ -134,7 +153,8 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
           displayName: `${firstName} ${lastName}`.trim(),
         })
       }
-      await recordLegalAcceptance(user.uid, 'guest_pass_google')
+      await recordLegalAcceptance(user.uid, source === 'guest_pass' ? 'guest_pass_google' : 'event_join_google')
+      trackInvitationAccountCreated(source, 'google')
       // Google siempre viene con el email verificado por Google mismo — el
       // mismo barrido que en el login por email (ver ahí).
       if (user.email) void reclaimInvitationsByEmail(user.uid, user.email)
@@ -203,22 +223,22 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
         <div className="px-6 pt-7 pb-6">
           <h2 ref={stepHeadingRef} tabIndex={-1} className="text-xl font-bold text-gray-900 dark:text-white text-center mb-5 rounded focus:outline-none focus:ring-2 focus:ring-primary">Crea tu cuenta</h2>
           <form onSubmit={handleEmailSubmit} className="space-y-3">
-            <div className={guest.isGroup ? '' : 'grid grid-cols-2 gap-3'}>
+            <div className={isGroup ? '' : 'grid grid-cols-2 gap-3'}>
               <div>
                 <label htmlFor="signup-prompt-first-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {guest.isGroup ? 'Nombre' : 'Nombre *'}
+                  {isGroup ? 'Nombre' : 'Nombre *'}
                 </label>
                 <input
                   id="signup-prompt-first-name"
                   type="text"
-                  required={!guest.isGroup}
+                  required={!isGroup}
                   autoComplete="given-name"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
-              {!guest.isGroup && (
+              {!isGroup && (
                 <div>
                   <label htmlFor="signup-prompt-last-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido *</label>
                   <input
@@ -348,7 +368,9 @@ export function GuestSignupPrompt({ eventId, guest, onDismiss, onSuccess }: Prop
         <div className="px-6 py-10 flex flex-col items-center text-center">
           <IconCheckCircle className="w-12 h-12 text-green-500 mb-3" />
           <h2 ref={stepHeadingRef} tabIndex={-1} className="font-semibold text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-primary">¡Listo!</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Tu pase ya quedó guardado en tu cuenta.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {guest ? 'Tu pase ya quedó guardado en tu cuenta.' : 'Ya puedes completar tu registro con tus datos precargados.'}
+          </p>
         </div>
       )}
     </AccessibleModal>
