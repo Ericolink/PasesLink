@@ -75,6 +75,14 @@
       ]
     },
     {
+      "collectionGroup": "waitlist",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "partySize", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "guests",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
