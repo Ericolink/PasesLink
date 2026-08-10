@@ -88,6 +88,11 @@ export async function promoteEntryToGuest(
       paymentMethod: resolvedPaymentMethod,
       holdExpiresAt: null,
       customData: (entry.customData as Record<string, string>) || {},
+      // Se propaga el origen de la entrada de waitlist (ver
+      // WaitlistEntryData.registrationSource / GuestData.registrationSource)
+      // — no se reevalúa acá. Ausente (entrada creada antes de este campo)
+      // cae a 'organizer', mismo default permisivo que el resto del modelo.
+      registrationSource: entry.registrationSource === 'self' ? 'self' : 'organizer',
       guestUid: opts.guestUid,
       guestPhotoURL: null,
       createdAt: FieldValue.serverTimestamp(),

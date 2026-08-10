@@ -15,12 +15,12 @@ import { CapacityFullError, createGuestsWithCapacity, type GuestWrite } from '..
 import { canManageGuests } from '../lib/permissions.js'
 import {
   GUEST_CUSTOM_FIELD_VALUE_MAX,
+  GUEST_MAX_COMPANIONS,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
   GuestValidationError,
   requireMaxLength,
   requireNonEmpty,
-  resolveMaxCompanions,
 } from '../lib/guestValidation.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
@@ -84,14 +84,15 @@ export const addGuest = onCall<AddGuestInput>({ timeoutSeconds: 20 }, (request) 
         requireMaxLength(value, GUEST_CUSTOM_FIELD_VALUE_MAX, 'Uno de los campos personalizados')
       }
 
-      const maxCompanions = resolveMaxCompanions(event.maxCompanions as number | undefined)
+      // Alta manual del organizador: NO sujeta a EventData.maxCompanions —
+      // ese tope solo rige el autoregistro público (ver
+      // functions/src/capacity/registerWalkInGuest.ts). Se conserva
+      // únicamente el techo técnico GUEST_MAX_COMPANIONS (evita un array
+      // absurdamente grande, no es una regla de negocio configurable). Ver
+      // GuestData.registrationSource.
       const companionsList = companions || []
-      if (!isGroup && companionsList.length > maxCompanions) {
-        throw new GuestValidationError(
-          maxCompanions > 0
-            ? `Este evento permite hasta ${maxCompanions} acompañante${maxCompanions === 1 ? '' : 's'} por invitado.`
-            : 'Este evento no permite acompañantes.',
-        )
+      if (companionsList.length > GUEST_MAX_COMPANIONS) {
+        throw new GuestValidationError(`No se pueden agregar más de ${GUEST_MAX_COMPANIONS} acompañantes.`)
       }
 
       const guestWrite: GuestWrite = {

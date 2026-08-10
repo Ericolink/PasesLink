@@ -3,6 +3,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import type { Firestore } from 'firebase-admin/firestore'
 import { clearFirestoreEmulator, getGuestContactsDoc, getGuestDoc, getTestFirestore, seedEvent, uniqueId } from '../__tests__/helpers.js'
 import { fakeCallableRequest } from '../__tests__/callable.js'
+import { GUEST_MAX_COMPANIONS } from '../lib/guestValidation.js'
 import { addGuest } from './addGuest.js'
 
 const OWNER_UID = 'owner-uid'
@@ -76,12 +77,41 @@ describe('addGuest', () => {
     expect(event.data()?.guestCount).toBe(5)
   })
 
-  it('rejects more companions than the event maxCompanions, without creating the guest', async () => {
+  it('ignores the event maxCompanions for a manual add — the organizer can add as many as they need', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { ownerId: OWNER_UID, maxCompanions: 1, guestCount: 0, peopleCount: 0 })
 
+    const result = await addGuest.run(fakeCallableRequest(
+      { eventId, name: 'Ana', companions: [{}, {}, {}, {}, {}] },
+      OWNER_UID,
+    ))
+
+    expect(result.status).toBe('success')
+    if (result.status !== 'success') throw new Error('unreachable')
+    const guestDoc = await getGuestDoc(db, eventId, result.id)
+    expect(guestDoc?.companions).toHaveLength(5)
+  })
+
+  it('stamps registrationSource: "organizer" on a manually added guest', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID })
+
+    const result = await addGuest.run(fakeCallableRequest({ eventId, name: 'Ana' }, OWNER_UID))
+    if (result.status !== 'success') throw new Error('unreachable')
+
+    const guestDoc = await getGuestDoc(db, eventId, result.id)
+    expect(guestDoc?.registrationSource).toBe('organizer')
+  })
+
+  it('still rejects more companions than the technical ceiling (GUEST_MAX_COMPANIONS), without creating the guest', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, guestCount: 0, peopleCount: 0 })
+
     await expect(
-      addGuest.run(fakeCallableRequest({ eventId, name: 'Ana', companions: [{}, {}] }, OWNER_UID)),
+      addGuest.run(fakeCallableRequest(
+        { eventId, name: 'Ana', companions: Array.from({ length: GUEST_MAX_COMPANIONS + 1 }, () => ({})) },
+        OWNER_UID,
+      )),
     ).rejects.toThrow(HttpsError)
 
     const event = await db.collection('events').doc(eventId).get()

@@ -149,17 +149,17 @@ function rsvpCountField(status: RsvpStatus): 'rsvpYesCount' | 'rsvpNoCount' | 'r
 // ofertas activas de lista de espera) es una garantía atómica real del
 // servidor, no best-effort.
 //
-// La validación de forma de acá abajo (largo de nombre/teléfono, tope de
-// acompañantes) sigue existiendo como fail-fast de UX — evita un viaje de
-// red para errores obvios — pero ya no es la barrera de seguridad real, esa
-// vive en la Cloud Function.
+// La validación de forma de acá abajo (largo de nombre/teléfono, techo
+// técnico de acompañantes) sigue existiendo como fail-fast de UX — evita un
+// viaje de red para errores obvios — pero ya no es la barrera de seguridad
+// real, esa vive en la Cloud Function.
 //
-// `maxCompanions` es el límite YA RESUELTO para este evento (ver
-// resolveMaxCompanions) — no se recibe el evento completo para no acoplar
-// esta función a EventData por un solo campo. No aplica si `input.isGroup`
-// (familia o grupo, gobernado por GUEST_GROUP_MAX_MEMBERS en la UI, no por
-// este límite — ver EventData.maxCompanions).
-export async function addGuest(eventId: string, input: NewGuestInput, maxCompanions: number): Promise<{ id: string }> {
+// A diferencia del autoregistro (registerWalkInGuest), esta alta es siempre
+// del organizador — NO está sujeta a EventData.maxCompanions (ver
+// GuestData.registrationSource): el organizador puede cargar la cantidad de
+// acompañantes que necesite. Solo se conserva GUEST_MAX_COMPANIONS como techo
+// técnico (evita un array absurdamente grande), no como regla de negocio.
+export async function addGuest(eventId: string, input: NewGuestInput): Promise<{ id: string }> {
   const name = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
   const lastName = input.lastName
     ? requireMaxLength(input.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
@@ -168,12 +168,8 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
   for (const value of Object.values(input.customData || {})) {
     requireMaxLength(value, GUEST_CUSTOM_FIELD_VALUE_MAX, 'Uno de los campos personalizados')
   }
-  if (!input.isGroup && (input.companions?.length || 0) > maxCompanions) {
-    throw new Error(
-      maxCompanions > 0
-        ? `Este evento permite hasta ${maxCompanions} acompañante${maxCompanions === 1 ? '' : 's'} por invitado.`
-        : 'Este evento no permite acompañantes.',
-    )
+  if ((input.companions?.length || 0) > GUEST_MAX_COMPANIONS) {
+    throw new Error(`No se pueden agregar más de ${GUEST_MAX_COMPANIONS} acompañantes.`)
   }
 
   const addGuestCallable = httpsCallable<
@@ -262,11 +258,12 @@ export interface UpdateGuestInput {
 }
 
 // `maxCompanions` es el límite YA RESUELTO para este evento (ver
-// resolveMaxCompanions) — solo se valida contra él cuando `companions`
-// cambia de largo Y el invitado no es una familia/grupo (`isGroup`, que se
-// lee del documento existente dentro de la transacción, no de `input`: esta
-// función no distingue de antemano si el invitado que está editando es un
-// grupo o no).
+// resolveMaxCompanions) — solo se aplica cuando `companions` cambia de largo
+// Y el invitado existente tiene `registrationSource === 'self'` (autoregistro,
+// leído del documento existente dentro de la transacción, no de `input`); un
+// invitado manual del organizador usa GUEST_MAX_COMPANIONS en su lugar (ver
+// el cuerpo de la función). Tampoco aplica si es una familia/grupo
+// (`isGroup`).
 //
 // `expectedVersion` es `guest.version` tal como lo tenía cargado quien llama
 // (GuestEditForm) — siempre corre dentro de una runTransaction (antes solo
@@ -309,17 +306,27 @@ export async function updateGuest(
     // de personas del evento.
     if (companionsChanged) {
       after = 1 + guestFields.companions!.length
+      // El techo depende del ORIGEN del invitado (ver
+      // GuestData.registrationSource), no solo del evento: uno autoregistrado
+      // sigue sujeto al maxCompanions configurado (mismo criterio que
+      // companionsWithinLimitData en firestore.rules); uno cargado
+      // manualmente por el organizador no tiene ese tope — solo el techo
+      // técnico GUEST_MAX_COMPANIONS (evita un array absurdamente grande, no
+      // es una regla de negocio configurable).
+      const isSelfRegistered = existing.registrationSource === 'self'
+      const effectiveLimit = isSelfRegistered ? maxCompanions : GUEST_MAX_COMPANIONS
       // Grandfathering: si el invitado ya tenía más acompañantes que el
       // límite actual (evento cargado antes de configurarlo, o el
       // organizador lo bajó después), se sigue permitiendo guardar mientras
       // no AUMENTE el conteo — solo se bloquea sumar más allá del límite.
-      // Mismo criterio que companionsWithinLimit en firestore.rules.
-      if (!existing.isGroup && guestFields.companions!.length > maxCompanions
+      if (!existing.isGroup && guestFields.companions!.length > effectiveLimit
         && guestFields.companions!.length > existing.companions.length) {
         throw new Error(
-          maxCompanions > 0
-            ? `Este evento permite hasta ${maxCompanions} acompañante${maxCompanions === 1 ? '' : 's'} por invitado.`
-            : 'Este evento no permite acompañantes.',
+          isSelfRegistered
+            ? (effectiveLimit > 0
+                ? `Este evento permite hasta ${effectiveLimit} acompañante${effectiveLimit === 1 ? '' : 's'} para autoregistro.`
+                : 'Este evento no permite acompañantes en autoregistro.')
+            : `No se pueden agregar más de ${effectiveLimit} acompañantes.`,
         )
       }
       // Límite de asistentes (ver CAPACITY_LIMIT_ARCHITECTURE.md): sumar
@@ -501,7 +508,7 @@ export async function moveGuestToWaitlist(
   eventId: string,
   guest: Pick<
     GuestData,
-    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'customData' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'
+    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'customData' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'registrationSource'
   >,
 ): Promise<void> {
   const size = partySize(guest)
@@ -535,6 +542,11 @@ export async function moveGuestToWaitlist(
     respondedAt: null,
     promotedGuestId: null,
     promotionReason: null,
+    // Conserva el origen que ya tenía el invitado (ver
+    // GuestData.registrationSource) — no lo reinicia a 'self' solo porque el
+    // organizador lo mandó a esperar. Legacy (invitado sin el campo) cae a
+    // 'organizer', mismo default permisivo que el resto del modelo.
+    registrationSource: guest.registrationSource ?? 'organizer',
   })
 
   await batch.commit()
@@ -1220,6 +1232,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     status: data.status as GuestData['status'],
     companions: normalizeCompanions(data.companions),
     isGroup: (data.isGroup as boolean) || false,
+    registrationSource: (data.registrationSource as GuestData['registrationSource']) || undefined,
     rsvpStatus: (data.rsvpStatus as GuestData['rsvpStatus']) || 'pending',
     checkedInAt: toMillisOrNull(data.checkedInAt),
     checkedInBy: (data.checkedInBy as string) || null,

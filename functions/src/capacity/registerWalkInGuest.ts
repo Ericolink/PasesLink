@@ -169,6 +169,9 @@ export async function registerWalkInGuest(
       paymentMethod: resolvedMethod,
       holdExpiresAt: null,
       customData,
+      // Autoregistro público — sujeto a EventData.maxCompanions también en
+      // ediciones posteriores del organizador (ver GuestData.registrationSource).
+      registrationSource: 'self',
       guestUid: input.authUid || null,
       guestPhotoURL,
       createdAt: FieldValue.serverTimestamp(),

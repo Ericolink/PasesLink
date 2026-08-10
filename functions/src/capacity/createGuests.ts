@@ -80,6 +80,11 @@ function buildGuestPayload(guest: GuestWrite) {
     lastName: guest.lastName || '',
     companions: guest.companions,
     isGroup: guest.isGroup || false,
+    // Las 3 altas manuales que comparten esta función (addGuest,
+    // addGuestsBulk, addGuestsFromRows) son siempre del organizador — nunca
+    // sujetas a EventData.maxCompanions (ese tope solo rige el autoregistro
+    // público, ver registerWalkInGuest.ts). Ver GuestData.registrationSource.
+    registrationSource: 'organizer' as const,
     customData: guest.customData || {},
     rsvpStatus: 'pending' as const,
     qrToken: generateQrToken(),

@@ -299,6 +299,7 @@ export const GuestSchema = z.object({
   status: z.enum(['invited', 'checked_in']),
   companions: z.array(CompanionDataSchema),
   isGroup: z.boolean().optional(),
+  registrationSource: z.enum(['organizer', 'self']).optional(),
   rsvpStatus: z.enum(['pending', 'yes', 'no']),
   checkedInAt: z.number().nullable(),
   checkedInBy: z.string().nullable(),
@@ -341,6 +342,7 @@ export const WaitlistEntrySchema = z.object({
   respondedAt: z.number().nullable(),
   promotedGuestId: z.string().nullable(),
   promotionReason: z.enum(['fifo', 'manual']).nullable(),
+  registrationSource: z.enum(['organizer', 'self']).optional(),
 })
 
 export const CheckinSchema = z.object({

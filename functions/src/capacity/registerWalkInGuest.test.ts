@@ -49,6 +49,18 @@ describe('registerWalkInGuest (servicio)', () => {
     expect(event.data()?.rsvpYesCount).toBe(1)
   })
 
+  it('stamps registrationSource: "self" on a self-registered guest', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open' })
+
+    const result = await registerWalkInGuest(db, eventId, { name: 'Ana López' })
+
+    expect(result.status).toBe('success')
+    if (result.status !== 'success') throw new Error('expected success')
+    const guest = await getGuestDoc(db, eventId, result.guestId)
+    expect(guest?.registrationSource).toBe('self')
+  })
+
   it('stores email/phone in guestContacts, lowercasing the email', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'open' })

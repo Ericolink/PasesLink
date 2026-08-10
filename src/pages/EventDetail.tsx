@@ -527,7 +527,7 @@ export function EventDetail() {
             teléfono, por ejemplo). */}
         {perms.addGuests && (
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
-            <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} maxCompanions={resolveMaxCompanions(event)} />
+            <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} />
           </div>
         )}
 

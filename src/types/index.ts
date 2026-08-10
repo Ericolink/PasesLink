@@ -662,6 +662,19 @@ export interface GuestData {
   // el check-in/QR/estadísticas no distinguen este campo. Ausente/false en
   // invitados creados antes de este campo (siempre invitados individuales).
   isGroup?: boolean
+  // Origen del alta: 'organizer' = lo cargó el organizador/coanfitrión a mano
+  // (GuestAddForm, alta masiva, CSV) — sin tope de acompañantes propio,
+  // gobierna únicamente EventData.capacity. 'self' = el propio invitado se
+  // autoregistró (registerWalkInGuest) o llegó promovido desde una entrada
+  // de waitlist que él mismo creó (ver WaitlistEntryData.registrationSource)
+  // — sujeto al tope EventData.maxCompanions también en ediciones
+  // posteriores del organizador (ver companionsWithinLimitData en
+  // firestore.rules y updateGuest en src/firebase/guests.ts). Ausente en
+  // invitados creados antes de este campo: se trata como 'organizer' (el
+  // valor permisivo) para no bloquear retroactivamente ninguna edición ya
+  // válida — nunca se migra en bloque, ver política de "no romper invitados
+  // existentes".
+  registrationSource?: 'organizer' | 'self'
   rsvpStatus: RsvpStatus
   checkedInAt: number | null
   checkedInBy: string | null
@@ -798,6 +811,15 @@ export interface WaitlistEntryData {
   // reconstruirlo a partir de timestamps, la pregunta de soporte "¿por qué a
   // esta persona sí y a la que se anotó antes no?".
   promotionReason: 'fifo' | 'manual' | null
+  // Mismo significado que GuestData.registrationSource — se propaga tal cual
+  // al guest doc si esta entrada se promueve (ver functions/src/waitlist/
+  // promoteToGuest.ts). 'self' en joinWaitlist (anotarse es siempre
+  // autoservicio). En moveGuestToWaitlist (el organizador manda a un
+  // invitado existente a la espera) se copia el registrationSource que ya
+  // tenía ese invitado, para no perder su origen al ir y volver. Ausente en
+  // entradas creadas antes de este campo: se trata como 'organizer', mismo
+  // criterio permisivo que GuestData.registrationSource.
+  registrationSource?: 'organizer' | 'self'
 }
 
 // 'entry_blocked': intento de ingreso rechazado por checkInGuest (hoy solo el

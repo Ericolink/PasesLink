@@ -14,6 +14,7 @@ export function CompanionFieldsEditor({
   onChange,
   allowAddRemove = true,
   maxCompanions,
+  limitReachedMessage,
 }: {
   companions: CompanionData[]
   onChange: (companions: CompanionData[]) => void
@@ -23,11 +24,18 @@ export function CompanionFieldsEditor({
   // de los que ya existen, así que ocultar "agregar"/"quitar" evita una UI
   // que promete algo que el guardado va a rechazar.
   allowAddRemove?: boolean
-  // Tope de acompañantes configurado para este evento (ver
-  // EventData.maxCompanions / resolveMaxCompanions en firebase/guests.ts) —
-  // gatea el botón "+ Agregar acompañante" acá; la barrera real (por si
-  // alguien evita esta UI) vive en firebase/guests.ts y firestore.rules.
+  // Tope que gatea el botón "+ Agregar acompañante" acá; la barrera real
+  // (por si alguien evita esta UI) vive en firebase/guests.ts y
+  // firestore.rules. Puede ser EventData.maxCompanions (autoregistro, ver
+  // resolveMaxCompanions en firebase/guests.ts) o GUEST_MAX_COMPANIONS (alta/
+  // edición manual del organizador, sin tope de evento — ver
+  // GuestData.registrationSource) según quién llame.
   maxCompanions: number
+  // Mensaje al llegar al tope. Default asume que `maxCompanions` es la
+  // configuración de autoregistro de ESTE evento. Pasar uno propio cuando
+  // representa otra cosa (ej. el techo técnico del alta manual del
+  // organizador, que no es una restricción administrativa del evento).
+  limitReachedMessage?: string
 }) {
   // Confirmación antes de quitar — antes el botón de la papelera borraba la
   // fila al instante, sin deshacer posible ni pregunta, fácil de tocar sin
@@ -54,9 +62,9 @@ export function CompanionFieldsEditor({
       {allowAddRemove && (
         atLimit ? (
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {maxCompanions > 0
+            {limitReachedMessage ?? (maxCompanions > 0
               ? `Alcanzaste el máximo de acompañantes permitidos para este evento (${maxCompanions}).`
-              : 'Este evento no permite acompañantes.'}
+              : 'Este evento no permite acompañantes.')}
           </p>
         ) : (
           <button

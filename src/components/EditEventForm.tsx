@@ -861,10 +861,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           </p>
         )}
         <AccessibleField
-          label="Acompañantes por invitado"
+          label="Acompañantes por invitado (autoregistro)"
           id="edit-event-max-companions"
           error={maxCompanionsError || null}
-          helperText='Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten acompañantes. No aplica a "Familia o grupo", que tiene su propio límite de integrantes.'
+          helperText='Cuántos acompañantes puede sumar cada invitado que se autoregistre. 0 = no se permiten acompañantes en autoregistro. No limita las altas manuales que hagas tú (o tus coanfitriones) desde el panel, ni aplica a "Familia o grupo", que tiene su propio límite de integrantes.'
         >
           {(fieldProps) => (
             <input
