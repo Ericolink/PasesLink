@@ -267,8 +267,10 @@ export function EventDetail() {
           confirmPayments el módulo ya está activo O quien mira es admin de
           PaseLink (único que puede activarlo mientras dure la beta, ver
           FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md §7) — un organizador normal
-          sin el módulo activo no debe ni enterarse de que existe. */}
-      {(perms.manageSeating || perms.viewLiveDashboard
+          sin el módulo activo no debe ni enterarse de que existe.
+          Anfitrión en Vivo se fusionó con Reportes (arriba) — ya no tiene
+          link propio, ver getDashboardStage en Reports.tsx. */}
+      {(perms.manageSeating
         || ((perms.manageConcessions || perms.confirmPayments) && (event.concessions?.enabled || isAdmin))) && (
         <div className="flex gap-2.5 mb-5">
           {perms.manageSeating && (
@@ -277,14 +279,6 @@ export function EventDetail() {
               className="flex-1 text-center border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               Mesas
-            </Link>
-          )}
-          {perms.viewLiveDashboard && (
-            <Link
-              to={`/events/${event.id}/live`}
-              className="flex-1 text-center border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              Anfitrión en Vivo
             </Link>
           )}
           {(perms.manageConcessions || perms.confirmPayments) && (event.concessions?.enabled || isAdmin) && (

@@ -37,7 +37,6 @@ const CompleteProfile = lazy(() => import('./pages/CompleteProfile').then((m) =>
 const MyInvitations   = lazy(() => import('./pages/MyInvitations').then((m) => ({ default: m.MyInvitations })))
 const Feedback        = lazy(() => import('./pages/Feedback').then((m) => ({ default: m.Feedback })))
 const SeatingChart    = lazy(() => import('./pages/SeatingChart').then((m) => ({ default: m.SeatingChart })))
-const HostLive        = lazy(() => import('./pages/HostLive').then((m) => ({ default: m.HostLive })))
 const ConcessionsManager = lazy(() => import('./pages/ConcessionsManager').then((m) => ({ default: m.ConcessionsManager })))
 const ConcessionsKitchen = lazy(() => import('./pages/ConcessionsKitchen').then((m) => ({ default: m.ConcessionsKitchen })))
 const MyCommunityTemplates    = lazy(() => import('./pages/MyCommunityTemplates').then((m) => ({ default: m.MyCommunityTemplates })))
@@ -72,9 +71,12 @@ function SeatingChartRoute() {
   const { eventId } = useParams()
   return <BrowseLayout><SeatingChart key={eventId} /></BrowseLayout>
 }
-function HostLiveRoute() {
+// Anfitrión en Vivo (HostLive.tsx) se fusionó con Reportes — la pantalla
+// única ahora se adapta sola al momento del evento (ver getDashboardStage
+// en Reports.tsx). Esta ruta solo redirige enlaces/bookmarks viejos.
+function HostLiveRedirect() {
   const { eventId } = useParams()
-  return <AppShell mode="display"><HostLive key={eventId} /></AppShell>
+  return <Navigate to={`/events/${eventId}/reports`} replace />
 }
 function ConcessionsManagerRoute() {
   const { eventId } = useParams()
@@ -154,14 +156,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/events/:eventId/live"
-          element={
-            <ProtectedRoute>
-              <HostLiveRoute />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/events/:eventId/live" element={<HostLiveRedirect />} />
         <Route
           path="/events/:eventId/menu"
           element={

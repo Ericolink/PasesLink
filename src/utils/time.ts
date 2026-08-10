@@ -52,11 +52,21 @@ export function formatTime12h(time?: string): string {
 
 // true si la fecha (YYYY-MM-DD) ya quedó atrás respecto de "hoy" (comparando
 // solo el día, sin hora) — un evento de hoy nunca cuenta como pasado acá,
-// aunque su horario ya haya ocurrido.
-export function isEventPast(date: string): boolean {
-  const today = new Date()
+// aunque su horario ya haya ocurrido. `now` es opcional (default `new Date()`)
+// solo para poder fijar "hoy" en tests deterministas.
+export function isEventPast(date: string, now: Date = new Date()): boolean {
+  const today = new Date(now)
   today.setHours(0, 0, 0, 0)
   return new Date(date + 'T00:00:00') < today
+}
+
+// true si la fecha (YYYY-MM-DD) es exactamente "hoy" — usado por
+// getDashboardStage para decidir si el evento ya está en curso (ver
+// eventDashboardStage.ts).
+export function isEventToday(date: string, now: Date = new Date()): boolean {
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  return new Date(date + 'T00:00:00').getTime() === today.getTime()
 }
 
 // Timestamp (ms) de fecha+hora del evento, para ordenar. Sin startTime válido
