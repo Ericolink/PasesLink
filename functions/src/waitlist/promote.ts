@@ -80,15 +80,6 @@ export async function attemptPromote(
     const offeredCount = offeredAgg.data().total ?? 0
     const remaining = capacity - peopleCount - offeredCount
     const partySize = (entry.partySize as number) ?? 1
-    console.log('DEBUG attemptPromote capacity check', {
-      eventId,
-      entryId,
-      capacity,
-      peopleCount,
-      offeredCount,
-      remaining,
-      partySize,
-    })
     if (partySize > remaining) return { ok: false, reason: 'no_capacity' }
 
     if (isEventTooClose(event.date as string, event.startTime as string | undefined, Date.now())) {
