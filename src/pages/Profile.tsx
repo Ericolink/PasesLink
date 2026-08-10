@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { updateProfile } from 'firebase/auth'
+import { FunctionsError } from 'firebase/functions'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useIsAdmin } from '../hooks/useIsAdmin'
@@ -8,9 +9,12 @@ import { useUnreadFeedbackCount } from '../hooks/useUnreadFeedbackCount'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import {
   changePassword,
+  deleteAccount,
   linkEmailPassword,
   linkGoogleAccount,
   logout,
+  reauthenticateWithGoogle,
+  reauthenticateWithPassword,
   unlinkProvider,
   uploadProfilePhoto,
 } from '../firebase/auth'
@@ -18,7 +22,9 @@ import { saveUserProfile } from '../firebase/userProfile'
 import { disablePushOnThisDevice, getPushPermissionState, requestPushPermission } from '../firebase/messaging'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
+import { isAuthCancellation } from '../utils/firebaseErrorMessages'
 import { AccessibleModal } from '../components/accessibility/AccessibleModal'
+import { DialogFooter } from '../components/DialogFooter'
 import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
 import { AccessibleButton } from '../components/accessibility/AccessibleButton'
@@ -126,6 +132,177 @@ function EditNameModal({
   )
 }
 
+/* ── Delete Account AccessibleModal ──
+   Dos pasos: 1) confirmación explícita (escribir ELIMINAR) 2) si la Cloud
+   Function responde que la sesión no es reciente, reautenticación con el
+   provider disponible (password o Google) y reintento automático — ver
+   deleteAccount en functions/src/callable/deleteAccount.ts. */
+function DeleteAccountModal({
+  hasEmail,
+  hasGoogle,
+  onDeleted,
+  onClose,
+}: {
+  hasEmail: boolean
+  hasGoogle: boolean
+  onDeleted: () => void
+  onClose: () => void
+}) {
+  const [step, setStep] = useState<'confirm' | 'reauth'>('confirm')
+  const [confirmText, setConfirmText] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const canConfirm = confirmText.trim().toUpperCase() === 'ELIMINAR'
+
+  async function attemptDelete() {
+    setError('')
+    setLoading(true)
+    try {
+      await deleteAccount()
+      onDeleted()
+    } catch (err) {
+      const requiresReauth =
+        err instanceof FunctionsError &&
+        // FunctionsError.code viene prefijado con 'functions/' (ver
+        // FunctionsErrorCode en @firebase/functions) — no el código bare
+        // 'failed-precondition' que sí usa HttpsError del lado del backend.
+        err.code === 'functions/failed-precondition' &&
+        !!err.details && typeof err.details === 'object' &&
+        (err.details as { reason?: string }).reason === 'requires-recent-login'
+      if (requiresReauth) {
+        setStep('reauth')
+      } else {
+        setError('No pudimos eliminar tu cuenta. Intenta de nuevo.')
+      }
+      setLoading(false)
+    }
+  }
+
+  async function handleReauthPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await reauthenticateWithPassword(password)
+    } catch {
+      setError('Contraseña incorrecta. Intenta de nuevo.')
+      setLoading(false)
+      return
+    }
+    await attemptDelete()
+  }
+
+  async function handleReauthGoogle() {
+    setError('')
+    setLoading(true)
+    try {
+      await reauthenticateWithGoogle()
+    } catch (err) {
+      if (!isAuthCancellation(err)) setError('No pudimos verificar tu identidad con Google.')
+      setLoading(false)
+      return
+    }
+    await attemptDelete()
+  }
+
+  return (
+    <AccessibleModal open onClose={onClose} label="Eliminar cuenta" role="alertdialog" maxWidth="max-w-sm">
+      <div className="overflow-y-auto">
+        {step === 'confirm' ? (
+          <>
+            <div className="flex items-center justify-center pt-6 pb-2">
+              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+            </div>
+            <div className="px-6 pt-4 pb-2 space-y-3">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">¿Eliminar tu cuenta?</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Esta acción es permanente. Tu cuenta será eliminada y tendrás que crear una nueva si deseas volver a utilizar PaseLink.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="delete-account-confirm" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Escribe ELIMINAR para confirmar
+                </label>
+                <input
+                  id="delete-account-confirm"
+                  type="text"
+                  autoFocus
+                  autoComplete="off"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+              <FieldError message={error} />
+            </div>
+          </>
+        ) : (
+          <div className="px-6 pt-6 pb-2 space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Verifica tu identidad</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                Para eliminar tu cuenta necesitamos verificar nuevamente tu identidad.
+              </p>
+            </div>
+            {hasEmail ? (
+              <form onSubmit={handleReauthPassword} className="space-y-3">
+                <div>
+                  <label htmlFor="delete-account-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Contraseña actual
+                  </label>
+                  <PasswordInput
+                    id="delete-account-password"
+                    required
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={setPassword}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-md pl-3 pr-11 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+                <FieldError message={error} />
+                <AccessibleButton type="submit" variant="danger" disabled={loading} className="w-full">
+                  {loading ? 'Verificando…' : 'Verificar y eliminar cuenta'}
+                </AccessibleButton>
+              </form>
+            ) : hasGoogle ? (
+              <>
+                <FieldError message={error} />
+                <AccessibleButton variant="danger" disabled={loading} onClick={handleReauthGoogle} className="w-full">
+                  {loading ? 'Verificando…' : 'Verificar con Google y eliminar cuenta'}
+                </AccessibleButton>
+              </>
+            ) : (
+              <FieldError message="No encontramos un método para verificar tu identidad." />
+            )}
+          </div>
+        )}
+      </div>
+      <DialogFooter className="gap-4">
+        <AccessibleButton variant="secondary" onClick={onClose} className="flex-1">
+          Cancelar
+        </AccessibleButton>
+        {step === 'confirm' && (
+          <AccessibleButton
+            variant="danger"
+            disabled={!canConfirm || loading}
+            onClick={attemptDelete}
+            className="flex-1"
+          >
+            {loading ? 'Eliminando…' : 'Eliminar cuenta'}
+          </AccessibleButton>
+        )}
+      </DialogFooter>
+    </AccessibleModal>
+  )
+}
+
 /* ── Main Page ── */
 export function Profile() {
   useDocumentTitle('Perfil')
@@ -192,6 +369,9 @@ export function Profile() {
   const [passwordSaving, setPasswordSaving]   = useState(false)
   const [passwordMessage, setPasswordMessage] = useState('')
   const [passwordError, setPasswordError]     = useState('')
+
+  /* Delete account */
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false)
 
   // Mantiene photoURL sincronizado con la fuente de verdad (Firestore vía
   // useUserProfile). Re-correr en cada snapshot es intencional e idempotente:
@@ -626,12 +806,37 @@ export function Profile() {
         </section>
       )}
 
+      {/* ── Cuenta ── */}
+      <section className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Cuenta</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">
+          Esta acción eliminará permanentemente tu cuenta y los datos asociados que puedan eliminarse. Esta acción no se puede deshacer.
+        </p>
+        <button
+          type="button"
+          onClick={() => setShowDeleteAccount(true)}
+          className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 transition-colors"
+        >
+          Eliminar mi cuenta
+        </button>
+      </section>
+
       {/* Edit name modal */}
       {showEditName && (
         <EditNameModal
           initial={{ firstName: profile?.firstName || '', lastName: profile?.lastName || '' }}
           onSave={handleSaveName}
           onClose={() => setShowEditName(false)}
+        />
+      )}
+
+      {/* Delete account modal */}
+      {showDeleteAccount && (
+        <DeleteAccountModal
+          hasEmail={hasEmail}
+          hasGoogle={hasGoogle}
+          onDeleted={() => navigate('/login', { state: { accountDeleted: true } })}
+          onClose={() => setShowDeleteAccount(false)}
         />
       )}
     </div>

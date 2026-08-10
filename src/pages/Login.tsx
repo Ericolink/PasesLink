@@ -6,7 +6,7 @@ import { AuthLayout } from '../components/AuthLayout'
 import { AuthErrorMessage } from '../components/AuthErrorMessage'
 import { PasswordInput } from '../components/PasswordInput'
 import { AccessibleButton } from '../components/accessibility/AccessibleButton'
-import { IconGoogle } from '../components/accessibility/AccessibleIcon'
+import { IconCheckCircle, IconGoogle } from '../components/accessibility/AccessibleIcon'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
@@ -27,6 +27,11 @@ export function Login() {
   // /dashboard — descartada si por algún motivo apuntara de nuevo a /login.
   const from = (location.state as { from?: Location } | null)?.from
   const redirectTo = from && from.pathname !== '/login' ? `${from.pathname}${from.search}` : '/dashboard'
+
+  // Profile.tsx navega para acá con este flag tras "Eliminar mi cuenta" —
+  // la sesión ya se cerró del lado del cliente (ver deleteAccount en
+  // firebase/auth.ts), esto es solo la confirmación visual de que terminó.
+  const accountDeleted = (location.state as { accountDeleted?: boolean } | null)?.accountDeleted
 
   if (user) return <Navigate to={redirectTo} replace />
 
@@ -65,6 +70,12 @@ export function Login() {
 
   return (
     <AuthLayout>
+      {accountDeleted && (
+        <p role="status" className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2.5 mb-4">
+          <IconCheckCircle className="w-4 h-4 shrink-0" />
+          Tu cuenta fue eliminada correctamente.
+        </p>
+      )}
       <h1 className="text-2xl font-semibold text-gray-900 mb-6 text-center">Iniciar sesión</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
