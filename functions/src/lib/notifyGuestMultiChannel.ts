@@ -95,6 +95,9 @@ export async function sendGuestNotification({
       subject: email.subject,
       html: email.html,
     })
+    if (!result.ok) {
+      console.log('DEBUG sendGuestNotification email failed', { error: result.error })
+    }
     await logRef.update({ status: result.ok ? 'sent' : 'failed', channel: 'email', toEmail: contact.email })
     return result.ok ? 'sent' : 'failed'
   }
