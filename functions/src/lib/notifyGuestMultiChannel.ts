@@ -56,6 +56,7 @@ export async function sendGuestNotification({
         vars: whatsapp.vars,
       })
       if (result.ok) {
+        console.log('DEBUG sendGuestNotification whatsapp ok', { providerMessageId: result.providerMessageId })
         await logRef.update({
           status: 'sent',
           channel: 'whatsapp',
@@ -64,14 +65,22 @@ export async function sendGuestNotification({
         })
         return 'sent'
       }
+      console.log('DEBUG sendGuestNotification whatsapp failed', { errorCode: result.errorCode, error: result.error })
       // Fallo de WhatsApp (número sin cuenta, plantilla rechazada, token
       // vencido, rate limit) → cae a email en el mismo intento, un solo
       // try/catch con respaldo explícito (§10.5 del RFC), nunca dos caminos
       // separados que haya que disparar aparte.
       await logRef.update({ whatsappErrorCode: result.errorCode ?? 'unknown' }).catch(() => {})
     } else {
+      console.log('DEBUG sendGuestNotification whatsapp budget exhausted')
       await logRef.update({ whatsappErrorCode: 'budget_exhausted' }).catch(() => {})
     }
+  } else {
+    console.log('DEBUG sendGuestNotification whatsapp skipped (condición no cumplida)', {
+      whatsappConsent: contact.whatsappConsent,
+      hasPhone: !!contact.phone,
+      configured: isWhatsAppConfigured(),
+    })
   }
 
   if (contact.email) {

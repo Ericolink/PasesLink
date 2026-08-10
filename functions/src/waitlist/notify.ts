@@ -28,6 +28,12 @@ export interface OfferedEntry {
 // solo doc por oferta, sin importar qué canal termine usándose (ver
 // sendGuestNotification) — el `channel` final queda registrado en el mismo doc.
 export async function sendOfferEmail(db: Firestore, eventId: string, entryId: string, entry: OfferedEntry): Promise<void> {
+  console.log('DEBUG sendOfferEmail entry', {
+    entryId,
+    hasEmail: !!entry.email,
+    hasPhone: !!entry.phone,
+    whatsappConsent: entry.whatsappConsent,
+  })
   if (!entry.email && !entry.phone) return
 
   const logRef = db.collection('events').doc(eventId).collection('sendLog').doc(`waitlist_offer_${entryId}`)
@@ -38,7 +44,8 @@ export async function sendOfferEmail(db: Firestore, eventId: string, entryId: st
       status: 'processing',
       sentAt: new Date(),
     })
-  } catch {
+  } catch (err) {
+    console.log('DEBUG sendOfferEmail dedup skip (sendLog ya existía)', { entryId, err: String(err) })
     return
   }
 
@@ -46,7 +53,7 @@ export async function sendOfferEmail(db: Firestore, eventId: string, entryId: st
   const eventName = (eventSnap.data()?.name as string) || 'tu evento'
   const link = `${PASELINK_ORIGIN}/waitlist/${eventId}?token=${entry.waitlistToken}`
 
-  await sendGuestNotification({
+  const outcome = await sendGuestNotification({
     db,
     logRef,
     contact: {
@@ -69,4 +76,5 @@ export async function sendOfferEmail(db: Firestore, eventId: string, entryId: st
     },
     budgetDateKey: todayDateKey(),
   })
+  console.log('DEBUG sendOfferEmail outcome', { entryId, outcome })
 }
