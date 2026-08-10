@@ -14,14 +14,19 @@ import { useAuth } from './useAuth'
 // usuario que cierre sesión. `isAdmin` en sí sigue reflejando el doc (misma
 // fuente que Rules usa como red de compatibilidad), no el claim — evita
 // depender de que el refresh ya haya terminado para pintar la UI.
-export function useIsAdmin() {
+// `enabled` (default true) deja el listener sin montar mientras no haga
+// falta — lo usa MaintenanceGate para no abrir una suscripción a
+// admins/{uid} en CADA sesión autenticada, solo mientras el modo
+// mantenimiento está realmente activo (el único momento en que ese gate
+// necesita saber si el usuario actual es admin).
+export function useIsAdmin(enabled = true) {
   const { user } = useAuth()
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!user) {
+    if (!user || !enabled) {
       setIsAdmin(false)
       setLoading(false)
       return
@@ -49,7 +54,7 @@ export function useIsAdmin() {
       },
     )
     return unsubscribe
-  }, [user])
+  }, [user, enabled])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   return { isAdmin, loading }

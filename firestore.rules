@@ -726,6 +726,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Modo mantenimiento (doc singleton, ver src/hooks/useMaintenanceMode.ts
+    // y MaintenanceGate.tsx). `allow get` es público a propósito, sin
+    // request.auth != null: MaintenanceGate lo lee ANTES de saber si hay
+    // sesión (incluso en /login), así que un visitante sin cuenta también
+    // necesita poder leerlo para ver la pantalla de mantenimiento en vez de
+    // una app rota. Solo expone un booleano + un mensaje corto, sin datos
+    // sensibles. Escribir sí requiere isAdmin(), igual que cualquier otro
+    // control administrativo.
+    match /platformConfig/{docId} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['enabled', 'message', 'updatedAt', 'updatedBy'])
+        && request.resource.data.enabled is bool
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 300
+        && request.resource.data.updatedBy == request.auth.uid;
+    }
+
     // Buzón de feedback (src/pages/Feedback.tsx). Solo el admin puede leer —
     // ni siquiera el propio autor puede releer lo que envió (pedido
     // explícito: "no permitir que usuarios lean comentarios de otros").

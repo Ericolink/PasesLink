@@ -5,6 +5,7 @@ import { DashboardSection } from '../../components/Admin/ControlCenter/Dashboard
 import { HeroKpiGrid } from '../../components/Admin/ControlCenter/HeroKpiGrid'
 import { AlertsPanel } from '../../components/Admin/ControlCenter/AlertsPanel'
 import { PlatformHealthPanel } from '../../components/Admin/ControlCenter/PlatformHealthPanel'
+import { MaintenanceModePanel } from '../../components/Admin/ControlCenter/MaintenanceModePanel'
 import { GrowthSection } from '../../components/Admin/ControlCenter/GrowthSection'
 import { FunnelSection } from '../../components/Admin/ControlCenter/FunnelSection'
 import { RecentActivityFeed } from '../../components/Admin/ControlCenter/RecentActivityFeed'
@@ -18,6 +19,7 @@ import {
   IconMonitor,
   IconSmartphone,
   IconTicket,
+  IconTool,
   IconTrendingUp,
   IconUsers,
 } from '../../components/accessibility/AccessibleIcon'
@@ -49,6 +51,10 @@ export function AdminControlCenter({
     <div>
       <DashboardSection title="Acciones rápidas">
         <QuickActionsBar onGoToManagement={onGoToManagement} />
+      </DashboardSection>
+
+      <DashboardSection title="Modo mantenimiento" icon={IconTool} description="¿Necesitas bloquear la app mientras hacés cambios?">
+        <MaintenanceModePanel />
       </DashboardSection>
 
       <DashboardSection title="Resumen" icon={IconTrendingUp} description="¿Cómo está el negocio hoy?">

@@ -5,6 +5,7 @@ import { Background } from './components/Background'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { RouteAnnouncer } from './components/accessibility/RouteAnnouncer'
 import { AnalyticsRouteTracker } from './components/AnalyticsRouteTracker'
+import { MaintenanceGate } from './components/MaintenanceGate'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AdminRoute } from './components/AdminRoute'
 import { CrownLoader } from './components/CrownLoader'
@@ -91,6 +92,7 @@ function App() {
       <RouteAnnouncer />
       <AnalyticsRouteTracker />
       <ErrorBoundary>
+      <MaintenanceGate>
       <Suspense fallback={<PageFallback />}>
       <SentryRoutes>
         {/* Público: marketing, legal, auth — Navbar + Footer */}
@@ -259,6 +261,7 @@ function App() {
         <Route path="*" element={<PublicLayout><NotFound /></PublicLayout>} />
       </SentryRoutes>
       </Suspense>
+      </MaintenanceGate>
       </ErrorBoundary>
     </>
   )
