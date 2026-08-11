@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import type { CompanionData, CustomField } from '../types'
-import { IconTrash } from './accessibility/AccessibleIcon'
+import { IconTrash, IconUserPlus } from './accessibility/AccessibleIcon'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { AccessibleField } from './accessibility/AccessibleField'
@@ -83,9 +83,10 @@ export function CompanionFieldsEditor({
           <button
             type="button"
             onClick={addCompanion}
-            className="text-xs text-primary font-medium hover:underline"
+            className="w-full min-h-11 flex items-center justify-center gap-2 rounded-md border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-white hover:border-primary hover:text-primary active:bg-gray-50 dark:active:bg-gray-700 transition-colors"
           >
-            + Agregar acompañante
+            <IconUserPlus className="w-4 h-4" />
+            Agregar acompañante
           </button>
         )
       )}
@@ -98,7 +99,22 @@ export function CompanionFieldsEditor({
         const humanIndex = index + 1
         return (
         <div key={index} className="space-y-2 bg-gray-50 dark:bg-gray-700/50 rounded-md p-2">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+        {allowAddRemove && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Acompañante {humanIndex}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPendingRemoveIndex(index)}
+              className="min-w-11 min-h-11 -my-1 -mr-1 inline-flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
+              aria-label={`Eliminar acompañante ${humanIndex}`}
+            >
+              <IconTrash className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        <div className="grid grid-cols-1 gap-2">
           <AccessibleField label={`Nombre del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
             {(fieldProps) => (
               <input
@@ -142,20 +158,10 @@ export function CompanionFieldsEditor({
                 />
               )}
             </AccessibleField>
-            {allowAddRemove && (
-              <button
-                type="button"
-                onClick={() => setPendingRemoveIndex(index)}
-                className="min-w-11 min-h-11 inline-flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
-                aria-label={`Eliminar acompañante ${humanIndex}`}
-              >
-                <IconTrash className="w-4 h-4" />
-              </button>
-            )}
           </div>
         </div>
         {customFields && customFields.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {customFields.map((field) => (
               <AccessibleField
                 key={field.id}
