@@ -104,4 +104,53 @@ describe('confirmPaymentAndCheckIn (servicio)', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('guest_not_found')
   })
+
+  it('confirms payment for a party but still asks who is entering when there are companions', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { requiresPayment: true, checkedInCount: 0, paidCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      paymentStatus: 'unpaid',
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }],
+    })
+
+    const result = await confirmPaymentAndCheckIn(db, eventId, 'guest-1', opts('cash'))
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.checkIn).toBe('needs_selection')
+      if (result.checkIn === 'needs_selection') expect(result.pendingIndices).toEqual([0, 1, 2])
+    }
+    // El pago ya quedó confirmado aunque el check-in todavía no se resolvió.
+    const guest = await getGuestDoc(db, eventId, 'guest-1')
+    expect(guest?.paymentStatus).toBe('paid')
+    expect(guest?.status).toBe('invited')
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.paidCount).toBe(3)
+    expect(event.data()?.checkedInCount).toBe(0)
+  })
+
+  it('checks in a partial selection of the party in the same call as the payment', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { requiresPayment: true, checkedInCount: 0, paidCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      paymentStatus: 'unpaid',
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }],
+    })
+
+    const result = await confirmPaymentAndCheckIn(db, eventId, 'guest-1', { ...opts('cash'), selection: [0, 1] })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.checkIn).toBe('success')
+      if (result.checkIn === 'success') {
+        expect(result.partial).toBe(true)
+        expect(result.addedCount).toBe(2)
+      }
+    }
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(2)
+    expect(event.data()?.paidCount).toBe(3)
+  })
 })

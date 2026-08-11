@@ -682,6 +682,19 @@ export interface GuestData {
   checkedOutAt: number | null
   checkedOutByEmail: string | null
   exitType: GuestExitType
+  // Check-in parcial (familias/acompañantes): índices de esta invitación
+  // (0 = invitado principal, 1..N = companions[i-1]) que YA hicieron
+  // check-in alguna vez — ver checkInGuest/planCheckIn en
+  // functions/src/checkin/shared.ts, única fuente de verdad (Cloud
+  // Functions, Admin SDK). Nunca lo escribe el cliente: accessControlFieldsUntouched
+  // en firestore.rules lo protege igual que status/checkedInAt. Siempre
+  // presente en la respuesta de las Callables de check-in (mapGuestForResponse
+  // ya resuelve el fallback de invitados 'checked_in' de antes de este campo,
+  // tratándolos como "toda la invitación ya entró completa") — puede faltar
+  // en el snapshot crudo de Firestore que usa subscribeToGuests si el
+  // invitado nunca pasó por ahí, ver presentIndicesOf en src/firebase/guests.ts
+  // para el mismo fallback del lado del cliente.
+  presentIndices?: number[]
   // `lockToken` es un espejo legacy (último dispositivo reconocido) que se
   // mantiene por compatibilidad con el pill "Pase abierto" y el botón
   // "Desbloquear pase" del organizador (GuestDetailSheet). La fuente real
@@ -843,6 +856,12 @@ export interface CheckinLog {
   reentry?: boolean
   // Solo presente en entradas type: 'entry_blocked'.
   reason?: 'final_exit_blocked'
+  // Solo presentes en entradas type: 'check_in' que registraron un check-in
+  // parcial (familia/acompañantes donde no entró todo el mundo junto) — ver
+  // planCheckIn en functions/src/checkin/shared.ts. `addedCount` es cuántas
+  // personas sumó ESTE escaneo puntual (no el total de la invitación).
+  addedCount?: number
+  partial?: boolean
   timestamp: number
   scannedBy: string
   scannedByEmail: string | null

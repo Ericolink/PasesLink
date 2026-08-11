@@ -62,4 +62,44 @@ describe('checkOutGuest (servicio)', () => {
 
     expect(result.status).toBe('not_found')
   })
+
+  it('only subtracts the people actually present, not the full party, on a partial check-in', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0, occupancyCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }, { name: 'Ana' }],
+    })
+    // Solo 2 de las 4 personas de la invitación llegaron a entrar.
+    await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1])
+
+    const result = await checkOutGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', 'temporary')
+
+    expect(result.status).toBe('success')
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(2)
+    expect(event.data()?.occupancyCount).toBe(0)
+  })
+
+  it('restores exactly the people that were present before a temporary exit on re-entry', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0, occupancyCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }, { name: 'Ana' }],
+    })
+    await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1])
+    await checkOutGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', 'temporary')
+
+    const reentry = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com')
+
+    expect(reentry.status).toBe('success')
+    if (reentry.status === 'success') {
+      expect(reentry.reentry).toBe(true)
+      expect(reentry.partial).toBe(true)
+    }
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(2)
+    expect(event.data()?.occupancyCount).toBe(2)
+  })
 })

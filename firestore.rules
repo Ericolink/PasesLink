@@ -616,7 +616,7 @@ service cloud.firestore {
       return !newData.diff(oldData).affectedKeys().hasAny([
         'paymentStatus', 'paymentMethod', 'paidAt', 'paidBy',
         'status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail',
-        'checkedOutAt', 'checkedOutByEmail', 'exitType'
+        'checkedOutAt', 'checkedOutByEmail', 'exitType', 'presentIndices'
       ]);
     }
 

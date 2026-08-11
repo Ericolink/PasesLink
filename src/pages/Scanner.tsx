@@ -13,12 +13,13 @@ import { useLiveRef } from '../hooks/useLiveRef'
 import { useWalkInCounter } from '../hooks/useWalkInCounter'
 import { useQrScanner } from '../hooks/useQrScanner'
 import { IconArrowLeft, IconRotateCcw } from '../components/accessibility/AccessibleIcon'
-import { checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, findGuestByToken, guestPresence, partySize } from '../firebase/guests'
+import { checkInGuest, checkOutGuest, confirmPaymentAndCheckIn, findGuestByToken, guestPresence, partySize, presentIndicesOf } from '../firebase/guests'
 import type { PaymentMethod } from '../types'
 import { walkIn } from '../firebase/capacity'
 import { ScanResultModal } from '../components/ScanResultModal'
 import { WalkInCounter } from '../components/WalkInCounter'
 import { ExitConfirmDialog, type PendingExit } from '../components/ExitConfirmDialog'
+import { buildPendingSelection, CheckInSelectionModal, type PendingCheckInSelection } from '../components/CheckInSelectionModal'
 import { CameraPermissionHandler, ManualCodeEntryDialog } from '../components/Scanner'
 import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
@@ -85,6 +86,11 @@ export function Scanner() {
   const [exitSubmitting, setExitSubmitting] = useState(false)
   const [confirmingPayment, setConfirmingPayment] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
+  // Invitación con varias personas (familia/acompañantes) que necesita que
+  // el guardia elija quién está ingresando — ver CheckInSelectionModal.
+  const [pendingSelection, setPendingSelection] = useState<PendingCheckInSelection | null>(null)
+  const [selectionSubmitting, setSelectionSubmitting] = useState(false)
+  const [selectionError, setSelectionError] = useState<string | null>(null)
 
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // El callback de frame de html5-qrcode (dentro de useQrScanner) se
@@ -100,6 +106,7 @@ export function Scanner() {
   const scanModeRef = useLiveRef(scanMode)
   const pendingExitRef = useLiveRef(pendingExit)
   const feedbackRef = useLiveRef(feedback)
+  const pendingSelectionRef = useLiveRef(pendingSelection)
 
   function showFeedback(value: ScanFeedback) {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
@@ -143,6 +150,9 @@ export function Scanner() {
     // Ya hay una salida esperando confirmación (Volverá / Se retira) — no
     // dejar que un frame de cámara de por medio la pise con otro invitado.
     if (pendingExitRef.current) return
+    // Mismo motivo — una selección de personas (familia/acompañantes)
+    // esperando confirmación tampoco debe pisarse con otro escaneo.
+    if (pendingSelectionRef.current) return
     // Cualquier resultado en pantalla (no solo 'payment_required', como
     // antes) bloquea un nuevo escaneo hasta que el guardia lo cierre — sin
     // esto, el SCAN_COOLDOWN_MS (más corto que "leer el resultado y decidir")
@@ -184,17 +194,28 @@ export function Scanner() {
         trackCheckIn(eventId)
         if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = eventRef.current?.welcomeMessage || undefined
-        const companions = result.guest.isGroup
-          ? `${partySize(result.guest)} integrantes`
-          : result.guest.companions.length > 0
-            ? `+${result.guest.companions.length} acompañante(s)`
-            : undefined
+        const total = partySize(result.guest)
+        const presentCount = presentIndicesOf(result.guest).length
+        // Con varias personas: si quedó todo el mundo adentro, mismo mensaje
+        // de siempre ("+N acompañante(s)" / "N integrantes"); si quedó
+        // parcial, cuántos entraron de cuántos en total (ver planCheckIn en
+        // functions/src/checkin/shared.ts).
+        const partyMsg = total <= 1
+          ? undefined
+          : result.partial
+            ? `${presentCount} de ${total} ingresaron · faltan ${total - presentCount}`
+            : result.guest.isGroup
+              ? `${total} integrantes`
+              : `+${result.guest.companions.length} acompañante(s)`
         const reentryMsg = result.reentry ? 'Reingreso registrado' : undefined
         showFeedback({
           type: 'success',
           guestName: result.guest.name,
-          detail: [reentryMsg, companions, welcome].filter(Boolean).join(' · ') || undefined,
+          detail: [reentryMsg, partyMsg, welcome].filter(Boolean).join(' · ') || undefined,
         })
+      } else if (result.status === 'needs_selection') {
+        setSelectionError(null)
+        setPendingSelection(buildPendingSelection(qrToken, result.guest, result.pendingIndices))
       } else if (result.status === 'already_checked_in') {
         showFeedback({
           type: 'already',
@@ -336,7 +357,7 @@ export function Scanner() {
     // doble-tap táctil disparando dos confirmaciones en paralelo).
     if (confirmingPayment || !eventId || !user) return
     const current = feedbackRef.current
-    if (!current || current.type !== 'payment_required' || !current.guestId) return
+    if (!current || current.type !== 'payment_required' || !current.guestId || !current.qrToken) return
     const { guestId, qrToken } = current
     const ev = eventRef.current
     const method: PaymentMethod | undefined = current.paymentMethod ?? ev?.paymentMethods[0]
@@ -349,17 +370,28 @@ export function Scanner() {
         trackCheckIn(eventId)
         if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
         const welcome = ev?.welcomeMessage || undefined
-        const companions = result.guest.isGroup
-          ? `${partySize(result.guest)} integrantes`
-          : result.guest.companions.length > 0
-            ? `+${result.guest.companions.length} acompañante(s)`
-            : undefined
+        const total = partySize(result.guest)
+        const presentCount = presentIndicesOf(result.guest).length
+        const partyMsg = total <= 1
+          ? undefined
+          : result.partial
+            ? `${presentCount} de ${total} ingresaron · faltan ${total - presentCount}`
+            : result.guest.isGroup
+              ? `${total} integrantes`
+              : `+${result.guest.companions.length} acompañante(s)`
         const reentryMsg = result.reentry ? 'Reingreso registrado' : undefined
         showFeedback({
           type: 'success',
           guestName: result.guest.name,
-          detail: ['Pago confirmado', reentryMsg, companions, welcome].filter(Boolean).join(' · '),
+          detail: ['Pago confirmado', reentryMsg, partyMsg, welcome].filter(Boolean).join(' · '),
         })
+      } else if (result.checkIn === 'needs_selection') {
+        // El pago ya quedó confirmado en esta misma llamada (transacción
+        // atómica) — falta solo elegir quién de la familia/acompañantes está
+        // ingresando. La confirmación de esa selección ya no necesita volver
+        // a mandar el pago: usa checkInGuest normal (ver onConfirm más abajo).
+        setSelectionError(null)
+        setPendingSelection(buildPendingSelection(qrToken, result.guest, result.pendingIndices))
       } else if (result.checkIn === 'already_checked_in') {
         showFeedback({
           type: 'already',
@@ -397,6 +429,65 @@ export function Scanner() {
       )
     } finally {
       setConfirmingPayment(false)
+    }
+  }
+
+  // Confirma la selección de personas del modal de familia/acompañantes
+  // (ver CheckInSelectionModal) — siempre vía checkInGuest normal: si venía
+  // de un evento de pago, el pago ya se confirmó en la llamada anterior
+  // (confirmPaymentAndCheckIn), así que a esta altura el gate de pago de
+  // checkIn.ts ya pasa. `selection` viaja con los índices tildados; el
+  // servidor vuelve a filtrar/validar dentro de la transacción (ver
+  // planCheckIn en functions/src/checkin/shared.ts) — nunca confía en que
+  // esta lista ya viene limpia.
+  async function handleConfirmSelection(indices: number[]) {
+    const pending = pendingSelectionRef.current
+    if (selectionSubmitting || !eventId || !pending) return
+    setSelectionSubmitting(true)
+    setSelectionError(null)
+    try {
+      const result = await checkInGuest(eventId, pending.qrToken, indices)
+      if (result.status === 'success') {
+        trackCheckIn(eventId)
+        if (!prefersReducedMotion) confetti({ particleCount: 80, spread: 70, origin: { y: 0.4 } })
+        const total = partySize(result.guest)
+        const presentCount = presentIndicesOf(result.guest).length
+        const partyMsg = result.partial
+          ? `${presentCount} de ${total} ingresaron · faltan ${total - presentCount}`
+          : `${presentCount} de ${total} ingresaron`
+        setPendingSelection(null)
+        showFeedback({ type: 'success', guestName: result.guest.name, detail: [partyMsg, eventRef.current?.welcomeMessage].filter(Boolean).join(' · ') })
+      } else if (result.status === 'needs_selection') {
+        // Nadie de los tildados llegó a contar como nuevo (reintento
+        // duplicado, u otro dispositivo ya los había ingresado mientras
+        // tanto) — se refresca la lista de pendientes en vez de cerrar en
+        // silencio, así el guardia ve el estado real.
+        setPendingSelection(buildPendingSelection(pending.qrToken, result.guest, result.pendingIndices))
+      } else if (result.status === 'already_checked_in') {
+        setPendingSelection(null)
+        showFeedback({
+          type: 'already',
+          guestName: result.guest.name,
+          checkedInAt: result.guest.checkedInAt,
+          checkedInByEmail: result.guest.checkedInByEmail,
+          qrToken: pending.qrToken,
+          companionsCount: result.guest.companions.length,
+          isGroup: result.guest.isGroup,
+        })
+      } else {
+        setPendingSelection(null)
+        showFeedback({ type: 'not_found', detail: 'Este código ya no corresponde a ningún invitado de este evento.' })
+      }
+    } catch (err) {
+      console.error('Error confirmando check-in parcial:', err)
+      captureException(err, { tags: { component: 'scanner', action: 'confirm_selection' } })
+      setSelectionError(
+        isNetworkError(err)
+          ? 'No hay conexión a internet. Verifica tu WiFi/datos e intenta de nuevo.'
+          : 'No se pudo registrar el ingreso. Intenta de nuevo.',
+      )
+    } finally {
+      setSelectionSubmitting(false)
     }
   }
 
@@ -594,6 +685,16 @@ export function Scanner() {
           confirmError={confirmError}
           paymentMethods={event?.paymentMethods}
           onSelectPaymentMethod={(method) => setFeedback((prev) => (prev ? { ...prev, paymentMethod: method } : prev))}
+        />
+      )}
+
+      {pendingSelection && (
+        <CheckInSelectionModal
+          selection={pendingSelection}
+          submitting={selectionSubmitting}
+          error={selectionError}
+          onConfirm={(indices) => { void handleConfirmSelection(indices) }}
+          onCancel={() => { setPendingSelection(null); setSelectionError(null) }}
         />
       )}
 

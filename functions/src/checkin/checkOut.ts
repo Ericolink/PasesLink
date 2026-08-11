@@ -4,7 +4,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore'
 import { applyCounterDeltas } from '../lib/counters/index.js'
 import { guestVersionFields } from '../lib/guestVersion.js'
 import { partySizeFromRaw } from '../payments/confirmPayment.js'
-import { guestPresence, mapGuestForResponse } from './shared.js'
+import { guestPresence, mapGuestForResponse, presentIndicesOf } from './shared.js'
 
 export type CheckOutResult =
   | { status: 'success'; guest: Record<string, unknown>; kind: 'temporary' | 'final' }
@@ -38,7 +38,10 @@ export async function checkOutGuest(
       return { status: 'already_checked_out', guest: mapGuestForResponse(guestRef.id, guest) }
     }
 
-    const partySize = partySizeFromRaw(guest.companions)
+    // La salida se resta por PERSONAS REALMENTE PRESENTES, no por partySize
+    // completo — con check-in parcial, una invitación puede tener adentro
+    // menos gente que su capacidad total (ver planCheckIn en shared.ts).
+    const presentCount = presentIndicesOf(guest, partySizeFromRaw(guest.companions)).length
     const now = Date.now()
     const guestUpdates = {
       checkedOutAt: FieldValue.serverTimestamp(),
@@ -46,7 +49,7 @@ export async function checkOutGuest(
       exitType: kind,
     }
     tx.update(guestRef, { ...guestUpdates, ...guestVersionFields() })
-    applyCounterDeltas(db, tx, eventRef, eventId, { occupancyCount: -partySize })
+    applyCounterDeltas(db, tx, eventRef, eventId, { occupancyCount: -presentCount })
 
     const checkinRef = eventRef.collection('checkins').doc()
     tx.set(checkinRef, {

@@ -47,7 +47,7 @@ describe('checkInGuest (servicio)', () => {
     expect(event.data()?.checkinsByHour).toEqual({ [expectedHourLabel]: 1 })
   })
 
-  it('sums companions into checkedInCount on check-in', async () => {
+  it('sums companions into checkedInCount once the whole party is confirmed', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { checkedInCount: 0 })
     await seedGuest(db, eventId, 'guest-1', {
@@ -55,7 +55,9 @@ describe('checkInGuest (servicio)', () => {
       companions: [{ name: 'Uno' }, { name: 'Dos' }, { name: 'Tres' }],
     })
 
-    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com')
+    // Con varias personas, el primer escaneo pide selección (ver describe
+    // "check-in parcial" más abajo) — acá se confirma que vienen todos.
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1, 2, 3])
 
     expect(result.status).toBe('success')
     const event = await db.collection('events').doc(eventId).get()
@@ -104,7 +106,7 @@ describe('checkInGuest (servicio)', () => {
       companions: [{ name: 'Uno' }, { name: 'Dos' }],
     })
 
-    await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com')
+    await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1, 2])
     let event = await db.collection('events').doc(eventId).get()
     expect(event.data()?.checkedInCount).toBe(3)
     expect(event.data()?.occupancyCount).toBe(3)
@@ -170,5 +172,236 @@ describe('checkInGuest (servicio)', () => {
     const result = await checkInGuest(db, eventId, 'no-such-token', OWNER_UID, 'owner@test.com')
 
     expect(result.status).toBe('not_found')
+  })
+})
+
+describe('checkInGuest (check-in parcial — familias/acompañantes)', () => {
+  let db: Firestore
+
+  beforeEach(() => {
+    db = getTestFirestore()
+  })
+
+  afterEach(async () => {
+    await clearFirestoreEmulator()
+  })
+
+  it('a solo guest (no companions) still checks in immediately without needing a selection', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', { qrToken: QR_TOKEN })
+
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com')
+
+    expect(result.status).toBe('success')
+    if (result.status === 'success') {
+      expect(result.partial).toBe(false)
+      expect(result.addedCount).toBe(1)
+    }
+  })
+
+  it('a first scan of a party of 4 asks for selection instead of checking everyone in', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }, { name: 'Ana' }],
+    })
+
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com')
+
+    expect(result.status).toBe('needs_selection')
+    if (result.status === 'needs_selection') expect(result.pendingIndices).toEqual([0, 1, 2, 3])
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(0)
+    const guest = await getGuestDoc(db, eventId, 'guest-1')
+    expect(guest?.status).toBe('invited')
+  })
+
+  it('confirming "everyone" checks in the whole party and marks it complete', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }, { name: 'Ana' }],
+    })
+
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1, 2, 3])
+
+    expect(result.status).toBe('success')
+    if (result.status === 'success') {
+      expect(result.partial).toBe(false)
+      expect(result.addedCount).toBe(4)
+    }
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(4)
+    expect(event.data()?.occupancyCount).toBe(4)
+
+    const again = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com')
+    expect(again.status).toBe('already_checked_in')
+  })
+
+  it('confirming only some of the party leaves the invitation partially checked in', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }, { name: 'Ana' }],
+    })
+
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1])
+
+    expect(result.status).toBe('success')
+    if (result.status === 'success') {
+      expect(result.partial).toBe(true)
+      expect(result.addedCount).toBe(2)
+    }
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(2)
+    expect(event.data()?.occupancyCount).toBe(2)
+    const guest = await getGuestDoc(db, eventId, 'guest-1')
+    expect(guest?.status).toBe('checked_in')
+    expect(guest?.presentIndices).toEqual([0, 1])
+  })
+
+  it('a later scan of a partial invitation reports only the pending people', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }, { name: 'Ana' }],
+    })
+    await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1])
+
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com')
+
+    expect(result.status).toBe('needs_selection')
+    if (result.status === 'needs_selection') expect(result.pendingIndices).toEqual([2, 3])
+  })
+
+  it('completing the remaining people closes out the partial invitation', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }, { name: 'Ana' }],
+    })
+    await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1])
+
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [2, 3])
+
+    expect(result.status).toBe('success')
+    if (result.status === 'success') {
+      expect(result.partial).toBe(false)
+      expect(result.addedCount).toBe(2)
+    }
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(4)
+    expect(event.data()?.occupancyCount).toBe(4)
+    const guest = await getGuestDoc(db, eventId, 'guest-1')
+    expect(guest?.presentIndices).toEqual([0, 1, 2, 3])
+  })
+
+  it('does not double-count a person that was already checked in (idempotent selection)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }],
+    })
+    await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0])
+
+    // Reenvía el índice 0 (ya presente) junto con el 1 (pendiente) — el
+    // servidor filtra el 0 y solo suma al 1, no duplica.
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1])
+
+    expect(result.status).toBe('success')
+    if (result.status === 'success') expect(result.addedCount).toBe(1)
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(2)
+  })
+
+  it('ignores out-of-range indices in the selection instead of trusting the client', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }],
+    })
+
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 99, -1])
+
+    expect(result.status).toBe('success')
+    if (result.status === 'success') expect(result.addedCount).toBe(1)
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(1)
+  })
+
+  it('blocks the first entry of an unpaid party before offering any selection', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { requiresPayment: true })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }],
+      paymentStatus: 'unpaid',
+    })
+
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com')
+
+    expect(result.status).toBe('payment_required')
+    const guest = await getGuestDoc(db, eventId, 'guest-1')
+    expect(guest?.status).toBe('invited')
+  })
+
+  it('treats legacy checked_in guests without presentIndices as fully checked in', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }],
+      status: 'checked_in',
+      checkedInAt: Date.now(),
+    })
+
+    const result = await checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com')
+
+    expect(result.status).toBe('already_checked_in')
+  })
+
+  it('never accepts two simultaneous scans of a solo guest as two separate check-ins', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', { qrToken: QR_TOKEN })
+
+    const [a, b] = await Promise.all([
+      checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com'),
+      checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com'),
+    ])
+    const statuses = [a.status, b.status].sort()
+
+    expect(statuses).toEqual(['already_checked_in', 'success'])
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(1)
+    expect(event.data()?.occupancyCount).toBe(1)
+  })
+
+  it('never accepts two simultaneous full-party confirmations as two separate check-ins', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', {
+      qrToken: QR_TOKEN,
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }, { name: 'Ana' }],
+    })
+
+    const [a, b] = await Promise.all([
+      checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1, 2, 3]),
+      checkInGuest(db, eventId, QR_TOKEN, OWNER_UID, 'owner@test.com', [0, 1, 2, 3]),
+    ])
+    const statuses = [a.status, b.status].sort()
+
+    expect(statuses).toEqual(['already_checked_in', 'success'])
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.checkedInCount).toBe(4)
+    expect(event.data()?.occupancyCount).toBe(4)
   })
 })

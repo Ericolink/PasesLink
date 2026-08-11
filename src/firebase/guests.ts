@@ -480,9 +480,13 @@ export async function updateGuestSelf(
 // esa ocupación quedaba "fantasma" para siempre).
 export async function deleteGuest(
   eventId: string,
-  guest: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'>,
+  guest: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'presentIndices'>,
 ) {
   const size = partySize(guest)
+  // Personas REALMENTE presentes, no partySize completo — con check-in
+  // parcial (familia/acompañantes) puede haber menos gente adentro que el
+  // tamaño total de la invitación (ver presentIndicesOf arriba).
+  const present = presentIndicesOf(guest).length
   const batch = writeBatch(db)
   batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
   batch.delete(contactRef(eventId, guest.id))
@@ -490,8 +494,8 @@ export async function deleteGuest(
     guestCount: -1,
     peopleCount: -size,
     [rsvpCountField(guest.rsvpStatus)]: -1,
-    checkedInCount: guest.status === 'checked_in' ? -size : 0,
-    occupancyCount: guest.status === 'checked_in' && guestPresence(guest) === 'inside' ? -size : 0,
+    checkedInCount: -present,
+    occupancyCount: guestPresence(guest) === 'inside' ? -present : 0,
     paidCount: guest.paymentStatus === 'paid' ? -size : 0,
   })
   await batch.commit()
@@ -508,10 +512,11 @@ export async function moveGuestToWaitlist(
   eventId: string,
   guest: Pick<
     GuestData,
-    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'customData' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'registrationSource'
+    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'customData' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'registrationSource' | 'presentIndices'
   >,
 ): Promise<void> {
   const size = partySize(guest)
+  const present = presentIndicesOf(guest).length
   const fullName = `${guest.name}${guest.lastName ? ` ${guest.lastName}` : ''}`.trim()
   const batch = writeBatch(db)
 
@@ -521,8 +526,8 @@ export async function moveGuestToWaitlist(
     guestCount: -1,
     peopleCount: -size,
     [rsvpCountField(guest.rsvpStatus)]: -1,
-    checkedInCount: guest.status === 'checked_in' ? -size : 0,
-    occupancyCount: guest.status === 'checked_in' && guestPresence(guest) === 'inside' ? -size : 0,
+    checkedInCount: -present,
+    occupancyCount: guestPresence(guest) === 'inside' ? -present : 0,
     paidCount: guest.paymentStatus === 'paid' ? -size : 0,
   })
 
@@ -600,7 +605,7 @@ export interface BulkResult {
 // (igual que el deleteGuest individual ya hacía).
 export async function bulkDeleteGuests(
   eventId: string,
-  guests: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'>[],
+  guests: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'presentIndices'>[],
 ): Promise<BulkResult> {
   const chunks = chunkByPartySize(guests, partySize)
   let ok = 0
@@ -620,14 +625,13 @@ export async function bulkDeleteGuests(
       }
       for (const guest of chunk) {
         const size = partySize(guest)
+        const present = presentIndicesOf(guest).length
         batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
         batch.delete(contactRef(eventId, guest.id))
         guestCountDelta -= 1
         peopleCountDelta -= size
-        if (guest.status === 'checked_in') {
-          checkedInCountDelta -= size
-          if (guestPresence(guest) === 'inside') occupancyCountDelta -= size
-        }
+        checkedInCountDelta -= present
+        if (guestPresence(guest) === 'inside') occupancyCountDelta -= present
         if (guest.paymentStatus === 'paid') paidCountDelta -= size
         rsvpDeltas[rsvpCountField(guest.rsvpStatus)] -= 1
       }
@@ -1104,24 +1108,49 @@ export function guestPresence(guest: Pick<GuestData, 'status' | 'checkedOutAt' |
   return guest.exitType === 'final' ? 'final_out' : 'temp_out'
 }
 
+// Índices de esta invitación (0 = invitado principal, 1..N = companions[i-1])
+// que ya hicieron check-in alguna vez — mismo cálculo y mismo fallback que
+// functions/src/checkin/shared.ts:presentIndicesOf (invitados 'checked_in'
+// sin `presentIndices` son de antes del check-in parcial: se interpretan
+// como "toda la invitación ya había entrado completa", no como "nadie
+// entró"). Usalo en vez de partySize() para cualquier cálculo de asistencia
+// REAL (checkedInCount/occupancyCount) — partySize() sigue siendo el conteo
+// de personas registradas (peopleCount/paidCount/capacidad), no de quién
+// efectivamente llegó.
+export function presentIndicesOf(guest: Pick<GuestData, 'status' | 'presentIndices'> & { companions: CompanionData[] }): number[] {
+  const total = partySize(guest)
+  if (Array.isArray(guest.presentIndices)) {
+    return guest.presentIndices.filter((i) => Number.isInteger(i) && i >= 0 && i < total)
+  }
+  if (guest.status === 'checked_in') return Array.from({ length: total }, (_, i) => i)
+  return []
+}
+
 export type CheckInResult =
-  | { status: 'success'; guest: GuestData; reentry: boolean }
+  | { status: 'success'; guest: GuestData; reentry: boolean; partial: boolean; addedCount: number }
   | { status: 'already_checked_in'; guest: GuestData }
+  | { status: 'needs_selection'; guest: GuestData; pendingIndices: number[] }
   | { status: 'payment_required'; guest: GuestData }
   | { status: 'blocked_final_exit'; guest: GuestData }
   | { status: 'not_found' }
 
-// Toda la máquina de estados (guestPresence, gate de pago, escritura
-// combinada de guests/{guestId}+events/{eventId}, doc de auditoría en
-// checkins) vive en la Cloud Function `checkInGuest` (Admin SDK, ver
-// functions/src/checkin/checkIn.ts) — este archivo ya no corre la
-// transacción, solo invoca la Callable y propaga el resultado.
+// Toda la máquina de estados (guestPresence, gate de pago, check-in parcial
+// vía planCheckIn, escritura combinada de guests/{guestId}+events/{eventId},
+// doc de auditoría en checkins) vive en la Cloud Function `checkInGuest`
+// (Admin SDK, ver functions/src/checkin/checkIn.ts) — este archivo ya no
+// corre la transacción, solo invoca la Callable y propaga el resultado.
+// `selection` ausente = sondeo (invitación con varias personas, primer
+// escaneo o parcial pendiente: la Callable devuelve 'needs_selection' sin
+// escribir nada) o confirmación implícita para una invitación de 1 sola
+// persona (ver planCheckIn en shared.ts) — el llamador vuelve a invocar esta
+// misma función con `selection` una vez que el encargado elige quién entra.
 export async function checkInGuest(
   eventId: string,
   qrToken: string,
+  selection?: number[],
 ): Promise<CheckInResult> {
-  const callable = httpsCallable<{ eventId: string; qrToken: string }, CheckInResult>(functions, 'checkInGuest')
-  const result = await measureSpan('functions.checkInGuest', 'db.firestore', () => callable({ eventId, qrToken }))
+  const callable = httpsCallable<{ eventId: string; qrToken: string; selection?: number[] }, CheckInResult>(functions, 'checkInGuest')
+  const result = await measureSpan('functions.checkInGuest', 'db.firestore', () => callable({ eventId, qrToken, selection }))
   return result.data
 }
 
@@ -1144,25 +1173,30 @@ export async function checkOutGuest(
 }
 
 export type ConfirmPaymentAndCheckInResult =
-  | { ok: true; checkIn: 'success'; reentry: boolean; guest: GuestData }
+  | { ok: true; checkIn: 'success'; reentry: boolean; partial: boolean; addedCount: number; guest: GuestData }
   | { ok: true; checkIn: 'already_checked_in'; guest: GuestData }
+  | { ok: true; checkIn: 'needs_selection'; guest: GuestData; pendingIndices: number[] }
   | { ok: true; checkIn: 'blocked_final_exit'; guest: GuestData }
 
 // Botón "Sí, ya pagó" del escáner (evento de pago, invitado sin pagar) —
 // confirma el pago y hace el check-in en una sola llamada atómica del
 // servidor (ver functions/src/checkin/confirmPaymentAndCheckIn.ts), en vez
 // de las dos llamadas secuenciales no atómicas (setGuestPaymentStatus +
-// checkInGuest) que este archivo usaba antes de esta migración.
+// checkInGuest) que este archivo usaba antes de esta migración. Mismo
+// parámetro `selection` que checkInGuest — necesario acá también porque el
+// pago y el check-in ocurren en la MISMA transacción (no se puede pagar y
+// después llamar a checkInGuest por separado sin perder atomicidad).
 export async function confirmPaymentAndCheckIn(
   eventId: string,
   guestId: string,
   method?: PaymentMethod,
+  selection?: number[],
 ): Promise<ConfirmPaymentAndCheckInResult> {
   const callable = httpsCallable<
-    { eventId: string; guestId: string; method?: PaymentMethod },
+    { eventId: string; guestId: string; method?: PaymentMethod; selection?: number[] },
     ConfirmPaymentAndCheckInResult
   >(functions, 'confirmPaymentAndCheckIn')
-  const result = await measureSpan('functions.confirmPaymentAndCheckIn', 'db.firestore', () => callable({ eventId, guestId, method }))
+  const result = await measureSpan('functions.confirmPaymentAndCheckIn', 'db.firestore', () => callable({ eventId, guestId, method, selection }))
   return result.data
 }
 
@@ -1240,6 +1274,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     checkedOutAt: toMillisOrNull(data.checkedOutAt),
     checkedOutByEmail: (data.checkedOutByEmail as string) || null,
     exitType: (data.exitType as GuestData['exitType']) || null,
+    presentIndices: Array.isArray(data.presentIndices) ? (data.presentIndices as number[]) : undefined,
     lockToken: (data.lockToken as string) || null,
     lockTokens: Array.isArray(data.lockTokens) ? (data.lockTokens as string[]) : undefined,
     customData: (data.customData as Record<string, string>) || undefined,
