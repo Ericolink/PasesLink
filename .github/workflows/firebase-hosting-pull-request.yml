@@ -37,9 +37,16 @@ jobs:
     needs: validate
     if: '${{ github.event.pull_request.head.repo.full_name == github.repository }}'
     runs-on: ubuntu-latest
+    # checks:write — FirebaseExtended/action-hosting-deploy crea un check run
+    # contra el commit para reportar el estado del deploy, sin importar si es
+    # canal de preview o live (ver el mismo comentario en
+    # firebase-hosting-merge.yml); sin este permiso el job falla con 403
+    # "Resource not accessible by integration" al margen de
+    # pull-requests:write, que solo cubre el comentario del link.
     permissions:
       contents: read
       pull-requests: write
+      checks: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
