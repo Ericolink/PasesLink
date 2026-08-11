@@ -113,7 +113,7 @@ function guestVersionStamp(expectedVersion: number) {
 
 // Variante con increment() para escrituras del ORGANIZADOR que no pasan por
 // una rama de campos acotados propia en firestore.rules (resetGuestRsvp,
-// unlockGuestPass, bulkSetGuestTags) y por eso cotizan contra la MISMA rama
+// bulkSetGuestTags) y por eso cotizan contra la MISMA rama
 // sin restricción de campos que updateGuest (editGuests/isAdmin,
 // accessControlFieldsUntouched) — esa rama exige guestVersionOk() sin
 // excepción, así que estas escrituras también tienen que avanzar `version`.
@@ -918,13 +918,6 @@ export async function resetGuestRsvp(eventId: string, guestId: string) {
       })
     }
   })
-}
-
-// A diferencia de resetGuestRsvp, NO toca el RSVP — solo libera el pase para
-// que pueda abrirse desde otro dispositivo (invitado que cambió de teléfono,
-// borró el navegador, o lo abrió por error desde el dispositivo equivocado).
-export async function unlockGuestPass(eventId: string, guestId: string) {
-  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { lockToken: null, lockTokens: [], ...guestVersionBump() })
 }
 
 // Acción del ORGANIZADOR: aprobar (`'paid'`) o revertir/rechazar (`'unpaid'`)

@@ -41,8 +41,6 @@ import { EventCountdown } from '../components/EventCountdown'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
 import { InAppBrowserBanner } from '../components/InAppBrowserBanner'
 import { InlineNotice } from '../components/InlineNotice'
-import { NoticeStack } from '../components/NoticeStack'
-import { useInAppBrowserNotice } from '../hooks/useInAppBrowserNotice'
 import { AccessibleModal } from '../components/accessibility/AccessibleModal'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { SkeletonBlock } from '../components/Skeleton'
@@ -97,15 +95,7 @@ function GuestPassInner() {
   useLoadingAnnouncement(loading, 'Pase cargado')
   const [error, setError] = useState(false)
   const [deviceToken, setDeviceToken] = useState<string | null>(null)
-  const [multiDevice, setMultiDevice] = useState(false)
-  const [multiDeviceDismissed, setMultiDeviceDismissed] = useState(false)
-  const inAppBrowserNotice = useInAppBrowserNotice()
   const prefersReducedMotion = usePrefersReducedMotion()
-  const showMultiDeviceNotice = multiDevice && !multiDeviceDismissed
-  // Cuando ambos avisos pueden mostrarse a la vez, se agrupan en un solo
-  // contenedor (NoticeStack) para no duplicar borde/fondo/margen y comerse
-  // el doble de alto de viewport — ver InlineNotice/NoticeStack.
-  const groupNotices = inAppBrowserNotice.visible && showMultiDeviceNotice
   const [rsvpSaving, setRsvpSaving] = useState(false)
   const [rsvpError, setRsvpError] = useState<string | null>(null)
   const [reconfirmSaving, setReconfirmSaving] = useState(false)
@@ -219,7 +209,6 @@ function GuestPassInner() {
         localStorage.setItem(storageKey, localToken)
         const devices = await claimGuestPass(eventId, guestData.id, localToken)
         setDeviceToken(localToken)
-        setMultiDevice(devices.length > 1)
         setGuest({ ...guestData, lockToken: localToken, lockTokens: devices })
 
         // Vincula (o revincula) este pase a la cuenta cada vez que su dueño
@@ -637,45 +626,7 @@ function GuestPassInner() {
             primero, como el código de barras de un boarding pass real; los
             detalles del evento quedan como contexto secundario debajo). ── */}
         <div className="px-6 pb-6 pt-4 text-center">
-          {/* Los dos avisos (navegador integrado + multi-dispositivo) son
-              independientes y pueden coincidir. Sueltos, cada uno trae su
-              propio borde/fondo/margen y juntos se comen el doble de alto
-              de viewport del que realmente necesitan — por eso, cuando
-              ambos están visibles, se agrupan en un solo NoticeStack en vez
-              de mostrarse apilados por separado. Con uno solo visible, se
-              muestra suelto (comportamiento sin cambios). */}
-          {groupNotices ? (
-            <NoticeStack>
-              <InAppBrowserBanner grouped />
-              <InlineNotice
-                grouped
-                onDismiss={() => setMultiDeviceDismissed(true)}
-                icon={<IconAlertTriangle className="w-4 h-4 text-amber-400" />}
-              >
-                <p className="text-[var(--invite-text)]">Este pase también se abrió desde otro dispositivo o navegador.</p>
-                <p className="mt-0.5 text-[var(--invite-text-muted)]">
-                  Si fuiste tú (por ejemplo, al cambiar de Instagram/WhatsApp a Chrome o Safari), no hace falta hacer
-                  nada. Si no reconoces ese acceso, contacta al organizador.
-                </p>
-              </InlineNotice>
-            </NoticeStack>
-          ) : (
-            <>
-              <InAppBrowserBanner />
-              {showMultiDeviceNotice && (
-                <InlineNotice
-                  onDismiss={() => setMultiDeviceDismissed(true)}
-                  icon={<IconAlertTriangle className="w-4 h-4 text-amber-400" />}
-                >
-                  <p className="text-[var(--invite-text)]">Este pase también se abrió desde otro dispositivo o navegador.</p>
-                  <p className="mt-0.5 text-[var(--invite-text-muted)]">
-                    Si fuiste tú (por ejemplo, al cambiar de Instagram/WhatsApp a Chrome o Safari), no hace falta hacer
-                    nada. Si no reconoces ese acceso, contacta al organizador.
-                  </p>
-                </InlineNotice>
-              )}
-            </>
-          )}
+          <InAppBrowserBanner />
 
           {/* Reconfirmación de asistencia (WAITLIST_RECONFIRMATION_ARCHITECTURE.md
               Fase 2) — solo mientras sigue pendiente ('requested'); una vez

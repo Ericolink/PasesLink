@@ -701,10 +701,9 @@ export interface GuestData {
   // invitado nunca pasó por ahí, ver presentIndicesOf en src/firebase/guests.ts
   // para el mismo fallback del lado del cliente.
   presentIndices?: number[]
-  // `lockToken` es un espejo legacy (último dispositivo reconocido) que se
-  // mantiene por compatibilidad con el pill "Pase abierto" y el botón
-  // "Desbloquear pase" del organizador (GuestDetailSheet). La fuente real
-  // de verdad para autorizar escrituras del invitado (RSVP, comprobante de
+  // `lockToken` es un espejo legacy (último dispositivo reconocido), sin UI
+  // propia (no hay aviso ni acción manual del organizador sobre esto). La
+  // fuente real de verdad para autorizar escrituras del invitado (RSVP, comprobante de
   // pago, auto-edición) es `lockTokens`: una lista acotada de dispositivos
   // reconocidos para este pase (últimos N, con expulsión del más viejo al
   // llegar al tope — ver claimGuestPass en src/firebase/guests.ts). Permite

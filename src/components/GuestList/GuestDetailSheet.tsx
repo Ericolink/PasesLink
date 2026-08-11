@@ -30,7 +30,6 @@ import {
   IconClock,
   IconEdit,
   IconHelpCircle,
-  IconLock,
   IconLogOut,
   IconMail,
   IconRotateCcw,
@@ -123,7 +122,6 @@ export function GuestDetailSheet({
   onMarkUnpaid,
   onSetTags,
   onRequestDelete,
-  onRequestUnlock,
   onRequestReentry,
   onReactivate,
   onRequestSendToWaitlist,
@@ -156,7 +154,6 @@ export function GuestDetailSheet({
   onMarkUnpaid: (guest: GuestData) => Promise<void>
   onSetTags: (guest: GuestData, tagIds: string[]) => void
   onRequestDelete: (guest: GuestData) => void
-  onRequestUnlock: (guest: GuestData) => void
   onRequestReentry: (guest: GuestData) => void
   onReactivate: (guest: GuestData) => void
   onRequestSendToWaitlist: (guest: GuestData) => void
@@ -250,20 +247,6 @@ export function GuestDetailSheet({
                   )}
                   {presence === 'temp_out' && <Pill tone="amber" icon={<IconLogOut className="w-3.5 h-3.5" />}>Salida temporal</Pill>}
                   {presence === 'final_out' && <Pill tone="gray" icon={<IconLogOut className="w-3.5 h-3.5" />}>Fuera del evento</Pill>}
-                  {/* Informativo, no urgente — ver needsAttention en guestGrouping.ts.
-                      Más de un dispositivo reconocido en un pase individual es una señal
-                      (no una alarma) de que tal vez se compartió de más — ver
-                      claimGuestPass en src/firebase/guests.ts. En pases familiares es
-                      esperable que varios integrantes lo abran cada uno por su cuenta. */}
-                  {guest.lockToken && (
-                    (guest.lockTokens?.length ?? 1) > 1 && !guest.isGroup ? (
-                      <Pill tone="amber" icon={<IconLock className="w-3.5 h-3.5" />}>
-                        Abierto en {guest.lockTokens!.length} dispositivos
-                      </Pill>
-                    ) : (
-                      <Pill tone="gray" icon={<IconLock className="w-3.5 h-3.5" />}>Pase abierto</Pill>
-                    )
-                  )}
                 </div>
                 {!guest.isGroup && guest.companions.length > 0 && (
                   <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -422,11 +405,6 @@ export function GuestDetailSheet({
                   </ActionButton>
                 )}
 
-                {canEditGuests && guest.lockToken && (
-                  <ActionButton icon={<IconLock className="w-4 h-4" />} onClick={() => onRequestUnlock(guest)}>
-                    Desbloquear pase
-                  </ActionButton>
-                )}
                 {canEditGuests && guest.rsvpStatus === 'no' && (
                   <ActionButton icon={<IconRotateCcw className="w-4 h-4" />} onClick={() => onReactivate(guest)}>
                     Reactivar invitación
