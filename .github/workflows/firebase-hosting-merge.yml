@@ -43,6 +43,15 @@ jobs:
     # UI de Actions/Environments qué proyecto recibe cada deploy, en
     # espejo con `environment: staging` de firebase-staging-deploy.yml.
     environment: production
+    # checks:write — FirebaseExtended/action-hosting-deploy crea un check run
+    # contra el commit para reportar el estado del deploy (channelId: live
+    # incluido, no es exclusivo del comentario de preview en PRs); sin este
+    # permiso la API de GitHub responde 403 "Resource not accessible by
+    # integration" y el job entero falla. Mismo criterio de permiso acotado
+    # por job que pull-requests:write en firebase-hosting-pull-request.yml.
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
