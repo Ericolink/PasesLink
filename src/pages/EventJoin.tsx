@@ -44,6 +44,7 @@ import type { CompanionData, EventData, PaymentMethod } from '../types'
 import { CustomFieldInput } from '../components/CustomFieldInput'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import { FieldError, AccessibleField } from '../components/accessibility/AccessibleField'
+import { regKey } from '../utils/joinRegistration'
 
 type State = 'loading' | 'form' | 'submitting' | 'not_found' | 'error' | 'full'
 
@@ -57,10 +58,6 @@ function isEventFull(ev: Pick<EventData, 'attendeeLimitEnabled' | 'peopleCount' 
 
 interface SavedReg {
   qrToken: string
-}
-
-function regKey(eventId: string) {
-  return `join_reg_${eventId}`
 }
 
 interface SavedWaitlistReg {
@@ -223,6 +220,21 @@ export function EventJoin() {
   }, [profile, user])
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
+  // Si el invitado ya escribió datos propios (acompañantes, teléfono, campos
+  // personalizados — nunca autocompletados, a diferencia de nombre/email que
+  // sí vienen del perfil) para cuando esta verificación resuelve, no lo
+  // saquemos de golpe del formulario: dejamos que termine y envíe, y
+  // registerWalkInGuest ya sabe fusionar esos datos nuevos contra el
+  // registro existente en vez de perderlos (ver bug 2026-08-10, antes este
+  // efecto redirigía sin avisar apenas detectaba una invitación previa,
+  // tirando a la basura acompañantes recién tecleados). Ref en vez de estado
+  // para no reprogramar la verificación en cada tecla.
+  const hasEnteredOwnDataRef = useRef(false)
+  useEffect(() => {
+    hasEnteredOwnDataRef.current =
+      companions.length > 0 || !!phone.trim() || Object.values(customValues).some((v) => v.trim())
+  })
+
   // Si esta cuenta ya tiene una invitación guardada para este evento (se
   // autoregistró antes, quizás desde otro dispositivo — el check de
   // localStorage de arriba es por navegador, no por cuenta), lo manda directo
@@ -236,7 +248,7 @@ export function EventJoin() {
     if (!id || !uid || (state !== 'form' && state !== 'full')) return
     let cancelled = false
     getUserInvitation(uid, id).then((inv) => {
-      if (cancelled || !inv?.qrToken) return
+      if (cancelled || !inv?.qrToken || hasEnteredOwnDataRef.current) return
       localStorage.setItem(regKey(id), JSON.stringify({ qrToken: inv.qrToken }))
       navigate(`/pass/${id}/${inv.qrToken}`, { replace: true })
     })

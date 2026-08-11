@@ -11,6 +11,7 @@ import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { saveUserInvitation, deleteUserInvitation } from '../firebase/userProfile'
+import { regKey } from '../utils/joinRegistration'
 import { trackCheckIn, trackGuestDelete, trackInvitationSignupPromptShown, trackRsvpConfirm, trackRsvpDecline } from '../lib/analytics'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
@@ -533,6 +534,14 @@ function GuestPassInner() {
     try {
       await deleteGuest(eventId, guest)
       trackGuestDelete(eventId)
+      // Sin esto, este mismo navegador quedaba atrapado: EventJoin.tsx guarda
+      // este localStorage al autoregistrarse y, si sigue ahí, manda derecho
+      // al pase (ya borrado) en vez de mostrar el formulario de nuevo — el
+      // invitado que cancela y se arrepiente no podía volver a registrarse
+      // (bug reportado 2026-08-10). Solo aplica al invitado autoregistrado
+      // (es quien tiene esta clave); para uno agregado por el organizador es
+      // un no-op, la clave nunca existió.
+      localStorage.removeItem(regKey(eventId))
       // Best-effort: limpia la caché de "Mis invitaciones" del propio dueño
       // de la cuenta. Solo puede hacerlo si el visor ES esa cuenta (reglas de
       // users/{uid}/invitations exigen request.auth.uid == uid, sin excepción

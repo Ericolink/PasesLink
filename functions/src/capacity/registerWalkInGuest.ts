@@ -104,28 +104,6 @@ export async function registerWalkInGuest(
     const entryMode = event.entryMode as string | undefined
     if (entryMode !== 'open' && entryMode !== 'hybrid') return { status: 'not_open' }
 
-    // Idempotencia por cuenta: si esta cuenta ya tiene un guest de este
-    // evento (ej. se autoregistró antes desde otro dispositivo, o dos
-    // pestañas mandaron el mismo submit), devolver ESE guest en vez de crear
-    // uno nuevo — la única barrera real contra duplicados (el chequeo
-    // equivalente del lado del cliente en EventJoin.tsx es solo UX, no
-    // seguridad). `email: ''` a propósito: la Callable no debe reenviar el
-    // correo del pase para un registro que ya existía.
-    if (input.authUid) {
-      const existingSnap = await tx.get(guestsCol.where('guestUid', '==', input.authUid).limit(1))
-      if (!existingSnap.empty) {
-        const existing = existingSnap.docs[0]
-        const existingData = existing.data()
-        return {
-          status: 'success',
-          guestId: existing.id,
-          qrToken: existingData.qrToken as string,
-          eventName: (event.name as string) || 'tu evento',
-          email: '',
-        }
-      }
-    }
-
     // Contra la definición REAL de campos del evento, nunca contra lo que
     // el cliente diga que son sus campos — ver validatePublicCustomData.
     const customData = validatePublicCustomData(input.customData, event.customFields as CustomFieldDef[] | undefined)
@@ -136,12 +114,6 @@ export async function registerWalkInGuest(
         waitlistCol.where('status', '==', 'offered').aggregate({ total: AggregateField.sum('partySize') }),
       )
       offeredCount = offeredAgg.data().total ?? 0
-    }
-
-    let guestPhotoURL: string | null = null
-    if (input.authUid) {
-      const userSnap = await tx.get(db.collection('users').doc(input.authUid))
-      guestPhotoURL = (userSnap.data()?.photoURL as string | undefined) ?? null
     }
 
     const maxCompanions = resolveMaxCompanions(event.maxCompanions as number | undefined)
@@ -157,17 +129,72 @@ export async function registerWalkInGuest(
 
     const currentGuestCount = typeof event.guestCount === 'number' ? event.guestCount : 0
     const currentPeopleCount = typeof event.peopleCount === 'number' ? event.peopleCount : currentGuestCount
+    const capacitySnapshot = {
+      attendeeLimitEnabled: event.attendeeLimitEnabled as boolean | undefined,
+      peopleCount: currentPeopleCount,
+      capacity: event.capacity as number | undefined,
+    }
+
+    // Idempotencia por cuenta: si esta cuenta ya tiene un guest de este
+    // evento (ej. se autoregistró antes desde otro dispositivo, o dos
+    // pestañas mandaron el mismo submit), no crear uno nuevo — la única
+    // barrera real contra duplicados (el chequeo equivalente del lado del
+    // cliente en EventJoin.tsx es solo UX, no seguridad). Pero si esta
+    // vuelta trae MÁS acompañantes que el registro guardado (ej. la persona
+    // completó el formulario de nuevo más tarde, o inició sesión recién a
+    // mitad de un formulario que ya tenía acompañantes cargados), hay que
+    // sumarlos en vez de devolver el registro viejo tal cual — antes de este
+    // fix (bug reportado 2026-08-10) esos acompañantes se perdían en
+    // silencio: la Callable respondía `status: 'success'` sin haber guardado
+    // los datos recién tecleados. `email: ''` a propósito en ambos casos: la
+    // Callable no debe reenviar el correo del pase para un registro que ya
+    // existía.
+    if (input.authUid) {
+      const existingSnap = await tx.get(guestsCol.where('guestUid', '==', input.authUid).limit(1))
+      if (!existingSnap.empty) {
+        const existingRef = existingSnap.docs[0].ref
+        const existingData = existingSnap.docs[0].data()
+        const existingCompanions = (existingData.companions as unknown[] | undefined) || []
+        const extraPeople = clampedPartySize - (1 + existingCompanions.length)
+
+        if (extraPeople > 0) {
+          if (!hasCapacityFor(capacitySnapshot, extraPeople, offeredCount)) return { status: 'full' }
+          tx.update(existingRef, { companions, customData })
+          applyCounterDeltas(db, tx, eventRef, eventId, {}, { peopleCount: currentPeopleCount + extraPeople })
+          if (trimmedEmail || trimmedPhone) {
+            tx.set(
+              eventRef.collection('guestContacts').doc(existingRef.id),
+              {
+                email: trimmedEmail,
+                phone: trimmedPhone,
+                ...(trimmedPhone && input.phoneCountry ? { phoneCountry: input.phoneCountry } : {}),
+                ...(trimmedPhone ? { whatsappConsent: true } : {}),
+              },
+              { merge: true },
+            )
+          }
+        }
+
+        return {
+          status: 'success',
+          guestId: existingRef.id,
+          qrToken: existingData.qrToken as string,
+          eventName: (event.name as string) || 'tu evento',
+          email: '',
+        }
+      }
+    }
+
+    let guestPhotoURL: string | null = null
+    if (input.authUid) {
+      const userSnap = await tx.get(db.collection('users').doc(input.authUid))
+      guestPhotoURL = (userSnap.data()?.photoURL as string | undefined) ?? null
+    }
 
     const requiresPayment = (event.requiresPayment as boolean) || false
     const resolvedMethod = resolvePaymentMethod(requiresPayment, event.paymentMethods as PaymentMethod[] | undefined, input.paymentMethod)
 
-    if (
-      !hasCapacityFor(
-        { attendeeLimitEnabled: event.attendeeLimitEnabled as boolean | undefined, peopleCount: currentPeopleCount, capacity: event.capacity as number | undefined },
-        clampedPartySize,
-        offeredCount,
-      )
-    ) {
+    if (!hasCapacityFor(capacitySnapshot, clampedPartySize, offeredCount)) {
       return { status: 'full' }
     }
 
