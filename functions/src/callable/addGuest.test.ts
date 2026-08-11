@@ -77,19 +77,34 @@ describe('addGuest', () => {
     expect(event.data()?.guestCount).toBe(5)
   })
 
-  it('ignores the event maxCompanions for a manual add — the organizer can add as many as they need', async () => {
+  // Rediseño del Dashboard del Evento (2026-08-11, unificación Lista/
+  // Auto-registro): antes el alta manual ignoraba EventData.maxCompanions
+  // por completo; ahora lo respeta igual que auto-registro, para
+  // acompañantes INDIVIDUALES (no para "familia o grupo", ver el test de
+  // isGroup más abajo).
+  it('respects the event maxCompanions for a manual add of individual companions', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { ownerId: OWNER_UID, maxCompanions: 1, guestCount: 0, peopleCount: 0 })
 
-    const result = await addGuest.run(fakeCallableRequest(
+    await expect(addGuest.run(fakeCallableRequest(
       { eventId, name: 'Ana', companions: [{}, {}, {}, {}, {}] },
+      OWNER_UID,
+    ))).rejects.toThrow(HttpsError)
+  })
+
+  it('allows a manual add within the event maxCompanions', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, maxCompanions: 2, guestCount: 0, peopleCount: 0 })
+
+    const result = await addGuest.run(fakeCallableRequest(
+      { eventId, name: 'Ana', companions: [{}, {}] },
       OWNER_UID,
     ))
 
     expect(result.status).toBe('success')
     if (result.status !== 'success') throw new Error('unreachable')
     const guestDoc = await getGuestDoc(db, eventId, result.id)
-    expect(guestDoc?.companions).toHaveLength(5)
+    expect(guestDoc?.companions).toHaveLength(2)
   })
 
   it('stamps registrationSource: "organizer" on a manually added guest', async () => {

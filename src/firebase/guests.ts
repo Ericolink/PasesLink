@@ -840,22 +840,6 @@ export async function getAllGuests(eventId: string): Promise<GuestData[]> {
   return snap.docs.map((d) => mapGuest(d.id, d.data()))
 }
 
-// Igual que getAllGuests, pero fusiona guestContacts (email/teléfono) — para
-// el único llamador que sí los necesita en una lectura puntual y completa:
-// MassMessageComposer.tsx (segmentar audiencia por email requiere saber
-// quién tiene uno). Reutiliza fetchContactsByIds (mismo chunking de 30 que ya
-// usa subscribeToGuests) en vez de reabrir un listener con límite.
-export async function getAllGuestsWithContacts(eventId: string): Promise<GuestData[]> {
-  const guests = await getAllGuests(eventId)
-  const contacts = await fetchContactsByIds(eventId, guests.map((g) => g.id))
-  return guests.map((g) => ({
-    ...g,
-    phone: contacts[g.id]?.phone || g.phone,
-    phoneCountry: contacts[g.id]?.phoneCountry || g.phoneCountry,
-    email: contacts[g.id]?.email || g.email,
-  }))
-}
-
 export async function findGuestByToken(
   eventId: string,
   qrToken: string,

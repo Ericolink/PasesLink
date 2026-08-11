@@ -66,11 +66,13 @@ function ActionButton({
   tone = 'default',
   icon,
   onClick,
+  disabled = false,
   children,
 }: {
   tone?: 'default' | 'subtle' | 'danger'
   icon: React.ReactNode
   onClick: () => void
+  disabled?: boolean
   children: React.ReactNode
 }) {
   const toneClass =
@@ -89,7 +91,8 @@ function ActionButton({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg text-sm font-semibold text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${toneClass}`}
+      disabled={disabled}
+      className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg text-sm font-semibold text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:pointer-events-none ${toneClass}`}
     >
       <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconWrapClass}`}>{icon}</span>
       {children}
@@ -149,8 +152,8 @@ export function GuestDetailSheet({
   onClose: () => void
   onShare: (guest: GuestData) => void
   onResend: (guest: GuestData, channel: 'whatsapp' | 'email') => void
-  onMarkPaid: (guest: GuestData, method?: PaymentMethod) => void
-  onMarkUnpaid: (guest: GuestData) => void
+  onMarkPaid: (guest: GuestData, method?: PaymentMethod) => Promise<void>
+  onMarkUnpaid: (guest: GuestData) => Promise<void>
   onSetTags: (guest: GuestData, tagIds: string[]) => void
   onRequestDelete: (guest: GuestData) => void
   onRequestUnlock: (guest: GuestData) => void
@@ -160,11 +163,47 @@ export function GuestDetailSheet({
 }) {
   const [editing, setEditing] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  // Antes onMarkPaid/onMarkUnpaid no devolvían nada esperable: el botón no
+  // tenía forma de saber si la llamada seguía en curso o había fallado, así
+  // que no mostraba ni carga ni error — el único indicio de éxito era que
+  // `guest` viniera actualizado (y GuestList.tsx guardaba una COPIA fija de
+  // `guest` al abrir el detalle, así que ni eso se veía sin cerrar y volver
+  // a abrir). Acá se resuelve la parte de feedback; la reactividad de
+  // `guest` se resolvió en GuestList.tsx (detailGuestId derivado de `guests`
+  // en vez de una copia congelada).
+  const [paymentActionPending, setPaymentActionPending] = useState(false)
+  const [paymentActionError, setPaymentActionError] = useState('')
 
   function handleClose() {
     setEditing(false)
     setHistoryOpen(false)
+    setPaymentActionPending(false)
+    setPaymentActionError('')
     onClose()
+  }
+
+  async function handleMarkPaidClick(g: GuestData, method?: PaymentMethod) {
+    setPaymentActionPending(true)
+    setPaymentActionError('')
+    try {
+      await onMarkPaid(g, method)
+    } catch {
+      setPaymentActionError('No se pudo confirmar el pago. Intenta de nuevo.')
+    } finally {
+      setPaymentActionPending(false)
+    }
+  }
+
+  async function handleMarkUnpaidClick(g: GuestData) {
+    setPaymentActionPending(true)
+    setPaymentActionError('')
+    try {
+      await onMarkUnpaid(g)
+    } catch {
+      setPaymentActionError('No se pudo actualizar el estado de pago. Intenta de nuevo.')
+    } finally {
+      setPaymentActionPending(false)
+    }
   }
 
   if (!guest) return null
@@ -306,6 +345,15 @@ export function GuestDetailSheet({
                     )}
                     {guest.paymentNote && <Pill tone="gray">Ref: {guest.paymentNote}</Pill>}
                   </div>
+                  {/* Feedback inline: el banner de error de GuestList.tsx
+                      queda tapado por este modal, así que el único lugar
+                      donde el organizador puede verlo mientras decide qué
+                      hacer es acá adentro. */}
+                  {paymentActionError && (
+                    <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
+                      {paymentActionError}
+                    </p>
+                  )}
                 </section>
               )}
 
@@ -336,23 +384,41 @@ export function GuestDetailSheet({
                 )}
 
                 {canConfirmPayments && requiresPayment && guest.paymentStatus === 'paid' && (
-                  <ActionButton tone="subtle" icon={<IconRotateCcw className="w-4 h-4" />} onClick={() => onMarkUnpaid(guest)}>
-                    Marcar como no pagado
+                  <ActionButton
+                    tone="subtle"
+                    icon={<IconRotateCcw className="w-4 h-4" />}
+                    onClick={() => void handleMarkUnpaidClick(guest)}
+                    disabled={paymentActionPending}
+                  >
+                    {paymentActionPending ? 'Actualizando…' : 'Marcar como no pagado'}
                   </ActionButton>
                 )}
                 {canConfirmPayments && requiresPayment && guest.paymentStatus === 'pending_confirmation' && (
                   <>
-                    <ActionButton icon={<IconCheck className="w-4 h-4" />} onClick={() => onMarkPaid(guest, guest.paymentMethod || undefined)}>
-                      Aprobar pago
+                    <ActionButton
+                      icon={<IconCheck className="w-4 h-4" />}
+                      onClick={() => void handleMarkPaidClick(guest, guest.paymentMethod || undefined)}
+                      disabled={paymentActionPending}
+                    >
+                      {paymentActionPending ? 'Confirmando…' : 'Aprobar pago'}
                     </ActionButton>
-                    <ActionButton tone="danger" icon={<IconX className="w-4 h-4" />} onClick={() => onMarkUnpaid(guest)}>
-                      Rechazar comprobante
+                    <ActionButton
+                      tone="danger"
+                      icon={<IconX className="w-4 h-4" />}
+                      onClick={() => void handleMarkUnpaidClick(guest)}
+                      disabled={paymentActionPending}
+                    >
+                      {paymentActionPending ? 'Actualizando…' : 'Rechazar comprobante'}
                     </ActionButton>
                   </>
                 )}
                 {canConfirmPayments && requiresPayment && guest.paymentStatus !== 'paid' && guest.paymentStatus !== 'pending_confirmation' && (
-                  <ActionButton icon={<IconTicket className="w-4 h-4" />} onClick={() => onMarkPaid(guest, guest.paymentMethod || paymentMethods[0])}>
-                    Confirmar pago
+                  <ActionButton
+                    icon={<IconTicket className="w-4 h-4" />}
+                    onClick={() => void handleMarkPaidClick(guest, guest.paymentMethod || paymentMethods[0])}
+                    disabled={paymentActionPending}
+                  >
+                    {paymentActionPending ? 'Confirmando…' : 'Confirmar pago'}
                   </ActionButton>
                 )}
 

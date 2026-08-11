@@ -84,6 +84,27 @@ describe('setGuestPaymentStatus', () => {
     expect(result).toEqual({ ok: true })
   })
 
+  // Regresión (bug real, reportado 2026-08-11): el cliente de Callable
+  // Functions serializa un `method` no enviado como `null`, nunca como
+  // `undefined` (ver encode() en @firebase/functions) — fakeCallableRequest
+  // pasa `data` directo, sin ese paso de serialización, así que hay que
+  // mandar `method: null` a mano para reproducir el body real que llega por
+  // HTTP. Antes de la corrección, esto se rechazaba con "Método de pago
+  // inválido." al marcar como no pagado sin elegir método (el caso normal).
+  it('marks a guest as unpaid when method arrives as null (real wire payload, not undefined)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, paidCount: 1 })
+    await seedGuest(db, eventId, 'guest-1', { paymentStatus: 'paid', paymentMethod: 'cash' })
+
+    const result = await setGuestPaymentStatus.run(
+      fakeCallableRequest({ eventId, guestId: 'guest-1', paymentStatus: 'unpaid', method: null }, OWNER_UID),
+    )
+
+    expect(result).toEqual({ ok: true })
+    const guest = await getGuestDoc(db, eventId, 'guest-1')
+    expect(guest?.paymentStatus).toBe('unpaid')
+  })
+
   it('rejects a nonexistent event', async () => {
     await expect(
       setGuestPaymentStatus.run(fakeCallableRequest({ eventId: uniqueId('event'), guestId: 'guest-1', paymentStatus: 'paid' }, OWNER_UID)),

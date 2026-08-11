@@ -160,7 +160,14 @@ export const GuestList = memo(function GuestList({
   const [unlockingGuest, setUnlockingGuest] = useState<GuestData | null>(null)
   const [reentryGuest, setReentryGuest] = useState<GuestData | null>(null)
   const [sendingToWaitlistGuest, setSendingToWaitlistGuest] = useState<GuestData | null>(null)
-  const [detailGuest, setDetailGuest] = useState<GuestData | null>(null)
+  // Solo el id, no el GuestData completo: una copia congelada del invitado
+  // no se actualizaba cuando el listener de Firestore traía el resultado de
+  // confirmar/revertir un pago (o cualquier otro cambio) mientras el detalle
+  // seguía abierto — el organizador tocaba "Confirmar pago", el pase SÍ
+  // quedaba pagado del lado del servidor, pero el modal seguía mostrando
+  // "Pendiente" hasta cerrarlo y volver a abrirlo (o recargar la página).
+  // Derivar `detailGuest` de `guests` en cada render lo mantiene en vivo.
+  const [detailGuestId, setDetailGuestId] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [visibleCount, setVisibleCount] = useState(GUEST_LIST_PAGE_SIZE)
   const [selectMode, setSelectMode] = useState(false)
@@ -222,13 +229,23 @@ export const GuestList = memo(function GuestList({
     )
   }
 
+  // Relanza el error después de guardarlo acá (para el banner de la lista,
+  // que puede seguir siendo relevante si el organizador ya cerró el detalle)
+  // — GuestDetailSheet también atrapa esta misma promesa para mostrar su
+  // propio error inline y su propio estado de carga mientras el modal sigue
+  // abierto, que es donde el organizador está mirando en el momento (antes,
+  // el único feedback vivía en este banner, tapado por el modal — el
+  // organizador no veía nada hasta cerrar y recargar).
   async function handleMarkPaid(guest: GuestData, method?: PaymentMethod) {
     setActionError('')
     try {
       await setGuestPaymentStatus(eventId, guest.id, 'paid', method)
+      announce(`Pago confirmado: ${guest.name}`)
     } catch (err) {
       console.error('Error marking guest as paid:', err)
-      setActionError(getFunctionsErrorMessage(err, 'No se pudo actualizar el estado de pago. Intenta de nuevo.'))
+      const message = getFunctionsErrorMessage(err, 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
+      setActionError(message)
+      throw new Error(message)
     }
   }
 
@@ -236,9 +253,12 @@ export const GuestList = memo(function GuestList({
     setActionError('')
     try {
       await setGuestPaymentStatus(eventId, guest.id, 'unpaid')
+      announce(`Pago revertido: ${guest.name}`)
     } catch (err) {
       console.error('Error marking guest as unpaid:', err)
-      setActionError('No se pudo actualizar el estado de pago. Intenta de nuevo.')
+      const message = getFunctionsErrorMessage(err, 'No se pudo actualizar el estado de pago. Intenta de nuevo.')
+      setActionError(message)
+      throw new Error(message)
     }
   }
 
@@ -377,11 +397,12 @@ export const GuestList = memo(function GuestList({
     canConfirmPayments,
     canDeleteGuests,
     onToggleSelect: toggleSelect,
-    onOpenDetail: setDetailGuest,
+    onOpenDetail: (guest: GuestData) => setDetailGuestId(guest.id),
     onQuickPay: handleQuickPay,
     onQuickDeleteRequest: setDeletingGuest,
   }
 
+  const detailGuest = detailGuestId ? guests.find((g) => g.id === detailGuestId) ?? null : null
   const visibleGuests = guests.slice(0, visibleCount)
   const hasMoreToShow = guests.length > visibleCount
   const groups = hasSearchText ? null : groupGuestsByUrgency(guests, requiresPayment)
@@ -460,17 +481,17 @@ export const GuestList = memo(function GuestList({
         canConfirmPayments={canConfirmPayments}
         canDeleteGuests={canDeleteGuests}
         attendeeLimitEnabled={attendeeLimitEnabled}
-        onClose={() => setDetailGuest(null)}
+        onClose={() => setDetailGuestId(null)}
         onShare={handleShare}
         onResend={handleResend}
         onMarkPaid={handleMarkPaid}
         onMarkUnpaid={handleMarkUnpaid}
         onSetTags={handleSetGuestTags}
-        onRequestDelete={(guest) => { setDetailGuest(null); setDeletingGuest(guest) }}
-        onRequestUnlock={(guest) => { setDetailGuest(null); setUnlockingGuest(guest) }}
-        onRequestReentry={(guest) => { setDetailGuest(null); setReentryGuest(guest) }}
+        onRequestDelete={(guest) => { setDetailGuestId(null); setDeletingGuest(guest) }}
+        onRequestUnlock={(guest) => { setDetailGuestId(null); setUnlockingGuest(guest) }}
+        onRequestReentry={(guest) => { setDetailGuestId(null); setReentryGuest(guest) }}
         onReactivate={handleReactivate}
-        onRequestSendToWaitlist={(guest) => { setDetailGuest(null); setSendingToWaitlistGuest(guest) }}
+        onRequestSendToWaitlist={(guest) => { setDetailGuestId(null); setSendingToWaitlistGuest(guest) }}
       />
 
       <ConfirmDialog

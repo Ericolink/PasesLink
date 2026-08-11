@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
-import type { CompanionData } from '../types'
+import type { CompanionData, CustomField } from '../types'
 import { IconTrash } from './accessibility/AccessibleIcon'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { AccessibleField } from './accessibility/AccessibleField'
+import { CustomFieldInput } from './CustomFieldInput'
+import { GUEST_CUSTOM_FIELD_VALUE_MAX } from '../utils/validation'
 
 const COMPANION_INPUT_CLASS =
   'w-full border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary'
@@ -15,6 +17,7 @@ export function CompanionFieldsEditor({
   allowAddRemove = true,
   maxCompanions,
   limitReachedMessage,
+  customFields,
 }: {
   companions: CompanionData[]
   onChange: (companions: CompanionData[]) => void
@@ -36,6 +39,12 @@ export function CompanionFieldsEditor({
   // representa otra cosa (ej. el techo técnico del alta manual del
   // organizador, que no es una restricción administrativa del evento).
   limitReachedMessage?: string
+  // Campos personalizados a pedir POR CADA acompañante — ya filtrados por el
+  // llamador a los marcados `appliesToCompanions` (mismo criterio que
+  // EventJoin.tsx usa para el auto-registro; ver validateOrganizerCompanions/
+  // validatePublicCompanions del lado del servidor). Sin esta prop, no se
+  // renderiza ningún campo personalizado por acompañante.
+  customFields?: CustomField[]
 }) {
   // Confirmación antes de quitar — antes el botón de la papelera borraba la
   // fila al instante, sin deshacer posible ni pregunta, fácil de tocar sin
@@ -52,6 +61,10 @@ export function CompanionFieldsEditor({
 
   function updateCompanion(index: number, field: keyof CompanionData, value: string) {
     onChange(companions.map((c, i) => (i === index ? { ...c, [field]: value } : c)))
+  }
+
+  function updateCompanionCustomField(index: number, fieldId: string, value: string) {
+    onChange(companions.map((c, i) => (i === index ? { ...c, customData: { ...c.customData, [fieldId]: value } } : c)))
   }
 
   const pendingCompanion = pendingRemoveIndex !== null ? companions[pendingRemoveIndex] : null
@@ -84,7 +97,8 @@ export function CompanionFieldsEditor({
         // el número de orden.
         const humanIndex = index + 1
         return (
-        <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center bg-gray-50 dark:bg-gray-700/50 rounded-md p-2">
+        <div key={index} className="space-y-2 bg-gray-50 dark:bg-gray-700/50 rounded-md p-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
           <AccessibleField label={`Nombre del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
             {(fieldProps) => (
               <input
@@ -139,6 +153,31 @@ export function CompanionFieldsEditor({
               </button>
             )}
           </div>
+        </div>
+        {customFields && customFields.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {customFields.map((field) => (
+              <AccessibleField
+                key={field.id}
+                label={`${field.label} del acompañante ${humanIndex}${field.required ? '' : ' (opcional)'}`}
+                required={field.required}
+                labelClassName="sr-only"
+              >
+                {(fieldProps) => (
+                  <CustomFieldInput
+                    field={field}
+                    fieldProps={fieldProps}
+                    placeholder={field.label}
+                    maxLength={GUEST_CUSTOM_FIELD_VALUE_MAX}
+                    value={companion.customData?.[field.id] || ''}
+                    onChange={(v) => updateCompanionCustomField(index, field.id, v)}
+                    className={COMPANION_INPUT_CLASS}
+                  />
+                )}
+              </AccessibleField>
+            ))}
+          </div>
+        )}
         </div>
         )
       })}

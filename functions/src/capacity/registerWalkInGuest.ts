@@ -19,7 +19,7 @@ import { applyCounterDeltas } from '../lib/counters/index.js'
 import {
   type CustomFieldDef,
   GUEST_EMAIL_MAX,
-  GUEST_FULL_NAME_MAX,
+  GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
   GuestValidationError,
   requireMaxLength,
@@ -51,6 +51,12 @@ function resolvePaymentMethod(
 
 export interface RegisterWalkInGuestInput {
   name: string
+  // Separado de `name` (rediseño del Dashboard del Evento — "unificar
+  // requisitos entre Lista y Auto Registro"): antes se guardaba un solo
+  // `name` con nombre+apellido concatenados, distinto del shape que usa el
+  // alta manual del organizador (name + lastName separados). Ahora ambos
+  // flujos escriben el mismo shape de documento.
+  lastName?: string
   email?: string
   phone?: string
   phoneCountry?: string
@@ -83,7 +89,10 @@ export async function registerWalkInGuest(
   eventId: string,
   input: RegisterWalkInGuestInput,
 ): Promise<RegisterWalkInGuestResult> {
-  const trimmedName = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
+  const trimmedName = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
+  const trimmedLastName = input.lastName?.trim()
+    ? requireMaxLength(input.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
+    : ''
   // Minúsculas: permite encontrar este contacto más tarde por igualdad exacta
   // contra el email verificado de Firebase Auth (ver la misma normalización
   // en src/firebase/capacity.ts).
@@ -202,6 +211,7 @@ export async function registerWalkInGuest(
     const guestRef = guestsCol.doc()
     tx.set(guestRef, {
       name: trimmedName,
+      lastName: trimmedLastName,
       qrToken,
       status: 'invited',
       rsvpStatus: 'yes',

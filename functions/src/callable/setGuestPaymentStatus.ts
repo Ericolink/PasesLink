@@ -28,7 +28,18 @@ export const setGuestPaymentStatus = onCall<SetGuestPaymentStatusInput>({ timeou
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
-    const { eventId, guestId, paymentStatus, method } = request.data || {}
+    const { eventId, guestId, paymentStatus } = request.data || {}
+    // `?? undefined`: el cliente de Callable Functions serializa `undefined`
+    // como `null` en el body real (ver encode() en @firebase/functions) —
+    // un `method` no enviado llega acá como `null`, no como `undefined`.
+    // Se normaliza UNA vez acá para que el resto de esta función (y
+    // confirmGuestPayment, compartida con un futuro webhook de pasarela que
+    // sí mandaría `undefined` de verdad) siga trabajando con la semántica
+    // real de "no se especificó método" sin tener que repetir este chequeo
+    // en cada comparación (bug real, reportado 2026-08-11: marcar "no
+    // pagado" sin método —el caso normal— se rechazaba con "Método de pago
+    // inválido.").
+    const method: PaymentMethod | undefined = request.data?.method ?? undefined
     ctx.addContext({ uid: request.auth.uid, eventId, guestId })
     if (!eventId || !guestId || (paymentStatus !== 'paid' && paymentStatus !== 'unpaid')) {
       throw new HttpsError('invalid-argument', 'Faltan datos para actualizar el pago.')

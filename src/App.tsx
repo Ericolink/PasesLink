@@ -31,6 +31,7 @@ const GuestPass = lazy(() => import('./pages/GuestPass').then((m) => ({ default:
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then((m) => ({ default: m.AdminDashboard })))
 const EventArrive = lazy(() => import('./pages/EventArrive').then((m) => ({ default: m.EventArrive })))
 const EventJoin = lazy(() => import('./pages/EventJoin').then((m) => ({ default: m.EventJoin })))
+const AcceptCoOrganizerInvite = lazy(() => import('./pages/AcceptCoOrganizerInvite').then((m) => ({ default: m.AcceptCoOrganizerInvite })))
 const WaitlistStatus = lazy(() => import('./pages/WaitlistStatus').then((m) => ({ default: m.WaitlistStatus })))
 const EventWall = lazy(() => import('./pages/EventWall').then((m) => ({ default: m.EventWall })))
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile').then((m) => ({ default: m.CompleteProfile })))
@@ -58,6 +59,10 @@ function PageFallback() {
 function EventDetailRoute() {
   const { eventId } = useParams()
   return <BrowseLayout><EventDetail key={eventId} /></BrowseLayout>
+}
+function AcceptCoOrganizerInviteRoute() {
+  const { eventId, token } = useParams()
+  return <BrowseLayout><AcceptCoOrganizerInvite key={`${eventId}-${token}`} /></BrowseLayout>
 }
 function ReportsRoute() {
   const { eventId } = useParams()
@@ -137,6 +142,18 @@ function App() {
           element={
             <ProtectedRoute>
               <EventDetailRoute />
+            </ProtectedRoute>
+          }
+        />
+        {/* Enlace de invitación de coorganizador (rediseño del Dashboard del
+            Evento) — requiere sesión (ProtectedRoute redirige a /login
+            conservando este destino en state.from) porque aceptarlo otorga
+            acceso de gestión sobre el evento. */}
+        <Route
+          path="/co/:eventId/:token"
+          element={
+            <ProtectedRoute>
+              <AcceptCoOrganizerInviteRoute />
             </ProtectedRoute>
           }
         />

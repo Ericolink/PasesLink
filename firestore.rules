@@ -957,9 +957,10 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Presupuesto diario compartido de envíos de email (recordatorios +
-    // mensajería masiva), consumido por los scripts Node vía firebase-admin
-    // para no exceder el tope diario del proveedor (Brevo). Lectura admin
+    // Presupuesto diario compartido de envíos de email (recordatorios,
+    // lista de espera/reconfirmación), consumido por los scripts Node/Cloud
+    // Functions vía firebase-admin para no exceder el tope diario del
+    // proveedor (Brevo). Lectura admin
     // habilitada para la alerta "cerca del límite de envío diario" del
     // Centro de Control (ver src/firebase/adminAlerts.ts) — sigue siendo
     // uso puramente interno para escritura (scripts/Cloud Functions).
@@ -1564,19 +1565,32 @@ service cloud.firestore {
       }
 
       // Bitácora de envíos automáticos (push, recordatorios de RSVP,
-      // mensajería masiva, lista de espera/reconfirmación) — escrita
+      // lista de espera/reconfirmación) — escrita
       // ÚNICAMENTE por Cloud Functions vía Admin SDK (bypassa rules), nunca
       // desde el cliente. Los tres pipelines Spark-era (scripts/*.mjs +
       // GitHub Actions cron) ya migraron acá — ver
-      // NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md, Fases 1-3. El
-      // organizador solo lee, para ver el historial de qué se envió.
+      // NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md, Fases 1-3. El panel
+      // "Historial de envíos" que dejaba leer esto al organizador se quitó
+      // del Dashboard del Evento (rediseño) — solo admin la lee ahora,
+      // vía la regla collectionGroup de más abajo (Centro de Control).
       match /sendLog/{logId} {
-        allow read: if canDo(eventId, 'viewReports', true) || isAdmin();
+        allow read: if isAdmin();
         allow write: if false;
       }
 
+      // Invitaciones de coorganizador por enlace/código (rediseño del
+      // Dashboard del Evento — createCoOrganizerInvite.ts/
+      // acceptCoOrganizerInvite.ts). El token es la única barrera de acceso
+      // real (nadie puede listarlos ni adivinar uno sin conocerlo), así que
+      // ni siquiera el organizador puede leerlos directo: se crean y se
+      // canjean ÚNICAMENTE vía esas dos Cloud Functions (Admin SDK, bypassa
+      // estas reglas) — el navegador nunca lee ni escribe esta subcolección.
+      match /coOrganizerInvites/{token} {
+        allow read, write: if false;
+      }
+
       // Cola de notificaciones desacoplada (Feature 5: push notifications) —
-      // mismo patrón que messageCampaigns arriba: el navegador solo ENCOLA
+      // el navegador solo ENCOLA
       // (create, status siempre 'queued'); el trigger de Firestore
       // onNotificationQueued (functions/src/triggers/onNotificationQueued.ts,
       // Admin SDK) es quien transiciona status y envía — ver
@@ -1623,32 +1637,12 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // Mensajería masiva — el navegador solo ENCOLA (create, status
-      // siempre 'queued', guestIds ya resuelto/congelado por el composer);
-      // el trigger de Firestore onMessageCampaignQueued
-      // (functions/src/triggers/onMessageCampaignQueued.ts) es quien
-      // transiciona status a processing/sent/partial/failed — ver
-      // NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 3. Gateado por
-      // exportLists (misma acción masiva ya usada para exportar listas) en
-      // vez de un permiso granular nuevo.
-      match /messageCampaigns/{campaignId} {
-        allow read: if canDo(eventId, 'exportLists', true) || isAdmin();
-        allow create: if (canDo(eventId, 'exportLists', true) || isAdmin())
-          && request.resource.data.eventId == eventId
-          && request.resource.data.createdBy == request.auth.uid
-          && request.resource.data.status == 'queued'
-          && request.resource.data.guestIds.size() >= 1 && request.resource.data.guestIds.size() <= 2000
-          && request.resource.data.subject is string && request.resource.data.subject.size() <= 150
-          && request.resource.data.bodyText is string && request.resource.data.bodyText.size() <= 5000;
-        allow update, delete: if false;
-      }
-
       // Jobs de importación masiva de invitados por CSV, procesados en
       // background vía Cloud Tasks (ver functions/src/csvImport/,
       // functions/src/callable/startCsvImport.ts,
       // functions/src/tasks/processCsvImportChunk.ts). El cliente NUNCA
       // escribe acá — ni siquiera para encolar, a diferencia de
-      // messageCampaigns/notificationQueue de arriba: startCsvImport (Admin
+      // notificationQueue de arriba: startCsvImport (Admin
       // SDK, bypassa estas reglas) crea el job y sus chunks de una, y
       // processCsvImportChunk es quien avanza el estado. El organizador solo
       // LEE para mostrar una barra de progreso vía onSnapshot mientras sigue

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { formatTime12h } from '../utils/time'
 
 interface Props {
   date: string
@@ -60,12 +61,19 @@ export function EventCountdown({ date, startTime, endTime, className }: Props) {
   const start = parseLocal(date, startTime)
   const end = endTime ? parseLocal(date, endTime) : null
 
-  // Ya terminó, o ya empezó y no hay hora de fin contra la cual contar: texto
-  // simple, sin tiles — una cuenta ascendente sin destino no genera
-  // anticipación, es solo un cronómetro.
+  // Ya terminó: en vez de un simple "ya finalizó", mostramos cuánto duró y a
+  // qué hora cerró — responde "¿cómo terminó mi evento?" sin que el
+  // organizador tenga que ir a buscarlo en Reportes.
   if (end !== null && now >= end) {
-    return <p className={className}>El evento ya finalizó</p>
+    return (
+      <p className={className}>
+        Evento finalizado — duró {formatElapsed(end - start)}, terminó a las {formatTime12h(endTime)}
+      </p>
+    )
   }
+  // Ya empezó y no hay hora de fin contra la cual contar: texto simple, sin
+  // tiles — una cuenta ascendente sin destino no genera anticipación, es
+  // solo un cronómetro.
   if (end === null && now >= start) {
     return <p className={className}>Comenzó hace {formatElapsed(now - start)}</p>
   }

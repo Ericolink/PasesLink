@@ -69,6 +69,7 @@ export interface CustomFieldDef {
   type: CustomFieldType
   required: boolean
   options?: CustomFieldOptionDef[]
+  appliesToCompanions?: boolean
 }
 
 // Auto-registro público (registerWalkInGuest): a diferencia de
@@ -128,12 +129,13 @@ export interface PublicCompanionInput {
 // Cada acompañante agregado durante el autoregistro público debe completar
 // los mismos datos que la invitación exige al invitado principal: nombre y
 // apellido (siempre obligatorios en este flujo, ver registerWalkInGuest.ts)
-// más los `fields` marcados `required: true` — la MISMA definición real de
-// campos del evento que ya usa validatePublicCustomData para el invitado
-// principal, nunca una lista aparte para acompañantes. Por eso reutiliza esa
-// función tal cual para la porción de customData de cada acompañante, en vez
-// de duplicar su lógica de campo desconocido/opción de `select` inválida/
-// obligatoriedad.
+// más los campos marcados `required: true` Y `appliesToCompanions: true` —
+// no todos los campos requeridos del evento, solo los que el organizador
+// marcó explícitamente como aplicables por acompañante (rediseño del
+// Dashboard del Evento: antes se exigían todos, sin distinción; ahora el
+// organizador decide cuáles). Reutiliza validatePublicCustomData tal cual
+// para esa porción, en vez de duplicar su lógica de campo desconocido/opción
+// de `select` inválida/obligatoriedad.
 export function validatePublicCompanions(
   rawCompanions: unknown,
   maxCompanions: number,
@@ -146,6 +148,7 @@ export function validatePublicCompanions(
   if (rawCompanions.length > maxCompanions) {
     throw new GuestValidationError('Se superó el máximo de acompañantes permitido para este evento.')
   }
+  const companionFields = (fields || []).filter((f) => f.appliesToCompanions)
 
   return rawCompanions.map((raw, index) => {
     const humanIndex = index + 1
@@ -172,7 +175,7 @@ export function validatePublicCompanions(
     try {
       customData = validatePublicCustomData(
         typeof c.customData === 'object' && c.customData !== null ? (c.customData as Record<string, string>) : undefined,
-        fields,
+        companionFields,
       )
     } catch (err) {
       if (err instanceof GuestValidationError) {
@@ -184,6 +187,76 @@ export function validatePublicCompanions(
     return {
       name,
       lastName,
+      ...(phone ? { phone } : {}),
+      ...(phoneCountry ? { phoneCountry } : {}),
+      ...(Object.keys(customData).length ? { customData } : {}),
+    }
+  })
+}
+
+export interface OrganizerCompanionInput {
+  name?: string
+  lastName?: string
+  phone?: string
+  phoneCountry?: string
+  customData?: Record<string, string>
+}
+
+// Versión para alta manual del organizador (addGuest): a diferencia de
+// validatePublicCompanions, acá nombre/apellido del acompañante siguen
+// siendo OPCIONALES — el organizador puede sumar acompañantes solo para el
+// conteo (ej. "Juan +3") sin identificarlos, un uso legítimo que el
+// auto-registro no permite (ahí el invitado se identifica a sí mismo y a
+// cada acompañante). Los campos personalizados marcados
+// `appliesToCompanions` sí se validan igual que en auto-registro —ver
+// comentario de validatePublicCompanions.
+export function validateOrganizerCompanions(
+  rawCompanions: unknown,
+  maxCompanions: number,
+  fields: CustomFieldDef[] | undefined,
+): OrganizerCompanionInput[] {
+  if (rawCompanions === undefined || rawCompanions === null) return []
+  if (!Array.isArray(rawCompanions)) {
+    throw new GuestValidationError('Los datos de los acompañantes no son válidos.')
+  }
+  if (rawCompanions.length > maxCompanions) {
+    throw new GuestValidationError('Se superó el máximo de acompañantes permitido para este evento.')
+  }
+  const companionFields = (fields || []).filter((f) => f.appliesToCompanions)
+
+  return rawCompanions.map((raw, index) => {
+    const humanIndex = index + 1
+    if (typeof raw !== 'object' || raw === null) {
+      throw new GuestValidationError(`Los datos del acompañante ${humanIndex} no son válidos.`)
+    }
+    const c = raw as Record<string, unknown>
+    const name = typeof c.name === 'string' && c.name.trim()
+      ? requireMaxLength(c.name.trim(), GUEST_NAME_PART_MAX, `El nombre del acompañante ${humanIndex}`)
+      : undefined
+    const lastName = typeof c.lastName === 'string' && c.lastName.trim()
+      ? requireMaxLength(c.lastName.trim(), GUEST_NAME_PART_MAX, `El apellido del acompañante ${humanIndex}`)
+      : undefined
+    const phone = typeof c.phone === 'string' && c.phone.trim()
+      ? requireMaxLength(c.phone.trim(), GUEST_PHONE_MAX, `El teléfono del acompañante ${humanIndex}`)
+      : undefined
+    const phoneCountry = typeof c.phoneCountry === 'string' ? c.phoneCountry : undefined
+
+    let customData: Record<string, string>
+    try {
+      customData = validatePublicCustomData(
+        typeof c.customData === 'object' && c.customData !== null ? (c.customData as Record<string, string>) : undefined,
+        companionFields,
+      )
+    } catch (err) {
+      if (err instanceof GuestValidationError) {
+        throw new GuestValidationError(`${err.message} (acompañante ${humanIndex})`)
+      }
+      throw err
+    }
+
+    return {
+      ...(name ? { name } : {}),
+      ...(lastName ? { lastName } : {}),
       ...(phone ? { phone } : {}),
       ...(phoneCountry ? { phoneCountry } : {}),
       ...(Object.keys(customData).length ? { customData } : {}),

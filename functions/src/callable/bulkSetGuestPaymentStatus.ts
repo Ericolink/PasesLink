@@ -37,7 +37,11 @@ export const bulkSetGuestPaymentStatus = onCall<BulkSetGuestPaymentStatusInput>(
     if (guestIds.length > MAX_GUEST_IDS) {
       throw new HttpsError('invalid-argument', 'Demasiados invitados en una sola operación.')
     }
-    if (defaultMethod !== undefined && !VALID_METHODS.includes(defaultMethod)) {
+    // `!= null` (no `!== undefined`): ver el mismo comentario en
+    // setGuestPaymentStatus.ts — el cliente serializa `undefined` como
+    // `null`, y `defaultMethod` no siempre se manda (ej. marcar como "no
+    // pagado" en lote).
+    if (defaultMethod != null && !VALID_METHODS.includes(defaultMethod)) {
       throw new HttpsError('invalid-argument', 'Método de pago inválido.')
     }
 

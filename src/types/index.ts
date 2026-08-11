@@ -74,6 +74,12 @@ export interface CustomField {
   // guardadas. Quien muestre el valor a un humano debe resolverlo con
   // formatCustomFieldValue (utils/customFieldInput.ts).
   options?: CustomFieldOption[]
+  // Si además de pedirse al invitado principal, este campo también se pide
+  // por cada acompañante (CompanionData.customData) — tanto en auto-registro
+  // como en alta manual del organizador. Default false/undefined: la mayoría
+  // de los campos (ej. "empresa") solo tienen sentido para el invitado
+  // principal, no para cada acompañante.
+  appliesToCompanions?: boolean
 }
 
 export interface TimelineEntry {

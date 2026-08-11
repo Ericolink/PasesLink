@@ -37,7 +37,18 @@ export const checkInGuest = onCall<CheckInGuestInput>(
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
-    const { eventId, qrToken, selection } = request.data || {}
+    const { eventId, qrToken } = request.data || {}
+    // `?? undefined`: el cliente de Callable Functions serializa `undefined`
+    // como `null` en el body real (ver encode() en @firebase/functions) — el
+    // caso normal (sondeo, o invitación de una sola persona, ver el
+    // comentario de `selection` arriba) manda esta Callable SIN `selection`,
+    // que entonces llega acá como `null`, no como `undefined`. Sin
+    // normalizar, `planCheckIn` (checkin/shared.ts) nunca entraba a su rama
+    // `selection === undefined` — bug real y grave (rompía el check-in de
+    // invitados solos, el caso más común del escáner), encontrado al
+    // corregir el mismo patrón en setGuestPaymentStatus.ts (reportado
+    // 2026-08-11).
+    const selection: number[] | undefined = request.data?.selection ?? undefined
     ctx.addContext({ uid: request.auth.uid, eventId })
     if (!eventId || !qrToken) {
       throw new HttpsError('invalid-argument', 'Faltan datos para registrar el ingreso.')

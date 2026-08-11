@@ -100,6 +100,13 @@ export function CustomFieldsBuilder({ fields, onChange }: Props) {
             />
             Obligatorio
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-gray-500 shrink-0 cursor-pointer">
+            <Checkbox
+              checked={field.appliesToCompanions ?? false}
+              onChange={(e) => updateField(field.id, { appliesToCompanions: e.target.checked })}
+            />
+            También por acompañante
+          </label>
           <AccessibleButton
             iconOnly
             variant="text"

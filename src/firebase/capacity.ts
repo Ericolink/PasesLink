@@ -7,7 +7,7 @@ import {
   GUEST_CUSTOM_FIELD_MAX_COUNT,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
   GUEST_EMAIL_MAX,
-  GUEST_FULL_NAME_MAX,
+  GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
   requireMaxLength,
   requireNonEmpty,
@@ -85,6 +85,11 @@ export async function walkOut(eventId: string): Promise<void> {
 export async function registerWalkInGuest(
   eventId: string,
   name: string,
+  // Separado de `name` (rediseño del Dashboard del Evento — "unificar
+  // requisitos entre Lista y Auto Registro"): antes EventJoin.tsx mandaba
+  // nombre+apellido ya concatenados en un solo `name`; ahora se guardan
+  // separados, mismo shape que usa el alta manual del organizador.
+  lastName?: string,
   email?: string,
   phone?: string,
   customData?: Record<string, string>,
@@ -101,7 +106,8 @@ export async function registerWalkInGuest(
   // GuestData y toWhatsAppPhone (utils/phone.ts).
   phoneCountry?: string,
 ): Promise<{ status: 'success' | 'error'; qrToken?: string }> {
-  const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_FULL_NAME_MAX, 'El nombre')
+  const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
+  const trimmedLastName = lastName?.trim() ? requireMaxLength(lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido') : undefined
   const trimmedEmail = email?.trim() ? requireMaxLength(email.trim(), GUEST_EMAIL_MAX, 'El email') : undefined
   const trimmedPhone = phone?.trim() ? requireMaxLength(phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : undefined
   const customEntries = Object.entries(customData || {})
@@ -116,6 +122,7 @@ export async function registerWalkInGuest(
     {
       eventId: string
       name: string
+      lastName?: string
       email?: string
       phone?: string
       phoneCountry?: string
@@ -129,6 +136,7 @@ export async function registerWalkInGuest(
   const result = await registerWalkInGuestCallable({
     eventId,
     name: trimmedName,
+    lastName: trimmedLastName,
     email: trimmedEmail,
     phone: trimmedPhone,
     phoneCountry,

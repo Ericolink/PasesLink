@@ -14,13 +14,16 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { CapacityFullError, createGuestsWithCapacity, type GuestWrite } from '../capacity/createGuests.js'
 import { canManageGuests } from '../lib/permissions.js'
 import {
-  GUEST_CUSTOM_FIELD_VALUE_MAX,
+  type CustomFieldDef,
   GUEST_MAX_COMPANIONS,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
   GuestValidationError,
   requireMaxLength,
   requireNonEmpty,
+  resolveMaxCompanions,
+  validateOrganizerCompanions,
+  validatePublicCustomData,
 } from '../lib/guestValidation.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
@@ -30,6 +33,7 @@ interface CompanionInput {
   lastName?: string
   phone?: string
   phoneCountry?: string
+  customData?: Record<string, string>
 }
 
 interface AddGuestInput {
@@ -80,26 +84,37 @@ export const addGuest = onCall<AddGuestInput>({ timeoutSeconds: 20 }, (request) 
         ? requireMaxLength(lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
         : ''
       const trimmedPhone = phone?.trim() ? requireMaxLength(phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
-      for (const value of Object.values(customData || {})) {
-        requireMaxLength(value, GUEST_CUSTOM_FIELD_VALUE_MAX, 'Uno de los campos personalizados')
-      }
 
-      // Alta manual del organizador: NO sujeta a EventData.maxCompanions —
-      // ese tope solo rige el autoregistro público (ver
-      // functions/src/capacity/registerWalkInGuest.ts). Se conserva
-      // únicamente el techo técnico GUEST_MAX_COMPANIONS (evita un array
-      // absurdamente grande, no es una regla de negocio configurable). Ver
-      // GuestData.registrationSource.
-      const companionsList = companions || []
-      if (companionsList.length > GUEST_MAX_COMPANIONS) {
-        throw new GuestValidationError(`No se pueden agregar más de ${GUEST_MAX_COMPANIONS} acompañantes.`)
-      }
+      // Unificación Lista/Auto-registro (rediseño del Dashboard del Evento):
+      // antes solo se chequeaba el largo máximo de cada valor; ahora se
+      // valida contra la definición REAL de campos del evento (mismo
+      // validador que ya usa registerWalkInGuest para el auto-registro
+      // público) — un campo marcado "requerido" se exige igual sin importar
+      // quién cargue al invitado.
+      const customFieldDefs = (event.customFields as CustomFieldDef[] | undefined) || []
+      const validatedCustomData = validatePublicCustomData(customData, customFieldDefs)
+
+      // Techo real de acompañantes: antes solo regía GUEST_MAX_COMPANIONS
+      // (techo técnico); ahora también respeta EventData.maxCompanions,
+      // igual que auto-registro — pero SOLO para acompañantes individuales
+      // (isGroup: false). Una "familia o grupo" (isGroup: true) es un
+      // concepto distinto: un solo pase para un headcount que el organizador
+      // conoce de memoria (ej. "Familia Pérez, somos 8"), no personas que se
+      // auto-registran una por una — seguiría sujeto solo al techo técnico,
+      // igual que antes de este cambio. Nombre/apellido del acompañante
+      // siguen siendo opcionales acá (a diferencia de auto-registro) para no
+      // romper el uso legítimo de "sumar acompañantes solo para el conteo"
+      // — ver validateOrganizerCompanions.
+      const maxCompanions = isGroup
+        ? GUEST_MAX_COMPANIONS
+        : resolveMaxCompanions(event.maxCompanions as number | undefined)
+      const companionsList = validateOrganizerCompanions(companions, maxCompanions, customFieldDefs)
 
       const guestWrite: GuestWrite = {
         name: trimmedName,
         lastName: trimmedLastName,
         isGroup: isGroup || false,
-        customData: customData || {},
+        customData: validatedCustomData,
         companions: companionsList,
         contact: trimmedPhone ? { phone: trimmedPhone, phoneCountry } : undefined,
       }

@@ -30,7 +30,18 @@ export const confirmPaymentAndCheckIn = onCall<ConfirmPaymentAndCheckInInput>(
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
-    const { eventId, guestId, method, selection } = request.data || {}
+    const { eventId, guestId } = request.data || {}
+    // `?? undefined`: el cliente de Callable Functions serializa `undefined`
+    // como `null` en el body real (ver encode() en @firebase/functions) —
+    // `method`/`selection` no enviados llegan acá como `null`, no como
+    // `undefined`. Se normalizan UNA vez acá para que el resto de esta
+    // función (y los servicios que llama, que esperan `undefined` de
+    // verdad) sigan trabajando con la semántica real de "no se especificó"
+    // (bug real, reportado 2026-08-11 para setGuestPaymentStatus — mismo
+    // patrón acá, más grave: `selection` sin normalizar rompía el check-in
+    // de invitados solos, el caso más común del escáner).
+    const method: PaymentMethod | undefined = request.data?.method ?? undefined
+    const selection: number[] | undefined = request.data?.selection ?? undefined
     ctx.addContext({ uid: request.auth.uid, eventId, guestId })
     if (!eventId || !guestId) {
       throw new HttpsError('invalid-argument', 'Faltan datos para confirmar el pago y registrar el ingreso.')

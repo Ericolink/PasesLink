@@ -82,11 +82,6 @@ export const EVENT_SPECIAL_INSTRUCTIONS_MAX = 20
 // firestore.rules.
 export const EVENT_REMINDER_RULES_MAX = 5
 
-// Mensajería masiva (MessageCampaign, ver src/firebase/messageCampaigns.ts).
-// Espejados en firestore.rules (validación de `create`).
-export const MASS_MESSAGE_SUBJECT_MAX = 150
-export const MASS_MESSAGE_BODY_MAX = 5000
-export const MASS_MESSAGE_MAX_RECIPIENTS = 2000
 // Co-organizadores por evento (EventData.coOrganizersMap/
 // coOrganizerPermissions, ver useCoOrganizers.ts). Debe coincidir con
 // eventContentCapsOk() en firestore.rules.
@@ -149,19 +144,17 @@ export interface CompanionFieldErrors {
 const REQUIRED_FIELD_MESSAGE = 'Completa este campo para continuar.'
 
 // Un acompañante agregado durante el autoregistro (EventJoin.tsx) debe
-// completar los mismos datos que la invitación exige al invitado principal:
-// nombre/apellido, siempre obligatorios en ese formulario, más los
-// EventData.customFields marcados `required: true` — no existe una
-// configuración aparte de campos obligatorios para acompañantes, así que
-// esta función reutiliza `requiredCustomFields` (derivado de la misma
-// EventData.customFields que ve el invitado principal) en vez de una lista
-// propia. Si el organizador agrega/quita un campo obligatorio, el próximo
-// autoregistro lo refleja solo, sin tocar este archivo.
-export function validateCompanionFields(companion: CompanionData, requiredCustomFields: CustomField[]): CompanionFieldErrors {
+// completar nombre/apellido (siempre obligatorios en ese formulario) más los
+// EventData.customFields marcados `required: true` Y `appliesToCompanions:
+// true` — el organizador decide explícitamente cuáles campos aplican más
+// allá del invitado principal (antes se exigían TODOS los requeridos, sin
+// distinción). El llamador ya filtra `customFields` a ese subconjunto
+// (`requiredCompanionFields` en EventJoin.tsx) antes de pasarlo acá.
+export function validateCompanionFields(companion: CompanionData, requiredCompanionFields: CustomField[]): CompanionFieldErrors {
   const errors: CompanionFieldErrors = {}
   if (!companion.name?.trim()) errors.name = REQUIRED_FIELD_MESSAGE
   if (!companion.lastName?.trim()) errors.lastName = REQUIRED_FIELD_MESSAGE
-  for (const field of requiredCustomFields) {
+  for (const field of requiredCompanionFields) {
     if (!companion.customData?.[field.id]?.trim()) {
       errors.customData = { ...errors.customData, [field.id]: REQUIRED_FIELD_MESSAGE }
     }
