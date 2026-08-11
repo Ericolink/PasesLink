@@ -22,7 +22,8 @@ export function ManualCodeEntryDialog({ value, onChange, onSubmit, onCancel }: P
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0"
-      onClick={onCancel}
+      role="presentation"
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
     >
       <div
         ref={dialogRef}
@@ -30,7 +31,6 @@ export function ManualCodeEntryDialog({ value, onChange, onSubmit, onCancel }: P
         aria-modal="true"
         aria-label="Ingresar código manualmente"
         className="bg-gray-800 text-white rounded-t-3xl sm:rounded-2xl shadow-xl max-w-sm w-full p-6 animate-bounce-in"
-        onClick={(e) => e.stopPropagation()}
       >
         <p className="text-sm font-medium text-gray-300 mb-3">Ingresar código manualmente</p>
         <form
@@ -42,6 +42,9 @@ export function ManualCodeEntryDialog({ value, onChange, onSubmit, onCancel }: P
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="Pega el enlace o código del pase"
+            // Abre en respuesta directa a que el usuario tocó el botón que
+            // abre este diálogo, nunca al cargar la página.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             className="min-h-12 w-full bg-gray-900 text-white placeholder:text-gray-500 rounded-lg px-3 py-3 text-sm border border-gray-700 focus:outline-none focus:border-primary"
           />

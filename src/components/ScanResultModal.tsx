@@ -79,14 +79,24 @@ export function ScanResultModal({
   const accessibleLabel = [styles.title, feedback.guestName, feedback.detail].filter(Boolean).join(' — ')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0"
+      role="presentation"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      {/* onMouseEnter/onTouchStart/onKeyDown de abajo no son un control de
+          click — pausan un auto-cierre por temporizador cuando detectan
+          interacción, con su propio equivalente de teclado ya deliberado
+          (Tab, ver el comentario de abajo), así que no aplica la regla de
+          "todo handler de mouse necesita un handler de teclado en el mismo
+          nodo". */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={accessibleLabel}
         className={`${styles.bg} text-white rounded-t-3xl sm:rounded-2xl shadow-xl max-w-sm w-full p-8 text-center animate-bounce-in`}
-        onClick={(e) => e.stopPropagation()}
         onMouseEnter={onInteract}
         onTouchStart={onInteract}
         // No se usa onFocus: useAccessibleModal ya mueve el foco al primer control

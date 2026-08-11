@@ -18,7 +18,6 @@ interface Props {
   // contenedor ya tiene alto explícito por otra vía (p.ej. w-16 h-16 fijos).
   fallbackAspectRatio?: number
   loading?: 'lazy' | 'eager'
-  onClick?: () => void
 }
 
 // <img> con placeholder borroso (blur-up) mientras carga la versión real, y
@@ -26,7 +25,7 @@ interface Props {
 // tanto el "flash" de un recuadro vacío como el salto de layout al terminar
 // de cargar, que es lo que hacía sentir lenta la carga de fotos en el muro
 // aunque la imagen en sí ya viniera optimizada.
-export function ProgressiveImage({ src, alt, className = '', imgClassName = '', width, height, fallbackAspectRatio, loading = 'lazy', onClick }: Props) {
+export function ProgressiveImage({ src, alt, className = '', imgClassName = '', width, height, fallbackAspectRatio, loading = 'lazy' }: Props) {
   const [loaded, setLoaded] = useState(false)
   const aspectRatio = width && height ? width / height : fallbackAspectRatio
 
@@ -34,7 +33,6 @@ export function ProgressiveImage({ src, alt, className = '', imgClassName = '', 
     <div
       className={`relative overflow-hidden ${className}`}
       style={aspectRatio ? { aspectRatio: String(aspectRatio) } : undefined}
-      onClick={onClick}
     >
       <img
         src={blurPlaceholderUrl(src)}

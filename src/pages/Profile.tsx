@@ -99,6 +99,9 @@ function EditNameModal({
               id="edit-name-first"
               type="text"
               required
+              // Este modal solo se abre al tocar "Editar nombre", nunca al
+              // cargar la página.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               autoComplete="given-name"
               value={first}
@@ -233,6 +236,9 @@ function DeleteAccountModal({
                 <input
                   id="delete-account-confirm"
                   type="text"
+                  // Este modal solo se abre al tocar "Eliminar cuenta",
+                  // nunca al cargar la página.
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                   autoComplete="off"
                   value={confirmText}

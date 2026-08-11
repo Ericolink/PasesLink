@@ -73,16 +73,17 @@ export function GuestSignupPrompt({ eventId, guest, initialFirstName, initialLas
   // wizard de creación de eventos, mismo hook compartido).
   useFocusOnChange(step, stepHeadingRef)
 
+  const guestId = guest?.id
   useEffect(() => {
-    if (!guest) return
+    if (!guestId) return
     let cancelled = false
-    getGuestContact(eventId, guest.id).then((contact) => {
+    getGuestContact(eventId, guestId).then((contact) => {
       if (!cancelled && contact.email) setEmail(contact.email)
     })
     return () => {
       cancelled = true
     }
-  }, [eventId, guest?.id])
+  }, [eventId, guestId])
 
   useEffect(() => {
     if (step === 'success') {

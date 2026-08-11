@@ -86,6 +86,12 @@ export function Accordion({
 
   return (
     <AccordionContext.Provider value={{ isExpanded, toggle, idBase }}>
+      {/* Delegación de teclado (ver handleKeyDown) sobre un contenedor que
+          nunca es foco en sí mismo — el foco real vive siempre en los
+          botones-header de cada AccordionItem, este div solo escucha las
+          flechas que burbujean desde ellos (patrón de composite widget del
+          APG, mismo criterio que AccessibleTabs/Tabs.tsx). */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div ref={containerRef} onKeyDown={handleKeyDown} className={className}>
         {children}
       </div>

@@ -87,14 +87,14 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
     if (!pickerOpen || !openedViaKeyboardRef.current) return
     openedViaKeyboardRef.current = false
     const popup = containerRef.current?.querySelector<HTMLElement>('.reaction-popup')
-    ;(popup?.querySelector<HTMLElement>('[tabindex="0"]') ?? popup?.querySelector<HTMLElement>('[role="menuitem"]'))?.focus()
+    ;(popup?.querySelector<HTMLElement>('[tabindex="0"]') ?? popup?.querySelector<HTMLElement>('[role="menuitemradio"]'))?.focus()
   }, [pickerOpen])
 
   // ArrowUp/Down/Left/Right + Home/End navegan entre las reacciones del menú
   // (patrón Menu del APG) — Escape ya lo maneja el listener de arriba.
   function handlePopupKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
     if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
-    const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+    const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'))
     if (items.length === 0) return
     const currentIndex = Math.max(0, items.findIndex((i) => i === document.activeElement))
     let nextIndex = currentIndex
@@ -168,15 +168,26 @@ export function ReactionPicker({ eventId, collectionName, docId, reactionCount, 
       onMouseLeave={() => { clearTimeout(hoverTimer.current); setPickerOpen(false) }}
     >
       {pickerOpen && (
-        <div className="reaction-popup" role="menu" aria-label="Elegir reacción" onKeyDown={handlePopupKeyDown}>
+        // tabIndex={-1}: el foco nunca va al contenedor del menú en sí (ver
+        // el efecto de arriba, que siempre enfoca un menuitem puntual) — el
+        // roving tabindex vive en los botones de abajo. Solo declara
+        // explícitamente que este nodo participa del sistema de foco, para
+        // que la regla de a11y no lo confunda con un <div> decorativo sin
+        // ninguna forma de alcanzarlo por teclado.
+        <div className="reaction-popup" role="menu" aria-label="Elegir reacción" tabIndex={-1} onKeyDown={handlePopupKeyDown}>
           {REACTIONS.map((r, i) => (
             <button
               key={r.type}
               type="button"
-              role="menuitem"
+              // menuitemradio/aria-checked (no menuitem/aria-pressed): las
+              // reacciones son mutuamente excluyentes entre sí — el
+              // equivalente ARIA correcto de un grupo de opciones dentro de
+              // un menú, aunque acá se permita "des-elegir" tocando de nuevo
+              // la misma (algo que un radio nativo no deja hacer).
+              role="menuitemradio"
               title={r.label}
               aria-label={r.label}
-              aria-pressed={mine === r.type}
+              aria-checked={mine === r.type}
               // Roving tabindex: un solo detenimiento en el orden de
               // tabulación (la reacción activa, o la primera si no hay
               // ninguna) — el resto se alcanza con las flechas, no con Tab.

@@ -190,7 +190,15 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
   // hacia abajo, visible solo haciendo scroll. Portaling saca el visor de ese
   // subárbol por completo, así que es inmune a cualquier transform/filter
   // que un wrapper de tema (actual o futuro) le ponga a sus ancestros.
+  // Cierre por click en el espacio vacío del visor (modo gallery) — solo en
+  // `e.target === e.currentTarget` para no competir con los hijos de abajo
+  // (header/imagen/caption/reply bar ya cubren casi toda el área con su
+  // propio contenido). No necesita equivalente de teclado: el cierre por
+  // teclado real es Escape (useAccessibleModal, más abajo) más el botón
+  // "Cerrar" explícito — este click es solo una comodidad extra de
+  // mouse/touch encima de esos dos mecanismos ya accesibles.
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
     <div
       ref={dialogRef}
       role="dialog"
@@ -198,7 +206,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
       aria-label={isStory ? `Historia de ${photo.authorName}` : `Foto ${index + 1} de ${photos.length}`}
       className="fixed inset-0 z-50 bg-black flex flex-col"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-      onClick={isStory ? undefined : onClose}
+      onClick={isStory ? undefined : (e) => { if (e.target === e.currentTarget) onClose() }}
     >
       {/* Progress bars — solo story */}
       {isStory && (
@@ -215,7 +223,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center justify-between px-4 py-2">
         <span className="text-white text-sm font-medium">
           {isStory ? photo.authorName : `${index + 1} / ${photos.length}`}
         </span>
@@ -231,7 +239,6 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
       {/* Image */}
       <div
         className="flex-1 relative flex items-center justify-center"
-        onClick={(e) => e.stopPropagation()}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -292,7 +299,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
       </div>
 
       {/* Caption / footer */}
-      <div className="text-center pb-2 px-6" onClick={(e) => e.stopPropagation()}>
+      <div className="text-center pb-2 px-6">
         {photo.caption && <p className="text-white/80 text-sm mb-1">{photo.caption}</p>}
         {!isStory && <p className="text-white/50 text-xs">{photo.authorName}</p>}
         {!isStory && isOrg && onDelete && (
@@ -315,7 +322,6 @@ export function PhotoViewer({ photos, index, onIndexChange, onClose, mode, isOrg
         <div
           className="px-4 pb-6 flex items-center gap-2"
           style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
-          onClick={(e) => e.stopPropagation()}
         >
           {canReply && onReply && (
             <>

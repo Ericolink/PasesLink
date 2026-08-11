@@ -82,6 +82,10 @@ export function TabList({
       ref={listRef}
       role="tablist"
       aria-label={ariaLabel}
+      // El roving tabindex vive en los <Tab> individuales (role="tab"), el
+      // contenedor en sí nunca es el foco — mismo motivo que el
+      // role="menu" de ReactionPicker.tsx.
+      tabIndex={-1}
       onKeyDown={handleKeyDown}
       className={`flex gap-1.5 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
     >
