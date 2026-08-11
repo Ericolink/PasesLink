@@ -23,7 +23,7 @@
 // documento de invitado, así que no es derivable de guests/) se toma tal
 // cual de ese ledger — la única fuente de verdad posible para esa parte.
 import type { DocumentData, Firestore, Timestamp } from 'firebase-admin/firestore'
-import { guestPresence } from '../checkin/shared.js'
+import { guestPresence, presentIndicesOf } from '../checkin/shared.js'
 import { partySizeFromRaw } from '../payments/confirmPayment.js'
 
 export interface GuestCounters {
@@ -62,9 +62,14 @@ function computeCounters(guests: DocumentData[], walkInNetCount: number): GuestC
     else counters.rsvpPendingCount += 1
     // status queda en 'checked_in' para siempre tras la primera entrada
     // (checkOutGuest no lo revierte, ver checkin/shared.ts) — por eso suma
-    // "asistencia acumulada" en vez de presencia actual.
-    if (guest.status === 'checked_in') checkedInCumulative += partySize
-    if (guestPresence(guest) === 'inside') currentlyInside += partySize
+    // "asistencia acumulada" en vez de presencia actual. Con check-in
+    // parcial (familias/acompañantes) esa acumulada ya no es necesariamente
+    // partySize completo — presentIndicesOf() da el conteo real de personas
+    // que efectivamente entraron (con fallback a partySize completo para
+    // invitados 'checked_in' de antes de este campo, ver ese helper).
+    const present = presentIndicesOf(guest, partySize).length
+    checkedInCumulative += present
+    if (guestPresence(guest) === 'inside') currentlyInside += present
   }
   counters.checkedInCount = checkedInCumulative + walkInNetCount
   counters.occupancyCount = currentlyInside + walkInNetCount

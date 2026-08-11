@@ -1,4 +1,4 @@
-// Harness de medición de rendimiento para EventAnalytics + GuestList.
+// Harness de medición de rendimiento para HourlyArrivalsChart + GuestList.
 // No es parte del bundle de producción ni se ejecuta en `npm run test`
 // (no matchea el patrón */*.test.tsx de vitest) — se invoca a mano con
 // un runner puntual. Se deja como referencia para medir regresiones futuras.
@@ -7,9 +7,22 @@ import { Profiler, type ProfilerOnRenderCallback } from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
-import { EventAnalytics } from '../components/EventAnalytics'
+import { HourlyArrivalsChart } from '../components/HourlyArrivalsChart'
 import { GuestList } from '../components/GuestList'
 import type { GuestData } from '../types'
+
+// HourlyArrivalsChart ya no recorre `guests` (lee el contador agregado
+// event.checkinsByHour) — se reconstruye una sola vez acá para seguir
+// ejercitando un componente de tamaño comparable en el harness.
+function buildCheckinsByHour(guests: GuestData[]): Record<string, number> {
+  const byHour: Record<string, number> = {}
+  for (const g of guests) {
+    if (g.checkedInAt === null) continue
+    const label = `${String(new Date(g.checkedInAt).getHours()).padStart(2, '0')}:00`
+    byHour[label] = (byHour[label] || 0) + 1
+  }
+  return byHour
+}
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined
@@ -56,12 +69,12 @@ interface MeasureResult {
 // que los datos de `guests` cambien. Las "50 eventos" del enunciado se
 // traducen aquí en 50 commits de re-render con la MISMA referencia de
 // `guests` — el escenario exacto que React.memo está pensado para evitar.
-function Page({ guests, tick }: { guests: GuestData[]; tick: number }) {
+function Page({ guests, checkinsByHour, tick }: { guests: GuestData[]; checkinsByHour: Record<string, number>; tick: number }) {
   return (
     <MemoryRouter>
       <div>
         <span>{tick}</span>
-        <EventAnalytics guests={guests} />
+        <HourlyArrivalsChart checkinsByHour={checkinsByHour} />
         <GuestList eventId="evt-perf" eventName="Evento de prueba" guests={guests} />
       </div>
     </MemoryRouter>
@@ -76,11 +89,12 @@ export async function measureRerenders(guests: GuestData[], rerenders: number): 
   const onRender: ProfilerOnRenderCallback = (_id, _phase, actualDuration) => {
     durations.push(actualDuration)
   }
+  const checkinsByHour = buildCheckinsByHour(guests)
 
   await act(async () => {
     root.render(
       <Profiler id="page" onRender={onRender}>
-        <Page guests={guests} tick={0} />
+        <Page guests={guests} checkinsByHour={checkinsByHour} tick={0} />
       </Profiler>,
     )
   })
@@ -89,7 +103,7 @@ export async function measureRerenders(guests: GuestData[], rerenders: number): 
     await act(async () => {
       root.render(
         <Profiler id="page" onRender={onRender}>
-          <Page guests={guests} tick={i} />
+          <Page guests={guests} checkinsByHour={checkinsByHour} tick={i} />
         </Profiler>,
       )
     })

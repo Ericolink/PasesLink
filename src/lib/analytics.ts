@@ -148,6 +148,16 @@ export function trackRsvpDecline(eventId: string) {
   track('rsvp_decline', { event_id: eventId })
 }
 
+// ---- Cuenta desde invitación (GuestSignupPrompt en GuestPass/EventJoin) ----
+
+export function trackInvitationSignupPromptShown(source: 'guest_pass' | 'event_join') {
+  track('invitation_signup_prompt_shown', { source })
+}
+
+export function trackInvitationAccountCreated(source: 'guest_pass' | 'event_join', method: 'email' | 'google') {
+  track('invitation_account_created', { source, method })
+}
+
 // ---- Check-in / check-out ----
 
 export function trackCheckIn(eventId: string) {

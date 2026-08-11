@@ -81,7 +81,7 @@ export function AccessibleModal({
     : `${surfaceClassName} rounded-t-xl sm:rounded-xl shadow-[var(--shadow-lg)] w-full ${maxWidth} max-h-[85dvh] flex flex-col animate-bounce-in`
 
   return createPortal(
-    <div className={backdropClass} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <div className={backdropClass} role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={dialogRef} role={role} aria-modal="true" aria-label={label} className={`${panelClass} ${className}`}>
         {children}
       </div>

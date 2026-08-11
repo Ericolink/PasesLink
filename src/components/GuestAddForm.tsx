@@ -9,7 +9,7 @@ import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { Tab, TabList, TabPanel, Tabs } from './accessibility/AccessibleTabs'
 import { AccessibleButton } from './accessibility/AccessibleButton'
 import { AccessibleField, FieldError, InputField } from './accessibility/AccessibleField'
-import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
+import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_MAX_COMPANIONS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
 import { CustomFieldInput } from './CustomFieldInput'
 import { captureException } from '../lib/sentry'
 import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
@@ -59,12 +59,10 @@ export function GuestAddForm({
   eventId,
   guests,
   customFields = [],
-  maxCompanions,
 }: {
   eventId: string
   guests: GuestData[]
   customFields?: CustomField[]
-  maxCompanions: number
 }) {
   const [mode, setMode] = useState<'single' | 'group' | 'bulk' | 'csv'>('single')
   const [name, setName] = useState('')
@@ -171,7 +169,7 @@ export function GuestAddForm({
     setLoading(true)
     setError('')
     try {
-      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), phoneCountry, companions, customData: customValues }, maxCompanions)
+      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), phoneCountry, companions, customData: customValues })
       trackGuestAdd(eventId)
       announce(`Invitado agregado: ${name.trim()} ${lastName.trim()}`)
       setName('')
@@ -216,7 +214,7 @@ export function GuestAddForm({
         companions: Array.from({ length: Math.max(0, count - 1) }, () => ({})),
         isGroup: true,
         customData: groupCustomValues,
-      }, maxCompanions)
+      })
       trackGuestGroupRegister(eventId)
       announce(`Familia o grupo agregado: ${trimmedGroupName}`)
       setGroupName('')
@@ -405,7 +403,12 @@ export function GuestAddForm({
             </div>
           </div>
 
-          <CompanionFieldsEditor companions={companions} onChange={setCompanions} maxCompanions={maxCompanions} />
+          <CompanionFieldsEditor
+            companions={companions}
+            onChange={setCompanions}
+            maxCompanions={GUEST_MAX_COMPANIONS}
+            limitReachedMessage={`No se pueden agregar más de ${GUEST_MAX_COMPANIONS} acompañantes por invitado.`}
+          />
 
           {customFields.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

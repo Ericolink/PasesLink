@@ -3,9 +3,18 @@ import { db } from './config'
 import { LEGAL_DOCS_LIST } from '../legal/documents'
 
 // 'guest_pass_email'/'guest_pass_google' distinguen cuentas creadas desde el
-// CTA de RSVP (GuestSignupPrompt) del registro tradicional — permite medir
+// CTA de RSVP (GuestSignupPrompt en GuestPass) del registro tradicional;
+// 'event_join_email'/'event_join_google' son el mismo CTA pero ofrecido antes
+// de autoregistrarse (GuestSignupPrompt en EventJoin) — permite medir
 // conversión de invitado a usuario registrado en el historial de aceptaciones.
-export type LegalAcceptanceMethod = 'register_email' | 'google' | 'facebook' | 'guest_pass_email' | 'guest_pass_google'
+export type LegalAcceptanceMethod =
+  | 'register_email'
+  | 'google'
+  | 'facebook'
+  | 'guest_pass_email'
+  | 'guest_pass_google'
+  | 'event_join_email'
+  | 'event_join_google'
 
 /**
  * Registra la aceptación de los documentos legales vigentes (LEGAL_DOCS) para

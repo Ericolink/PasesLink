@@ -49,6 +49,18 @@ describe('registerWalkInGuest (servicio)', () => {
     expect(event.data()?.rsvpYesCount).toBe(1)
   })
 
+  it('stamps registrationSource: "self" on a self-registered guest', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open' })
+
+    const result = await registerWalkInGuest(db, eventId, { name: 'Ana López' })
+
+    expect(result.status).toBe('success')
+    if (result.status !== 'success') throw new Error('expected success')
+    const guest = await getGuestDoc(db, eventId, result.guestId)
+    expect(guest?.registrationSource).toBe('self')
+  })
+
   it('stores email/phone in guestContacts, lowercasing the email', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'open' })
@@ -232,6 +244,92 @@ describe('registerWalkInGuest (servicio)', () => {
     const guest = await getGuestDoc(db, eventId, result.guestId)
     expect(guest?.guestUid).toBe('user-1')
     expect(guest?.guestPhotoURL).toBe('https://example.com/real.jpg')
+  })
+
+  it('returns the existing guest instead of creating a duplicate when the same authUid registers twice', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', guestCount: 0, peopleCount: 0 })
+
+    const first = await registerWalkInGuest(db, eventId, { name: 'Ana López', authUid: 'user-1' })
+    if (first.status !== 'success') throw new Error('expected success')
+
+    const second = await registerWalkInGuest(db, eventId, { name: 'Ana López', authUid: 'user-1' })
+    if (second.status !== 'success') throw new Error('expected success')
+
+    expect(second.guestId).toBe(first.guestId)
+    expect(second.qrToken).toBe(first.qrToken)
+    expect(second.email).toBe('')
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.guestCount).toBe(1)
+    expect(event.data()?.peopleCount).toBe(1)
+  })
+
+  it('merges in new companions instead of discarding them when the same authUid registers again with more people (bug 2026-08-10)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', guestCount: 0, peopleCount: 0 })
+
+    const first = await registerWalkInGuest(db, eventId, { name: 'Ana López', authUid: 'user-1' })
+    if (first.status !== 'success') throw new Error('expected success')
+
+    const second = await registerWalkInGuest(db, eventId, {
+      name: 'Ana López',
+      authUid: 'user-1',
+      companions: makeCompanions(2),
+    })
+    if (second.status !== 'success') throw new Error('expected success')
+
+    expect(second.guestId).toBe(first.guestId)
+    expect(second.qrToken).toBe(first.qrToken)
+    const guest = await getGuestDoc(db, eventId, second.guestId)
+    expect(guest?.companions).toHaveLength(2)
+    const event = await db.collection('events').doc(eventId).get()
+    // guestCount no cambia (sigue siendo un solo documento) pero peopleCount
+    // sí suma a los 2 acompañantes nuevos.
+    expect(event.data()?.guestCount).toBe(1)
+    expect(event.data()?.peopleCount).toBe(3)
+  })
+
+  it('rejects the extra companions (keeping the existing guest untouched) when there is no room for them', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, {
+      entryMode: 'open', attendeeLimitEnabled: true, capacity: 2, peopleCount: 0, maxCompanions: 5,
+    })
+
+    const first = await registerWalkInGuest(db, eventId, { name: 'Ana López', authUid: 'user-1' })
+    if (first.status !== 'success') throw new Error('expected success')
+
+    const second = await registerWalkInGuest(db, eventId, {
+      name: 'Ana López',
+      authUid: 'user-1',
+      companions: makeCompanions(2),
+    })
+
+    expect(second.status).toBe('full')
+    const guest = await getGuestDoc(db, eventId, first.guestId)
+    expect(guest?.companions).toHaveLength(0)
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.peopleCount).toBe(1)
+  })
+
+  it('does not touch companions or peopleCount when a repeat registration has the same or fewer people', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', guestCount: 0, peopleCount: 0 })
+
+    const first = await registerWalkInGuest(db, eventId, {
+      name: 'Ana López',
+      authUid: 'user-1',
+      companions: makeCompanions(2),
+    })
+    if (first.status !== 'success') throw new Error('expected success')
+
+    const second = await registerWalkInGuest(db, eventId, { name: 'Ana López', authUid: 'user-1' })
+    if (second.status !== 'success') throw new Error('expected success')
+
+    expect(second.guestId).toBe(first.guestId)
+    const guest = await getGuestDoc(db, eventId, second.guestId)
+    expect(guest?.companions).toHaveLength(2)
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.peopleCount).toBe(3)
   })
 
   it('rejects a customData with too many fields', async () => {

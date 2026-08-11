@@ -13,6 +13,15 @@ import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/business
 interface CheckInGuestInput {
   eventId: string
   qrToken: string
+  // Selección del encargado para invitaciones con varias personas (familia/
+  // acompañantes) — índices dentro de esta invitación (0 = invitado
+  // principal, 1..N = companions[i-1]) que están ingresando AHORA. Ausente =
+  // sondeo (no escribe nada, ver checkin/shared.ts:planCheckIn) o
+  // confirmación implícita para una invitación de una sola persona. Se
+  // filtra igual dentro de la transacción (índices fuera de rango o ya
+  // presentes se ignoran) — este chequeo de tipo es solo para no pasar
+  // basura no numérica.
+  selection?: number[]
 }
 
 // minInstances: 1 — camino crítico del escáner (la puerta, al inicio del
@@ -28,10 +37,13 @@ export const checkInGuest = onCall<CheckInGuestInput>(
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
-    const { eventId, qrToken } = request.data || {}
+    const { eventId, qrToken, selection } = request.data || {}
     ctx.addContext({ uid: request.auth.uid, eventId })
     if (!eventId || !qrToken) {
       throw new HttpsError('invalid-argument', 'Faltan datos para registrar el ingreso.')
+    }
+    if (selection !== undefined && (!Array.isArray(selection) || !selection.every((i) => typeof i === 'number'))) {
+      throw new HttpsError('invalid-argument', 'Selección de personas inválida.')
     }
 
     const db = getFirestore()
@@ -43,7 +55,7 @@ export const checkInGuest = onCall<CheckInGuestInput>(
       throw new HttpsError('permission-denied', 'No tienes permiso para escanear entradas en este evento.')
     }
 
-    const result = await checkInGuestService(db, eventId, qrToken, request.auth.uid, request.auth.token.email ?? null)
+    const result = await checkInGuestService(db, eventId, qrToken, request.auth.uid, request.auth.token.email ?? null, selection)
     logBusinessEvent(ctx.logger, result.status === 'success' ? BUSINESS_EVENTS.CHECKIN_SUCCESS : BUSINESS_EVENTS.CHECKIN_REJECTED, { eventId, status: result.status })
     return result
   }),

@@ -288,8 +288,32 @@ describe('guests.ts', () => {
       priorityBoost: 0,
       offerToken: null,
       promotedGuestId: null,
+      // Sin registrationSource en el guest de entrada (legacy) -> default
+      // permisivo 'organizer', mismo criterio que GuestData.registrationSource.
+      registrationSource: 'organizer',
     })
     expect(entries[0].waitlistToken).toBeTruthy()
+  })
+
+  it('moveGuestToWaitlist should carry over registrationSource: "self" from the guest being moved', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 1, rsvpYesCount: 1 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await moveGuestToWaitlist(EVENT_ID, {
+      id: GUEST_ID,
+      name: 'Ana',
+      status: 'invited',
+      companions: [],
+      checkedOutAt: null,
+      exitType: null,
+      paymentStatus: 'unpaid',
+      rsvpStatus: 'yes',
+      registrationSource: 'self',
+    })
+
+    const entries = await getWaitlistEntries(testEnv, EVENT_ID)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].registrationSource).toBe('self')
   })
 
   it('moveGuestToWaitlist should decrement checkedInCount/occupancyCount/paidCount when converting a checked-in, paid guest (defense in depth — the UI never offers this combination)', async () => {
@@ -483,42 +507,51 @@ describe('guests.ts', () => {
     expect(event?.peopleCount).toBe(6)
   })
 
-  describe('maxCompanions (tope de acompañantes por invitado)', () => {
+  describe('maxCompanions (tope de acompañantes solo para autoregistro)', () => {
     // El tope aplicado por addGuest (app layer) se prueba ahora en
     // functions/src/callable/addGuest.test.ts — ver el comentario de
-    // migración más arriba en este archivo.
+    // migración más arriba en este archivo. Desde que el tope pasó a
+    // depender de GuestData.registrationSource, ya NO aplica al alta manual
+    // del organizador en ningún nivel (ni la Cloud Function, ni el cliente,
+    // ni firestore.rules) — solo al invitado con registrationSource: 'self'.
 
-    it('should reject a direct write exceeding the limit, bypassing the app function (rules layer)', async () => {
+    it('should NOT reject a direct create write exceeding the event maxCompanions (manual add has no limit, rules layer)', async () => {
       await seedEvent(testEnv, EVENT_ID, { guestCount: 0, peopleCount: 0, maxCompanions: 1 })
       const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-      await assertFails(
-        setDoc(doc(ownerDb, 'events', EVENT_ID, 'guests', 'new-guest'), {
-          name: 'Ana',
-          lastName: '',
-          companions: [{}, {}],
-          isGroup: false,
-          customData: {},
-          rsvpStatus: 'pending',
-          qrToken: 'qr-new',
-          status: 'invited',
-          checkedInAt: null,
-          checkedInBy: null,
-          checkedInByEmail: null,
-          checkedOutAt: null,
-          checkedOutByEmail: null,
-          exitType: null,
-          lockToken: null,
-          paymentStatus: 'unpaid',
-          paymentMethod: null,
-          createdAt: Date.now(),
-        }),
-      )
+      // El alta manual real pasa por la Cloud Function addGuest (Admin SDK,
+      // ignora estas reglas) — este write directo solo confirma que la regla
+      // `create` en sí ya no impone el tope de autoregistro como defensa en
+      // profundidad, ver firestore.rules `allow create` de guests/{guestId}.
+      await setDoc(doc(ownerDb, 'events', EVENT_ID, 'guests', 'new-guest'), {
+        name: 'Ana',
+        lastName: '',
+        companions: [{}, {}, {}, {}, {}],
+        isGroup: false,
+        customData: {},
+        registrationSource: 'organizer',
+        rsvpStatus: 'pending',
+        qrToken: 'qr-new',
+        status: 'invited',
+        checkedInAt: null,
+        checkedInBy: null,
+        checkedInByEmail: null,
+        checkedOutAt: null,
+        checkedOutByEmail: null,
+        exitType: null,
+        lockToken: null,
+        paymentStatus: 'unpaid',
+        paymentMethod: null,
+        createdAt: Date.now(),
+      })
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, 'new-guest')
+      expect(guest?.companions).toHaveLength(5)
     })
 
-    it('should reject updateGuest increasing companions past the configured limit', async () => {
+    it('should reject updateGuest increasing companions past the configured limit for a self-registered guest', async () => {
       await seedEvent(testEnv, EVENT_ID, { peopleCount: 1, maxCompanions: 0 })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [] })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], registrationSource: 'self' })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
       await expect(
@@ -526,9 +559,34 @@ describe('guests.ts', () => {
       ).rejects.toThrow()
     })
 
-    it('should grandfather a legacy guest already over the limit: editing other fields without increasing companions still works', async () => {
+    it('should NOT reject updateGuest increasing companions past the event maxCompanions for a manually-added guest', async () => {
+      await seedEvent(testEnv, EVENT_ID, { peopleCount: 1, maxCompanions: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [], registrationSource: 'organizer' })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}, {}] }, 0, 0)
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.companions).toHaveLength(3)
+    })
+
+    it('should NOT reject updateGuest increasing companions past the event maxCompanions for a legacy guest (no registrationSource)', async () => {
+      // Invitado creado antes de que existiera este campo — por defecto se
+      // trata como 'organizer' (permisivo), no como 'self', para no
+      // bloquear retroactivamente ninguna edición ya válida.
+      await seedEvent(testEnv, EVENT_ID, { peopleCount: 1, maxCompanions: 0 })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [] })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}] }, 0, 0)
+
+      const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(guest?.companions).toHaveLength(2)
+    })
+
+    it('should grandfather a self-registered guest already over the limit: editing other fields without increasing companions still works', async () => {
       await seedEvent(testEnv, EVENT_ID, { peopleCount: 4, maxCompanions: 0 })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}], registrationSource: 'self' })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
       await updateGuest(EVENT_ID, GUEST_ID, { name: 'Nombre editado' }, 0, 0)
@@ -538,9 +596,9 @@ describe('guests.ts', () => {
       expect(guest?.companions).toHaveLength(3)
     })
 
-    it('should grandfather a legacy guest already over the limit: reducing companions (but not increasing) still works', async () => {
+    it('should grandfather a self-registered guest already over the limit: reducing companions (but not increasing) still works', async () => {
       await seedEvent(testEnv, EVENT_ID, { peopleCount: 4, maxCompanions: 0 })
-      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}] })
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, companions: [{}, {}, {}], registrationSource: 'self' })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
       await updateGuest(EVENT_ID, GUEST_ID, { companions: [{}, {}] }, 0, 0)

@@ -45,6 +45,34 @@ describe('confirmWaitlistOffer', () => {
     expect(contactSnap.data()?.email).toBe('ana@test.com')
   })
 
+  it('propagates the waitlist entry\'s registrationSource: "self" onto the promoted guest', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { capacity: 10, peopleCount: 0, guestCount: 0 })
+    await seedWaitlistEntry(db, eventId, 'entry-1', {
+      status: 'offered', offerToken: 'token-1', offerExpiresAt: Date.now() + 60_000, registrationSource: 'self',
+    })
+
+    await confirmWaitlistOffer.run(fakeCallableRequest({ eventId, entryId: 'entry-1', offerToken: 'token-1' }))
+
+    const entry = await getWaitlistEntry(db, eventId, 'entry-1')
+    const guestSnap = await db.collection('events').doc(eventId).collection('guests').doc(entry!.promotedGuestId as string).get()
+    expect(guestSnap.data()?.registrationSource).toBe('self')
+  })
+
+  it('defaults to registrationSource: "organizer" when the waitlist entry predates the field', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { capacity: 10, peopleCount: 0, guestCount: 0 })
+    await seedWaitlistEntry(db, eventId, 'entry-1', {
+      status: 'offered', offerToken: 'token-1', offerExpiresAt: Date.now() + 60_000,
+    })
+
+    await confirmWaitlistOffer.run(fakeCallableRequest({ eventId, entryId: 'entry-1', offerToken: 'token-1' }))
+
+    const entry = await getWaitlistEntry(db, eventId, 'entry-1')
+    const guestSnap = await db.collection('events').doc(eventId).collection('guests').doc(entry!.promotedGuestId as string).get()
+    expect(guestSnap.data()?.registrationSource).toBe('organizer')
+  })
+
   it('copies customData (respuestas a campos personalizados) into the new guest doc', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { capacity: 10, peopleCount: 0 })

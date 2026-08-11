@@ -9,6 +9,7 @@ import {
   linkWithCredential,
   linkWithPopup,
   reauthenticateWithCredential,
+  reauthenticateWithPopup,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -17,9 +18,10 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { auth, db, googleProvider } from './config'
+import { httpsCallable } from 'firebase/functions'
+import { auth, db, functions, googleProvider } from './config'
 import { uploadImage } from '../utils/cloudinary'
-import { markWelcomePending } from '../utils/onboarding'
+import { clearWelcomeState, markWelcomePending } from '../utils/onboarding'
 import { trackLogin, trackLogout } from '../lib/analytics'
 import { recordDeviceSession } from './deviceStats'
 
@@ -169,6 +171,40 @@ export async function unlinkProvider(providerId: string) {
   if (!user) throw new Error('No hay usuario autenticado')
   await unlink(user, providerId)
   await user.reload()
+}
+
+/**
+ * Reautenticación reciente exigida por la Cloud Function `deleteAccount`
+ * (ver functions/src/callable/deleteAccount.ts) antes de borrar la cuenta.
+ * Solo cubre los dos providers habilitados en este proyecto (password,
+ * google.com) — mismo criterio que el resto de auth.ts.
+ */
+export async function reauthenticateWithPassword(password: string) {
+  const user = auth.currentUser
+  if (!user || !user.email) throw new Error('No hay un usuario autenticado.')
+  const credential = EmailAuthProvider.credential(user.email, password)
+  await reauthenticateWithCredential(user, credential)
+}
+
+export async function reauthenticateWithGoogle() {
+  const user = auth.currentUser
+  if (!user) throw new Error('No hay usuario autenticado')
+  await reauthenticateWithPopup(user, googleProvider)
+}
+
+// Punto de entrada único de "Eliminar mi cuenta" (ver Profile.tsx). La
+// Cloud Function hace TODO el trabajo destructivo (Firestore + Firebase
+// Auth) con Admin SDK — acá solo se limpia lo que vive exclusivamente en
+// este navegador y se cierra la sesión, para que la UI no siga mostrando
+// datos de una cuenta que ya no existe.
+export async function deleteAccount(): Promise<void> {
+  const user = auth.currentUser
+  if (!user) throw new Error('No hay un usuario autenticado.')
+  const uid = user.uid
+  const deleteAccountCallable = httpsCallable<void, { ok: true }>(functions, 'deleteAccount')
+  await deleteAccountCallable()
+  clearWelcomeState(uid)
+  await signOut(auth)
 }
 
 export async function isGoogleProfileComplete(uid: string): Promise<boolean> {

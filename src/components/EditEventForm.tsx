@@ -860,24 +860,30 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             o bajas que hagas tú mismo.
           </p>
         )}
-        <AccessibleField
-          label="Acompañantes por invitado"
-          id="edit-event-max-companions"
-          error={maxCompanionsError || null}
-          helperText='Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten acompañantes. No aplica a "Familia o grupo", que tiene su propio límite de integrantes.'
-        >
-          {(fieldProps) => (
-            <input
-              {...fieldProps}
-              type="number"
-              min="0"
-              max={GUEST_MAX_COMPANIONS}
-              value={form.maxCompanions}
-              onChange={(e) => updateField('maxCompanions', e.target.value)}
-              className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          )}
-        </AccessibleField>
+        {entryMode !== 'list' && (
+          <AccessibleField
+            label="Acompañantes por invitado (autoregistro)"
+            id="edit-event-max-companions"
+            error={maxCompanionsError || null}
+            helperText={
+              entryMode === 'hybrid'
+                ? 'Cuántos acompañantes puede sumar cada invitado que se autoregistre. 0 = no se permiten acompañantes en autoregistro. Este límite aplica solo al autoregistro: los invitados que agregues tú (o tus coanfitriones) a mano pueden tener los acompañantes que definas, sin este tope.'
+                : 'Cuántos acompañantes puede sumar cada invitado que se autoregistre. 0 = no se permiten acompañantes en autoregistro. No limita las altas manuales que hagas tú (o tus coanfitriones) desde el panel, ni aplica a "Familia o grupo", que tiene su propio límite de integrantes.'
+            }
+          >
+            {(fieldProps) => (
+              <input
+                {...fieldProps}
+                type="number"
+                min="0"
+                max={GUEST_MAX_COMPANIONS}
+                value={form.maxCompanions}
+                onChange={(e) => updateField('maxCompanions', e.target.value)}
+                className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            )}
+          </AccessibleField>
+        )}
       </EditSection>
 
       <EditSection

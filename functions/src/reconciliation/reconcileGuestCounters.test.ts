@@ -104,6 +104,23 @@ describe('reconcileEventGuestCounters', () => {
     expect(result.after.occupancyCount).toBe(4)
   })
 
+  it('counts only the people in presentIndices for a partially checked-in party, not the full party size', async () => {
+    const eventId = uniqueId('event')
+    // Familia de 4 (invitado + 3 acompañantes), solo 2 marcados presentes.
+    await seedEvent(db, eventId, { checkedInCount: 0, occupancyCount: 0 })
+    await seedGuest(db, eventId, 'guest-partial', {
+      companions: [{ name: 'Maria' }, { name: 'Pedro' }, { name: 'Ana' }],
+      status: 'checked_in',
+      checkedOutAt: null,
+      presentIndices: [0, 2],
+    })
+
+    const result = await reconcileEventGuestCounters(db, eventId)
+
+    expect(result.after.checkedInCount).toBe(2)
+    expect(result.after.occupancyCount).toBe(2)
+  })
+
   it('does not touch checkedInCount/occupancyCount when they already match (walk-in portion preserved)', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, {

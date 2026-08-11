@@ -44,6 +44,10 @@ export async function joinWaitlist(
     respondedAt: null,
     promotedGuestId: null,
     promotionReason: null,
+    // Anotarse a la lista de espera es siempre autoservicio — ver
+    // GuestData.registrationSource, se propaga tal cual si esta entrada se
+    // promueve a invitado (functions/src/waitlist/promoteToGuest.ts).
+    registrationSource: 'self',
   })
   return { waitlistToken }
 }
@@ -73,6 +77,7 @@ function mapWaitlistEntry(id: string, data: Record<string, unknown>): WaitlistEn
     respondedAt: (data.respondedAt as number) ?? null,
     promotedGuestId: (data.promotedGuestId as string) ?? null,
     promotionReason: (data.promotionReason as WaitlistEntryData['promotionReason']) ?? null,
+    registrationSource: (data.registrationSource as WaitlistEntryData['registrationSource']) || undefined,
   }
   warnIfInvalidShape(WaitlistEntrySchema, 'WaitlistEntry', entry)
   return entry

@@ -662,6 +662,19 @@ export interface GuestData {
   // el check-in/QR/estadísticas no distinguen este campo. Ausente/false en
   // invitados creados antes de este campo (siempre invitados individuales).
   isGroup?: boolean
+  // Origen del alta: 'organizer' = lo cargó el organizador/coanfitrión a mano
+  // (GuestAddForm, alta masiva, CSV) — sin tope de acompañantes propio,
+  // gobierna únicamente EventData.capacity. 'self' = el propio invitado se
+  // autoregistró (registerWalkInGuest) o llegó promovido desde una entrada
+  // de waitlist que él mismo creó (ver WaitlistEntryData.registrationSource)
+  // — sujeto al tope EventData.maxCompanions también en ediciones
+  // posteriores del organizador (ver companionsWithinLimitData en
+  // firestore.rules y updateGuest en src/firebase/guests.ts). Ausente en
+  // invitados creados antes de este campo: se trata como 'organizer' (el
+  // valor permisivo) para no bloquear retroactivamente ninguna edición ya
+  // válida — nunca se migra en bloque, ver política de "no romper invitados
+  // existentes".
+  registrationSource?: 'organizer' | 'self'
   rsvpStatus: RsvpStatus
   checkedInAt: number | null
   checkedInBy: string | null
@@ -669,6 +682,19 @@ export interface GuestData {
   checkedOutAt: number | null
   checkedOutByEmail: string | null
   exitType: GuestExitType
+  // Check-in parcial (familias/acompañantes): índices de esta invitación
+  // (0 = invitado principal, 1..N = companions[i-1]) que YA hicieron
+  // check-in alguna vez — ver checkInGuest/planCheckIn en
+  // functions/src/checkin/shared.ts, única fuente de verdad (Cloud
+  // Functions, Admin SDK). Nunca lo escribe el cliente: accessControlFieldsUntouched
+  // en firestore.rules lo protege igual que status/checkedInAt. Siempre
+  // presente en la respuesta de las Callables de check-in (mapGuestForResponse
+  // ya resuelve el fallback de invitados 'checked_in' de antes de este campo,
+  // tratándolos como "toda la invitación ya entró completa") — puede faltar
+  // en el snapshot crudo de Firestore que usa subscribeToGuests si el
+  // invitado nunca pasó por ahí, ver presentIndicesOf en src/firebase/guests.ts
+  // para el mismo fallback del lado del cliente.
+  presentIndices?: number[]
   // `lockToken` es un espejo legacy (último dispositivo reconocido) que se
   // mantiene por compatibilidad con el pill "Pase abierto" y el botón
   // "Desbloquear pase" del organizador (GuestDetailSheet). La fuente real
@@ -798,6 +824,15 @@ export interface WaitlistEntryData {
   // reconstruirlo a partir de timestamps, la pregunta de soporte "¿por qué a
   // esta persona sí y a la que se anotó antes no?".
   promotionReason: 'fifo' | 'manual' | null
+  // Mismo significado que GuestData.registrationSource — se propaga tal cual
+  // al guest doc si esta entrada se promueve (ver functions/src/waitlist/
+  // promoteToGuest.ts). 'self' en joinWaitlist (anotarse es siempre
+  // autoservicio). En moveGuestToWaitlist (el organizador manda a un
+  // invitado existente a la espera) se copia el registrationSource que ya
+  // tenía ese invitado, para no perder su origen al ir y volver. Ausente en
+  // entradas creadas antes de este campo: se trata como 'organizer', mismo
+  // criterio permisivo que GuestData.registrationSource.
+  registrationSource?: 'organizer' | 'self'
 }
 
 // 'entry_blocked': intento de ingreso rechazado por checkInGuest (hoy solo el
@@ -821,6 +856,12 @@ export interface CheckinLog {
   reentry?: boolean
   // Solo presente en entradas type: 'entry_blocked'.
   reason?: 'final_exit_blocked'
+  // Solo presentes en entradas type: 'check_in' que registraron un check-in
+  // parcial (familia/acompañantes donde no entró todo el mundo junto) — ver
+  // planCheckIn en functions/src/checkin/shared.ts. `addedCount` es cuántas
+  // personas sumó ESTE escaneo puntual (no el total de la invitación).
+  addedCount?: number
+  partial?: boolean
   timestamp: number
   scannedBy: string
   scannedByEmail: string | null

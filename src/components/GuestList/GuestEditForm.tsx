@@ -6,7 +6,7 @@ import type { CompanionData, CustomField, GuestData } from '../../types'
 import { CompanionFieldsEditor } from '../CompanionFields'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../CountryCodeSelect'
 import { CustomFieldsEditRow } from '../CustomFieldsEditor'
-import { GUEST_GROUP_MAX_MEMBERS } from '../../utils/validation'
+import { GUEST_GROUP_MAX_MEMBERS, GUEST_MAX_COMPANIONS } from '../../utils/validation'
 import { AccessibleButton } from '../accessibility/AccessibleButton'
 import { useFocusFirstInvalidField } from '../../hooks/useFocusFirstInvalidField'
 import { useIntegerFieldInput } from '../../hooks/useIntegerFieldInput'
@@ -39,6 +39,16 @@ function EditGuestRow({
   const [errorAttempt, setErrorAttempt] = useState(0)
   const formRef = useRef<HTMLFormElement>(null)
   useFocusFirstInvalidField(formRef, errorAttempt)
+
+  // Solo un invitado autoregistrado (guest.registrationSource === 'self')
+  // está sujeto al maxCompanions configurado del evento — uno cargado
+  // manualmente por el organizador (o legacy, sin el campo) usa el techo
+  // técnico GUEST_MAX_COMPANIONS en su lugar. `updateGuest` aplica el mismo
+  // criterio del lado del servicio (lee registrationSource del documento
+  // existente); esto solo ajusta la UI para que coincida. Ver
+  // GuestData.registrationSource.
+  const isSelfRegistered = guest.registrationSource === 'self'
+  const effectiveMaxCompanions = isSelfRegistered ? maxCompanions : GUEST_MAX_COMPANIONS
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -111,7 +121,16 @@ function EditGuestRow({
             placeholder="Teléfono"
           />
         </div>
-        <CompanionFieldsEditor companions={companions} onChange={setCompanions} maxCompanions={maxCompanions} />
+        <CompanionFieldsEditor
+          companions={companions}
+          onChange={setCompanions}
+          maxCompanions={effectiveMaxCompanions}
+          limitReachedMessage={
+            isSelfRegistered
+              ? undefined
+              : `No se pueden agregar más de ${effectiveMaxCompanions} acompañantes por invitado.`
+          }
+        />
         <CustomFieldsEditRow customFields={customFields} values={customValues} onChange={setCustomValues} />
         <div className="flex gap-2">
           <AccessibleButton type="submit" size="sm" disabled={saving} className="flex-1">

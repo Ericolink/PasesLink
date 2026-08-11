@@ -182,6 +182,9 @@ export const WallMessageCard = memo(function WallMessageCard({
             onChange={(e) => setReplyText(e.target.value)}
             placeholder="Escribe tu respuesta…"
             maxLength={WALL_TEXT_MAX}
+            // Aparece en respuesta directa a que el usuario tocó
+            // "Responder", no al cargar la página.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center' })}
             className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-transparent"

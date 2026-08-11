@@ -53,6 +53,16 @@ describe('createGuestsWithCapacity', () => {
     expect(event.data()?.peopleCount).toBe(4)
   })
 
+  it('stamps registrationSource: "organizer" — every caller of this function (addGuest/addGuestsBulk/addGuestsFromRows) is a manual add', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { capacity: 10, guestCount: 0, peopleCount: 0 })
+
+    const result = await createGuestsWithCapacity(db, eventId, [guest('Ana')], 'strict')
+
+    const guestDoc = await getGuestDoc(db, eventId, result.createdIds[0])
+    expect(guestDoc?.registrationSource).toBe('organizer')
+  })
+
   it('does not write a guestContacts doc when no phone/email was provided', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { capacity: 10 })

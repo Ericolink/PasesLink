@@ -149,17 +149,17 @@ function rsvpCountField(status: RsvpStatus): 'rsvpYesCount' | 'rsvpNoCount' | 'r
 // ofertas activas de lista de espera) es una garantía atómica real del
 // servidor, no best-effort.
 //
-// La validación de forma de acá abajo (largo de nombre/teléfono, tope de
-// acompañantes) sigue existiendo como fail-fast de UX — evita un viaje de
-// red para errores obvios — pero ya no es la barrera de seguridad real, esa
-// vive en la Cloud Function.
+// La validación de forma de acá abajo (largo de nombre/teléfono, techo
+// técnico de acompañantes) sigue existiendo como fail-fast de UX — evita un
+// viaje de red para errores obvios — pero ya no es la barrera de seguridad
+// real, esa vive en la Cloud Function.
 //
-// `maxCompanions` es el límite YA RESUELTO para este evento (ver
-// resolveMaxCompanions) — no se recibe el evento completo para no acoplar
-// esta función a EventData por un solo campo. No aplica si `input.isGroup`
-// (familia o grupo, gobernado por GUEST_GROUP_MAX_MEMBERS en la UI, no por
-// este límite — ver EventData.maxCompanions).
-export async function addGuest(eventId: string, input: NewGuestInput, maxCompanions: number): Promise<{ id: string }> {
+// A diferencia del autoregistro (registerWalkInGuest), esta alta es siempre
+// del organizador — NO está sujeta a EventData.maxCompanions (ver
+// GuestData.registrationSource): el organizador puede cargar la cantidad de
+// acompañantes que necesite. Solo se conserva GUEST_MAX_COMPANIONS como techo
+// técnico (evita un array absurdamente grande), no como regla de negocio.
+export async function addGuest(eventId: string, input: NewGuestInput): Promise<{ id: string }> {
   const name = requireMaxLength(requireNonEmpty(input.name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
   const lastName = input.lastName
     ? requireMaxLength(input.lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
@@ -168,12 +168,8 @@ export async function addGuest(eventId: string, input: NewGuestInput, maxCompani
   for (const value of Object.values(input.customData || {})) {
     requireMaxLength(value, GUEST_CUSTOM_FIELD_VALUE_MAX, 'Uno de los campos personalizados')
   }
-  if (!input.isGroup && (input.companions?.length || 0) > maxCompanions) {
-    throw new Error(
-      maxCompanions > 0
-        ? `Este evento permite hasta ${maxCompanions} acompañante${maxCompanions === 1 ? '' : 's'} por invitado.`
-        : 'Este evento no permite acompañantes.',
-    )
+  if ((input.companions?.length || 0) > GUEST_MAX_COMPANIONS) {
+    throw new Error(`No se pueden agregar más de ${GUEST_MAX_COMPANIONS} acompañantes.`)
   }
 
   const addGuestCallable = httpsCallable<
@@ -262,11 +258,12 @@ export interface UpdateGuestInput {
 }
 
 // `maxCompanions` es el límite YA RESUELTO para este evento (ver
-// resolveMaxCompanions) — solo se valida contra él cuando `companions`
-// cambia de largo Y el invitado no es una familia/grupo (`isGroup`, que se
-// lee del documento existente dentro de la transacción, no de `input`: esta
-// función no distingue de antemano si el invitado que está editando es un
-// grupo o no).
+// resolveMaxCompanions) — solo se aplica cuando `companions` cambia de largo
+// Y el invitado existente tiene `registrationSource === 'self'` (autoregistro,
+// leído del documento existente dentro de la transacción, no de `input`); un
+// invitado manual del organizador usa GUEST_MAX_COMPANIONS en su lugar (ver
+// el cuerpo de la función). Tampoco aplica si es una familia/grupo
+// (`isGroup`).
 //
 // `expectedVersion` es `guest.version` tal como lo tenía cargado quien llama
 // (GuestEditForm) — siempre corre dentro de una runTransaction (antes solo
@@ -309,17 +306,27 @@ export async function updateGuest(
     // de personas del evento.
     if (companionsChanged) {
       after = 1 + guestFields.companions!.length
+      // El techo depende del ORIGEN del invitado (ver
+      // GuestData.registrationSource), no solo del evento: uno autoregistrado
+      // sigue sujeto al maxCompanions configurado (mismo criterio que
+      // companionsWithinLimitData en firestore.rules); uno cargado
+      // manualmente por el organizador no tiene ese tope — solo el techo
+      // técnico GUEST_MAX_COMPANIONS (evita un array absurdamente grande, no
+      // es una regla de negocio configurable).
+      const isSelfRegistered = existing.registrationSource === 'self'
+      const effectiveLimit = isSelfRegistered ? maxCompanions : GUEST_MAX_COMPANIONS
       // Grandfathering: si el invitado ya tenía más acompañantes que el
       // límite actual (evento cargado antes de configurarlo, o el
       // organizador lo bajó después), se sigue permitiendo guardar mientras
       // no AUMENTE el conteo — solo se bloquea sumar más allá del límite.
-      // Mismo criterio que companionsWithinLimit en firestore.rules.
-      if (!existing.isGroup && guestFields.companions!.length > maxCompanions
+      if (!existing.isGroup && guestFields.companions!.length > effectiveLimit
         && guestFields.companions!.length > existing.companions.length) {
         throw new Error(
-          maxCompanions > 0
-            ? `Este evento permite hasta ${maxCompanions} acompañante${maxCompanions === 1 ? '' : 's'} por invitado.`
-            : 'Este evento no permite acompañantes.',
+          isSelfRegistered
+            ? (effectiveLimit > 0
+                ? `Este evento permite hasta ${effectiveLimit} acompañante${effectiveLimit === 1 ? '' : 's'} para autoregistro.`
+                : 'Este evento no permite acompañantes en autoregistro.')
+            : `No se pueden agregar más de ${effectiveLimit} acompañantes.`,
         )
       }
       // Límite de asistentes (ver CAPACITY_LIMIT_ARCHITECTURE.md): sumar
@@ -473,9 +480,13 @@ export async function updateGuestSelf(
 // esa ocupación quedaba "fantasma" para siempre).
 export async function deleteGuest(
   eventId: string,
-  guest: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'>,
+  guest: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'presentIndices'>,
 ) {
   const size = partySize(guest)
+  // Personas REALMENTE presentes, no partySize completo — con check-in
+  // parcial (familia/acompañantes) puede haber menos gente adentro que el
+  // tamaño total de la invitación (ver presentIndicesOf arriba).
+  const present = presentIndicesOf(guest).length
   const batch = writeBatch(db)
   batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
   batch.delete(contactRef(eventId, guest.id))
@@ -483,8 +494,8 @@ export async function deleteGuest(
     guestCount: -1,
     peopleCount: -size,
     [rsvpCountField(guest.rsvpStatus)]: -1,
-    checkedInCount: guest.status === 'checked_in' ? -size : 0,
-    occupancyCount: guest.status === 'checked_in' && guestPresence(guest) === 'inside' ? -size : 0,
+    checkedInCount: -present,
+    occupancyCount: guestPresence(guest) === 'inside' ? -present : 0,
     paidCount: guest.paymentStatus === 'paid' ? -size : 0,
   })
   await batch.commit()
@@ -501,10 +512,11 @@ export async function moveGuestToWaitlist(
   eventId: string,
   guest: Pick<
     GuestData,
-    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'customData' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'
+    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'customData' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'registrationSource' | 'presentIndices'
   >,
 ): Promise<void> {
   const size = partySize(guest)
+  const present = presentIndicesOf(guest).length
   const fullName = `${guest.name}${guest.lastName ? ` ${guest.lastName}` : ''}`.trim()
   const batch = writeBatch(db)
 
@@ -514,8 +526,8 @@ export async function moveGuestToWaitlist(
     guestCount: -1,
     peopleCount: -size,
     [rsvpCountField(guest.rsvpStatus)]: -1,
-    checkedInCount: guest.status === 'checked_in' ? -size : 0,
-    occupancyCount: guest.status === 'checked_in' && guestPresence(guest) === 'inside' ? -size : 0,
+    checkedInCount: -present,
+    occupancyCount: guestPresence(guest) === 'inside' ? -present : 0,
     paidCount: guest.paymentStatus === 'paid' ? -size : 0,
   })
 
@@ -535,6 +547,11 @@ export async function moveGuestToWaitlist(
     respondedAt: null,
     promotedGuestId: null,
     promotionReason: null,
+    // Conserva el origen que ya tenía el invitado (ver
+    // GuestData.registrationSource) — no lo reinicia a 'self' solo porque el
+    // organizador lo mandó a esperar. Legacy (invitado sin el campo) cae a
+    // 'organizer', mismo default permisivo que el resto del modelo.
+    registrationSource: guest.registrationSource ?? 'organizer',
   })
 
   await batch.commit()
@@ -588,7 +605,7 @@ export interface BulkResult {
 // (igual que el deleteGuest individual ya hacía).
 export async function bulkDeleteGuests(
   eventId: string,
-  guests: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'>[],
+  guests: Pick<GuestData, 'id' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'presentIndices'>[],
 ): Promise<BulkResult> {
   const chunks = chunkByPartySize(guests, partySize)
   let ok = 0
@@ -608,14 +625,13 @@ export async function bulkDeleteGuests(
       }
       for (const guest of chunk) {
         const size = partySize(guest)
+        const present = presentIndicesOf(guest).length
         batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
         batch.delete(contactRef(eventId, guest.id))
         guestCountDelta -= 1
         peopleCountDelta -= size
-        if (guest.status === 'checked_in') {
-          checkedInCountDelta -= size
-          if (guestPresence(guest) === 'inside') occupancyCountDelta -= size
-        }
+        checkedInCountDelta -= present
+        if (guestPresence(guest) === 'inside') occupancyCountDelta -= present
         if (guest.paymentStatus === 'paid') paidCountDelta -= size
         rsvpDeltas[rsvpCountField(guest.rsvpStatus)] -= 1
       }
@@ -1092,24 +1108,49 @@ export function guestPresence(guest: Pick<GuestData, 'status' | 'checkedOutAt' |
   return guest.exitType === 'final' ? 'final_out' : 'temp_out'
 }
 
+// Índices de esta invitación (0 = invitado principal, 1..N = companions[i-1])
+// que ya hicieron check-in alguna vez — mismo cálculo y mismo fallback que
+// functions/src/checkin/shared.ts:presentIndicesOf (invitados 'checked_in'
+// sin `presentIndices` son de antes del check-in parcial: se interpretan
+// como "toda la invitación ya había entrado completa", no como "nadie
+// entró"). Usalo en vez de partySize() para cualquier cálculo de asistencia
+// REAL (checkedInCount/occupancyCount) — partySize() sigue siendo el conteo
+// de personas registradas (peopleCount/paidCount/capacidad), no de quién
+// efectivamente llegó.
+export function presentIndicesOf(guest: Pick<GuestData, 'status' | 'presentIndices'> & { companions: CompanionData[] }): number[] {
+  const total = partySize(guest)
+  if (Array.isArray(guest.presentIndices)) {
+    return guest.presentIndices.filter((i) => Number.isInteger(i) && i >= 0 && i < total)
+  }
+  if (guest.status === 'checked_in') return Array.from({ length: total }, (_, i) => i)
+  return []
+}
+
 export type CheckInResult =
-  | { status: 'success'; guest: GuestData; reentry: boolean }
+  | { status: 'success'; guest: GuestData; reentry: boolean; partial: boolean; addedCount: number }
   | { status: 'already_checked_in'; guest: GuestData }
+  | { status: 'needs_selection'; guest: GuestData; pendingIndices: number[] }
   | { status: 'payment_required'; guest: GuestData }
   | { status: 'blocked_final_exit'; guest: GuestData }
   | { status: 'not_found' }
 
-// Toda la máquina de estados (guestPresence, gate de pago, escritura
-// combinada de guests/{guestId}+events/{eventId}, doc de auditoría en
-// checkins) vive en la Cloud Function `checkInGuest` (Admin SDK, ver
-// functions/src/checkin/checkIn.ts) — este archivo ya no corre la
-// transacción, solo invoca la Callable y propaga el resultado.
+// Toda la máquina de estados (guestPresence, gate de pago, check-in parcial
+// vía planCheckIn, escritura combinada de guests/{guestId}+events/{eventId},
+// doc de auditoría en checkins) vive en la Cloud Function `checkInGuest`
+// (Admin SDK, ver functions/src/checkin/checkIn.ts) — este archivo ya no
+// corre la transacción, solo invoca la Callable y propaga el resultado.
+// `selection` ausente = sondeo (invitación con varias personas, primer
+// escaneo o parcial pendiente: la Callable devuelve 'needs_selection' sin
+// escribir nada) o confirmación implícita para una invitación de 1 sola
+// persona (ver planCheckIn en shared.ts) — el llamador vuelve a invocar esta
+// misma función con `selection` una vez que el encargado elige quién entra.
 export async function checkInGuest(
   eventId: string,
   qrToken: string,
+  selection?: number[],
 ): Promise<CheckInResult> {
-  const callable = httpsCallable<{ eventId: string; qrToken: string }, CheckInResult>(functions, 'checkInGuest')
-  const result = await measureSpan('functions.checkInGuest', 'db.firestore', () => callable({ eventId, qrToken }))
+  const callable = httpsCallable<{ eventId: string; qrToken: string; selection?: number[] }, CheckInResult>(functions, 'checkInGuest')
+  const result = await measureSpan('functions.checkInGuest', 'db.firestore', () => callable({ eventId, qrToken, selection }))
   return result.data
 }
 
@@ -1132,25 +1173,30 @@ export async function checkOutGuest(
 }
 
 export type ConfirmPaymentAndCheckInResult =
-  | { ok: true; checkIn: 'success'; reentry: boolean; guest: GuestData }
+  | { ok: true; checkIn: 'success'; reentry: boolean; partial: boolean; addedCount: number; guest: GuestData }
   | { ok: true; checkIn: 'already_checked_in'; guest: GuestData }
+  | { ok: true; checkIn: 'needs_selection'; guest: GuestData; pendingIndices: number[] }
   | { ok: true; checkIn: 'blocked_final_exit'; guest: GuestData }
 
 // Botón "Sí, ya pagó" del escáner (evento de pago, invitado sin pagar) —
 // confirma el pago y hace el check-in en una sola llamada atómica del
 // servidor (ver functions/src/checkin/confirmPaymentAndCheckIn.ts), en vez
 // de las dos llamadas secuenciales no atómicas (setGuestPaymentStatus +
-// checkInGuest) que este archivo usaba antes de esta migración.
+// checkInGuest) que este archivo usaba antes de esta migración. Mismo
+// parámetro `selection` que checkInGuest — necesario acá también porque el
+// pago y el check-in ocurren en la MISMA transacción (no se puede pagar y
+// después llamar a checkInGuest por separado sin perder atomicidad).
 export async function confirmPaymentAndCheckIn(
   eventId: string,
   guestId: string,
   method?: PaymentMethod,
+  selection?: number[],
 ): Promise<ConfirmPaymentAndCheckInResult> {
   const callable = httpsCallable<
-    { eventId: string; guestId: string; method?: PaymentMethod },
+    { eventId: string; guestId: string; method?: PaymentMethod; selection?: number[] },
     ConfirmPaymentAndCheckInResult
   >(functions, 'confirmPaymentAndCheckIn')
-  const result = await measureSpan('functions.confirmPaymentAndCheckIn', 'db.firestore', () => callable({ eventId, guestId, method }))
+  const result = await measureSpan('functions.confirmPaymentAndCheckIn', 'db.firestore', () => callable({ eventId, guestId, method, selection }))
   return result.data
 }
 
@@ -1177,11 +1223,17 @@ function normalizeCompanions(value: unknown): CompanionData[] {
       lastName: (c as CompanionData)?.lastName || '',
       phone: (c as CompanionData)?.phone || '',
       phoneCountry: (c as CompanionData)?.phoneCountry || '',
-      menuSelection: (c as CompanionData)?.menuSelection || undefined,
+      // Claves OMITIDAS (no `undefined`) cuando el acompañante no tiene
+      // valor — Firestore rechaza `undefined` como valor de campo, incluso
+      // anidado dentro de un array (mismo criterio que updateGuestSelf).
+      // Antes quedaban como `undefined` explícito acá, y ese mismo objeto
+      // se reescribía tal cual en updateGuest (edición desde el admin) al
+      // quitar/editar un acompañante, tirando abajo la transacción entera.
+      ...((c as CompanionData)?.menuSelection !== undefined ? { menuSelection: (c as CompanionData).menuSelection } : {}),
       // Respuestas a customFields obligatorios, capturadas por acompañante
       // agregado vía autoregistro (ver registerWalkInGuest.ts) — ausente en
       // acompañantes cargados por el organizador.
-      customData: (c as CompanionData)?.customData || undefined,
+      ...((c as CompanionData)?.customData !== undefined ? { customData: (c as CompanionData).customData } : {}),
     }))
   }
   if (typeof value === 'number' && value > 0) {
@@ -1214,6 +1266,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     status: data.status as GuestData['status'],
     companions: normalizeCompanions(data.companions),
     isGroup: (data.isGroup as boolean) || false,
+    registrationSource: (data.registrationSource as GuestData['registrationSource']) || undefined,
     rsvpStatus: (data.rsvpStatus as GuestData['rsvpStatus']) || 'pending',
     checkedInAt: toMillisOrNull(data.checkedInAt),
     checkedInBy: (data.checkedInBy as string) || null,
@@ -1221,6 +1274,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     checkedOutAt: toMillisOrNull(data.checkedOutAt),
     checkedOutByEmail: (data.checkedOutByEmail as string) || null,
     exitType: (data.exitType as GuestData['exitType']) || null,
+    presentIndices: Array.isArray(data.presentIndices) ? (data.presentIndices as number[]) : undefined,
     lockToken: (data.lockToken as string) || null,
     lockTokens: Array.isArray(data.lockTokens) ? (data.lockTokens as string[]) : undefined,
     customData: (data.customData as Record<string, string>) || undefined,

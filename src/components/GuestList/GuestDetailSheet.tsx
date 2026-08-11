@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { AccessibleModal } from '../accessibility/AccessibleModal'
-import { guestPresence, partySize } from '../../firebase/guests'
+import { guestPresence, partySize, presentIndicesOf } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, MenuSelection, PaymentMethod } from '../../types'
 import { TagMultiSelect } from '../TagMultiSelect'
 
@@ -202,7 +202,13 @@ export function GuestDetailSheet({
                   {guest.rsvpStatus === 'yes' && <Pill tone="green" icon={<IconCheckCircle className="w-3.5 h-3.5" />}>Asistirá</Pill>}
                   {guest.rsvpStatus === 'no' && <Pill tone="gray" icon={<IconX className="w-3.5 h-3.5" />}>No asistirá</Pill>}
                   {guest.rsvpStatus === 'pending' && <Pill tone="amber" icon={<IconHelpCircle className="w-3.5 h-3.5" />}>Sin responder</Pill>}
-                  {presence === 'inside' && <Pill tone="blue" icon={<IconCheckCircle className="w-3.5 h-3.5" />}>Adentro</Pill>}
+                  {presence === 'inside' && (
+                    <Pill tone="blue" icon={<IconCheckCircle className="w-3.5 h-3.5" />}>
+                      {presentIndicesOf(guest).length < partySize(guest)
+                        ? `Adentro · ${presentIndicesOf(guest).length}/${partySize(guest)}`
+                        : 'Adentro'}
+                    </Pill>
+                  )}
                   {presence === 'temp_out' && <Pill tone="amber" icon={<IconLogOut className="w-3.5 h-3.5" />}>Salida temporal</Pill>}
                   {presence === 'final_out' && <Pill tone="gray" icon={<IconLogOut className="w-3.5 h-3.5" />}>Fuera del evento</Pill>}
                   {/* Informativo, no urgente — ver needsAttention en guestGrouping.ts.

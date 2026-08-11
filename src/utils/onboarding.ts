@@ -45,3 +45,16 @@ export function hasSeenNovedades(uid: string): boolean {
 export function markNovedadesSeen(uid: string) {
   safeSet(NOVEDADES_SEEN_PREFIX + uid, NOVEDADES_VERSION)
 }
+
+// Llamado al eliminar la cuenta (ver deleteAccount en firebase/auth.ts):
+// borra las banderas de bienvenida/novedades de este uid para que, si
+// alguna vez se reutiliza el mismo navegador, no arrastren estado de una
+// cuenta ya borrada.
+function safeRemove(key: string) {
+  try { localStorage.removeItem(key) } catch { /* noop */ }
+}
+
+export function clearWelcomeState(uid: string) {
+  safeRemove(WELCOME_PENDING_PREFIX + uid)
+  safeRemove(NOVEDADES_SEEN_PREFIX + uid)
+}

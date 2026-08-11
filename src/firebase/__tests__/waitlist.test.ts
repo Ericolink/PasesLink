@@ -12,6 +12,13 @@ const OWNER_UID = 'owner-uid'
 const OUTSIDER_UID = 'outsider-uid'
 const EVENT_ID = 'event-1'
 
+// registrationSource: 'self' por defecto — anotarse a la lista de espera es
+// siempre autoservicio (ver GuestData.registrationSource /
+// WaitlistEntryData.registrationSource), incluso en los tests de "create
+// (organizador)" más abajo: isValidOrganizerWaitlistEntryData también acepta
+// 'self' (moveGuestToWaitlist copia el origen que ya tenía el invitado, que
+// puede ser cualquiera de los dos) — solo isValidWaitlistJoinData (alta
+// pública) exige 'self' exacto.
 function validJoinPayload(overrides: Record<string, unknown> = {}) {
   return {
     name: 'Nuevo en la fila',
@@ -25,6 +32,7 @@ function validJoinPayload(overrides: Record<string, unknown> = {}) {
     respondedAt: null,
     promotedGuestId: null,
     promotionReason: null,
+    registrationSource: 'self',
     ...overrides,
   }
 }
@@ -123,6 +131,15 @@ describe('firestore.rules — events/{eventId}/waitlist', () => {
         setDoc(doc(publicDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validJoinPayload({ customData: tooMany })),
       )
     })
+
+    it('rejects a public join claiming registrationSource: "organizer" — anotarse es siempre autoservicio', async () => {
+      await seedEvent(testEnv, EVENT_ID, { entryMode: 'open', attendeeLimitEnabled: true, capacity: 10 })
+      const publicDb = testEnv.unauthenticatedContext().firestore()
+
+      await assertFails(
+        setDoc(doc(publicDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validJoinPayload({ registrationSource: 'organizer' })),
+      )
+    })
   })
 
   describe('create (organizador — "Enviar a lista de espera", src/firebase/guests.ts moveGuestToWaitlist)', () => {
@@ -141,6 +158,24 @@ describe('firestore.rules — events/{eventId}/waitlist', () => {
 
       await assertSucceeds(
         setDoc(doc(ownerDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validJoinPayload({ partySize: 5 })),
+      )
+    })
+
+    it('allows registrationSource: "organizer" too — moveGuestToWaitlist carries over whatever origin the guest already had', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, entryMode: 'list', attendeeLimitEnabled: false })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertSucceeds(
+        setDoc(doc(ownerDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validJoinPayload({ registrationSource: 'organizer' })),
+      )
+    })
+
+    it('rejects a registrationSource that is neither "organizer" nor "self"', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, entryMode: 'list', attendeeLimitEnabled: false })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertFails(
+        setDoc(doc(ownerDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validJoinPayload({ registrationSource: 'admin' })),
       )
     })
 

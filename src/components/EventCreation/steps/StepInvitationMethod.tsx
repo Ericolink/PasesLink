@@ -137,25 +137,31 @@ export function StepInvitationMethod({
         </label>
       </div>
 
-      {/* Acompañantes por invitado */}
-      <div className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-        <label htmlFor="event-max-companions" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-          Acompañantes por invitado
-        </label>
-        <input
-          id="event-max-companions"
-          type="number"
-          min="0"
-          max={GUEST_MAX_COMPANIONS}
-          value={maxCompanions}
-          onChange={(e) => onMaxCompanionsChange(e.target.value)}
-          className="w-24 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-center font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-        <p className="text-xs text-gray-400 mt-2">
-          Cuántos acompañantes puede sumar cada invitado (autoregistro o alta manual). 0 = no se permiten
-          acompañantes. No aplica a "Familia o grupo", que tiene su propio límite de integrantes.
-        </p>
-      </div>
+      {/* Acompañantes por invitado — solo aplica al autoregistro, así que no
+          tiene sentido en lista cerrada (sin autoregistro, ver EntryMode). */}
+      {entryMode !== 'list' && (
+        <div className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+          <label htmlFor="event-max-companions" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+            Acompañantes por invitado (autoregistro)
+          </label>
+          <input
+            id="event-max-companions"
+            type="number"
+            min="0"
+            max={GUEST_MAX_COMPANIONS}
+            value={maxCompanions}
+            onChange={(e) => onMaxCompanionsChange(e.target.value)}
+            className="w-24 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-center font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p className="text-xs text-gray-400 mt-2">
+            Cuántos acompañantes puede sumar cada invitado que se autoregistre. 0 = no se permiten acompañantes en
+            autoregistro.{' '}
+            {entryMode === 'hybrid'
+              ? 'Este límite aplica solo al autoregistro: los invitados que agregues tú (o tus coanfitriones) a mano pueden tener los acompañantes que definas, sin este tope.'
+              : 'No limita las altas manuales que hagas tú (o tus coanfitriones) desde el panel, ni aplica a "Familia o grupo", que tiene su propio límite de integrantes.'}
+          </p>
+        </div>
+      )}
 
       {/* Cobro de entrada */}
       <div className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">

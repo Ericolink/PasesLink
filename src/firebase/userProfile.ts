@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDocs, limit, orderBy, query, setDoc, where, writeBatch } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, setDoc, where, writeBatch } from 'firebase/firestore'
 import { db } from './config'
 import type { UserProfile, UserInvitation } from '../types'
 
@@ -12,6 +12,15 @@ export async function saveUserInvitation(uid: string, inv: Omit<UserInvitation, 
     { ...inv, registeredAt: Date.now() },
     { merge: true },
   )
+}
+
+// Puntual (un solo evento) — usado por EventJoin.tsx para detectar, apenas
+// hay sesión, si esta cuenta ya tiene una invitación guardada de este evento
+// (registrada antes, quizás desde otro dispositivo) y evitar mostrarle el
+// formulario de autoregistro de nuevo.
+export async function getUserInvitation(uid: string, eventId: string): Promise<UserInvitation | null> {
+  const snap = await getDoc(doc(db, 'users', uid, 'invitations', eventId))
+  return snap.exists() ? (snap.data() as UserInvitation) : null
 }
 
 export async function getUserInvitations(uid: string): Promise<UserInvitation[]> {

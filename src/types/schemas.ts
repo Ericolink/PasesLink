@@ -299,6 +299,7 @@ export const GuestSchema = z.object({
   status: z.enum(['invited', 'checked_in']),
   companions: z.array(CompanionDataSchema),
   isGroup: z.boolean().optional(),
+  registrationSource: z.enum(['organizer', 'self']).optional(),
   rsvpStatus: z.enum(['pending', 'yes', 'no']),
   checkedInAt: z.number().nullable(),
   checkedInBy: z.string().nullable(),
@@ -306,6 +307,7 @@ export const GuestSchema = z.object({
   checkedOutAt: z.number().nullable(),
   checkedOutByEmail: z.string().nullable(),
   exitType: z.enum(['temporary', 'final']).nullable(),
+  presentIndices: z.array(z.number()).optional(),
   lockToken: z.string().nullable(),
   lockTokens: z.array(z.string()).optional(),
   customData: z.record(z.string(), z.string()).optional(),
@@ -341,6 +343,7 @@ export const WaitlistEntrySchema = z.object({
   respondedAt: z.number().nullable(),
   promotedGuestId: z.string().nullable(),
   promotionReason: z.enum(['fifo', 'manual']).nullable(),
+  registrationSource: z.enum(['organizer', 'self']).optional(),
 })
 
 export const CheckinSchema = z.object({
@@ -351,6 +354,8 @@ export const CheckinSchema = z.object({
   exitKind: z.enum(['temporary', 'final']).optional(),
   reentry: z.boolean().optional(),
   reason: z.enum(['final_exit_blocked']).optional(),
+  addedCount: z.number().optional(),
+  partial: z.boolean().optional(),
   timestamp: z.number(),
   scannedBy: z.string(),
   scannedByEmail: z.string().nullable(),

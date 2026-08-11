@@ -18,6 +18,54 @@ export function guestPresence(guest: {
   return guest.exitType === 'final' ? 'final_out' : 'temp_out'
 }
 
+// Índices de personas de ESTA invitación que ya hicieron check-in alguna vez
+// (0 = invitado principal, 1..N = companions[i-1] — el mismo índice que usa
+// MenuSummary/GuestEditModal para direccionar un acompañante puntual, nunca
+// un id propio porque `companions` no lo tiene). `guest.presentIndices` es la
+// fuente de verdad para invitados creados con este campo; los invitados
+// `status: 'checked_in'` de ANTES de esta migración (partial check-in) nunca
+// lo tienen — se interpretan como "toda la invitación ya había entrado
+// completa" (única semántica que existía antes), no como "nadie entró", para
+// no perder asistencia ya registrada. Filtra valores fuera de rango: un
+// documento corrupto o manipulado no debe poder inflar el conteo de personas
+// presentes más allá de partySize.
+export function presentIndicesOf(guest: { presentIndices?: unknown; status?: unknown }, total: number): number[] {
+  if (Array.isArray(guest.presentIndices)) {
+    return guest.presentIndices.filter((i): i is number => Number.isInteger(i) && i >= 0 && i < total)
+  }
+  if (guest.status === 'checked_in') return Array.from({ length: total }, (_, i) => i)
+  return []
+}
+
+export type CheckInPlan =
+  | { kind: 'already_complete' }
+  | { kind: 'needs_selection'; pending: number[] }
+  | { kind: 'apply'; newIndices: number[]; merged: number[] }
+
+// Único punto que decide qué hace un escaneo de entrada con la invitación ya
+// leída (fresca, dentro de la transacción) — compartido por checkIn.ts y
+// confirmPaymentAndCheckIn.ts para no duplicar esta máquina de estados.
+// `selection` ausente = "sondeo": no escribe nada, solo informa qué falta
+// (o completa sola una invitación de 1 sola persona, donde no hay nada que
+// elegir). `selection` presente = confirmación del encargado: se filtran acá
+// mismo los índices fuera de rango o ya presentes (idempotente — un reintento
+// de red con la misma selección no duplica a nadie), nunca se confía en que
+// el cliente ya los haya filtrado.
+export function planCheckIn(guest: { presentIndices?: unknown; status?: unknown }, total: number, selection: number[] | undefined): CheckInPlan {
+  const existing = presentIndicesOf(guest, total)
+  const pending = Array.from({ length: total }, (_, i) => i).filter((i) => !existing.includes(i))
+  if (pending.length === 0) return { kind: 'already_complete' }
+
+  if (selection === undefined) {
+    if (total === 1) return { kind: 'apply', newIndices: [0], merged: [0] }
+    return { kind: 'needs_selection', pending }
+  }
+
+  const newIndices = selection.filter((i) => Number.isInteger(i) && i >= 0 && i < total && !existing.includes(i))
+  if (newIndices.length === 0) return { kind: 'needs_selection', pending }
+  return { kind: 'apply', newIndices, merged: [...existing, ...newIndices].sort((a, b) => a - b) }
+}
+
 function toMillisOrNull(value: unknown): number | null {
   if (value && typeof value === 'object' && 'toMillis' in value) {
     return (value as Timestamp).toMillis()
@@ -49,6 +97,7 @@ function normalizeCompanions(value: unknown): Array<Record<string, unknown>> {
 // que Scanner.tsx/GuestPass.tsx puedan seguir leyendo result.guest.* sin
 // cambios.
 export function mapGuestForResponse(id: string, data: DocumentData): Record<string, unknown> {
+  const companions = normalizeCompanions(data.companions)
   return {
     id,
     name: data.name,
@@ -57,7 +106,8 @@ export function mapGuestForResponse(id: string, data: DocumentData): Record<stri
     phoneCountry: data.phoneCountry || '',
     qrToken: data.qrToken,
     status: data.status,
-    companions: normalizeCompanions(data.companions),
+    companions,
+    presentIndices: presentIndicesOf(data, 1 + companions.length),
     isGroup: data.isGroup || false,
     rsvpStatus: data.rsvpStatus || 'pending',
     checkedInAt: toMillisOrNull(data.checkedInAt),

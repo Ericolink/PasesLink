@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Cropper, { type Area } from 'react-easy-crop'
 import { useAccessibleModal } from './accessibility/AccessibleModal'
 import { cropImageToBlob } from '../utils/imageCrop'
@@ -44,13 +45,17 @@ export function ImageCropModal({ imageSrc, aspect, cropShape = 'rect', maxOutput
     }
   }
 
-  return (
+  // Portal a document.body + z-[210] (por encima de AccessibleModal en
+  // z-[200]) — este editor puede montarse mientras un formulario en
+  // AccessibleModal sigue abierto (ver ConcessionItemFormModal), así que no
+  // puede depender del orden en el árbol React para ganar el stacking.
+  return createPortal(
     <div
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label="Recortar imagen"
-      className="fixed inset-0 z-50 grid grid-rows-[auto_1fr_auto] h-dvh bg-black animate-scale-in"
+      className="fixed inset-0 z-[210] grid grid-rows-[auto_1fr_auto] h-dvh bg-black animate-scale-in"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       {/* Fila 1 (auto): siempre a su altura natural, nunca puede ser empujada
@@ -113,6 +118,7 @@ export function ImageCropModal({ imageSrc, aspect, cropShape = 'rect', maxOutput
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

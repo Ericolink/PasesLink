@@ -330,6 +330,13 @@ export function EventWall() {
             value={guestName}
             onChange={(e) => setGuestName(e.target.value)}
             placeholder="Tu nombre"
+            // Sí es autofoco al cargar (no en respuesta a un click), pero
+            // esta pantalla completa no tiene otro contenido que este único
+            // campo — el caso que las propias guías de WCAG citan como
+            // excepción aceptable (no hay nada más con lo que competir por
+            // la atención, ni contexto previo que se pierda al saltar directo
+            // acá).
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />

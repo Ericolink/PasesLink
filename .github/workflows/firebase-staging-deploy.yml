@@ -46,6 +46,13 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     environment: staging
+    # checks:write — ver el mismo comentario en firebase-hosting-merge.yml:
+    # FirebaseExtended/action-hosting-deploy crea un check run contra el
+    # commit incluso con channelId: live, y sin este permiso el job falla con
+    # 403 "Resource not accessible by integration".
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -81,6 +88,12 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING }}'
           channelId: live
           projectId: paselink-staging
+
+      # El predeploy de functions (firebase.json) corre "npm run build" con
+      # RESOURCE_DIR=functions pero nunca instala dependencias — asume que
+      # ya están, como pasa en una laptop de dev. En un checkout de CI
+      # limpio no existen, así que tsc no encuentra firebase-functions/v2/*.
+      - run: npm ci --prefix functions
 
       - name: Desplegar Firestore Rules, índices y Cloud Functions a staging
         run: |

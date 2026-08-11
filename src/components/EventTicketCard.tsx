@@ -92,8 +92,13 @@ export function EventTicketCard({
       <div
         className="flex-1 min-w-0"
         style={{
+          // El lado izquierdo (título, subtítulo, barra de asistencia) va
+          // sólido sobre --invite-surface para que el texto siempre tenga
+          // contraste; el tinte de acento se difumina hacia la derecha, que
+          // no lleva texto — antes era al revés (acento a la izquierda) y el
+          // texto quedaba encima del tramo más transparente del degradado.
           background: highlight
-            ? 'linear-gradient(135deg, color-mix(in srgb, var(--invite-accent, #FF1464) 10%, var(--ticket-next-tint-base, transparent)), var(--invite-surface, rgba(30,20,40,.9)))'
+            ? 'linear-gradient(135deg, var(--invite-surface, rgba(30,20,40,.9)), color-mix(in srgb, var(--invite-accent, #FF1464) 10%, var(--ticket-next-tint-base, transparent)))'
             : 'var(--invite-surface, rgba(30,20,40,.8))',
         }}
       >

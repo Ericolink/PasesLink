@@ -405,7 +405,12 @@ service cloud.firestore {
         && d.offerExpiresAt == null
         && d.respondedAt == null
         && d.promotedGuestId == null
-        && d.promotionReason == null;
+        && d.promotionReason == null
+        // Anotarse a la lista de espera es siempre autoservicio — ver
+        // GuestData.registrationSource / WaitlistEntryData.registrationSource.
+        // Sin esto, un cliente público podría marcarse 'organizer' y saltarse
+        // el tope de acompañantes si esta entrada se promueve más tarde.
+        && d.registrationSource == 'self';
     }
 
     // attendeeLimitEnabled == false también bloquea: sin cupo duro no existe
@@ -439,7 +444,11 @@ service cloud.firestore {
         && d.offerExpiresAt == null
         && d.respondedAt == null
         && d.promotedGuestId == null
-        && d.promotionReason == null;
+        && d.promotionReason == null
+        // Mirroreado del registrationSource del invitado que se está
+        // moviendo (moveGuestToWaitlist ya lo copia tal cual) — solo se
+        // valida el tipo, no se recalcula acá.
+        && d.registrationSource in ['organizer', 'self'];
     }
 
     // "Enviar a la lista de espera" (src/firebase/guests.ts,
@@ -507,46 +516,38 @@ service cloud.firestore {
       return companionsCountOf(resource.data);
     }
 
-    // Tope de acompañantes configurado por el organizador para este evento
-    // (EventData.maxCompanions). El default 9 aplica SOLO al campo ausente
-    // (evento anterior a v1.35.0): esos eventos siempre permitieron grupos de
-    // hasta 10 personas en el autoregistro, y el default 0 anterior les quitó
-    // los acompañantes en silencio. Un evento nuevo siempre escribe el campo
-    // (0 si el organizador no lo toca), así que el 0 explícito sigue
-    // significando "sin acompañantes". Debe coincidir con
-    // GUEST_LEGACY_MAX_COMPANIONS en src/utils/validation.ts
-    // (resolveMaxCompanions aplica el mismo default del lado cliente). NO
-    // aplica a invitados `isGroup: true` ("familia o grupo"), que sigue
-    // gobernado por su propio tope GUEST_GROUP_MAX_MEMBERS (solo en el
-    // cliente, es una herramienta de alta masiva ya confiada al organizador).
-    function eventMaxCompanions(eventId) {
-      return get(/databases/$(database)/documents/events/$(eventId)).data.get('maxCompanions', 9);
-    }
-
     // `d` es el documento NUEVO (request.resource.data) que se está
-    // creando/actualizando. `allowGrandfathered` (literal true/false en cada
-    // call site, nunca una expresión que dependa de `resource`) habilita
-    // tolerar un valor por ENCIMA del límite si no lo está AUMENTANDO
-    // respecto del documento viejo — así un invitado cargado antes de
-    // configurar este límite (o antes de que existiera el campo) se puede
-    // seguir editando/guardando sin recortarlo a la fuerza; solo se bloquea
-    // sumar más acompañantes por encima del tope. En `create` no hay
-    // documento viejo, así que ese caso siempre pasa `false`.
-    function companionsWithinLimit(eventId, d, allowGrandfathered) {
-      return d.get('isGroup', false) == true
-        || companionsCountOf(d) <= eventMaxCompanions(eventId)
-        || (allowGrandfathered && companionsCountOf(d) <= companionsCountBefore());
-    }
-
-    // Variante de companionsWithinLimit que recibe `evData` ya cargado en vez
-    // de volver a pedir el documento del evento — mismo motivo que
+    // actualizando. Solo aplica el tope de acompañantes configurado por el
+    // organizador (EventData.maxCompanions, default 9 — ver el mismo default
+    // en GUEST_LEGACY_MAX_COMPANIONS de src/utils/validation.ts) cuando el
+    // invitado EXISTENTE (resource.data) tiene `registrationSource == 'self'`
+    // (autoregistro) — un invitado cargado manualmente por el organizador (o
+    // legacy, sin el campo: default 'organizer', mismo criterio permisivo que
+    // el resto del modelo) no está sujeto a ese tope, ver
+    // GuestData.registrationSource. No hay rama `create` equivalente: el
+    // alta manual del organizador no pasa nunca por esta regla (ver
+    // `allow create` más abajo), y el autoregistro público corre 100% por
+    // Cloud Functions (Admin SDK, ignora estas reglas) — la única escritura
+    // real que llega hasta acá es la edición del organizador.
+    //
+    // `allowGrandfathered` (literal true/false en cada call site, nunca una
+    // expresión que dependa de `resource`) habilita tolerar un valor por
+    // ENCIMA del límite si no lo está AUMENTANDO respecto del documento viejo
+    // — así un invitado autoregistrado antes de configurar este límite (o
+    // antes de que existiera el campo) se puede seguir editando/guardando sin
+    // recortarlo a la fuerza; solo se bloquea sumar más acompañantes por
+    // encima del tope.
+    //
+    // Variante que recibe `evData` ya cargado en vez de volver a pedir el
+    // documento del evento — mismo motivo que
     // isOwnerData/canDoData más arriba. Usada en guests/{guestId} (ver
     // `allow update`), donde SÍ hace falta un `get()` al evento (a diferencia
     // de `events/{eventId}`, que ya tiene su propio documento como
     // resource.data) pero solo UNA vez para toda la regla, no una vez por
     // cada rama que lo necesite.
     function companionsWithinLimitData(evData, d, allowGrandfathered) {
-      return d.get('isGroup', false) == true
+      return resource.data.get('registrationSource', 'organizer') != 'self'
+        || d.get('isGroup', false) == true
         || companionsCountOf(d) <= evData.get('maxCompanions', 9)
         || (allowGrandfathered && companionsCountOf(d) <= companionsCountBefore());
     }
@@ -615,7 +616,7 @@ service cloud.firestore {
       return !newData.diff(oldData).affectedKeys().hasAny([
         'paymentStatus', 'paymentMethod', 'paidAt', 'paidBy',
         'status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail',
-        'checkedOutAt', 'checkedOutByEmail', 'exitType'
+        'checkedOutAt', 'checkedOutByEmail', 'exitType', 'presentIndices'
       ]);
     }
 
@@ -724,6 +725,25 @@ service cloud.firestore {
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false;
+    }
+
+    // Modo mantenimiento (doc singleton, ver src/hooks/useMaintenanceMode.ts
+    // y MaintenanceGate.tsx). `allow get` es público a propósito, sin
+    // request.auth != null: MaintenanceGate lo lee ANTES de saber si hay
+    // sesión (incluso en /login), así que un visitante sin cuenta también
+    // necesita poder leerlo para ver la pantalla de mantenimiento en vez de
+    // una app rota. Solo expone un booleano + un mensaje corto, sin datos
+    // sensibles. Escribir sí requiere isAdmin(), igual que cualquier otro
+    // control administrativo.
+    match /platformConfig/{docId} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['enabled', 'message', 'updatedAt', 'updatedBy'])
+        && request.resource.data.enabled is bool
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 300
+        && request.resource.data.updatedBy == request.auth.uid;
     }
 
     // Buzón de feedback (src/pages/Feedback.tsx). Solo el admin puede leer —
@@ -1174,8 +1194,11 @@ service cloud.firestore {
         // guestSelfCancelCountsOk (checkedInCount/occupancyCount fijos).
         allow delete: if canDo(eventId, 'deleteGuests', true) || isAdmin()
           || resource.data.get('status', 'invited') != 'checked_in';
-        allow create: if (canDo(eventId, 'addGuests', true) && companionsWithinLimit(eventId, request.resource.data, false))
-          || isAdmin();
+        // Sin companionsWithinLimit: el alta manual del organizador no está
+        // sujeta a EventData.maxCompanions (ver GuestData.registrationSource
+        // — esta rama nunca la alcanza el autoregistro público, que corre
+        // 100% por Cloud Functions con Admin SDK e ignora estas reglas).
+        allow create: if canDo(eventId, 'addGuests', true) || isAdmin();
         allow list: if request.query.limit <= 1;
         allow get: if true;
         // Rama del organizador: updateGuest (nombre/apellido/companions/
@@ -1186,9 +1209,10 @@ service cloud.firestore {
         // allowGuestReentry/setGuestPaymentStatus/bulkSetGuestPaymentStatus
         // (Cloud Functions, Admin SDK) — y accessControlFieldsUntouched
         // bloquea que esta rama sin restricción de campos (o isAdmin() más
-        // abajo) los toque de rebote. companionsWithinLimit (grandfathered)
-        // es la única rama de `update` que valida el tope de acompañantes —
-        // es la única que puede tocar `companions` desde el organizador.
+        // abajo) los toque de rebote. companionsWithinLimitData (grandfathered,
+        // solo si el invitado existente es 'self') es la única rama de
+        // `update` que valida el tope de acompañantes — es la única que
+        // puede tocar `companions` desde el organizador.
         //
         // canDoData/companionsWithinLimitData (vía eventDataFor, ver esa
         // función más arriba) en vez de canDo(eventId,...): cada canDo()

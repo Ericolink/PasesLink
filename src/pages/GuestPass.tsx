@@ -5,13 +5,14 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
-import { checkInGuest, claimGuestOwnership, claimGuestPass, deleteGuest, findGuestByToken, partySize, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
+import { checkInGuest, claimGuestOwnership, claimGuestPass, deleteGuest, findGuestByToken, partySize, presentIndicesOf, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { confirmMyAttendance } from '../firebase/reconfirm'
 import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { saveUserInvitation, deleteUserInvitation } from '../firebase/userProfile'
-import { trackCheckIn, trackGuestDelete, trackRsvpConfirm, trackRsvpDecline } from '../lib/analytics'
+import { regKey } from '../utils/joinRegistration'
+import { trackCheckIn, trackGuestDelete, trackInvitationSignupPromptShown, trackRsvpConfirm, trackRsvpDecline } from '../lib/analytics'
 import { useAuth } from '../hooks/useAuth'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { isOrganizerRole, resolveEventPermissions } from '../types/coOrganizerPermissions'
@@ -49,6 +50,8 @@ import { PerforatedDivider } from '../components/PerforatedDivider'
 import { PassInfoCell } from '../components/PassInfoCell'
 import { GuestPassTicket } from '../components/GuestPassTicket'
 import { OrganizerPassView, type CheckInState } from '../components/OrganizerPassView'
+import { CheckInSelectionModal } from '../components/CheckInSelectionModal'
+import { buildPendingSelection, type PendingCheckInSelection } from '../utils/checkInSelection'
 import { PaymentProofForm } from '../components/PaymentProofForm'
 import { usePaymentProof } from '../hooks/usePaymentProof'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -117,6 +120,9 @@ function GuestPassInner() {
   const [cancelled, setCancelled] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [checkInState, setCheckInState] = useState<CheckInState>('idle')
+  const [pendingSelection, setPendingSelection] = useState<PendingCheckInSelection | null>(null)
+  const [selectionSubmitting, setSelectionSubmitting] = useState(false)
+  const [selectionError, setSelectionError] = useState<string | null>(null)
   const [paymentSaving, setPaymentSaving] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const proof = usePaymentProof(eventId, guest?.id, setGuest)
@@ -273,6 +279,13 @@ function GuestPassInner() {
   }, [guest, user, loading, eventId, qrToken, location.state])
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  // Un solo punto de medición para los tres disparadores del CTA (justo al
+  // registrarse, al confirmar RSVP, y el botón persistente) en vez de
+  // instrumentar cada setShowSignupPrompt(true) por separado.
+  useEffect(() => {
+    if (showSignupPrompt) trackInvitationSignupPromptShown('guest_pass')
+  }, [showSignupPrompt])
+
   if (loading) {
     return (
       <div className="min-h-dvh flex items-center justify-center p-4">
@@ -293,6 +306,19 @@ function GuestPassInner() {
   const isOrg = isOrganizerRole(perms)
   const passUrl = buildPassUrl(eventId, qrToken)
 
+  function celebrateCheckIn() {
+    const tpl = getTemplate(event!.templateId).vars
+    if (!prefersReducedMotion) {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.5 },
+        colors: [event!.accentColor || tpl.accent, tpl.accentDark, tpl.accentSoft],
+        shapes: tpl.confettiShape ? [tpl.confettiShape] : undefined,
+      })
+    }
+  }
+
   async function handleCheckIn() {
     if (!eventId || !qrToken || !user) return
     setCheckInState('loading')
@@ -300,18 +326,13 @@ function GuestPassInner() {
       const result = await checkInGuest(eventId, qrToken)
       if (result.status === 'success') {
         trackCheckIn(eventId)
-        setGuest((g) => g ? { ...g, status: 'checked_in' } : g)
+        setGuest((g) => g ? { ...g, status: 'checked_in', presentIndices: result.guest.presentIndices } : g)
         setCheckInState('done')
-        const tpl = getTemplate(event!.templateId).vars
-        if (!prefersReducedMotion) {
-          confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.5 },
-            colors: [event!.accentColor || tpl.accent, tpl.accentDark, tpl.accentSoft],
-            shapes: tpl.confettiShape ? [tpl.confettiShape] : undefined,
-          })
-        }
+        celebrateCheckIn()
+      } else if (result.status === 'needs_selection') {
+        setCheckInState('idle')
+        setSelectionError(null)
+        setPendingSelection(buildPendingSelection(qrToken, result.guest, result.pendingIndices))
       } else if (result.status === 'already_checked_in') {
         setCheckInState('already')
       } else if (result.status === 'payment_required') {
@@ -327,6 +348,38 @@ function GuestPassInner() {
       // entrada" trabado en 'loading' para siempre (la promesa nunca se
       // capturaba) — vuelve a 'idle' para que el organizador pueda reintentar.
       setCheckInState('idle')
+    }
+  }
+
+  // Confirma la selección del modal de familia/acompañantes (ver
+  // handleCheckIn / CheckInSelectionModal) — mismo criterio que
+  // Scanner.tsx:handleConfirmSelection.
+  async function handleConfirmSelection(indices: number[]) {
+    if (selectionSubmitting || !eventId || !qrToken || !pendingSelection) return
+    setSelectionSubmitting(true)
+    setSelectionError(null)
+    try {
+      const result = await checkInGuest(eventId, qrToken, indices)
+      if (result.status === 'success') {
+        trackCheckIn(eventId)
+        setGuest((g) => g ? { ...g, status: 'checked_in', presentIndices: result.guest.presentIndices } : g)
+        setPendingSelection(null)
+        setCheckInState('done')
+        celebrateCheckIn()
+      } else if (result.status === 'needs_selection') {
+        setPendingSelection(buildPendingSelection(qrToken, result.guest, result.pendingIndices))
+      } else if (result.status === 'already_checked_in') {
+        setPendingSelection(null)
+        setCheckInState('already')
+      } else {
+        setPendingSelection(null)
+        setCheckInState('not_found')
+      }
+    } catch (err) {
+      console.error('Error confirmando check-in parcial:', err)
+      setSelectionError('No se pudo registrar el ingreso. Intenta de nuevo.')
+    } finally {
+      setSelectionSubmitting(false)
     }
   }
 
@@ -371,18 +424,29 @@ function GuestPassInner() {
   // el resto de este componente (RSVP, comprobante de pago propio, descarga).
   if (isOrg) {
     return (
-      <OrganizerPassView
-        event={event}
-        guest={guest}
-        perms={perms}
-        passUrl={passUrl}
-        checkInState={checkInState}
-        paymentSaving={paymentSaving}
-        paymentError={paymentError}
-        onCheckIn={handleCheckIn}
-        onMarkPaid={handleMarkPaid}
-        onMarkUnpaid={handleMarkUnpaid}
-      />
+      <>
+        <OrganizerPassView
+          event={event}
+          guest={guest}
+          perms={perms}
+          passUrl={passUrl}
+          checkInState={checkInState}
+          paymentSaving={paymentSaving}
+          paymentError={paymentError}
+          onCheckIn={handleCheckIn}
+          onMarkPaid={handleMarkPaid}
+          onMarkUnpaid={handleMarkUnpaid}
+        />
+        {pendingSelection && (
+          <CheckInSelectionModal
+            selection={pendingSelection}
+            submitting={selectionSubmitting}
+            error={selectionError}
+            onConfirm={(indices) => { void handleConfirmSelection(indices) }}
+            onCancel={() => { setPendingSelection(null); setSelectionError(null) }}
+          />
+        )}
+      </>
     )
   }
 
@@ -471,6 +535,14 @@ function GuestPassInner() {
     try {
       await deleteGuest(eventId, guest)
       trackGuestDelete(eventId)
+      // Sin esto, este mismo navegador quedaba atrapado: EventJoin.tsx guarda
+      // este localStorage al autoregistrarse y, si sigue ahí, manda derecho
+      // al pase (ya borrado) en vez de mostrar el formulario de nuevo — el
+      // invitado que cancela y se arrepiente no podía volver a registrarse
+      // (bug reportado 2026-08-10). Solo aplica al invitado autoregistrado
+      // (es quien tiene esta clave); para uno agregado por el organizador es
+      // un no-op, la clave nunca existió.
+      localStorage.removeItem(regKey(eventId))
       // Best-effort: limpia la caché de "Mis invitaciones" del propio dueño
       // de la cuenta. Solo puede hacerlo si el visor ES esa cuenta (reglas de
       // users/{uid}/invitations exigen request.auth.uid == uid, sin excepción
@@ -725,11 +797,21 @@ function GuestPassInner() {
               {guest.rsvpStatus === 'yes' && (
                 <>
                   {guest.status === 'checked_in' ? (
-                    <span className="inline-flex items-center gap-2 mb-3">
-                      <ThemeSeal templateId={event.templateId} />
-                      <p className="invite-badge-positive inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
-                        <IconCheckCircle className="w-4 h-4 text-green-500" /> Entrada registrada
-                      </p>
+                    <span className="inline-flex flex-col items-center gap-1.5 mb-3">
+                      <span className="inline-flex items-center gap-2">
+                        <ThemeSeal templateId={event.templateId} />
+                        <p className="invite-badge-positive inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
+                          <IconCheckCircle className="w-4 h-4 text-green-500" /> Entrada registrada
+                        </p>
+                      </span>
+                      {/* Check-in parcial (familia/acompañantes): no todos los
+                          asociados a esta invitación llegaron a entrar todavía
+                          — ver planCheckIn en functions/src/checkin/shared.ts. */}
+                      {presentIndicesOf(guest).length < partySize(guest) && (
+                        <p className="text-xs text-[var(--invite-text-muted)]">
+                          {presentIndicesOf(guest).length} de {partySize(guest)} personas ingresaron
+                        </p>
+                      )}
                     </span>
                   ) : (
                     <p className="text-sm text-[var(--invite-text-muted)] mb-3">Presenta este código QR en la entrada</p>
@@ -999,6 +1081,7 @@ function GuestPassInner() {
         <GuestSignupPrompt
           eventId={eventId}
           guest={guest}
+          source="guest_pass"
           onDismiss={() => {
             sessionStorage.setItem(`paselink_signup_prompt_${eventId}_${qrToken}`, '1')
             setShowSignupPrompt(false)

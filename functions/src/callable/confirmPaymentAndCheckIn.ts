@@ -14,6 +14,8 @@ interface ConfirmPaymentAndCheckInInput {
   eventId: string
   guestId: string
   method?: PaymentMethod
+  // Mismo significado que CheckInGuestInput.selection (ver callable/checkInGuest.ts).
+  selection?: number[]
 }
 
 const VALID_METHODS: PaymentMethod[] = ['transfer', 'cash']
@@ -28,13 +30,16 @@ export const confirmPaymentAndCheckIn = onCall<ConfirmPaymentAndCheckInInput>(
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
-    const { eventId, guestId, method } = request.data || {}
+    const { eventId, guestId, method, selection } = request.data || {}
     ctx.addContext({ uid: request.auth.uid, eventId, guestId })
     if (!eventId || !guestId) {
       throw new HttpsError('invalid-argument', 'Faltan datos para confirmar el pago y registrar el ingreso.')
     }
     if (method !== undefined && !VALID_METHODS.includes(method)) {
       throw new HttpsError('invalid-argument', 'Método de pago inválido.')
+    }
+    if (selection !== undefined && (!Array.isArray(selection) || !selection.every((i) => typeof i === 'number'))) {
+      throw new HttpsError('invalid-argument', 'Selección de personas inválida.')
     }
 
     const db = getFirestore()
@@ -54,12 +59,13 @@ export const confirmPaymentAndCheckIn = onCall<ConfirmPaymentAndCheckInInput>(
       scannedBy: request.auth.uid,
       scannedByEmail: request.auth.token.email ?? null,
       source: { kind: 'manual', uid: request.auth.uid },
+      selection,
     })
     if (!result.ok) {
       throw new HttpsError('not-found', result.reason === 'event_not_found' ? 'El evento no existe.' : 'El invitado no existe en este evento.')
     }
     logBusinessEvent(ctx.logger, BUSINESS_EVENTS.PAYMENT_CONFIRMED, { eventId, guestId, method })
-    logBusinessEvent(ctx.logger, BUSINESS_EVENTS.CHECKIN_SUCCESS, { eventId, guestId })
+    if (result.checkIn === 'success') logBusinessEvent(ctx.logger, BUSINESS_EVENTS.CHECKIN_SUCCESS, { eventId, guestId })
     return result
   }),
 )

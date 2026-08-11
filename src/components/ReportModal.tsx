@@ -132,15 +132,20 @@ export function ReportModal({
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
           <div className="px-6 py-4 space-y-4 overflow-y-auto">
             <div>
-              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">
+              <label htmlFor="report-reason" className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">
                 ¿Por qué quieres reportar este contenido? <span className="text-red-500">*</span>
               </label>
               <textarea
+                id="report-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
                 required
                 maxLength={REPORT_REASON_MAX}
+                // Abre en respuesta directa a que el usuario tocó "Reportar"
+                // (nunca al cargar la página) — ver el comentario de arriba
+                // sobre por qué el formulario tiene scroll propio.
+                // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
                 placeholder="Describe brevemente el problema…"
                 className="w-full border border-gray-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white rounded-md text-sm px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary"

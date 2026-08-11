@@ -24,14 +24,17 @@ export function ExitConfirmDialog({
   const dialogRef = useAccessibleModal<HTMLDivElement>(true, onCancel)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-[env(safe-area-inset-bottom)] sm:pb-0"
+      role="presentation"
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
+    >
       <div
         ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
         aria-label="Registrar salida"
         className="bg-gray-800 text-white rounded-t-3xl sm:rounded-2xl shadow-xl max-w-sm w-full p-8 text-center animate-bounce-in"
-        onClick={(e) => e.stopPropagation()}
       >
         <IconLogOut className="w-14 h-14 mb-3 mx-auto" />
         <h2 className="text-2xl font-semibold mb-1">Registrar salida</h2>

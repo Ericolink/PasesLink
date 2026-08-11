@@ -12,6 +12,7 @@ import { IconCheckCircle } from '../components/accessibility/AccessibleIcon'
 import { FeedbackCategoryIcon } from '../components/FeedbackCategoryIcon'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { AccessibleButton } from '../components/accessibility/AccessibleButton'
+import { RadioGroup, RadioGroupOption } from '../components/accessibility/AccessibleField'
 
 // Orden pensado para la grilla del formulario, no el orden de FeedbackCategory
 // en src/types/index.ts (ahí van agrupados con sus labels).
@@ -111,16 +112,15 @@ export function Feedback() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Categoría</label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <p className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Categoría</p>
+          <RadioGroup label="Categoría" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {CATEGORY_ORDER.map((cat) => {
               const active = category === cat
               return (
-                <button
+                <RadioGroupOption
                   key={cat}
-                  type="button"
-                  onClick={() => setCategory(cat)}
-                  aria-pressed={active}
+                  selected={active}
+                  onSelect={() => setCategory(cat)}
                   className={`flex flex-col items-center gap-1.5 text-xs font-medium rounded-lg border-2 px-2 py-3 text-center transition-all ${
                     active
                       ? 'border-primary ring-2 ring-primary/20 bg-primary/5 text-primary'
@@ -129,10 +129,10 @@ export function Feedback() {
                 >
                   <FeedbackCategoryIcon category={cat} className="w-5 h-5" />
                   {FEEDBACK_CATEGORY_LABELS[cat]}
-                </button>
+                </RadioGroupOption>
               )
             })}
-          </div>
+          </RadioGroup>
         </div>
 
         <div>
