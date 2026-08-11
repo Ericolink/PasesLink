@@ -62,6 +62,20 @@ export function canManageConcessions(event: DocumentData, uid: string): boolean 
   return perms?.[uid]?.manageConcessions ?? false
 }
 
+// Mismo criterio, para el permiso `manageCoOrganizers` (createCoOrganizerInvite,
+// ver functions/src/callable/) — default `?? false`, igual que
+// LEGACY_COORG_DEFAULTS.manageCoOrganizers (src/types/coOrganizerPermissions.ts):
+// a diferencia de la mayoría de los permisos (default amplio `true`), gestionar
+// coorganizadores es sensible y arranca cerrado salvo que el dueño lo otorgue
+// explícitamente.
+export function canManageCoOrganizers(event: DocumentData, uid: string): boolean {
+  if (event.ownerId === uid) return true
+  const coOrganizersMap = event.coOrganizersMap as Record<string, unknown> | undefined
+  if (!coOrganizersMap || !(uid in coOrganizersMap)) return false
+  const perms = event.coOrganizerPermissions as Record<string, Record<string, boolean>> | undefined
+  return perms?.[uid]?.manageCoOrganizers ?? false
+}
+
 // Puerto de guestLockTokensOk en firestore.rules: sin `lockTokens` o vacío
 // (pase sin reclamar todavía) siempre pasa; si no, el token entrante debe
 // estar en la lista de dispositivos ya reconocidos. Usada por

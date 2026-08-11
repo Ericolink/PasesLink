@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { AccessibleModal } from './accessibility/AccessibleModal'
 import { DialogFooter } from './DialogFooter'
@@ -16,6 +16,14 @@ interface Props {
   danger?: boolean
   onConfirm: () => void
   onCancel: () => void
+  // Mismo patrón que GitHub para borrar un repositorio: si se pasa, el botón
+  // de confirmar queda deshabilitado hasta que se escriba EXACTAMENTE este
+  // texto (case-sensitive a propósito — "Eliminar EVENTO" vs "eliminar
+  // evento" no deberían confundirse entre sí). Pensado para la acción más
+  // irreversible del panel de administración del evento (eliminar evento
+  // definitivamente); cualquier otro ConfirmDialog puede sumarlo si necesita
+  // el mismo nivel de fricción.
+  confirmationText?: string
 }
 
 export function ConfirmDialog({
@@ -27,18 +35,37 @@ export function ConfirmDialog({
   danger = false,
   onConfirm,
   onCancel,
+  confirmationText,
 }: Props) {
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const typedInputRef = useRef<HTMLInputElement>(null)
+  const [typedText, setTypedText] = useState('')
+  const requiresTypedConfirmation = confirmationText !== undefined
+  const canConfirm = !requiresTypedConfirmation || typedText === confirmationText
 
   // Foco intencional en "Confirmar" (no en "Cancelar", que aparece primero
-  // en el DOM). Este efecto vive en el padre de <AccessibleModal>, así que corre
-  // DESPUÉS del useAccessibleModal interno de AccessibleModal (los efectos de hijos corren
-  // antes que los del padre en el mismo commit) — el resultado es el mismo
-  // que antes: el fallback del hook enfoca "Cancelar" por un instante sin
-  // pintar, y este efecto le roba el foco a "Confirmar" en el mismo commit.
+  // en el DOM) — salvo que haya que escribir un texto antes: ahí el foco va
+  // al input, porque el botón "Confirmar" arranca deshabilitado y no tiene
+  // sentido enfocar un control inerte. Este efecto vive en el padre de
+  // <AccessibleModal>, así que corre DESPUÉS del useAccessibleModal interno
+  // de AccessibleModal (los efectos de hijos corren antes que los del padre
+  // en el mismo commit) — el resultado es el mismo que antes: el fallback
+  // del hook enfoca "Cancelar" por un instante sin pintar, y este efecto le
+  // roba el foco al control correcto en el mismo commit.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (open) confirmRef.current?.focus()
-  }, [open])
+    if (!open) {
+      // Limpia el texto tecleado al cerrarse (cancelar, ESC, confirmar) —
+      // sin esto, reabrir el mismo diálogo (ej. el organizador cancela y
+      // vuelve a intentar) arrancaría con la confirmación ya "desbloqueada"
+      // de la vez anterior, justo lo que este control busca evitar.
+      setTypedText('')
+      return
+    }
+    if (requiresTypedConfirmation) typedInputRef.current?.focus()
+    else confirmRef.current?.focus()
+  }, [open, requiresTypedConfirmation])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <AccessibleModal open={open} onClose={onCancel} label={title} role={danger ? 'alertdialog' : 'dialog'}>
@@ -63,6 +90,25 @@ export function ConfirmDialog({
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{title}</h2>
           <div className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{message}</div>
         </div>
+        {requiresTypedConfirmation && (
+          <div className="px-6 pb-2">
+            <label htmlFor="confirm-dialog-typed-text" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+              Para confirmar, escribe <span className="font-mono font-semibold text-gray-900 dark:text-white break-all">{confirmationText}</span>
+            </label>
+            <input
+              ref={typedInputRef}
+              id="confirm-dialog-typed-text"
+              type="text"
+              value={typedText}
+              onChange={(e) => setTypedText(e.target.value)}
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+        )}
       </div>
       {/* gap-4 (en vez del gap-3 del footer por defecto): separación extra
           pensada para reducir el riesgo de tocar el botón equivocado en una
@@ -71,7 +117,13 @@ export function ConfirmDialog({
         <AccessibleButton variant="secondary" onClick={onCancel} className="flex-1">
           {cancelLabel}
         </AccessibleButton>
-        <AccessibleButton ref={confirmRef} variant={danger ? 'danger' : 'primary'} onClick={onConfirm} className="flex-1">
+        <AccessibleButton
+          ref={confirmRef}
+          variant={danger ? 'danger' : 'primary'}
+          onClick={onConfirm}
+          disabled={!canConfirm}
+          className="flex-1"
+        >
           {confirmLabel}
         </AccessibleButton>
       </DialogFooter>

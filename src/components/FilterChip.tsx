@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
 
-// Extraído de GuestSearchSheet.tsx (era un componente local ahí) — ahora
-// tiene 2 llamadores reales (GuestSearchSheet y MassMessageComposer), lo que
-// justifica moverlo a un archivo compartido en vez de duplicar el mismo
-// botón-pill dos veces.
+// Extraído de GuestSearchSheet.tsx (era un componente local ahí) — archivo
+// compartido para el botón-pill de filtros en vez de duplicarlo en cada
+// pantalla que necesite el mismo patrón.
 export function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button

@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CountryCode } from 'libphonenumber-js/min'
 import { addGuest, addGuestsBulk, type ImportedGuestRow } from '../firebase/guests'
 import { cancelCsvImportJob, startCsvImportJob, subscribeToCsvImportJob, type CsvImportJob } from '../firebase/csvImportJobs'
 import { parseGuestsCsv } from '../utils/csvImport'
 import { CompanionFieldsEditor } from './CompanionFields'
 import { ConfirmDialog } from './ConfirmDialog'
-import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { Tab, TabList, TabPanel, Tabs } from './accessibility/AccessibleTabs'
 import { AccessibleButton } from './accessibility/AccessibleButton'
 import { AccessibleField, FieldError, InputField } from './accessibility/AccessibleField'
-import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_MAX_COMPANIONS, GUEST_NAME_PART_MAX, GUEST_PHONE_MAX } from '../utils/validation'
+import { GUEST_CUSTOM_FIELD_VALUE_MAX, GUEST_FULL_NAME_MAX, GUEST_GROUP_MAX_MEMBERS, GUEST_NAME_PART_MAX } from '../utils/validation'
 import { CustomFieldInput } from './CustomFieldInput'
 import { captureException } from '../lib/sentry'
 import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
@@ -59,16 +57,20 @@ export function GuestAddForm({
   eventId,
   guests,
   customFields = [],
+  maxCompanions,
 }: {
   eventId: string
   guests: GuestData[]
   customFields?: CustomField[]
+  // Techo real de acompañantes del evento (resolveMaxCompanions(event)) —
+  // antes el alta manual solo respetaba el techo técnico GUEST_MAX_COMPANIONS,
+  // sin importar la configuración del organizador; ahora respeta la misma
+  // que ya aplica auto-registro (rediseño del Dashboard del Evento).
+  maxCompanions: number
 }) {
   const [mode, setMode] = useState<'single' | 'group' | 'bulk' | 'csv'>('single')
   const [name, setName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [phoneCountry, setPhoneCountry] = useState<CountryCode>(DEFAULT_PHONE_COUNTRY)
   const [companions, setCompanions] = useState<CompanionData[]>([])
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [groupCustomValues, setGroupCustomValues] = useState<Record<string, string>>({})
@@ -154,6 +156,15 @@ export function GuestAddForm({
     [guests],
   )
 
+  // Solo los campos que el organizador marcó `appliesToCompanions` se piden
+  // por cada acompañante (mismo criterio que EventJoin.tsx usa para
+  // auto-registro) — el resto de customFields solo se le pide al invitado
+  // principal, más abajo.
+  const companionCustomFields = useMemo(
+    () => customFields.filter((f) => f.appliesToCompanions),
+    [customFields],
+  )
+
   function findBulkDuplicates(names: string[]): string[] {
     const seen = new Set<string>()
     const duplicates = new Set<string>()
@@ -169,13 +180,11 @@ export function GuestAddForm({
     setLoading(true)
     setError('')
     try {
-      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), phone: phone.trim(), phoneCountry, companions, customData: customValues })
+      await addGuest(eventId, { name: name.trim(), lastName: lastName.trim(), companions, customData: customValues })
       trackGuestAdd(eventId)
       announce(`Invitado agregado: ${name.trim()} ${lastName.trim()}`)
       setName('')
       setLastName('')
-      setPhone('')
-      setPhoneCountry(DEFAULT_PHONE_COUNTRY)
       setCompanions([])
       setCustomValues({})
     } catch (err) {
@@ -364,7 +373,7 @@ export function GuestAddForm({
 
         <TabPanel value="single">
         <form onSubmit={handleSingleSubmit} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <InputField
               label="Nombre"
               labelClassName="sr-only"
@@ -387,27 +396,13 @@ export function GuestAddForm({
               onChange={(e) => setLastName(e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <div className="flex items-center gap-1">
-              <CountryCodeSelect value={phoneCountry} onChange={setPhoneCountry} aria-label="País del teléfono" className="border border-gray-300 rounded-md px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" />
-              <InputField
-                label="Teléfono (opcional)"
-                labelClassName="sr-only"
-                containerClassName="flex-1 min-w-0"
-                type="tel"
-                maxLength={GUEST_PHONE_MAX}
-                placeholder="Teléfono (opcional)"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
           </div>
 
           <CompanionFieldsEditor
             companions={companions}
             onChange={setCompanions}
-            maxCompanions={GUEST_MAX_COMPANIONS}
-            limitReachedMessage={`No se pueden agregar más de ${GUEST_MAX_COMPANIONS} acompañantes por invitado.`}
+            maxCompanions={maxCompanions}
+            customFields={companionCustomFields}
           />
 
           {customFields.length > 0 && (

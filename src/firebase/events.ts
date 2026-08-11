@@ -26,7 +26,7 @@ function clampMaxCompanions(value: number | undefined): number {
   return Math.min(Math.max(Math.trunc(value ?? 0), 0), GUEST_MAX_COMPANIONS)
 }
 import { EventSchema, warnIfInvalidShape } from '../types/schemas'
-import { LEGACY_COORG_DEFAULTS, type CoOrganizerPermissions } from '../types/coOrganizerPermissions'
+import type { CoOrganizerPermissions } from '../types/coOrganizerPermissions'
 import type { ConcessionsConfig } from '../types/concessions'
 
 export interface NewEventInput {
@@ -329,22 +329,6 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     gifts: input.gifts || {},
     departureReminderBufferMinutes: input.departureReminderBufferMinutes ?? 15,
     communityTemplateSnapshot: input.communityTemplateSnapshot ?? null,
-    updatedAt: serverTimestamp(),
-  })
-}
-
-// `permissions` por defecto LEGACY_COORG_DEFAULTS: agregar un co-organizador
-// sigue siendo un flujo de un solo paso (email + botón) — quien quiera
-// otorgar un set distinto lo ajusta después con updateCoOrganizerPermissions.
-export async function addCoOrganizer(
-  eventId: string,
-  uid: string,
-  email: string,
-  permissions: CoOrganizerPermissions = LEGACY_COORG_DEFAULTS,
-) {
-  await updateDoc(doc(db, 'events', eventId), {
-    [`coOrganizersMap.${uid}`]: email,
-    [`coOrganizerPermissions.${uid}`]: permissions,
     updatedAt: serverTimestamp(),
   })
 }

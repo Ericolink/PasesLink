@@ -19,6 +19,7 @@ import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/business
 interface RegisterWalkInGuestInput {
   eventId: string
   name: string
+  lastName?: string
   email?: string
   phone?: string
   phoneCountry?: string
@@ -43,7 +44,7 @@ export type RegisterWalkInGuestResponse =
 export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
   { secrets: [brevoApiKey, brevoSenderEmail], maxInstances: 15, timeoutSeconds: 30 },
   (request) => withCallableObservability(request, 'registerWalkInGuest', async (ctx): Promise<RegisterWalkInGuestResponse> => {
-    const { eventId, name, email, phone, phoneCountry, customData, companions, paymentMethod } = request.data || {}
+    const { eventId, name, lastName, email, phone, phoneCountry, customData, companions, paymentMethod } = request.data || {}
     ctx.addContext({ uid: request.auth?.uid, eventId })
     if (!eventId || !name) {
       throw new HttpsError('invalid-argument', 'Faltan datos para completar el registro.')
@@ -53,6 +54,7 @@ export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
     try {
       const result = await registerWalkInGuestService(db, eventId, {
         name,
+        lastName,
         email,
         phone,
         phoneCountry,

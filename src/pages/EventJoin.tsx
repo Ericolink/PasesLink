@@ -277,12 +277,15 @@ export function EventJoin() {
       : event.paymentMethods[0]
 
   const customFields = event?.customFields || []
-  // Los mismos campos personalizados que el organizador marcó obligatorios
-  // para el invitado principal (más abajo, customFields.map) — un
-  // acompañante nuevo debe completarlos también (ver validateCompanionFields
-  // en utils/validation.ts). Los campos opcionales no se piden a los
-  // acompañantes, solo al invitado principal.
-  const requiredCustomFields = customFields.filter((f) => f.required)
+  // Un campo personalizado solo se pide por acompañante si el organizador lo
+  // marcó `appliesToCompanions` (rediseño del Dashboard del Evento) — antes
+  // se exigían TODOS los campos requeridos del evento a cada acompañante,
+  // sin distinción; ahora el organizador decide cuáles aplican más allá del
+  // invitado principal. `companionCustomFields` gobierna qué inputs se
+  // renderizan por acompañante; `requiredCompanionFields` (subconjunto,
+  // `required: true`) es lo que valida validateCompanionFields.
+  const companionCustomFields = customFields.filter((f) => f.appliesToCompanions)
+  const requiredCompanionFields = companionCustomFields.filter((f) => f.required)
   // Tamaño real del grupo del formulario de registro — se deriva de los
   // datos de acompañantes ya cargados, nunca de un contador aparte que
   // pudiera desincronizarse de lo que realmente se va a guardar.
@@ -330,7 +333,7 @@ export function EventJoin() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!id || !name.trim() || !lastName.trim()) return
-    const nextCompanionErrors = companions.map((c) => validateCompanionFields(c, requiredCustomFields))
+    const nextCompanionErrors = companions.map((c) => validateCompanionFields(c, requiredCompanionFields))
     if (nextCompanionErrors.some(companionFieldsHaveErrors)) {
       setCompanionErrors(nextCompanionErrors)
       setRegError('Completa los datos de tus acompañantes para continuar.')
@@ -348,7 +351,8 @@ export function EventJoin() {
       const fullName = `${name.trim()} ${lastName.trim()}`
       const result = await registerWalkInGuest(
         id,
-        fullName,
+        name.trim(),
+        lastName.trim(),
         email,
         phone,
         customValues,
@@ -850,11 +854,11 @@ export function EventJoin() {
                       </div>
                     )}
                   </AccessibleField>
-                  {requiredCustomFields.map((field) => (
+                  {companionCustomFields.map((field) => (
                     <AccessibleField
                       key={field.id}
                       label={field.label}
-                      required
+                      required={field.required}
                       error={errors.customData?.[field.id]}
                       labelClassName={labelClass}
                     >

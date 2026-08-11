@@ -1,11 +1,62 @@
 import { useState } from 'react'
+import { QRCodeCanvas } from 'qrcode.react'
 import type { EventData } from '../types'
 import type { useCoOrganizers } from '../hooks/useCoOrganizers'
 import { LEGACY_COORG_DEFAULTS } from '../types/coOrganizerPermissions'
+import { QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 import { AccessibleButton } from './accessibility/AccessibleButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoOrganizerPermissionsEditor } from './CoOrganizerPermissionsEditor'
-import { IconX } from './accessibility/AccessibleIcon'
+import { IconCheck, IconCopy, IconShare, IconX } from './accessibility/AccessibleIcon'
+
+// Copiar/compartir el enlace generado — mismo patrón que PublicLink
+// (src/pages/EventDetail.tsx), reescrito acá porque ese helper es local a
+// ese archivo y no vale la pena exportarlo por un solo caso de reuso más.
+function InviteLink({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    await navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function share() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Invitación de coorganizador', url })
+        return
+      } catch {
+        return
+      }
+    }
+    copy()
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+      <p className="text-sm text-gray-700 dark:text-gray-300 truncate min-w-0">{url}</p>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          onClick={copy}
+          aria-label="Copiar enlace"
+          title="Copiar enlace"
+          className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition-colors"
+        >
+          {copied ? <IconCheck className="w-4 h-4 text-primary" /> : <IconCopy className="w-4 h-4" />}
+        </button>
+        <button
+          onClick={share}
+          aria-label="Compartir enlace"
+          title="Compartir enlace"
+          className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-lg bg-primary text-white hover:opacity-90 transition-colors"
+        >
+          <IconShare className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 interface Props {
   event: EventData
@@ -24,7 +75,7 @@ interface Props {
 export function CoOrganizerPanel({ event, open, coOrg }: Props) {
   const [expandedCoOrgUid, setExpandedCoOrgUid] = useState<string | null>(null)
   const [removingCoOrg, setRemovingCoOrg] = useState<{ uid: string; email: string } | null>(null)
-  const { coOrgEmail, setCoOrgEmail, coOrgLoading, coOrgError, setCoOrgError, handleAddCoOrg, handleRemoveCoOrg, handleUpdatePermissions } = coOrg
+  const { handleRemoveCoOrg, handleUpdatePermissions, invite, inviteLoading, inviteError, handleGenerateInvite } = coOrg
 
   if (!open) return null
 
@@ -74,19 +125,36 @@ export function CoOrganizerPanel({ event, open, coOrg }: Props) {
             })}
           </div>
         )}
-        <form onSubmit={handleAddCoOrg} className="flex gap-2">
-          <input
-            type="email"
-            value={coOrgEmail}
-            onChange={(e) => { setCoOrgEmail(e.target.value); setCoOrgError('') }}
-            placeholder="email@ejemplo.com"
-            className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
-          />
-          <AccessibleButton type="submit" size="sm" disabled={coOrgLoading || !coOrgEmail.trim()}>
-            {coOrgLoading ? '…' : 'Agregar'}
-          </AccessibleButton>
-        </form>
-        {coOrgError && <p className="text-xs text-red-500 mt-1.5">{coOrgError}</p>}
+        {/* Única vía de alta: enlace/QR de un solo uso — no requiere que la
+            otra persona ya tenga cuenta ni que el organizador sepa su correo
+            de antemano (rediseño del Dashboard del Evento: se quitó el alta
+            directa por correo). */}
+        <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+          {invite ? (
+            <div className="space-y-3">
+              <InviteLink url={invite.url} />
+              <div className="flex justify-center bg-white p-3 rounded-lg w-fit mx-auto">
+                <QRCodeCanvas value={invite.url} size={128} marginSize={QR_QUIET_ZONE_MODULES} title="Código QR de la invitación" />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                Válido por 7 días o hasta que alguien lo use, lo que pase primero.
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleGenerateInvite()}
+                disabled={inviteLoading}
+                className="w-full text-xs text-primary font-medium hover:underline text-center"
+              >
+                {inviteLoading ? 'Generando…' : 'Generar un enlace nuevo'}
+              </button>
+            </div>
+          ) : (
+            <AccessibleButton onClick={() => void handleGenerateInvite()} disabled={inviteLoading} className="w-full">
+              {inviteLoading ? 'Generando…' : 'Generar enlace de invitación'}
+            </AccessibleButton>
+          )}
+          {inviteError && <p className="text-xs text-red-500 mt-1.5">{inviteError}</p>}
+        </div>
       </div>
 
       <ConfirmDialog

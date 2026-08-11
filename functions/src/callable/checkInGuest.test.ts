@@ -31,6 +31,31 @@ describe('checkInGuest (Callable)', () => {
     expect(guest?.status).toBe('checked_in')
   })
 
+  // Regresión (bug real y grave, encontrado 2026-08-11 al investigar un
+  // reporte similar en setGuestPaymentStatus): el cliente de Callable
+  // Functions serializa una `selection` no enviada como `null`, nunca como
+  // `undefined` (ver encode() en @firebase/functions) — el escáner llama a
+  // checkInGuest SIN `selection` para el caso normal (invitado solo, o
+  // sondeo inicial de cualquier invitado), así que en el body real que
+  // recibe la Cloud Function siempre llegaba `selection: null`, no
+  // `undefined`. `fakeCallableRequest` pasa `data` directo sin ese paso de
+  // serialización, así que hay que mandar `selection: null` a mano para
+  // reproducir el body real. Antes de la corrección, esto rechazaba TODO
+  // check-in sin selección explícita con "Selección de personas inválida."
+  it('checks in a solo guest when selection arrives as null (real wire payload, not undefined)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, checkedInCount: 0 })
+    await seedGuest(db, eventId, 'guest-1', { qrToken: QR_TOKEN })
+
+    const result = await checkInGuest.run(
+      fakeCallableRequest({ eventId, qrToken: QR_TOKEN, selection: null }, OWNER_UID),
+    )
+
+    expect(result).toMatchObject({ status: 'success' })
+    const guest = await getGuestDoc(db, eventId, 'guest-1')
+    expect(guest?.status).toBe('checked_in')
+  })
+
   it('rejects an unauthenticated caller', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { ownerId: OWNER_UID })

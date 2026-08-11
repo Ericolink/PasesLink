@@ -139,14 +139,16 @@ describe('registerWalkInGuest (servicio)', () => {
     ).rejects.toThrow('no son válidos')
   })
 
-  it('requires each companion to answer a custom field that is required for the primary guest', async () => {
-    // Misma configuración de EventData.customFields que ve el invitado
-    // principal — no una lista de campos obligatorios aparte para
-    // acompañantes (ver validatePublicCompanions).
+  it('requires each companion to answer a custom field that is required AND appliesToCompanions', async () => {
+    // Rediseño del Dashboard del Evento (2026-08-11): un campo requerido
+    // para el invitado principal YA NO se exige automáticamente a cada
+    // acompañante — el organizador tiene que marcarlo `appliesToCompanions`
+    // explícitamente (ver validatePublicCompanions). Antes de este cambio,
+    // "required: true" alcanzaba por sí solo.
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, {
       entryMode: 'open',
-      customFields: [{ id: 'tshirt', label: 'Talla de camiseta', type: 'text', required: true }],
+      customFields: [{ id: 'tshirt', label: 'Talla de camiseta', type: 'text', required: true, appliesToCompanions: true }],
     })
 
     await expect(
@@ -158,11 +160,27 @@ describe('registerWalkInGuest (servicio)', () => {
     ).rejects.toThrow('obligatorio')
   })
 
-  it('accepts a companion who answers the required custom field, and stores it on that companion', async () => {
+  it('does not require a companion to answer a field that is required but lacks appliesToCompanions', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, {
       entryMode: 'open',
       customFields: [{ id: 'tshirt', label: 'Talla de camiseta', type: 'text', required: true }],
+    })
+
+    const result = await registerWalkInGuest(db, eventId, {
+      name: 'Ana López',
+      customData: { tshirt: 'M' },
+      companions: [{ name: 'Beto', lastName: 'López' }],
+    })
+
+    expect(result.status).toBe('success')
+  })
+
+  it('accepts a companion who answers a required+appliesToCompanions custom field, and stores it on that companion', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, {
+      entryMode: 'open',
+      customFields: [{ id: 'tshirt', label: 'Talla de camiseta', type: 'text', required: true, appliesToCompanions: true }],
     })
 
     const result = await registerWalkInGuest(db, eventId, {

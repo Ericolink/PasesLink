@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import type { EntryMode } from '../types'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -16,6 +17,7 @@ import { trackEventOpen } from '../lib/analytics'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
+import { EventNextSteps } from '../components/EventNextSteps'
 import { WaitlistPanel } from '../components/WaitlistPanel'
 import { ReconfirmPanel } from '../components/ReconfirmPanel'
 import { GuestList } from '../components/GuestList'
@@ -27,10 +29,6 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { SkeletonBlock } from '../components/Skeleton'
 import { ReminderSection } from '../components/ReminderSection'
-import { SendHistoryPanel } from '../components/SendHistoryPanel'
-import { MassMessageComposer } from '../components/MassMessageComposer'
-import { MassMessageHistory } from '../components/MassMessageHistory'
-import { AccessibleButton } from '../components/accessibility/AccessibleButton'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { EventCountdown } from '../components/EventCountdown'
@@ -44,12 +42,16 @@ import {
   IconCheckCircle,
   IconCopy,
   IconEdit,
+  IconGlobe,
   IconLink,
   IconLogOut,
   IconMapPin,
+  IconMessageSquare,
   IconSearch,
   IconShare,
+  IconShuffle,
   IconUserPlus,
+  IconUsers,
 } from '../components/accessibility/AccessibleIcon'
 
 export function EventDetail() {
@@ -69,7 +71,6 @@ export function EventDetail() {
   const [guestSearchSheetOpen, setGuestSearchSheetOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(false)
   const [manageCoOrgOpen, setManageCoOrgOpen] = useState(false)
-  const [massMessageOpen, setMassMessageOpen] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [checkinToast, dismissCheckinToast] = useCheckinToast(eventId)
@@ -83,7 +84,7 @@ export function EventDetail() {
     handleExportExcel,
     handleCancelExport,
   } = useEventExport(event, guests)
-  const coOrg = useCoOrganizers(eventId, event?.ownerId, event?.coOrganizersMap)
+  const coOrg = useCoOrganizers(eventId, event?.coOrganizersMap)
   const { handleLeaveEvent } = coOrg
   const perms = useEventPermissions(event, user)
   const { isAdmin } = useIsAdmin()
@@ -237,8 +238,11 @@ export function EventDetail() {
 
       {/* ── ACCIONES PRIMARIAS ── movidas antes del hero (que puede incluir
           una imagen de portada + countdown y ocupar fácilmente el primer
-          viewport en mobile): Escanear/Muro/Reportes deben quedar visibles
-          sin scroll apenas se entra al evento. */}
+          viewport en mobile): Escanear/Reportes deben quedar visibles sin
+          scroll apenas se entra al evento. Muro es una acción secundaria
+          (mucho menos frecuente que escanear) — baja a ícono para no competir
+          visualmente con la acción del día del evento (rediseño del
+          Dashboard del Evento). */}
       <div className="flex gap-2.5 mb-5">
         <Link
           to={`/events/${event.id}/scan`}
@@ -247,19 +251,21 @@ export function EventDetail() {
           Escanear pases
         </Link>
         <Link
-          to={`/events/${event.id}/wall`}
-          className="relative border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
-        >
-          Muro
-          {hasUnseenWallMessage && (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
-          )}
-        </Link>
-        <Link
           to={`/events/${event.id}/reports`}
           className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
         >
           Reportes
+        </Link>
+        <Link
+          to={`/events/${event.id}/wall`}
+          aria-label="Muro del evento"
+          title="Muro del evento"
+          className="relative border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl w-12 shrink-0 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+        >
+          <IconMessageSquare className="w-4 h-4" />
+          {hasUnseenWallMessage && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
+          )}
         </Link>
       </div>
 
@@ -382,6 +388,21 @@ export function EventDetail() {
             </div>
           </div>
 
+          {/* Acceso y capacidad: antes vivían en cards aparte más abajo
+              (Auto-registro, banner de cupo) — acá, junto al resto de los
+              datos del evento, responden "¿quién tiene acceso?" y "¿cuántos
+              caben?" sin bajar en la pantalla (rediseño del Dashboard del
+              Evento). */}
+          <div className="flex items-center gap-2 flex-wrap mt-3">
+            <AccessModeChip mode={event.entryMode} />
+            {event.capacity > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full px-2.5 py-1">
+                <IconUsers className="w-3 h-3" />
+                Cupo: {event.capacity}
+              </span>
+            )}
+          </div>
+
           <EventCountdown
             date={event.date}
             startTime={event.startTime}
@@ -427,32 +448,77 @@ export function EventDetail() {
       )}
 
 
-      {/* ── RESUMEN RÁPIDO ── el detalle analítico completo (métricas, RSVP,
-          recaudado, hora pico, línea de tiempo) vive en Reportes; acá solo el
-          estado operativo que hace falta de un vistazo mientras se gestiona
-          el evento. Va antes que Auto-registro: durante el evento, el estado
-          de check-ins es más prioritario que gestionar el enlace de registro. */}
-      <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-3">
-        <AttendanceProgressBar
-          present={event.checkedInCount}
-          expected={totalPeople}
-          unitLabel="check-ins"
-          showPercentage
-        />
-        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mt-3">
-          <span>{event.guestCount} registrados</span>
-          <span className="text-primary font-medium">{event.occupancyCount} dentro ahora</span>
+      {/* ── QUÉ SIGUE ── responde directo "¿qué necesito hacer ahora?"; se
+          oculta sola si no hay ninguna tarea pendiente. */}
+      <EventNextSteps
+        event={event}
+        guests={guests}
+        totalPeople={totalPeople}
+        coOrganizersCount={Object.entries(coOrgsMap).length}
+        canAddGuests={perms.addGuests}
+        canManageCoOrganizers={perms.manageCoOrganizers}
+        onOpenCoOrganizers={() => setManageCoOrgOpen(true)}
+      />
+
+      {/* ── ESTADO OPERATIVO ── fusiona lo que antes eran dos cards
+          separadas ("Resumen rápido" de check-ins y el banner de cupo): las
+          dos responden la misma pregunta ("¿cómo va mi evento ahora
+          mismo?"), no ameritan estar partidas. El detalle analítico completo
+          (métricas, RSVP, recaudado, hora pico, línea de tiempo) sigue
+          viviendo en Reportes; acá solo el estado operativo de un vistazo. */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5 space-y-4">
+        <div>
+          <AttendanceProgressBar
+            present={event.checkedInCount}
+            expected={totalPeople}
+            unitLabel="check-ins"
+            showPercentage
+          />
+          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mt-3">
+            <span>{event.guestCount} registrados</span>
+            <span className="text-primary font-medium">{event.occupancyCount} dentro ahora</span>
+          </div>
         </div>
+
+        {/* Con el límite activado (CAPACITY_LIMIT_ARCHITECTURE.md), esta
+            sección reemplaza el aviso informativo de siempre por el estado
+            real del cupo — barra de progreso + alerta roja cuando se llena.
+            Con el límite desactivado (todo evento antes de esta feature),
+            sigue el aviso de "cupo recomendado" de siempre, sin cambios. */}
+        {event.attendeeLimitEnabled ? (
+          <div className={`pt-4 border-t ${
+            totalPeople >= event.capacity
+              ? 'border-red-200 dark:border-red-900/50'
+              : 'border-gray-100 dark:border-gray-700'
+          }`}>
+            {totalPeople >= event.capacity && (
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">🔴 Evento lleno</p>
+            )}
+            <AttendanceProgressBar present={totalPeople} expected={event.capacity} unitLabel="asistentes" showPercentage />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {totalPeople >= event.capacity
+                ? 'El autorregistro y las altas manuales están cerrados hasta que se libere un lugar.'
+                : `Cupos disponibles: ${Math.max(0, event.capacity - totalPeople)}`}
+            </p>
+          </div>
+        ) : (
+          event.capacity > 0 && totalPeople > event.capacity && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2 pt-4 border-t border-gray-100 dark:border-gray-700">
+              Este evento superó su cupo recomendado ({totalPeople} / {event.capacity} personas). Los nuevos registros
+              siguen entrando — el ingreso el día del evento dependerá del orden de llegada.
+            </p>
+          )
+        )}
       </div>
 
-      {/* ── AUTO-REGISTRO ── compacto: es de las acciones más usadas
-          durante la organización (copiar/compartir el enlace), así que no
+      {/* ── ACCESO ── compacto: compartir/copiar el enlace de auto-registro
+          es de las acciones más usadas durante la organización, así que no
           debe requerir scroll hasta el final de la pantalla. */}
       {event.entryMode !== 'list' && perms.shareInviteLink && (
         <div id="open-entry-links" className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">
             <IconLink className="w-3.5 h-3.5 text-primary" />
-            Auto-registro
+            Acceso
           </h2>
           <PublicLink
             label="Enlace de registro"
@@ -465,43 +531,16 @@ export function EventDetail() {
         </div>
       )}
 
-      {/* Con el límite activado (CAPACITY_LIMIT_ARCHITECTURE.md), este bloque
-          reemplaza el aviso informativo de siempre por el estado real del
-          cupo — barra de progreso + alerta roja cuando se llena. Con el
-          límite desactivado (todo evento antes de esta feature), sigue el
-          aviso de "cupo recomendado" de siempre, sin cambios. */}
-      {event.attendeeLimitEnabled ? (
-        <div className={`rounded-xl px-4 py-3 mb-5 border ${
-          totalPeople >= event.capacity
-            ? 'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20'
-            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
-        }`}>
-          {totalPeople >= event.capacity && (
-            <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">🔴 Evento lleno</p>
-          )}
-          <AttendanceProgressBar present={totalPeople} expected={event.capacity} unitLabel="asistentes" showPercentage />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            {totalPeople >= event.capacity
-              ? 'El autorregistro y las altas manuales están cerrados hasta que se libere un lugar.'
-              : `Cupos disponibles: ${Math.max(0, event.capacity - totalPeople)}`}
-          </p>
-        </div>
-      ) : (
-        event.capacity > 0 && totalPeople > event.capacity && (
-          <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-xl px-4 py-3 mb-5">
-            Este evento superó su cupo recomendado ({totalPeople} / {event.capacity} personas). Los nuevos registros
-            siguen entrando — el ingreso el día del evento dependerá del orden de llegada.
-          </p>
-        )
-      )}
-
       {/* Lista de espera (WAITLIST_RECONFIRMATION_ARCHITECTURE.md) — solo
           tiene sentido con el límite duro activado, y se oculta sola (sin
           renderizar nada) si todavía no hay ninguna entrada, mismo criterio
           de "no molestar a quien no usa la feature" que el resto de esta
-          página. */}
+          página. `id="waitlist"` es el destino del CTA "Ver lista de espera"
+          de la sección "Qué sigue". */}
       {event.attendeeLimitEnabled && perms.viewGuestList && (
-        <WaitlistPanel eventId={event.id} canManage={perms.addGuests} />
+        <div id="waitlist">
+          <WaitlistPanel eventId={event.id} canManage={perms.addGuests} />
+        </div>
       )}
 
       {/* Reconfirmación (WAITLIST_RECONFIRMATION_ARCHITECTURE.md Fase 2) —
@@ -527,7 +566,12 @@ export function EventDetail() {
             teléfono, por ejemplo). */}
         {perms.addGuests && (
           <div className="p-5 border-b border-gray-100 dark:border-gray-700">
-            <GuestAddForm eventId={event.id} guests={guests} customFields={event.customFields} />
+            <GuestAddForm
+              eventId={event.id}
+              guests={guests}
+              customFields={event.customFields}
+              maxCompanions={resolveMaxCompanions(event)}
+            />
           </div>
         )}
 
@@ -650,22 +694,6 @@ export function EventDetail() {
         <ReminderSection event={event} guests={guests} />
       )}
 
-      {perms.viewReports && <SendHistoryPanel eventId={event.id} />}
-
-      {/* ── MENSAJERÍA MASIVA ── */}
-      {perms.exportLists && (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 mb-5 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Mensajería masiva</p>
-            <AccessibleButton size="sm" onClick={() => setMassMessageOpen(true)}>Enviar mensaje</AccessibleButton>
-          </div>
-          <MassMessageHistory eventId={event.id} />
-        </div>
-      )}
-      {massMessageOpen && (
-        <MassMessageComposer event={event} open={massMessageOpen} onClose={() => setMassMessageOpen(false)} />
-      )}
-
       {/* ── GESTIÓN DEL EVENTO (solo propietario, colapsable) ── */}
       {perms.isOwner && <EventManagementPanel event={event} actions={eventActions} />}
 
@@ -719,6 +747,25 @@ function StatusPill({ status }: { status: string }) {
     <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full px-2.5 py-1">
       <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block" />
       Archivado
+    </span>
+  )
+}
+
+// Píldora de tipo de acceso — mismos 3 modos y textos cortos que
+// EntryModeSelector.tsx (creación/edición del evento), acá en versión
+// de solo lectura para el header del dashboard.
+const ACCESS_MODE_CONFIG = {
+  list: { Icon: IconUsers, label: 'Solo invitados' },
+  open: { Icon: IconGlobe, label: 'Registro abierto' },
+  hybrid: { Icon: IconShuffle, label: 'Invitados + registro abierto' },
+} as const
+
+function AccessModeChip({ mode }: { mode: EntryMode }) {
+  const { Icon, label } = ACCESS_MODE_CONFIG[mode]
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full px-2.5 py-1">
+      <Icon className="w-3 h-3" />
+      {label}
     </span>
   )
 }

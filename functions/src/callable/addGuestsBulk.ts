@@ -28,8 +28,7 @@ export interface AddGuestsBulkResponse {
 }
 
 // Tope defensivo sobre el tamaño del payload de una sola llamada — muy por
-// encima de cualquier lista pegada a mano, mismo criterio que
-// MASS_MESSAGE_MAX_RECIPIENTS (src/utils/validation.ts).
+// encima de cualquier lista pegada a mano.
 const MAX_GUESTS_PER_CALL = 2000
 
 // timeoutSeconds por encima del default: createGuestsWithCapacity trocea en

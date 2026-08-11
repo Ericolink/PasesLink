@@ -31,6 +31,7 @@ export interface GuestCompanionInput {
   lastName?: string
   phone?: string
   phoneCountry?: string
+  customData?: Record<string, string>
 }
 
 export interface GuestContactInput {
