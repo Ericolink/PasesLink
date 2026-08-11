@@ -126,7 +126,19 @@ export default defineConfig({
             // segundo plano para la próxima vez.
             urlPattern: /\/assets\/.*\.js$/i,
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'app-chunks-lazy', expiration: { maxEntries: 20 } },
+            options: {
+              cacheName: 'app-chunks-lazy',
+              expiration: { maxEntries: 20 },
+              // Sin esto, Workbox intenta cachear cualquier respuesta que le
+              // llegue (p. ej. un 206 Partial Content de un fetch con Range,
+              // o una respuesta corrupta) y el cache.put() falla dentro del
+              // propio SW — el navegador reporta "ServiceWorker intercepted
+              // the request and encountered an unexpected error" y el
+              // import() dinámico del chunk rechaza de forma no estándar
+              // (React.lazy explota con "e._result is undefined"). Ya lo
+              // usan las otras dos reglas de abajo (fonts, Cloudinary).
+              cacheableResponse: { statuses: [0, 200] },
+            },
           },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
