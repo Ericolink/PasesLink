@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { QueryDocumentSnapshot } from 'firebase/firestore'
-import { getConcessionsSalesHistoryPage, getConcessionsSalesSummary } from '../../firebase/concessions'
+import { deleteConcessionOrder, getConcessionsSalesHistoryPage, getConcessionsSalesSummary } from '../../firebase/concessions'
 import type { ConcessionOrder, FulfillmentStatus } from '../../types/concessions'
 import { FULFILLMENT_STATUS_LABELS } from '../../types/concessions'
 import { formatMinorUnits } from '../../utils/concessionsMoney'
 import { formatDateTimeMedium } from '../../utils/time'
 import { AccessibleButton } from '../accessibility/AccessibleButton'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingInline } from '../LoadingInline'
-import { IconInbox } from '../accessibility/AccessibleIcon'
+import { IconInbox, IconTrash } from '../accessibility/AccessibleIcon'
 
 interface Props {
   eventId: string
@@ -27,6 +28,8 @@ export function ConcessionSalesHistoryPanel({ eventId }: Props) {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
+  const [deletingOrder, setDeletingOrder] = useState<ConcessionOrder | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const currency = orders[0]?.currency
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -70,6 +73,35 @@ export function ConcessionSalesHistoryPanel({ eventId }: Props) {
     }
   }
 
+  // Borrado PERMANENTE (deleteConcessionOrder revierte stock/soldCount del
+  // catálogo) — pensado para limpiar pedidos de prueba, no para uso diario:
+  // por eso pide confirmación explícita y no tiene "deshacer". Tras borrar,
+  // se refresca el total agregado (una sola lectura server-side) en vez de
+  // recalcularlo a mano en el cliente.
+  async function handleDelete() {
+    if (!deletingOrder) return
+    const orderId = deletingOrder.id
+    setDeleting(true)
+    setError('')
+    try {
+      await deleteConcessionOrder(eventId, orderId)
+      setOrders((prev) => prev.filter((o) => o.id !== orderId))
+      setFulfillmentByOrderId((prev) => {
+        const next = { ...prev }
+        delete next[orderId]
+        return next
+      })
+      const freshSummary = await getConcessionsSalesSummary(eventId)
+      setSummary(freshSummary)
+    } catch (err) {
+      console.error('Error al borrar un pedido del historial:', err)
+      setError('No se pudo borrar el pedido. Intenta de nuevo.')
+    } finally {
+      setDeleting(false)
+      setDeletingOrder(null)
+    }
+  }
+
   if (loading) return <LoadingInline label="Cargando historial…" />
 
   const itemCount = orders.reduce((sum, o) => sum + o.itemCount, 0)
@@ -105,9 +137,21 @@ export function ConcessionSalesHistoryPanel({ eventId }: Props) {
                   <p className="font-medium text-gray-900 dark:text-white text-sm">{order.guestNameSnapshot}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{order.paidAt ? formatDateTimeMedium(order.paidAt) : ''}</p>
                 </div>
-                <p className="font-semibold text-gray-900 dark:text-white text-sm shrink-0">
-                  {formatMinorUnits(order.totalMinorUnits, order.currency)}
-                </p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                    {formatMinorUnits(order.totalMinorUnits, order.currency)}
+                  </p>
+                  <AccessibleButton
+                    iconOnly
+                    size="sm"
+                    variant="text"
+                    aria-label={`Borrar pedido de ${order.guestNameSnapshot}`}
+                    className="text-gray-400 hover:text-red-500"
+                    onClick={() => setDeletingOrder(order)}
+                  >
+                    <IconTrash className="w-4 h-4" />
+                  </AccessibleButton>
+                </div>
               </div>
               <ul className="text-sm text-gray-600 dark:text-gray-300 mb-1.5">
                 {order.items.map((line, i) => (
@@ -129,6 +173,16 @@ export function ConcessionSalesHistoryPanel({ eventId }: Props) {
           Cargar más
         </AccessibleButton>
       )}
+
+      <ConfirmDialog
+        open={!!deletingOrder}
+        title="Borrar pedido"
+        message={`¿Borrar el pedido de ${deletingOrder?.guestNameSnapshot} por ${deletingOrder ? formatMinorUnits(deletingOrder.totalMinorUnits, deletingOrder.currency) : ''}? Esta acción no se puede deshacer — desaparece del historial y el catálogo recupera el stock/conteo de ventas de ese pedido.`}
+        confirmLabel={deleting ? 'Borrando…' : 'Borrar pedido'}
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setDeletingOrder(null)}
+      />
     </div>
   )
 }

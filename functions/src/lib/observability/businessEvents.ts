@@ -23,6 +23,7 @@ export const BUSINESS_EVENTS = {
   GUEST_PROMOTED_FROM_WAITLIST: 'guest_promoted_from_waitlist',
   CONCESSION_ORDER_CREATED: 'concession_order_created',
   CONCESSION_ORDER_CANCELLED: 'concession_order_cancelled',
+  CONCESSION_ORDER_DELETED: 'concession_order_deleted',
   CO_ORGANIZER_INVITE_ACCEPTED: 'co_organizer_invite_accepted',
   CONCESSIONS_STAFF_INVITE_ACCEPTED: 'concessions_staff_invite_accepted',
 } as const

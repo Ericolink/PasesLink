@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cancelOwnConcessionOrder, subscribeToConcessionFulfillment, subscribeToConcessionOrder } from '../../../firebase/concessions'
-import type { ConcessionFulfillment, ConcessionOrder, ConcessionPaymentPhase } from '../../../types/concessions'
+import type { ConcessionFulfillment, ConcessionOrder } from '../../../types/concessions'
 import { formatMinorUnits } from '../../../utils/concessionsMoney'
 import { ConfirmDialog } from '../../ConfirmDialog'
-import { Toast } from '../../Toast'
 import { IconAlertTriangle, IconCheckCircle, IconClock, IconXCircle } from '../../accessibility/AccessibleIcon'
 import type { ComponentType } from 'react'
 
@@ -56,21 +55,12 @@ const TONE_CLASS: Record<StatusDescription['tone'], string> = {
 export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
   const [order, setOrder] = useState<ConcessionOrder | null | undefined>(undefined)
   const [fulfillment, setFulfillment] = useState<ConcessionFulfillment | null>(null)
-  const [toast, setToast] = useState<{ message: string; tone: 'primary' | 'warning' } | null>(null)
-  const lastPhase = useRef<ConcessionPaymentPhase | null>(null)
 
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
   useEffect(() => {
-    return subscribeToConcessionOrder(eventId, orderId, (next) => {
-      if (next && lastPhase.current !== null && lastPhase.current !== next.paymentPhase) {
-        if (next.paymentPhase === 'confirmed') setToast({ message: '¡Tu pago fue confirmado!', tone: 'primary' })
-        else if (next.paymentPhase === 'rejected') setToast({ message: 'Tu pago no fue confirmado — revisa el motivo.', tone: 'warning' })
-      }
-      lastPhase.current = next?.paymentPhase ?? null
-      setOrder(next)
-    })
+    return subscribeToConcessionOrder(eventId, orderId, setOrder)
   }, [eventId, orderId])
 
   useEffect(() => {
@@ -104,8 +94,6 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
 
   return (
     <div className="rounded-lg border p-3.5" style={{ borderColor: 'var(--invite-border)' }}>
-      {toast && <Toast message={toast.message} tone={toast.tone} onDismiss={() => setToast(null)} />}
-
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <p className="text-sm font-semibold text-[var(--invite-text)]">Tu pedido</p>
         <span className="text-sm font-semibold text-[var(--invite-text)]">{formatMinorUnits(order.totalMinorUnits, order.currency)}</span>

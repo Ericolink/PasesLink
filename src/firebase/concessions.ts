@@ -391,6 +391,18 @@ export async function cancelConcessionOrder(
   })
 }
 
+// Borrado PERMANENTE (no un cambio de estado) — vía la Callable
+// `deleteConcessionOrder` (Admin SDK, revierte stock/soldCount y borra
+// concessionsOrders + concessionsFulfillment). Pensado para limpiar pedidos
+// de prueba desde el Historial de ventas — más restrictivo que
+// cancelConcessionOrder (solo manageConcessions, ver el callable).
+export async function deleteConcessionOrder(eventId: string, orderId: string): Promise<void> {
+  return measureSpan('firestore.deleteConcessionOrder', 'db.firestore', async () => {
+    const callable = httpsCallable<{ eventId: string; orderId: string }, { ok: boolean }>(functions, 'deleteConcessionOrder')
+    await callable({ eventId, orderId })
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Cocina — Menu Manager
 // ---------------------------------------------------------------------------
