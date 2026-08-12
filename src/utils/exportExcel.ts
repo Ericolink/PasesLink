@@ -1,4 +1,14 @@
-import ExcelJS from 'exceljs'
+import type ExcelJS from 'exceljs'
+// El import por defecto ('exceljs') resuelve al bundle dist/exceljs.min.js vía
+// el campo "browser" del package.json, que arrastra polyfills de core-js y
+// regenerator-runtime para navegadores viejos (IE11-era) que Vite ya no
+// targetea. dist/exceljs.bare.min.js es el mismo bundle oficial sin esos
+// polyfills (ver README de exceljs, sección "Browserify") — ~85 KB menos
+// minificado, mismo runtime. No trae tipos propios, por eso el import de
+// arriba se queda como `import type` y este es el valor en tiempo de
+// ejecución.
+// @ts-expect-error sin declaraciones propias, ver comentario de arriba
+import ExcelJSRuntime from 'exceljs/dist/exceljs.bare.min.js'
 import type { EventData, GuestData } from '../types'
 import { RSVP_LABELS, PAYMENT_STATUS_LABELS } from '../types'
 import { partySize } from '../firebase/guests'
@@ -123,7 +133,7 @@ export async function buildGuestListWorkbook(
   const columns = buildColumns(event)
   const lastCol = columns.length
 
-  const workbook = new ExcelJS.Workbook()
+  const workbook = new ExcelJSRuntime.Workbook()
   workbook.creator = 'PaseLink'
   workbook.created = new Date()
 
