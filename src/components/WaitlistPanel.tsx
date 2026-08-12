@@ -91,7 +91,7 @@ export function WaitlistPanel({ eventId, canManage }: WaitlistPanelProps) {
   }
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5">
+    <div className="rounded-xl bg-gray-50 dark:bg-gray-800 dark:border dark:border-gray-700 p-4 mb-5">
       <div className="grid grid-cols-2 gap-2 mb-4">
         <MetricTile label="En espera" value={waitingCount} align="start" />
         <MetricTile label="Ofertas activas" value={offeredCount} align="start" accent={offeredCount > 0 ? 'warning' : 'gray'} />

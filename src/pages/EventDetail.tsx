@@ -424,7 +424,7 @@ export function EventDetail() {
 
       {/* Un co-organizador (no el dueño) puede dejar de serlo sin depender de él */}
       {perms.isCoOrg && !perms.isOwner && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5">
+        <div className="rounded-xl bg-gray-50 dark:bg-gray-800 dark:border dark:border-gray-700 p-4 mb-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Eres co-organizador de este evento</h2>
@@ -466,7 +466,7 @@ export function EventDetail() {
           mismo?"), no ameritan estar partidas. El detalle analítico completo
           (métricas, RSVP, recaudado, hora pico, línea de tiempo) sigue
           viviendo en Reportes; acá solo el estado operativo de un vistazo. */}
-      <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5 space-y-4">
+      <div className="rounded-xl bg-gray-50 dark:bg-gray-800 dark:border dark:border-gray-700 p-4 mb-5 space-y-4">
         <div>
           <AttendanceProgressBar
             present={event.checkedInCount}
@@ -515,7 +515,7 @@ export function EventDetail() {
           es de las acciones más usadas durante la organización, así que no
           debe requerir scroll hasta el final de la pantalla. */}
       {event.entryMode !== 'list' && perms.shareInviteLink && (
-        <div id="open-entry-links" className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5">
+        <div id="open-entry-links" className="rounded-xl bg-gray-50 dark:bg-gray-800 dark:border dark:border-gray-700 p-4 mb-5">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">
             <IconLink className="w-3.5 h-3.5 text-primary" />
             Acceso

@@ -708,6 +708,40 @@ h2 {
    @theme más arriba), que Tailwind ya expone como bg-accent/text-accent/
    text-accent-ink/bg-accent-subtle sin necesitar estas clases a mano. */
 
+/* EmptyState tone="hero" (Dashboard "Mis eventos" sin eventos, MyInvitations
+   vacío): antes una caja pinneada a rgba(30,20,40,.9) SIEMPRE, sin importar
+   el tema — un intento anterior de hacerla seguir el toggle chocó con un
+   bug de contraste (texto blanco a ~3:1 sobre fondo claro) y se resolvió
+   fijándola oscura para siempre en vez de arreglar el color de texto. Acá
+   se resuelve de raíz: en claro, degradé muy sutil pink→grape (los dos
+   "-subtle" de marca que ya existían sin uso) con texto oscuro; en oscuro,
+   los valores originales sin cambios (mismo look de siempre). */
+:root {
+  --hero-box-bg: linear-gradient(135deg, var(--color-primary-subtle) 0%, var(--color-secondary-subtle) 100%);
+  --hero-box-border: 1px dashed var(--color-primary-subtle-border);
+  --hero-title-color: var(--color-gray-900);
+}
+.dark {
+  --hero-box-bg: rgba(30,20,40,.9);
+  --hero-box-border: 1px dashed rgba(74,50,92,.9);
+  --hero-title-color: #ffffff;
+}
+
+/* Fila de íconos flotantes del hero de Landing: mismo bug que --hero-box-*
+   de arriba (caja rgba(30,20,40,.9) pinneada, casi negra sobre el hero claro
+   nuevo) — en claro pasan a fichas blancas elevadas con el mismo borde/glow
+   rosa; en oscuro, valores originales sin cambios. */
+:root {
+  --hero-icon-badge-bg: #FFFFFF;
+  --hero-icon-badge-border: 1px solid rgba(255,20,100,.22);
+  --hero-icon-badge-shadow: var(--shadow-sm);
+}
+.dark {
+  --hero-icon-badge-bg: rgba(30,20,40,.9);
+  --hero-icon-badge-border: 1px solid rgba(255,20,100,.25);
+  --hero-icon-badge-shadow: 0 0 10px rgba(255,20,100,.15);
+}
+
 /* Botón primario: de noche mantiene el glow neón original; de día pasa a
    una sombra de elevación plana con tinte magenta — "app moderna", no
    "letrero de neón sobre fondo claro". */

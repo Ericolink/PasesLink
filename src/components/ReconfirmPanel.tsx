@@ -50,7 +50,7 @@ export function ReconfirmPanel({ eventId, event, guests, canManage }: ReconfirmP
   }
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-4 mb-5">
+    <div className="rounded-xl bg-gray-50 dark:bg-gray-800 dark:border dark:border-gray-700 p-4 mb-5">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Reconfirmación</h2>
         {canManage && (

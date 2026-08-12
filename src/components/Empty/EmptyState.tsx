@@ -16,33 +16,31 @@ interface EmptyStateProps {
   to?: string
   onAction?: () => void
   /** 'default': ícono gris chico, para listas/tablas (admin, invitados).
-      'hero': insignia de acento + caja oscura fija (ver Dashboard "Mis
+      'hero': insignia de acento + caja de marca (ver Dashboard "Mis
       eventos") — es la primera pantalla que ve un usuario nuevo sin
       eventos, se mantiene más expresiva a propósito en vez de igualarla al
-      resto (hallazgo S3 de la auditoría: comparte componente, no look). */
+      resto (hallazgo S3 de la auditoría: comparte componente, no look).
+      Colores en tokens --hero-* (index.css): degradé pink→grape con texto
+      oscuro en claro, panel oscuro con texto blanco en oscuro. */
   tone?: EmptyStateTone
 }
-
-const HERO_BOX_STYLE = { background: 'rgba(30,20,40,.9)', border: '1px dashed rgba(74,50,92,.9)' }
-const HERO_BADGE_STYLE = { background: 'rgba(255,20,100,.1)', border: '1px solid rgba(255,20,100,.2)' }
 
 export function EmptyState({ icon: Icon, title, description, ctaText, to, onAction, tone = 'default' }: EmptyStateProps) {
   const hero = tone === 'hero'
   return (
     <div
       className="text-center rounded-2xl py-16 animate-fade-in"
-      // Caja intencionalmente oscura en los dos modos para tone="hero" (no
-      // sigue el toggle claro/oscuro): con opacidad .5 el texto blanco de
-      // abajo quedaba con contraste insuficiente (~3:1) sobre fondo claro.
-      style={hero ? HERO_BOX_STYLE : undefined}
+      style={hero ? { background: 'var(--hero-box-bg)', border: 'var(--hero-box-border)' } : undefined}
     >
       <div
-        className={hero ? 'w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4' : 'flex justify-center mb-3 text-gray-400'}
-        style={hero ? HERO_BADGE_STYLE : undefined}
+        className={hero ? 'w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-primary/10 border border-primary/20' : 'flex justify-center mb-3 text-gray-400'}
       >
         <Icon className={hero ? 'w-6 h-6 text-primary' : 'w-8 h-8'} />
       </div>
-      <p className={hero ? 'text-lg font-semibold text-white mb-1' : 'font-medium text-gray-900 dark:text-white mb-1'}>{title}</p>
+      <p
+        className={hero ? 'text-lg font-semibold mb-1' : 'font-medium text-gray-900 dark:text-white mb-1'}
+        style={hero ? { color: 'var(--hero-title-color)' } : undefined}
+      >{title}</p>
       <p className="text-sm text-gray-500 mb-5 max-w-xs mx-auto leading-relaxed">{description}</p>
       {to && ctaText && (
         <Link

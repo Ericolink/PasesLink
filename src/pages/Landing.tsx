@@ -145,9 +145,9 @@ export function Landing() {
                 className="w-11 h-11 rounded-xl flex items-center justify-center animate-float"
                 style={{
                   animationDelay: `${i * 0.4}s`,
-                  background: 'rgba(30,20,40,.9)',
-                  border: '1px solid rgba(255,20,100,.25)',
-                  boxShadow: '0 0 10px rgba(255,20,100,.15)',
+                  background: 'var(--hero-icon-badge-bg)',
+                  border: 'var(--hero-icon-badge-border)',
+                  boxShadow: 'var(--hero-icon-badge-shadow)',
                 }}
               >
                 <Icon className="w-5 h-5 text-primary" />
