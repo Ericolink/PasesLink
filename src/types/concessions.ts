@@ -3,8 +3,9 @@ import type { PaymentMethod } from './index'
 // Módulo de venta de alimentos/bebidas/souvenirs durante el evento. Namespace
 // deliberadamente distinto de `menu` (EventData.menu ya existe y significa
 // selección de plato del RSVP/banquete, un concepto distinto) — ver
-// FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md §1. De cara al invitado la sección
-// igual se llama "Menú"; en código siempre es `concessions`.
+// FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md §1. De cara al organizador/invitado
+// la sección se llama "Ventas del evento" (antes "Menú" — cambiado porque no
+// todo lo que se vende acá es comida); en código siempre es `concessions`.
 export type ConcessionsCategory = 'drink' | 'food' | 'snack' | 'souvenir' | 'special'
 
 export const CONCESSIONS_CATEGORY_LABELS: Record<ConcessionsCategory, string> = {
@@ -35,12 +36,62 @@ export interface ConcessionsConfig {
   useEventPaymentInstructions: boolean
   paymentInstructions?: string
   pickupInstructions?: string
-  // uid → email, mismo patrón que EventData.coOrganizersMap (el email es
+  // uid → encargado, mismo patrón que EventData.coOrganizersMap (el email es
   // solo para mostrarlo en el panel de administración, `firestore.rules`
-  // autoriza por presencia de la clave, no por su valor). El Menu Manager
-  // NO es un coorganizador (ver §8.2 del RFC): es un rol aparte, sin acceso a
-  // guests/reportes/configuración, solo a `concessionsFulfillment`.
-  concessionsStaffMap?: Record<string, string>
+  // autoriza por presencia de la clave y por rol dentro de ella, nunca por el
+  // valor del email). El encargado NO es un coorganizador (ver §8.2 del RFC):
+  // es un rol aparte, sin acceso a guests/reportes/configuración del evento.
+  // Shape legado (string = solo el email) convive con el shape nuevo — ver
+  // `resolveConcessionsStaffEntry`. Nunca se vuelve a escribir en shape
+  // legado, solo se sigue leyendo por compatibilidad con encargados dados de
+  // alta antes de la invitación por enlace: esos encargados legado se
+  // resuelven como solo-preparación, el único acceso que ya tenían en la
+  // práctica.
+  concessionsStaffMap?: Record<string, ConcessionsStaffEntry | string>
+}
+
+export interface ConcessionsStaffRoles {
+  cashier: boolean
+  prep: boolean
+}
+
+export interface ConcessionsStaffEntry {
+  email: string
+  roles: ConcessionsStaffRoles
+}
+
+// Único lugar que sabe interpretar el shape legado — usado tanto en cliente
+// (ConcessionStaffPanel, ConcessionsKitchen) como puerteado a
+// functions/src/lib/permissions.ts (no se puede importar src/ desde
+// functions/, mismo motivo documentado en ese archivo).
+export function resolveConcessionsStaffEntry(raw: ConcessionsStaffEntry | string | undefined): ConcessionsStaffEntry | null {
+  if (raw == null) return null
+  if (typeof raw === 'string') return { email: raw, roles: { cashier: false, prep: true } }
+  return raw
+}
+
+// Puerto cliente de isConcessionsCashier/isConcessionsPrep
+// (functions/src/lib/permissions.ts) — usado por ConcessionsKitchen.tsx para
+// decidir qué tabs mostrarle a quien abre esa ruta (no reemplaza a
+// firestore.rules, que es la autorización real).
+export function isConcessionsCashier(staffMap: Record<string, ConcessionsStaffEntry | string> | undefined, uid: string): boolean {
+  return !!resolveConcessionsStaffEntry(staffMap?.[uid])?.roles.cashier
+}
+
+export function isConcessionsPrep(staffMap: Record<string, ConcessionsStaffEntry | string> | undefined, uid: string): boolean {
+  return !!resolveConcessionsStaffEntry(staffMap?.[uid])?.roles.prep
+}
+
+// Completitud mínima para desbloquear Catálogo/Pedidos/Historial — no exige
+// tener productos cargados (evitaría poder crear el primero). Ver
+// ConcessionsManager.tsx: mientras esto sea false se muestra el onboarding
+// guiado en vez de las pestañas.
+export function isConcessionsSetupComplete(config: ConcessionsConfig | undefined): boolean {
+  if (!config?.enabled) return false
+  if (!config.currency?.trim()) return false
+  if (!config.paymentMethods || config.paymentMethods.length === 0) return false
+  if (!config.useEventPaymentInstructions && !config.paymentInstructions?.trim()) return false
+  return true
 }
 
 export type ConcessionItemStatus = 'active' | 'outOfStock' | 'archived'

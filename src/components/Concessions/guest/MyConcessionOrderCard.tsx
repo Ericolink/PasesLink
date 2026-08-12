@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  cancelOwnConcessionOrder,
-  subscribeToConcessionFulfillment,
-  subscribeToConcessionOrder,
-  submitConcessionPaymentProof,
-} from '../../../firebase/concessions'
+import { cancelOwnConcessionOrder, subscribeToConcessionFulfillment, subscribeToConcessionOrder } from '../../../firebase/concessions'
 import type { ConcessionFulfillment, ConcessionOrder, ConcessionPaymentPhase } from '../../../types/concessions'
 import { formatMinorUnits } from '../../../utils/concessionsMoney'
-import { useConcessionPaymentProofPhoto } from '../../../hooks/useConcessionPaymentProofPhoto'
 import { ConfirmDialog } from '../../ConfirmDialog'
 import { Toast } from '../../Toast'
+import { IconAlertTriangle, IconCheckCircle, IconClock, IconXCircle } from '../../accessibility/AccessibleIcon'
+import type { ComponentType } from 'react'
 
 interface Props {
   eventId: string
@@ -20,29 +16,34 @@ interface Props {
 interface StatusDescription {
   label: string
   tone: 'neutral' | 'success' | 'danger'
+  Icon: ComponentType<{ className?: string }>
 }
 
 // Combina paymentPhase (concessionsOrders) + fulfillmentStatus
 // (concessionsFulfillment) en un único estado legible — de cara al
 // invitado es un solo avance lineal (ver RFC §5), aunque técnicamente
 // viven en dos documentos separados por seguridad (ver
-// FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md §4.3).
+// FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md §4.3). El estado nunca depende
+// solo del color (WCAG 1.4.1): siempre lleva también texto + ícono.
 function describeStatus(order: ConcessionOrder, fulfillment: ConcessionFulfillment | null): StatusDescription {
-  if (order.paymentPhase === 'cancelled') return { label: 'Pedido cancelado', tone: 'danger' }
-  if (order.paymentPhase === 'rejected') return { label: 'Comprobante rechazado — vuelve a intentarlo', tone: 'danger' }
-  if (order.paymentPhase === 'awaiting_payment') return { label: 'Pendiente de pago', tone: 'neutral' }
-  if (order.paymentPhase === 'proof_submitted') return { label: 'Comprobante enviado — esperando confirmación', tone: 'neutral' }
+  if (order.paymentPhase === 'cancelled') return { label: 'Pedido cancelado', tone: 'danger', Icon: IconXCircle }
+  if (order.paymentPhase === 'rejected') return { label: 'Tu pago no fue confirmado — habla con caja', tone: 'danger', Icon: IconAlertTriangle }
+  if (order.paymentPhase === 'awaiting_payment') return { label: 'Pago pendiente — acude a caja', tone: 'neutral', Icon: IconClock }
+  // 'proof_submitted' solo puede verse en pedidos anteriores a este cambio
+  // (ya no hay forma de llegar a esta fase desde la app) — se muestra igual
+  // por si algún pedido viejo quedó ahí.
+  if (order.paymentPhase === 'proof_submitted') return { label: 'Comprobante enviado — esperando confirmación', tone: 'neutral', Icon: IconClock }
   switch (fulfillment?.fulfillmentStatus) {
     case 'preparing':
-      return { label: 'En preparación', tone: 'neutral' }
+      return { label: 'En preparación', tone: 'neutral', Icon: IconClock }
     case 'ready':
-      return { label: '¡Listo! Pasa a recogerlo', tone: 'success' }
+      return { label: '¡Listo! Pasa a recogerlo', tone: 'success', Icon: IconCheckCircle }
     case 'delivered':
-      return { label: 'Entregado', tone: 'success' }
+      return { label: 'Entregado', tone: 'success', Icon: IconCheckCircle }
     case 'cancelled':
-      return { label: 'Pedido cancelado', tone: 'danger' }
+      return { label: 'Pedido cancelado', tone: 'danger', Icon: IconXCircle }
     default:
-      return { label: 'Pago confirmado — en cola para prepararse', tone: 'neutral' }
+      return { label: 'Pago confirmado — en cola para prepararse', tone: 'success', Icon: IconCheckCircle }
   }
 }
 
@@ -58,10 +59,6 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
   const [toast, setToast] = useState<{ message: string; tone: 'primary' | 'warning' } | null>(null)
   const lastPhase = useRef<ConcessionPaymentPhase | null>(null)
 
-  const [note, setNote] = useState('')
-  const [submittingProof, setSubmittingProof] = useState(false)
-  const [proofError, setProofError] = useState('')
-  const proofPhoto = useConcessionPaymentProofPhoto()
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
@@ -69,7 +66,7 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
     return subscribeToConcessionOrder(eventId, orderId, (next) => {
       if (next && lastPhase.current !== null && lastPhase.current !== next.paymentPhase) {
         if (next.paymentPhase === 'confirmed') setToast({ message: '¡Tu pago fue confirmado!', tone: 'primary' })
-        else if (next.paymentPhase === 'rejected') setToast({ message: 'Tu comprobante fue rechazado — revisa el motivo.', tone: 'warning' })
+        else if (next.paymentPhase === 'rejected') setToast({ message: 'Tu pago no fue confirmado — revisa el motivo.', tone: 'warning' })
       }
       lastPhase.current = next?.paymentPhase ?? null
       setOrder(next)
@@ -87,28 +84,8 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
   // normales) — se omite en vez de romper el resto de "Mis pedidos".
   if (order === null) return null
 
-  const canSubmitProof = order.paymentMethod === 'transfer' && (order.paymentPhase === 'awaiting_payment' || order.paymentPhase === 'rejected')
   const canCancel = order.paymentPhase === 'awaiting_payment' || order.paymentPhase === 'rejected'
   const status = describeStatus(order, fulfillment)
-
-  async function handleSubmitProof() {
-    if (!note.trim()) {
-      setProofError('Ingresa el número de referencia de tu transferencia.')
-      return
-    }
-    setSubmittingProof(true)
-    setProofError('')
-    try {
-      const proofUrl = await proofPhoto.upload()
-      await submitConcessionPaymentProof(eventId, orderId, { note: note.trim(), proofUrl, lockToken })
-      proofPhoto.clear()
-    } catch (err) {
-      console.error('Error al enviar el comprobante de un pedido:', err)
-      setProofError('No se pudo enviar el comprobante. Intenta de nuevo.')
-    } finally {
-      setSubmittingProof(false)
-    }
-  }
 
   async function handleCancel() {
     setConfirmingCancel(false)
@@ -140,52 +117,12 @@ export function MyConcessionOrderCard({ eventId, orderId, lockToken }: Props) {
         ))}
       </ul>
 
-      <p className={`text-sm font-medium ${TONE_CLASS[status.tone]}`}>{status.label}</p>
+      <p className={`flex items-center gap-1.5 text-sm font-medium ${TONE_CLASS[status.tone]}`}>
+        <status.Icon className="w-4 h-4 shrink-0" />
+        {status.label}
+      </p>
       {order.paymentPhase === 'rejected' && order.rejectionReason && (
         <p className="text-xs text-[var(--invite-text-muted)] mt-1 italic">Motivo: {order.rejectionReason}</p>
-      )}
-
-      {canSubmitProof && (
-        <div className="mt-3 pt-3 space-y-2 border-t" style={{ borderColor: 'var(--invite-border)' }}>
-          <input type="file" accept="image/*" onChange={proofPhoto.onFileSelected} className="hidden" id={`concession-proof-${orderId}`} />
-          {proofPhoto.previewUrl ? (
-            <div className="relative w-24 h-24 rounded-lg overflow-hidden">
-              <img src={proofPhoto.previewUrl} alt="Vista previa del comprobante" className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={proofPhoto.clear}
-                className="absolute top-1 right-1 min-h-8 min-w-8 inline-flex items-center justify-center bg-black/50 hover:bg-black/70 text-white text-xs rounded-md"
-              >
-                Quitar
-              </button>
-            </div>
-          ) : (
-            <label
-              htmlFor={`concession-proof-${orderId}`}
-              className="inline-flex w-24 h-24 items-center justify-center border-2 border-dashed rounded-lg text-xs text-center cursor-pointer text-[var(--invite-text-muted)]"
-              style={{ borderColor: 'var(--invite-border)' }}
-            >
-              + Foto del comprobante
-            </label>
-          )}
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={300}
-            placeholder="Núm. de referencia de tu transferencia"
-            className="w-full rounded-md border px-3 py-2 text-sm bg-[var(--invite-surface)] text-[var(--invite-text)]"
-            style={{ borderColor: 'var(--invite-border)' }}
-          />
-          {(proofError || proofPhoto.error) && <p className="text-xs text-red-500">{proofError || proofPhoto.error}</p>}
-          <button
-            onClick={handleSubmitProof}
-            disabled={submittingProof || proofPhoto.uploading || !proofPhoto.file}
-            className="w-full text-white rounded-md px-4 py-2.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 bg-[var(--invite-accent)]"
-          >
-            {submittingProof || proofPhoto.uploading ? 'Enviando…' : 'Enviar comprobante'}
-          </button>
-        </div>
       )}
 
       {canCancel && (

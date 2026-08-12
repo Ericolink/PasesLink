@@ -9,17 +9,24 @@
 // events.ts).
 import {
   collection,
+  count,
   deleteField,
   doc,
+  documentId,
+  getAggregateFromServer,
+  getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
+  startAfter,
+  sum,
   updateDoc,
   where,
 } from 'firebase/firestore'
-import type { Unsubscribe } from 'firebase/firestore'
+import type { QueryDocumentSnapshot, Unsubscribe } from 'firebase/firestore'
 import { httpsCallable, FunctionsError } from 'firebase/functions'
 import { db, functions } from './config'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
@@ -285,38 +292,6 @@ export async function createConcessionOrder(eventId: string, input: CreateConces
 // Pago — acciones del invitado
 // ---------------------------------------------------------------------------
 
-// "Ya pagué / comprobante enviado" (solo transferencia) — mismo criterio que
-// submitPaymentProof del pago de entrada, pero acá además viaja la foto del
-// comprobante (primera vez que este repo sube una imagen para esto, ver RFC
-// §14.3). Idempotente: reintentar sobre un pedido ya en revisión o ya pagado
-// es un no-op silencioso, igual que el resto de este archivo.
-export async function submitConcessionPaymentProof(
-  eventId: string,
-  orderId: string,
-  input: { note: string; proofUrl: string; lockToken: string | null },
-) {
-  const trimmedNote = requireMaxLength(requireNonEmpty(input.note, 'El número de referencia'), 300, 'El número de referencia')
-  const proofUrl = requireNonEmpty(input.proofUrl, 'El comprobante')
-  const orderRef = doc(db, 'events', eventId, 'concessionsOrders', orderId)
-
-  return measureSpan('firestore.submitConcessionPaymentProof', 'db.firestore', () =>
-    runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(orderRef)
-      if (!snap.exists()) return
-      const order = mapConcessionOrder(snap.id, snap.data())
-      if (order.paymentPhase !== 'awaiting_payment' && order.paymentPhase !== 'rejected') return
-
-      transaction.update(orderRef, {
-        paymentPhase: 'proof_submitted',
-        paymentNote: trimmedNote,
-        paymentProofUrl: proofUrl,
-        lockToken: input.lockToken,
-        updatedAt: serverTimestamp(),
-      })
-    }),
-  )
-}
-
 // Autocancelación del propio invitado — solo mientras el pago no esté
 // confirmado (RFC §12 caso 7 / matriz de permisos §8.3). Libera el stock
 // reservado, igual que cancelConcessionOrder (organizador) más abajo.
@@ -534,7 +509,7 @@ export function subscribeToConcessionOrder(
 
 // Mismo id que el ConcessionOrder del que es proyección (ver mapConcessionFulfillment).
 // El invitado dueño del pedido SÍ puede leer este documento (bearer-link,
-// igual que el propio pedido — ver firestore.rules, `!isConcessionsStaff`)
+// igual que el propio pedido — ver firestore.rules, `!isConcessionsStaffMember`)
 // pese a no tener ningún permiso de organizador: es lo que le permite a
 // "Mi pedido" (Fase 2, GuestPass) mostrar preparing/ready/delivered además
 // de la fase de pago, sin exponerle nunca al Menu Manager nada de esto al
@@ -610,9 +585,9 @@ export async function disableConcessions(eventId: string) {
 }
 
 // Nunca toca `enabled` ni `concessionsStaffMap` — separado a propósito de
-// enableConcessionsBeta/addConcessionsStaff/removeConcessionsStaff para que
-// cada acción de la UI (activar, invitar staff, guardar config) sea una
-// escritura angosta y fácil de auditar.
+// enableConcessionsBeta/removeConcessionsStaff (y de las Cloud Functions de
+// invitación de encargados) para que cada acción de la UI (activar, invitar
+// staff, guardar config) sea una escritura angosta y fácil de auditar.
 export async function updateConcessionsSettings(eventId: string, patch: Partial<NewConcessionsSettingsInput>) {
   const updates: Record<string, unknown> = { updatedAt: serverTimestamp() }
   // Mismo respaldo que enableConcessionsBeta — nunca guardar `currency`
@@ -629,20 +604,11 @@ export async function updateConcessionsSettings(eventId: string, patch: Partial<
   )
 }
 
-// Mismo patrón que addCoOrganizer/removeCoOrganizer (events.ts) pero con un
-// solo mapa (uid → email, solo para mostrarlo en el panel — la autorización
-// real en firestore.rules es por presencia de la clave, no por su valor),
-// sin permisos granulares — el Menu Manager no es un coorganizador, ver RFC
-// §8.2.
-export async function addConcessionsStaff(eventId: string, uid: string, email: string) {
-  return measureSpan('firestore.addConcessionsStaff', 'db.firestore', () =>
-    updateDoc(doc(db, 'events', eventId), {
-      [`concessions.concessionsStaffMap.${uid}`]: email,
-      updatedAt: serverTimestamp(),
-    }),
-  )
-}
-
+// El alta ahora es siempre por invitación con enlace (ver
+// createConcessionsStaffInvite/acceptConcessionsStaffInvite, Cloud
+// Functions) — quitar sigue siendo una escritura angosta del cliente, mismo
+// criterio que removeCoOrganizer (events.ts): borra la entrada completa
+// (ambos roles) del mapa, sin permisos granulares por rol.
 export async function removeConcessionsStaff(eventId: string, uid: string) {
   return measureSpan('firestore.removeConcessionsStaff', 'db.firestore', () =>
     updateDoc(doc(db, 'events', eventId), {
@@ -650,4 +616,86 @@ export async function removeConcessionsStaff(eventId: string, uid: string) {
       updatedAt: serverTimestamp(),
     }),
   )
+}
+
+// ---------------------------------------------------------------------------
+// Historial de ventas — solo pedidos con `paymentPhase == 'confirmed'`
+// (pagados de verdad, sin importar si ya se entregaron): quedan afuera
+// cancelados/rechazados/abandonados, ver §20-23 del rediseño "Ventas del
+// evento". El precio/nombre de cada línea viene del snapshot congelado en
+// el pedido (`unitPriceMinorUnitsSnapshot`/`nameSnapshot`), nunca del
+// catálogo actual — así el organizador puede cambiar precios después sin
+// que eso reescriba ventas ya hechas.
+// ---------------------------------------------------------------------------
+
+export interface ConcessionsSalesSummary {
+  totalMinorUnits: number
+  orderCount: number
+}
+
+// UNA sola lectura agregada server-side (sum+count en la misma llamada) en
+// vez de traer todos los pedidos confirmados a memoria solo para sumarlos —
+// mismo criterio que getPlatformUsageStats (platformUsage.ts). A diferencia
+// de un `count()` puro, `sum()` SÍ exige un índice compuesto sobre
+// (paymentPhase, totalMinorUnits) aunque el filtro sea una simple igualdad
+// (comprobado en vivo: Firestore rechaza la agregación con
+// `failed-precondition` sin ese índice) — ver firestore.indexes.json.
+export async function getConcessionsSalesSummary(eventId: string): Promise<ConcessionsSalesSummary> {
+  const q = query(collection(db, 'events', eventId, 'concessionsOrders'), where('paymentPhase', '==', 'confirmed'))
+  const snap = await measureSpan('firestore.getConcessionsSalesSummary', 'db.firestore', () =>
+    getAggregateFromServer(q, { total: sum('totalMinorUnits'), orders: count() }),
+  )
+  return { totalMinorUnits: snap.data().total, orderCount: snap.data().orders }
+}
+
+// 25 (no 30, el máximo real de una cláusula `in`) para que la página de
+// pedidos y la consulta de sus estados de entrega (una sola `in` sobre
+// documentId(), ver abajo) siempre entren en una sola llamada cada una, sin
+// necesitar chunking como fetchContactsByIds (guests.ts).
+const SALES_HISTORY_PAGE_SIZE = 25
+
+export interface ConcessionsSalesHistoryPage {
+  orders: ConcessionOrder[]
+  fulfillmentByOrderId: Record<string, FulfillmentStatus>
+  cursor: QueryDocumentSnapshot | null
+}
+
+// Paginado con `getDocs` (no listener): es historial, no necesita tiempo
+// real, y una lista potencialmente larga de ventas no debería mantener un
+// listener activo indefinidamente solo para mostrarse una vez. Ordenado por
+// `paidAt` (momento real del pago, no `createdAt`) — más relevante para un
+// historial de ventas que "cuándo se creó el pedido". El estado de entrega
+// (`concessionsFulfillment`, mismo id que el pedido) se trae aparte en una
+// sola consulta `documentId() in [...]` — nunca se guarda en
+// `concessionsOrders`, que es la colección sin conocimiento de preparación
+// (ver la separación pago/preparación documentada en ConcessionOrder).
+export async function getConcessionsSalesHistoryPage(
+  eventId: string,
+  cursor: QueryDocumentSnapshot | null = null,
+): Promise<ConcessionsSalesHistoryPage> {
+  const constraints = [
+    where('paymentPhase', '==', 'confirmed'),
+    orderBy('paidAt', 'desc'),
+    ...(cursor ? [startAfter(cursor)] : []),
+    limit(SALES_HISTORY_PAGE_SIZE),
+  ]
+  const q = query(collection(db, 'events', eventId, 'concessionsOrders'), ...constraints)
+  const snap = await measureSpan('firestore.getConcessionsSalesHistoryPage', 'db.firestore', () => getDocs(q))
+  const orders = snap.docs.map((d) => mapConcessionOrder(d.id, d.data()))
+
+  const fulfillmentByOrderId: Record<string, FulfillmentStatus> = {}
+  if (orders.length > 0) {
+    const fulfillmentSnap = await getDocs(
+      query(collection(db, 'events', eventId, 'concessionsFulfillment'), where(documentId(), 'in', orders.map((o) => o.id))),
+    )
+    fulfillmentSnap.docs.forEach((d) => {
+      fulfillmentByOrderId[d.id] = (d.data().fulfillmentStatus as FulfillmentStatus) || 'not_ready'
+    })
+  }
+
+  return {
+    orders,
+    fulfillmentByOrderId,
+    cursor: snap.docs.length === SALES_HISTORY_PAGE_SIZE ? snap.docs[snap.docs.length - 1] : null,
+  }
 }

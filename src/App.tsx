@@ -32,6 +32,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then((m) => (
 const EventArrive = lazy(() => import('./pages/EventArrive').then((m) => ({ default: m.EventArrive })))
 const EventJoin = lazy(() => import('./pages/EventJoin').then((m) => ({ default: m.EventJoin })))
 const AcceptCoOrganizerInvite = lazy(() => import('./pages/AcceptCoOrganizerInvite').then((m) => ({ default: m.AcceptCoOrganizerInvite })))
+const AcceptConcessionsStaffInvite = lazy(() => import('./pages/AcceptConcessionsStaffInvite').then((m) => ({ default: m.AcceptConcessionsStaffInvite })))
 const WaitlistStatus = lazy(() => import('./pages/WaitlistStatus').then((m) => ({ default: m.WaitlistStatus })))
 const EventWall = lazy(() => import('./pages/EventWall').then((m) => ({ default: m.EventWall })))
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile').then((m) => ({ default: m.CompleteProfile })))
@@ -63,6 +64,10 @@ function EventDetailRoute() {
 function AcceptCoOrganizerInviteRoute() {
   const { eventId, token } = useParams()
   return <BrowseLayout><AcceptCoOrganizerInvite key={`${eventId}-${token}`} /></BrowseLayout>
+}
+function AcceptConcessionsStaffInviteRoute() {
+  const { eventId, token } = useParams()
+  return <BrowseLayout><AcceptConcessionsStaffInvite key={`${eventId}-${token}`} /></BrowseLayout>
 }
 function ReportsRoute() {
   const { eventId } = useParams()
@@ -154,6 +159,17 @@ function App() {
           element={
             <ProtectedRoute>
               <AcceptCoOrganizerInviteRoute />
+            </ProtectedRoute>
+          }
+        />
+        {/* Enlace de invitación de encargado de "Ventas del evento"
+            (caja/preparación) — mismo motivo que /co/:eventId/:token para
+            requerir sesión: aceptarlo otorga acceso a /events/:eventId/kitchen. */}
+        <Route
+          path="/menu-staff/:eventId/:token"
+          element={
+            <ProtectedRoute>
+              <AcceptConcessionsStaffInviteRoute />
             </ProtectedRoute>
           }
         />

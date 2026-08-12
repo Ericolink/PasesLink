@@ -76,6 +76,35 @@ export function canManageCoOrganizers(event: DocumentData, uid: string): boolean
   return perms?.[uid]?.manageCoOrganizers ?? false
 }
 
+// Puerto de resolveConcessionsStaffEntry (src/types/concessions.ts) — no se
+// puede importar src/ desde functions/, mismo motivo documentado arriba.
+// Shape legado (string = solo el email, sin roles) se resuelve como
+// solo-preparación: es el único acceso que esos encargados ya tenían antes
+// de existir el rol de caja.
+function resolveStaffEntry(raw: unknown): { email: string; roles: { cashier: boolean; prep: boolean } } | null {
+  if (raw == null) return null
+  if (typeof raw === 'string') return { email: raw, roles: { cashier: false, prep: true } }
+  const entry = raw as { email?: string; roles?: { cashier?: boolean; prep?: boolean } }
+  return { email: entry.email || '', roles: { cashier: !!entry.roles?.cashier, prep: !!entry.roles?.prep } }
+}
+
+// Encargado de caja: valida pagos (confirmar/rechazar), sin ser
+// coorganizador ni tener acceso a `concessionsFulfillment`. Usado por
+// acceptConcessionsStaffInvite.ts para mergear roles.
+export function isConcessionsCashier(event: DocumentData, uid: string): boolean {
+  const staffMap = event.concessions?.concessionsStaffMap as Record<string, unknown> | undefined
+  const entry = resolveStaffEntry(staffMap?.[uid])
+  return !!entry?.roles.cashier
+}
+
+// Encargado de preparación: ve/avanza `concessionsFulfillment` y puede
+// marcar agotado/disponible en el catálogo, sin ver dinero ni comprobantes.
+export function isConcessionsPrep(event: DocumentData, uid: string): boolean {
+  const staffMap = event.concessions?.concessionsStaffMap as Record<string, unknown> | undefined
+  const entry = resolveStaffEntry(staffMap?.[uid])
+  return !!entry?.roles.prep
+}
+
 // Puerto de guestLockTokensOk en firestore.rules: sin `lockTokens` o vacío
 // (pase sin reclamar todavía) siempre pasa; si no, el token entrante debe
 // estar en la lista de dispositivos ya reconocidos. Usada por

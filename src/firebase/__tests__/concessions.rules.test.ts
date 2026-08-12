@@ -26,7 +26,6 @@ vi.mock('../config', () => ({
 }))
 
 import {
-  addConcessionsStaff,
   advanceConcessionFulfillment,
   cancelOwnConcessionOrder,
   confirmConcessionOrderPayment,
@@ -34,7 +33,6 @@ import {
   enableConcessionsBeta,
   removeConcessionsStaff,
   revertConcessionFulfillment,
-  submitConcessionPaymentProof,
   updateConcessionItem,
   updateConcessionsSettings,
 } from '../concessions'
@@ -43,7 +41,18 @@ const EVENT_ID = 'event-1'
 const OWNER_UID = 'owner-uid'
 const ADMIN_UID = 'admin-uid'
 const COORG_UID = 'coorg-uid'
+// Encargado legado (alta por email, previa a la invitación por enlace) — un
+// simple string en el mapa, sin `roles`. Se resuelve como solo-preparación
+// (resolveConcessionsStaffEntry), el único acceso que este actor ya tenía en
+// la práctica antes de existir el rol de caja.
 const STAFF_UID = 'staff-uid'
+// Encargados del rol nuevo (shape { email, roles }), dados de alta vía
+// createConcessionsStaffInvite/acceptConcessionsStaffInvite (Cloud
+// Functions, no cubiertas por este archivo — ver
+// functions/src/callable/*ConcessionsStaffInvite.ts).
+const CASHIER_UID = 'cashier-uid'
+const PREP_UID = 'prep-uid'
+const BOTH_ROLES_UID = 'both-roles-uid'
 const GUEST_ID = 'guest-1'
 const OTHER_GUEST_ID = 'guest-2'
 const ITEM_ID = 'item-soda'
@@ -54,7 +63,12 @@ const enabledConcessions = {
   currency: 'MXN',
   paymentMethods: ['transfer', 'cash'],
   useEventPaymentInstructions: true,
-  concessionsStaffMap: { [STAFF_UID]: 'staff@test.com' },
+  concessionsStaffMap: {
+    [STAFF_UID]: 'staff@test.com',
+    [CASHIER_UID]: { email: 'cashier@test.com', roles: { cashier: true, prep: false } },
+    [PREP_UID]: { email: 'prep@test.com', roles: { cashier: false, prep: true } },
+    [BOTH_ROLES_UID]: { email: 'both@test.com', roles: { cashier: true, prep: true } },
+  },
 }
 
 describe('Concessions — venta de comida/bebida durante el evento', () => {
@@ -289,21 +303,28 @@ describe('Concessions — venta de comida/bebida durante el evento', () => {
   })
 
   describe('flujo de pago', () => {
-    it('el invitado dueño puede subir su comprobante (nota + foto)', async () => {
+    // Rediseño "Ventas del evento" (2026-08-12) §14-16: el invitado ya NO
+    // sube comprobante/referencia — tanto efectivo como transferencia se
+    // validan en persona en caja. submitConcessionPaymentProof se eliminó
+    // del cliente y la rama de rules que autorizaba esta transición
+    // (`paymentPhase: 'proof_submitted'`) se cerró — este test prueba que
+    // ya no hay ninguna vía legítima de escribir eso, ni siquiera con un
+    // payload perfectamente formado y lockToken válido.
+    it('el invitado dueño YA NO puede subir comprobante/referencia (removido del rediseño de pagos)', async () => {
       await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
       await seedGuest(testEnv, EVENT_ID, GUEST_ID, { lockTokens: [LOCK_TOKEN] })
       await seedConcessionOrder(testEnv, EVENT_ID, 'order-1', { guestId: GUEST_ID, paymentPhase: 'awaiting_payment' })
-      dbHolder.db = testEnv.unauthenticatedContext().firestore()
+      const anonDb = testEnv.unauthenticatedContext().firestore()
 
-      await submitConcessionPaymentProof(EVENT_ID, 'order-1', {
-        note: 'Transferencia #12345',
-        proofUrl: 'https://res.cloudinary.com/demo/proof.jpg',
-        lockToken: LOCK_TOKEN,
-      })
-
-      const order = await getConcessionOrderDoc(testEnv, EVENT_ID, 'order-1')
-      expect(order?.paymentPhase).toBe('proof_submitted')
-      expect(order?.paymentProofUrl).toBe('https://res.cloudinary.com/demo/proof.jpg')
+      await assertFails(
+        updateDoc(doc(anonDb, 'events', EVENT_ID, 'concessionsOrders', 'order-1'), {
+          paymentPhase: 'proof_submitted',
+          paymentNote: 'Transferencia #12345',
+          paymentProofUrl: 'https://res.cloudinary.com/demo/proof.jpg',
+          lockToken: LOCK_TOKEN,
+          updatedAt: Date.now(),
+        }),
+      )
     })
 
     it('confirmar un pedido lo pasa a `confirmed` y a la cola de cocina como `queued`', async () => {
@@ -440,6 +461,100 @@ describe('Concessions — venta de comida/bebida durante el evento', () => {
       await assertFails(
         updateDoc(doc(staffDb, 'events', EVENT_ID, 'concessionsOrders', 'order-1'), { paymentPhase: 'confirmed' }),
       )
+    })
+  })
+
+  // Rediseño "Ventas del evento" (2026-08-12): separa el rol único "Menu
+  // Manager" en dos roles independientes (caja/preparación), cada uno sin
+  // ser coorganizador. isConcessionsCashier/isConcessionsPrep leen el mismo
+  // mapa que antes (`concessionsStaffMap`), ahora con shape
+  // `{ email, roles }` — ver resolveConcessionsStaffEntry.
+  describe('encargados de caja/preparación (roles nuevos, sin ser coorganizador)', () => {
+    it('un encargado de CAJA puede confirmar un pago en concessionsOrders', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedConcessionOrder(testEnv, EVENT_ID, 'order-1', { paymentPhase: 'awaiting_payment' })
+      const cashierDb = testEnv.authenticatedContext(CASHIER_UID).firestore()
+
+      await assertSucceeds(
+        updateDoc(doc(cashierDb, 'events', EVENT_ID, 'concessionsOrders', 'order-1'), { paymentPhase: 'confirmed', paidAt: Date.now() }),
+      )
+    })
+
+    it('un encargado de CAJA (sin rol de preparación) no tiene ningún acceso a concessionsFulfillment', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedConcessionFulfillment(testEnv, EVENT_ID, 'order-1', { fulfillmentStatus: 'queued' })
+      const cashierDb = testEnv.authenticatedContext(CASHIER_UID).firestore()
+
+      // A diferencia de un invitado cualquiera (bearer-link libre), un
+      // encargado de caja SÍ está en concessionsStaffMap — así que cae en
+      // la rama "es staff pero sin el rol correcto", no en el bypass de
+      // bearer-link (`!isConcessionsStaffMember`).
+      await assertFails(getDoc(doc(cashierDb, 'events', EVENT_ID, 'concessionsFulfillment', 'order-1')))
+      await assertFails(
+        updateDoc(doc(cashierDb, 'events', EVENT_ID, 'concessionsFulfillment', 'order-1'), { fulfillmentStatus: 'preparing' }),
+      )
+    })
+
+    it('un encargado de PREPARACIÓN no puede confirmar pagos en concessionsOrders', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedConcessionOrder(testEnv, EVENT_ID, 'order-1', { paymentPhase: 'awaiting_payment' })
+      const prepDb = testEnv.authenticatedContext(PREP_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(prepDb, 'events', EVENT_ID, 'concessionsOrders', 'order-1'), { paymentPhase: 'confirmed' }),
+      )
+    })
+
+    it('un encargado de PREPARACIÓN sí puede avanzar concessionsFulfillment y marcar agotado en el catálogo', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedConcessionFulfillment(testEnv, EVENT_ID, 'order-1', { fulfillmentStatus: 'queued' })
+      await seedConcessionItem(testEnv, EVENT_ID, ITEM_ID, { status: 'active' })
+      const prepDb = testEnv.authenticatedContext(PREP_UID).firestore()
+
+      await assertSucceeds(
+        updateDoc(doc(prepDb, 'events', EVENT_ID, 'concessionsFulfillment', 'order-1'), { fulfillmentStatus: 'preparing' }),
+      )
+      await assertSucceeds(
+        updateDoc(doc(prepDb, 'events', EVENT_ID, 'concessionsCatalog', ITEM_ID), { status: 'outOfStock' }),
+      )
+    })
+
+    it('un encargado legado (shape string, alta previa a la invitación) sigue resolviéndose como solo-preparación', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedConcessionOrder(testEnv, EVENT_ID, 'order-1', { paymentPhase: 'awaiting_payment' })
+      await seedConcessionFulfillment(testEnv, EVENT_ID, 'order-2', { fulfillmentStatus: 'queued' })
+      const legacyStaffDb = testEnv.authenticatedContext(STAFF_UID).firestore()
+
+      // Puede preparación (comportamiento histórico sin cambios)...
+      await assertSucceeds(
+        updateDoc(doc(legacyStaffDb, 'events', EVENT_ID, 'concessionsFulfillment', 'order-2'), { fulfillmentStatus: 'preparing' }),
+      )
+      // ...pero NUNCA caja, aunque el shape legado no distinga roles: sin
+      // `roles.cashier` explícito no hay forma de otorgarle ese permiso.
+      await assertFails(
+        updateDoc(doc(legacyStaffDb, 'events', EVENT_ID, 'concessionsOrders', 'order-1'), { paymentPhase: 'confirmed' }),
+      )
+    })
+
+    it('un encargado con AMBOS roles puede confirmar pagos y avanzar preparación', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      await seedConcessionOrder(testEnv, EVENT_ID, 'order-1', { paymentPhase: 'awaiting_payment' })
+      await seedConcessionFulfillment(testEnv, EVENT_ID, 'order-1', { fulfillmentStatus: 'queued' })
+      const bothDb = testEnv.authenticatedContext(BOTH_ROLES_UID).firestore()
+
+      await assertSucceeds(
+        updateDoc(doc(bothDb, 'events', EVENT_ID, 'concessionsOrders', 'order-1'), { paymentPhase: 'confirmed', paidAt: Date.now() }),
+      )
+      await assertSucceeds(
+        updateDoc(doc(bothDb, 'events', EVENT_ID, 'concessionsFulfillment', 'order-1'), { fulfillmentStatus: 'preparing' }),
+      )
+    })
+
+    it('las invitaciones de encargado (concessionsStaffInvites) son ilegibles desde el cliente', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: enabledConcessions })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertFails(getDoc(doc(ownerDb, 'events', EVENT_ID, 'concessionsStaffInvites', 'some-token')))
     })
   })
 
@@ -606,16 +721,19 @@ describe('Concessions — venta de comida/bebida durante el evento', () => {
       )
     })
 
-    it('agrega y quita un Menu Manager del staff map', async () => {
-      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, concessions: { ...enabledConcessions, concessionsStaffMap: {} } })
+    // El alta ahora es siempre por invitación con enlace (Cloud Functions
+    // createConcessionsStaffInvite/acceptConcessionsStaffInvite, no
+    // cubiertas por este archivo de rules) — el único cliente que sigue
+    // escribiendo directo sobre concessionsStaffMap es removeConcessionsStaff.
+    it('quita un encargado del staff map (borra la entrada completa, ambos roles)', async () => {
+      await seedEvent(testEnv, EVENT_ID, {
+        ownerId: OWNER_UID,
+        concessions: { ...enabledConcessions, concessionsStaffMap: { [BOTH_ROLES_UID]: { email: 'both@test.com', roles: { cashier: true, prep: true } } } },
+      })
       dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
 
-      await addConcessionsStaff(EVENT_ID, STAFF_UID, 'staff@test.com')
-      let event = await getEventDoc(testEnv, EVENT_ID)
-      expect((event?.concessions as Record<string, unknown>).concessionsStaffMap).toEqual({ [STAFF_UID]: 'staff@test.com' })
-
-      await removeConcessionsStaff(EVENT_ID, STAFF_UID)
-      event = await getEventDoc(testEnv, EVENT_ID)
+      await removeConcessionsStaff(EVENT_ID, BOTH_ROLES_UID)
+      const event = await getEventDoc(testEnv, EVENT_ID)
       expect((event?.concessions as Record<string, unknown>).concessionsStaffMap).toEqual({})
     })
   })

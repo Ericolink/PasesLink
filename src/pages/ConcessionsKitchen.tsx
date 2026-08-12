@@ -6,59 +6,73 @@ import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useIsAdmin } from '../hooks/useIsAdmin'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
+import { isConcessionsCashier, isConcessionsPrep } from '../types/concessions'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { LoadingInline } from '../components/LoadingInline'
 import { Tab, TabList, TabPanel, Tabs } from '../components/accessibility/AccessibleTabs'
+import { ConcessionOrdersPanel } from '../components/Concessions/ConcessionOrdersPanel'
 import { ConcessionFulfillmentQueue } from '../components/Concessions/kitchen/ConcessionFulfillmentQueue'
 import { ConcessionAvailabilityPanel } from '../components/Concessions/kitchen/ConcessionAvailabilityPanel'
 
-type KitchenTab = 'queue' | 'availability'
+type StaffTab = 'cashier' | 'prep' | 'availability'
 
-// Ruta exclusiva del Menu Manager (ver RFC §8.2/§Fase 3) — deliberadamente
-// NO reutiliza ninguna pieza de ConcessionsManager.tsx (panel del
-// organizador): esa pantalla lee/escribe concessionsOrders (dinero,
-// comprobantes), esta pantalla ni siquiera lo importa. Un Menu Manager no
-// es coorganizador (no aparece en coOrganizersMap), así que tampoco pasa
-// por EventDetail — llega acá por un link directo que el organizador le
-// comparte (ver "Compartir acceso" en ConcessionStaffPanel).
+// Ruta compartida por enlace/QR con los encargados de "Ventas del evento"
+// (ver ConcessionStaffPanel.tsx) — deliberadamente NO reutiliza
+// ConcessionsManager.tsx (panel del organizador): esta pantalla se adapta al
+// rol de quien la abre. Un encargado de caja ve "Caja" (confirma/rechaza
+// pagos, igual que ConcessionOrdersPanel del organizador); uno de
+// preparación ve "Preparación"+"Disponibilidad" (qué preparar/entregar,
+// nunca dinero ni comprobantes); quien tiene ambos roles ve los tres tabs.
 export function ConcessionsKitchen() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
   const { event, loading, error } = useEventOnly(eventId)
   const perms = useEventPermissions(event, user)
   const { isAdmin } = useIsAdmin()
-  useDocumentTitle(event ? `Cocina · ${event.name}` : 'Cocina')
+  const staffMap = event?.concessions?.concessionsStaffMap
+  const canCashier = !!(user && isConcessionsCashier(staffMap, user.uid)) || perms.manageConcessions || isAdmin
+  const canPrep = !!(user && isConcessionsPrep(staffMap, user.uid)) || perms.manageConcessions || isAdmin
+  const title = canCashier && canPrep ? 'Encargados' : canCashier ? 'Caja' : 'Preparación'
+  useDocumentTitle(event ? `${title} · ${event.name}` : title)
   useDashboardTheme(event?.templateId, event?.accentColor)
-  const [tab, setTab] = useState<KitchenTab>('queue')
+  const [tab, setTab] = useState<StaffTab>(canCashier ? 'cashier' : 'prep')
 
   if (loading) return <LoadingInline label="Cargando…" />
   if (error || !event) return <ErrorFallbackCTA message={error || 'Evento no encontrado.'} tone="error" />
 
-  const isStaffMember = !!(user && event.concessions?.concessionsStaffMap && user.uid in event.concessions.concessionsStaffMap)
-  const canAccess = isStaffMember || perms.manageConcessions || isAdmin
-  if (!canAccess) {
-    return <ErrorFallbackCTA message="No tienes acceso a la cocina de este evento." />
+  if (!canCashier && !canPrep) {
+    return <ErrorFallbackCTA message="No tienes acceso a este panel de encargados." />
   }
   if (!event.concessions?.enabled) {
-    return <ErrorFallbackCTA message="El módulo de menú no está activo en este evento." />
+    return <ErrorFallbackCTA message="El módulo de ventas no está activo en este evento." />
   }
 
   return (
     <>
-      <ScreenHeader title="Cocina" subtitle={event.name} backTo="/dashboard" templateId={event.templateId} />
+      <ScreenHeader title={title} subtitle={event.name} backTo="/dashboard" templateId={event.templateId} />
 
       <Tabs value={tab} onChange={setTab}>
-        <TabList aria-label="Secciones de cocina" className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
-          <Tab value="queue" label="Pedidos" />
-          <Tab value="availability" label="Disponibilidad" />
+        <TabList aria-label="Secciones de encargados" className="items-center border-b border-gray-200 dark:border-gray-700 mb-4">
+          {canCashier && <Tab value="cashier" label="Caja" />}
+          {canPrep && <Tab value="prep" label="Preparación" />}
+          {canPrep && <Tab value="availability" label="Disponibilidad" />}
         </TabList>
-        <TabPanel value="queue">
-          <ConcessionFulfillmentQueue eventId={event.id} />
-        </TabPanel>
-        <TabPanel value="availability">
-          <ConcessionAvailabilityPanel eventId={event.id} />
-        </TabPanel>
+        {canCashier && (
+          <TabPanel value="cashier">
+            <ConcessionOrdersPanel eventId={event.id} />
+          </TabPanel>
+        )}
+        {canPrep && (
+          <TabPanel value="prep">
+            <ConcessionFulfillmentQueue eventId={event.id} />
+          </TabPanel>
+        )}
+        {canPrep && (
+          <TabPanel value="availability">
+            <ConcessionAvailabilityPanel eventId={event.id} />
+          </TabPanel>
+        )}
       </Tabs>
     </>
   )

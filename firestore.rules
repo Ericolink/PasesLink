@@ -673,13 +673,33 @@ service cloud.firestore {
       return evData.get('concessions', {}).get('enabled', false) == true;
     }
 
-    // El Menu Manager (encargado del menú) NO es un co-organizador — es un
-    // rol aparte, sin acceso a invitados/reportes/configuración del evento
-    // (ver RFC §8.2). Mismo patrón de mapa que coOrganizersMap, pero en su
-    // propio namespace para que nunca se confunda con uno.
-    function isConcessionsStaff(evData) {
-      return request.auth != null &&
-        request.auth.uid in evData.get('concessions', {}).get('concessionsStaffMap', {});
+    // Los encargados de "Ventas del evento" (caja/preparación) NO son
+    // co-organizadores — son roles aparte, sin acceso a
+    // invitados/reportes/configuración del evento (ver RFC §8.2). Mismo
+    // patrón de mapa que coOrganizersMap, pero en su propio namespace para
+    // que nunca se confundan con uno. El valor del mapa puede ser el shape
+    // legado (string = solo el email, encargados dados de alta antes de la
+    // invitación por enlace) o el shape nuevo (map con `roles.cashier`/
+    // `roles.prep`) — un string legado se trata como solo-preparación,
+    // el único acceso que esos encargados ya tenían en la práctica.
+    function concessionsStaffEntry(evData) {
+      return evData.get('concessions', {}).get('concessionsStaffMap', {}).get(request.auth.uid, null);
+    }
+    // Pertenece al staff (cualquier rol) — usado para distinguir "es un
+    // encargado sin el rol necesario acá" (denegar) de "no es del staff en
+    // absoluto, es el invitado dueño del pedido vía bearer-link" (permitir),
+    // ver `concessionsFulfillment.get/list` más abajo.
+    function isConcessionsStaffMember(evData) {
+      return request.auth != null && concessionsStaffEntry(evData) != null;
+    }
+    function isConcessionsCashier(evData) {
+      let entry = concessionsStaffEntry(evData);
+      return request.auth != null && entry != null && entry is map && entry.get('roles', {}).get('cashier', false) == true;
+    }
+    function isConcessionsPrep(evData) {
+      let entry = concessionsStaffEntry(evData);
+      return request.auth != null && entry != null &&
+        (entry is string || entry.get('roles', {}).get('prep', false) == true);
     }
 
     // Prueba de que quien escribe es dueño de ESTE pedido: igual criterio que
@@ -1437,8 +1457,10 @@ service cloud.firestore {
           && isValidConcessionItem(request.resource.data);
         // Dos ramas de `update`: el organizador/coanfitrión con
         // manageConcessions edita cualquier campo (catálogo, precios, stock);
-        // el Menu Manager SOLO puede tocar `status` (agotado manual, ver RFC
-        // §11.4) — nunca precio, nombre ni stock.
+        // el encargado de preparación SOLO puede tocar `status` (agotado
+        // manual, ver RFC §11.4) — nunca precio, nombre ni stock. El
+        // encargado de caja no tiene ninguna rama acá (no administra
+        // catálogo).
         // Checkout (reserva/descuento de stock) y cancelación de un pedido
         // (liberación de stock) ya NO tienen rama de cliente acá — ambas
         // corren en Cloud Functions con Admin SDK (ver
@@ -1449,7 +1471,7 @@ service cloud.firestore {
         allow update: if concessionsEnabled(eventDataFor(eventId)) && (
           ((canDo(eventId, 'manageConcessions', false) || isAdmin()) && isValidConcessionItem(request.resource.data))
           || (
-            isConcessionsStaff(eventDataFor(eventId))
+            isConcessionsPrep(eventDataFor(eventId))
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
             && request.resource.data.status in ['active', 'outOfStock']
           )
@@ -1480,48 +1502,53 @@ service cloud.firestore {
         // catálogo real (ver FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md Fase B).
         allow create: if false;
         allow update: if concessionsEnabled(eventDataFor(eventId)) && (
-          // Invitado dueño: subir comprobante (transferencia) o cancelar su
-          // propio pedido, solo mientras no esté ya confirmado.
+          // Invitado dueño: cancelar su propio pedido, solo mientras no esté
+          // ya confirmado. Ya NO puede subir comprobante/referencia (ver
+          // rediseño "Ventas del evento" §14-16) — tanto efectivo como
+          // transferencia se validan en persona en caja, así que esta rama
+          // solo necesita autorizar la transición a 'cancelled'.
+          // `paymentNote`/`paymentProofUrl` quedan fuera de
+          // `affectedKeys().hasOnly(...)` a propósito: ya no hay ninguna
+          // escritura legítima de cliente que los toque.
           (
             isGuestOrderActor(eventId, resource.data.guestId, request.resource.data.get('lockToken', null))
             && resource.data.paymentPhase in ['awaiting_payment', 'rejected']
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentPhase', 'paymentNote', 'paymentProofUrl', 'cancelReason', 'lockToken', 'updatedAt'])
-            && (
-              (
-                request.resource.data.paymentPhase == 'proof_submitted'
-                && request.resource.data.paymentNote is string
-                && request.resource.data.paymentNote.size() > 0
-                && request.resource.data.paymentNote.size() <= 300
-                && request.resource.data.paymentProofUrl is string
-                && request.resource.data.paymentProofUrl.size() > 0
-                && request.resource.data.paymentProofUrl.size() <= 500
-              )
-              || (request.resource.data.paymentPhase == 'cancelled' && request.resource.data.cancelReason == 'guest_cancelled')
-            )
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentPhase', 'cancelReason', 'lockToken', 'updatedAt'])
+            && request.resource.data.paymentPhase == 'cancelled'
+            && request.resource.data.cancelReason == 'guest_cancelled'
           )
           // Organizador/coanfitrión con manageConcessions o confirmPayments,
           // o admin: confirmar, rechazar, cancelar. Mismo nivel de confianza
           // que ya tienen sobre guests/{guestId} para el pago de entrada —
           // sin acotar campos acá, igual criterio que esa rama.
           || canDo(eventId, 'confirmPayments', false) || canDo(eventId, 'manageConcessions', false) || isAdmin()
+          // Encargado de caja (rol nuevo, sin ser coorganizador): mismo nivel
+          // de confianza que confirmPayments sobre este documento — valida
+          // pagos en persona en el evento, sin acceso a nada más del evento.
+          || isConcessionsCashier(eventDataFor(eventId))
         );
         allow delete: if false;
       }
 
       // Proyección de cocina — SIN dinero, SIN comprobante (ver RFC §4.3).
-      // Mismo id que el ConcessionOrder del que es espejo. El Menu Manager
-      // solo puede leer pedidos ya pagados (`fulfillmentStatus` fuera de
-      // 'not_ready') y solo puede avanzar el estado de preparación — nunca
-      // tocar montos porque acá ni siquiera existen.
+      // Mismo id que el ConcessionOrder del que es espejo. El encargado de
+      // preparación solo puede leer pedidos ya pagados (`fulfillmentStatus`
+      // fuera de 'not_ready') y solo puede avanzar el estado de preparación
+      // — nunca tocar montos porque acá ni siquiera existen. El encargado de
+      // caja NO tiene acceso acá (no necesita saber qué preparar).
       match /concessionsFulfillment/{orderId} {
         allow get: if concessionsEnabled(eventDataFor(eventId)) && (
           canDo(eventId, 'manageConcessions', false) || canDo(eventId, 'confirmPayments', false) || isAdmin()
-          || (isConcessionsStaff(eventDataFor(eventId)) && resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered'])
-          || !isConcessionsStaff(eventDataFor(eventId))
+          || (isConcessionsPrep(eventDataFor(eventId)) && resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered'])
+          // Bearer-link: el invitado dueño del pedido (o cualquier otra
+          // rama ya cubierta arriba) puede leerlo por id conocido — un
+          // encargado de caja SIN rol de preparación queda excluido a
+          // propósito (no necesita saber qué preparar).
+          || !isConcessionsStaffMember(eventDataFor(eventId))
         );
         allow list: if concessionsEnabled(eventDataFor(eventId)) && (
           canDo(eventId, 'manageConcessions', false) || canDo(eventId, 'confirmPayments', false) || isAdmin()
-          || (isConcessionsStaff(eventDataFor(eventId)) && resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered'])
+          || (isConcessionsPrep(eventDataFor(eventId)) && resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered'])
         );
         // Se crea SIEMPRE junto con concessionsOrders, dentro de la misma
         // transacción de checkout de la Callable `createConcessionOrder`
@@ -1540,22 +1567,22 @@ service cloud.firestore {
             && request.resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered', 'cancelled']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fulfillmentStatus', 'updatedAt', 'deliveredAt'])
           )
-          // Menu Manager: JAMÁS puede tocar un pedido en 'not_ready' (ni
-          // siquiera puede leerlo, ver `allow get` arriba) — solo avanza o
-          // retrocede la preparación de un pedido YA pagado. 'cancelled'
-          // fuera de su set de destino a propósito: cancelar implica
-          // liberar stock reservado (ver isValidConcessionStockRelease en
-          // concessionsCatalog), una operación de dinero/inventario que
-          // sigue reservada a confirmPayments/manageConcessions/admin —
-          // sin esta exclusión, el Menu Manager podía dejar un pedido
-          // "cancelado" en la cocina sin que nadie liberara ese stock ni
-          // tocara el pedido real en concessionsOrders. Sin esta
-          // distinción, un Menu Manager también podría "adivinar" un
-          // orderId y escribir un update a ciegas (Firestore no exige
-          // haber leído el doc antes de escribirlo) y así calificar como
-          // preparado/entregado un pedido que nunca se pagó.
+          // Encargado de preparación: JAMÁS puede tocar un pedido en
+          // 'not_ready' (ni siquiera puede leerlo, ver `allow get` arriba) —
+          // solo avanza o retrocede la preparación de un pedido YA pagado.
+          // 'cancelled' fuera de su set de destino a propósito: cancelar
+          // implica liberar stock reservado (ver isValidConcessionStockRelease
+          // en concessionsCatalog), una operación de dinero/inventario que
+          // sigue reservada a confirmPayments/manageConcessions/admin — sin
+          // esta exclusión, el encargado de preparación podía dejar un
+          // pedido "cancelado" en la cocina sin que nadie liberara ese stock
+          // ni tocara el pedido real en concessionsOrders. Sin esta
+          // distinción, también podría "adivinar" un orderId y escribir un
+          // update a ciegas (Firestore no exige haber leído el doc antes de
+          // escribirlo) y así calificar como preparado/entregado un pedido
+          // que nunca se pagó.
           || (
-            isConcessionsStaff(eventDataFor(eventId))
+            isConcessionsPrep(eventDataFor(eventId))
             && resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready']
             && request.resource.data.fulfillmentStatus in ['queued', 'preparing', 'ready', 'delivered']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fulfillmentStatus', 'updatedAt', 'deliveredAt'])
@@ -1586,6 +1613,15 @@ service cloud.firestore {
       // canjean ÚNICAMENTE vía esas dos Cloud Functions (Admin SDK, bypassa
       // estas reglas) — el navegador nunca lee ni escribe esta subcolección.
       match /coOrganizerInvites/{token} {
+        allow read, write: if false;
+      }
+
+      // Invitaciones de encargado de "Ventas del evento" por enlace/QR
+      // (createConcessionsStaffInvite.ts/acceptConcessionsStaffInvite.ts) —
+      // mismo criterio que coOrganizerInvites arriba: el token es la única
+      // barrera de acceso real, se crean y canjean ÚNICAMENTE vía esas dos
+      // Cloud Functions (Admin SDK, bypassa estas reglas).
+      match /concessionsStaffInvites/{token} {
         allow read, write: if false;
       }
 

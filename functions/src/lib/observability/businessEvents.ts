@@ -24,6 +24,7 @@ export const BUSINESS_EVENTS = {
   CONCESSION_ORDER_CREATED: 'concession_order_created',
   CONCESSION_ORDER_CANCELLED: 'concession_order_cancelled',
   CO_ORGANIZER_INVITE_ACCEPTED: 'co_organizer_invite_accepted',
+  CONCESSIONS_STAFF_INVITE_ACCEPTED: 'concessions_staff_invite_accepted',
 } as const
 
 export type BusinessEventName = typeof BUSINESS_EVENTS[keyof typeof BUSINESS_EVENTS]

@@ -292,7 +292,7 @@ export function EventDetail() {
               to={`/events/${event.id}/menu`}
               className="flex-1 text-center border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
-              Menú
+              Ventas
             </Link>
           )}
         </div>

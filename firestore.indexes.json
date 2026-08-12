@@ -50,6 +50,22 @@
       ]
     },
     {
+      "collectionGroup": "concessionsOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "paymentPhase", "order": "ASCENDING" },
+        { "fieldPath": "paidAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "concessionsOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "paymentPhase", "order": "ASCENDING" },
+        { "fieldPath": "totalMinorUnits", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "concessionsFulfillment",
       "queryScope": "COLLECTION",
       "fields": [
