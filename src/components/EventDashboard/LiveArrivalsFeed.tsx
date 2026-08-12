@@ -46,7 +46,7 @@ export function LiveArrivalsFeed({ recentCheckins }: Props) {
   }, [])
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden">
+    <div className="rounded-xl bg-gray-50 dark:bg-gray-800 dark:border dark:border-gray-700 overflow-hidden">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-white px-4 py-3 border-b border-gray-100 dark:border-gray-700">
         Ingresos recientes
       </h2>

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { CountryCode } from 'libphonenumber-js/min'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
@@ -34,15 +33,13 @@ import {
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
-import { toWhatsAppPhone } from '../utils/phone'
+import { organizerWhatsappUrl } from '../utils/phone'
 import { getAccentContrastText } from '../utils/contrastColor'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
 import { InAppBrowserBanner } from '../components/InAppBrowserBanner'
 import { InlineNotice } from '../components/InlineNotice'
-import { NoticeStack } from '../components/NoticeStack'
-import { useInAppBrowserNotice } from '../hooks/useInAppBrowserNotice'
 import { AccessibleModal } from '../components/accessibility/AccessibleModal'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { SkeletonBlock } from '../components/Skeleton'
@@ -61,21 +58,10 @@ import { formatDate, formatTime12h, isEventPast } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadPassImage } from '../utils/downloadPass'
 import { downloadIcsFile } from '../utils/calendar'
-import { getTemplate } from '../templates/registry'
+import { getTemplate, isRedesignedInvitationTemplate } from '../templates/registry'
 import { buildPassUrl, QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
-
-
-// Mismo canal (WhatsApp) que ya se usa para "compartir pase con
-// acompañantes" más abajo en este archivo — reutiliza wa.me en vez de un
-// canal nuevo, sin round-trip al servidor.
-// `context` arma el mensaje prellenado según lo que el
-// invitado necesita resolver (enviar comprobante, consultar, pedir
-// devolución o reportar un problema de acceso — todo el mismo canal, pedido
-// explícito).
-function organizerWhatsappUrl(phone: string, message: string, phoneCountry?: string): string {
-  return `https://wa.me/${toWhatsAppPhone(phone, phoneCountry as CountryCode | undefined)}?text=${encodeURIComponent(message)}`
-}
+import { HousePartyPassLayout } from '../components/invitation/HousePartyPassLayout'
 
 // El navegador reutiliza la misma instancia de GuestPass al navegar entre dos
 // URLs /pass/:eventId/:qrToken distintas (mismo patrón de ruta) — sin esta key,
@@ -97,15 +83,7 @@ function GuestPassInner() {
   useLoadingAnnouncement(loading, 'Pase cargado')
   const [error, setError] = useState(false)
   const [deviceToken, setDeviceToken] = useState<string | null>(null)
-  const [multiDevice, setMultiDevice] = useState(false)
-  const [multiDeviceDismissed, setMultiDeviceDismissed] = useState(false)
-  const inAppBrowserNotice = useInAppBrowserNotice()
   const prefersReducedMotion = usePrefersReducedMotion()
-  const showMultiDeviceNotice = multiDevice && !multiDeviceDismissed
-  // Cuando ambos avisos pueden mostrarse a la vez, se agrupan en un solo
-  // contenedor (NoticeStack) para no duplicar borde/fondo/margen y comerse
-  // el doble de alto de viewport — ver InlineNotice/NoticeStack.
-  const groupNotices = inAppBrowserNotice.visible && showMultiDeviceNotice
   const [rsvpSaving, setRsvpSaving] = useState(false)
   const [rsvpError, setRsvpError] = useState<string | null>(null)
   const [reconfirmSaving, setReconfirmSaving] = useState(false)
@@ -219,7 +197,6 @@ function GuestPassInner() {
         localStorage.setItem(storageKey, localToken)
         const devices = await claimGuestPass(eventId, guestData.id, localToken)
         setDeviceToken(localToken)
-        setMultiDevice(devices.length > 1)
         setGuest({ ...guestData, lockToken: localToken, lockTokens: devices })
 
         // Vincula (o revincula) este pase a la cuenta cada vez que su dueño
@@ -269,14 +246,18 @@ function GuestPassInner() {
   // oportunidad que ya tiene el invitado de LISTA al confirmar RSVP (ver
   // handleRsvp más abajo). Mismo dismissKey que ese flujo: si ya la cerró en
   // esta sesión de navegador, no se le vuelve a ofrecer.
+  // No aplica a la invitación rediseñada (houseparty): ahí la decisión de
+  // cuenta ya ocurrió DURANTE el registro en EventJoin.tsx (su propio gate,
+  // antes de navegar acá) — repetirla al llegar sería redundante.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!guest || user || loading || !eventId || !qrToken) return
+    if (isRedesignedInvitationTemplate(event?.templateId)) return
     const state = location.state as { justRegistered?: boolean } | null
     if (!state?.justRegistered) return
     const dismissKey = `paselink_signup_prompt_${eventId}_${qrToken}`
     if (!sessionStorage.getItem(dismissKey)) setShowSignupPrompt(true)
-  }, [guest, user, loading, eventId, qrToken, location.state])
+  }, [guest, user, loading, eventId, qrToken, location.state, event?.templateId])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Un solo punto de medición para los tres disparadores del CTA (justo al
@@ -474,7 +455,13 @@ function GuestPassInner() {
     )
   }
 
-  async function handleRsvp(rsvpStatus: RsvpStatus) {
+  // `skipSignupPrompt`: la invitación rediseñada (houseparty) ya resuelve la
+  // decisión de cuenta ANTES de llamar acá (ver accountGate/InvitationPass)
+  // — sin esto, un invitado que acaba de elegir "continuar sin cuenta"
+  // vería el mismo cuadro reaparecer de inmediato después de escribir el
+  // RSVP. El resto de las plantillas nunca pasa este flag (default false,
+  // comportamiento idéntico al de siempre: ofrecer cuenta DESPUÉS de RSVP).
+  async function handleRsvp(rsvpStatus: RsvpStatus, opts?: { skipSignupPrompt?: boolean }) {
     if (!guest) return
     setRsvpSaving(true)
     setRsvpError(null)
@@ -491,7 +478,7 @@ function GuestPassInner() {
       // (no en cargas posteriores de un pase que ya estaba en 'yes') — solo a
       // invitados sin sesión, y no de nuevo si ya dijo "Ahora no" en esta
       // invitación durante esta sesión del navegador.
-      if (rsvpStatus === 'yes' && !user) {
+      if (rsvpStatus === 'yes' && !user && !opts?.skipSignupPrompt) {
         const dismissKey = `paselink_signup_prompt_${eventId}_${qrToken}`
         if (!sessionStorage.getItem(dismissKey)) setShowSignupPrompt(true)
       }
@@ -592,6 +579,40 @@ function GuestPassInner() {
     ? `${formatTime12h(event.startTime)}${event.endTime ? ` – ${formatTime12h(event.endTime)}` : ''}`
     : null
 
+  // Invitación rediseñada (ver INVITATION_REDESIGN_PLAN) — hoy solo Fiesta
+  // Improvisada. Único punto de bifurcación: HousePartyPassLayout es 100%
+  // presentacional, recibe los mismos handlers/estado ya calculados acá
+  // arriba (nada de lógica de negocio duplicada), solo cambia el árbol
+  // visual. El resto de las plantillas sigue devolviendo el JSX de siempre.
+  if (isRedesignedInvitationTemplate(event.templateId)) {
+    return (
+      <HousePartyPassLayout
+        event={event}
+        guest={guest}
+        eventId={eventId}
+        qrToken={qrToken}
+        passUrl={passUrl}
+        deviceToken={deviceToken}
+        hasAccount={!!user}
+        ticketRef={ticketRef}
+        downloaded={downloaded}
+        onDownload={handleDownload}
+        onAddToCalendar={handleAddToCalendar}
+        rsvpSaving={rsvpSaving}
+        rsvpError={rsvpError}
+        onRsvp={handleRsvp}
+        reconfirmSaving={reconfirmSaving}
+        reconfirmError={reconfirmError}
+        onReconfirm={handleReconfirm}
+        proof={proof}
+        cancelSaving={cancelSaving}
+        cancelError={cancelError}
+        onCancelAttendance={() => { void handleCancelAttendance() }}
+        onGuestSaved={(patch) => setGuest((g) => (g ? { ...g, ...patch } : g))}
+      />
+    )
+  }
+
   return (
     <InvitationThemeRoot
       templateId={event.templateId}
@@ -637,45 +658,7 @@ function GuestPassInner() {
             primero, como el código de barras de un boarding pass real; los
             detalles del evento quedan como contexto secundario debajo). ── */}
         <div className="px-6 pb-6 pt-4 text-center">
-          {/* Los dos avisos (navegador integrado + multi-dispositivo) son
-              independientes y pueden coincidir. Sueltos, cada uno trae su
-              propio borde/fondo/margen y juntos se comen el doble de alto
-              de viewport del que realmente necesitan — por eso, cuando
-              ambos están visibles, se agrupan en un solo NoticeStack en vez
-              de mostrarse apilados por separado. Con uno solo visible, se
-              muestra suelto (comportamiento sin cambios). */}
-          {groupNotices ? (
-            <NoticeStack>
-              <InAppBrowserBanner grouped />
-              <InlineNotice
-                grouped
-                onDismiss={() => setMultiDeviceDismissed(true)}
-                icon={<IconAlertTriangle className="w-4 h-4 text-amber-400" />}
-              >
-                <p className="text-[var(--invite-text)]">Este pase también se abrió desde otro dispositivo o navegador.</p>
-                <p className="mt-0.5 text-[var(--invite-text-muted)]">
-                  Si fuiste tú (por ejemplo, al cambiar de Instagram/WhatsApp a Chrome o Safari), no hace falta hacer
-                  nada. Si no reconoces ese acceso, contacta al organizador.
-                </p>
-              </InlineNotice>
-            </NoticeStack>
-          ) : (
-            <>
-              <InAppBrowserBanner />
-              {showMultiDeviceNotice && (
-                <InlineNotice
-                  onDismiss={() => setMultiDeviceDismissed(true)}
-                  icon={<IconAlertTriangle className="w-4 h-4 text-amber-400" />}
-                >
-                  <p className="text-[var(--invite-text)]">Este pase también se abrió desde otro dispositivo o navegador.</p>
-                  <p className="mt-0.5 text-[var(--invite-text-muted)]">
-                    Si fuiste tú (por ejemplo, al cambiar de Instagram/WhatsApp a Chrome o Safari), no hace falta hacer
-                    nada. Si no reconoces ese acceso, contacta al organizador.
-                  </p>
-                </InlineNotice>
-              )}
-            </>
-          )}
+          <InAppBrowserBanner />
 
           {/* Reconfirmación de asistencia (WAITLIST_RECONFIRMATION_ARCHITECTURE.md
               Fase 2) — solo mientras sigue pendiente ('requested'); una vez

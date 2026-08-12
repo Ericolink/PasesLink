@@ -43,9 +43,7 @@ export function PrivacyContent() {
         <section>
           <h2 className="font-medium text-gray-900 mb-1">4. Acceso de los invitados a su pase</h2>
           <p>
-            Cada invitado recibe un enlace único a su pase. Por seguridad, ese enlace queda asociado al primer
-            dispositivo desde el que se abre. Si el organizador necesita reactivarlo, puede hacerlo desde el panel
-            del evento.
+            Cada invitado recibe un enlace único y personal a su pase, que puede abrir desde cualquier dispositivo.
           </p>
         </section>
 

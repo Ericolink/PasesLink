@@ -33,3 +33,13 @@ export function toWhatsAppPhone(raw: string, defaultCountry: CountryCode = DEFAU
 
   return raw.replace(/\D/g, '')
 }
+
+// Mismo canal (WhatsApp) que ya usan "compartir pase con acompañantes" y el
+// bloque de pago del pase — arma el link wa.me con un mensaje prellenado
+// según lo que el invitado necesita resolver (enviar comprobante, consultar,
+// pedir devolución, reportar un problema de acceso), reutilizado tanto por
+// GuestPass.tsx (plantillas clásicas) como por InvitationPass.tsx (Fiesta
+// Improvisada) para no duplicar la construcción de la URL.
+export function organizerWhatsappUrl(phone: string, message: string, phoneCountry?: string): string {
+  return `https://wa.me/${toWhatsAppPhone(phone, phoneCountry as CountryCode | undefined)}?text=${encodeURIComponent(message)}`
+}

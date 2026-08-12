@@ -12,6 +12,8 @@ import { useUserProfile } from '../hooks/useUserProfile'
 import { getUserInvitation, saveUserInvitation } from '../firebase/userProfile'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { trackInvitationSignupPromptShown } from '../lib/analytics'
+import { isRedesignedInvitationTemplate } from '../templates/registry'
+import { useAccountConfirmGate } from '../hooks/useAccountConfirmGate'
 import {
   companionFieldsHaveErrors,
   GUEST_CUSTOM_FIELD_VALUE_MAX,
@@ -259,10 +261,21 @@ export function EventJoin() {
 
   // Tarjeta "guarda tu invitación" — visible mientras no haya sesión, el
   // formulario esté disponible, y no se haya descartado en esta sesión.
+  // Fiesta Improvisada no la muestra acá (ver isHouseparty más abajo): la
+  // decisión de cuenta se mueve al momento de "Confirmar asistencia".
   const showSignupCard = !user && state === 'form' && !signupCardDismissed
   useEffect(() => {
     if (showSignupCard) trackInvitationSignupPromptShown('event_join')
   }, [showSignupCard])
+
+  // Invitación rediseñada (ver INVITATION_REDESIGN_PLAN) — hoy solo Fiesta
+  // Improvisada. Gatea la decisión de cuenta detrás de "Confirmar
+  // asistencia" en vez de ofrecerla antes del formulario; no cambia nada
+  // para el resto de las plantillas (accountGate.requestConfirm ejecuta la
+  // acción de una si ya hay sesión, así que ni siquiera houseparty ve el
+  // gate estando logueado).
+  const isHouseparty = isRedesignedInvitationTemplate(event?.templateId)
+  const accountGate = useAccountConfirmGate(!!user)
 
   // Tope de "¿cuántos vienen?" — límite de acompañantes configurado para
   // ESTE evento (EventData.maxCompanions), no un valor global. Mientras
@@ -345,6 +358,23 @@ export function EventJoin() {
       setRegErrorAttempt((n) => n + 1)
       return
     }
+    // Fiesta Improvisada: la decisión de cuenta (crear/iniciar sesión/
+    // continuar sin cuenta) ocurre acá, ANTES de registrar — ver
+    // INVITATION_REDESIGN_PLAN §5-7. Para el resto de las plantillas (y para
+    // cualquier invitado ya logueado) esto es un no-op: doRegister corre de
+    // inmediato, igual que siempre.
+    if (isHouseparty) {
+      accountGate.requestConfirm(doRegister)
+    } else {
+      void doRegister()
+    }
+  }
+
+  async function doRegister() {
+    // Redundante con el guard de handleSubmit (que ya validó `id` antes de
+    // llamar acá) — TypeScript no propaga esa validación entre funciones
+    // distintas, y accountGate.requestConfirm puede diferir la llamada.
+    if (!id) return
     setState('submitting')
     setRegError('')
     try {
@@ -668,12 +698,12 @@ export function EventJoin() {
           )}
 
           {event?.description && (
-            <p className="mb-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-left">
+            <p className="invite-description mb-4 text-sm text-[var(--invite-text-muted)] leading-relaxed whitespace-pre-line text-left">
               {event.description}
             </p>
           )}
 
-          {showSignupCard && (
+          {!isHouseparty && showSignupCard && (
             <div className="mb-4 rounded-2xl border border-[var(--invite-border)] bg-[var(--invite-surface)] p-4 text-left">
               <p className="text-sm font-bold text-[var(--invite-text)] mb-1">Guarda tu invitación en PaseLink</p>
               <p className="text-xs text-[var(--invite-text-muted)] mb-3">
@@ -718,6 +748,23 @@ export function EventJoin() {
               source="event_join"
               onDismiss={() => setShowSignupPrompt(false)}
               onSuccess={() => setShowSignupPrompt(false)}
+            />
+          )}
+
+          {/* Fiesta Improvisada: la oferta de cuenta ocurre al presionar
+              "Confirmar asistencia" (ver handleSubmit/doRegister arriba),
+              no antes del formulario — accountGate.gateOpen solo se activa
+              sin sesión. */}
+          {isHouseparty && accountGate.gateOpen && (
+            <GuestSignupPrompt
+              eventId={id!}
+              initialFirstName={name}
+              initialLastName={lastName}
+              source="event_join"
+              gateMode
+              onContinueWithoutAccount={accountGate.resolve}
+              onDismiss={accountGate.cancel}
+              onSuccess={accountGate.resolve}
             />
           )}
 

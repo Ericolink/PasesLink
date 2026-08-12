@@ -1304,6 +1304,90 @@
   filter: contrast(1.05) saturate(1.15) brightness(.92);
 }
 
+/* Rediseño de invitación (ver INVITATION_REDESIGN_PLAN) — descripción del
+   evento centrada con ancho de lectura acotado, en vez de la alineación a
+   la izquierda de siempre (pedido explícito del brief §4). Clase propia
+   (`.invite-description`, no un selector genérico `.invite-card p`) para no
+   centrar por accidente otros párrafos de la tarjeta (avisos, estados de
+   pago, etc.) que sí deben quedarse a la izquierda. */
+[data-template='houseparty'] .invite-description {
+  text-align: center;
+  max-width: 42ch;
+  margin-inline: auto;
+}
+
+/* Encabezados de las tarjetas nuevas de la invitación rediseñada (Menú,
+   Datos de tu registro, Información general/Ubicación en modo "flat" — ver
+   EventInfoSection.tsx) — mismo tratamiento tipográfico que ya usa h1 acá
+   arriba, en vez de quedarse con la tipografía UI genérica. */
+/* Mismo tratamiento que el título "Comunidad" (WallSection: text-lg
+   font-bold, color pleno) para TODOS los encabezados h2 de tarjeta de la
+   invitación rediseñada — antes cada uno traía el tamaño/peso/color que le
+   tocaba por su contexto original (ej. "Información del evento" venía de
+   un rótulo de acordeón chico y apagado, text-xs + texto muted), lo que
+   los dejaba con jerarquías visuales inconsistentes entre sí (bug
+   reportado). Acá se pisan esas tres propiedades puntuales (no solo
+   tipografía/mayúsculas como antes) para que las tarjetas se lean como un
+   mismo sistema. */
+[data-template='houseparty'] .invite-card h2,
+[data-template='houseparty'] .invite-wall-section h2,
+[data-template='houseparty'] .invite-section-title {
+  font-family: 'Archivo Black', 'Space Grotesk', system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .01em;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--invite-text);
+}
+
+/* Título de sección "suelto" (fuera de cualquier tarjeta con borde) —
+   mismo margen inferior que ya separa "Comunidad" de su contenido. */
+[data-template='houseparty'] .invite-section-title {
+  margin-bottom: .75rem;
+}
+
+/* Botón "adjuntar foto" del compositor de Comunidad — antes un ghost-button
+   apagado (mismo fondo que la tarjeta, ícono muted), fácil de pasar por
+   alto. Ahora un círculo sólido de acento con halo de luz (mismo lenguaje
+   que el resto del sistema — icon-badge, CTA), leyendo como el botón de
+   galería de WhatsApp/Instagram en vez de perderse al lado del textarea.
+   El ícono usa --invite-ink (mismo criterio de contraste que
+   .invite-icon-badge) porque el acento cian es demasiado claro para un
+   trazo blanco/muted encima. */
+[data-template='houseparty'] .invite-wall-attach-btn {
+  background: var(--invite-accent) !important;
+  color: var(--invite-ink) !important;
+  border-radius: 9999px !important;
+  width: 2.75rem;
+  height: 2.75rem;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.14), 0 10px 24px -8px rgba(34,211,238,.55);
+  transition: transform .18s ease-out, box-shadow .18s ease-out, filter .18s ease-out;
+}
+[data-template='houseparty'] .invite-wall-attach-btn:hover {
+  filter: brightness(1.05);
+  transform: scale(1.05);
+}
+[data-template='houseparty'] .invite-wall-attach-btn:active {
+  filter: brightness(.95);
+  transform: scale(.97);
+}
+
+/* Ícono dentro de una insignia circular/cuadrada de acento suave
+   (ubicación, menú, datos de tu registro, producto sin foto) — el trazo
+   neón (--invite-accent) sobre el propio fondo --invite-accent-soft (los
+   dos son cian, ver §2 del sistema de diseño) se leía casi invisible
+   (bug reportado). `.invite-icon-badge` es una clase marcadora, no
+   decorativa: la pintan tanto el badge (currentColor cascada al ícono
+   hijo) como, para el caso de ConcessionMenuBrowser (fondo en el div
+   padre, color en el <svg> hijo, que no hereda porque ya trae su propio
+   `text-[var(--invite-accent)]`), el propio <svg> — misma tinta oscura
+   `--invite-ink` que ya usa el botón primario para el mismo problema de
+   contraste. */
+[data-template='houseparty'] .invite-icon-badge,
+[data-template='houseparty'] .invite-icon-badge svg {
+  color: var(--invite-ink) !important;
+}
+
 /* ════════════════════════════════════════════════════════════════════
    COMPARTIDO ENTRE TEMAS — Feature 2 (personalización de plantillas)
    ════════════════════════════════════════════════════════════════════

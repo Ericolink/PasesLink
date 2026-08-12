@@ -307,6 +307,17 @@ export function getTemplate(id?: TemplateId | string): InvitationTemplate {
   return INVITATION_TEMPLATES.find((t) => t.id === id) ?? INVITATION_TEMPLATES[0]
 }
 
+// Único punto de verdad de qué plantillas ya tienen la experiencia de
+// invitación rediseñada (ver INVITATION_REDESIGN_PLAN) — hoy solo
+// 'houseparty' (Fiesta Improvisada). GuestPass.tsx y EventJoin.tsx bifurcan
+// su render acá en vez de repetir `templateId === 'houseparty'` en cada
+// archivo; sumar una plantilla nueva al rediseño es agregarla a este array.
+const REDESIGNED_INVITATION_TEMPLATES: TemplateId[] = ['houseparty']
+
+export function isRedesignedInvitationTemplate(id?: TemplateId | string): boolean {
+  return !!id && REDESIGNED_INVITATION_TEMPLATES.includes(id as TemplateId)
+}
+
 // Opciones curadas para el formulario de envío de plantillas comunitarias
 // (SubmitCommunityTemplate.tsx) — reusa los mismos enums que ya definen las
 // plantillas curadas de arriba, así un envío de la comunidad no puede tener

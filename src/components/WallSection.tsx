@@ -44,9 +44,38 @@ function getAge(birthDate: string): number {
 
 const TYPE_CONFIG = WALL_TYPE_CONFIG
 
-interface Props { eventId: string; eventName?: string; guestName?: string; guestToken?: string; templateId?: TemplateId }
+interface Props {
+  eventId: string
+  eventName?: string
+  guestName?: string
+  guestToken?: string
+  templateId?: TemplateId
+  // Fiesta Improvisada renombra esta sección a "Comunidad" (ver
+  // INVITATION_REDESIGN_PLAN) — defaults reproducen el copy de siempre para
+  // el resto de las plantillas, la lógica de datos/reacciones no cambia.
+  title?: string
+  composerCta?: string
+  // Fiesta Improvisada oculta los chips de tipo de publicación (Comentario/
+  // Pregunta/Música/Idea — "solo estorban", pedido explícito) y usa un
+  // placeholder fijo en vez del dinámico "Escribe tu {tipo}…". `type` sigue
+  // enviándose igual en el mensaje (default 'comment' de useWallComposer,
+  // sin selector visible para elegir otro) — la mecánica de moderación/
+  // filtrado por tipo no cambia, solo deja de pedírsele al invitado.
+  showTypeSelector?: boolean
+  composerPlaceholder?: string
+}
 
-export function WallSection({ eventId, eventName = '', guestName: guestNameProp, guestToken, templateId }: Props) {
+export function WallSection({
+  eventId,
+  eventName = '',
+  guestName: guestNameProp,
+  guestToken,
+  templateId,
+  title = 'Muro del evento',
+  composerCta = 'Publicar',
+  showTypeSelector = true,
+  composerPlaceholder,
+}: Props) {
   const { user }          = useAuth()
   const { profile }       = useUserProfile()
   const { photoBlocked, commentBlockedMessage, photoBlockedMessage } = useSanctionStatus(eventId)
@@ -206,7 +235,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
         onReply={handleReplyPhoto}
       />
       <div className="flex items-center gap-2 mb-4">
-        <h2 className="text-lg font-bold text-[var(--invite-text)]">Muro del evento</h2>
+        <h2 className="text-lg font-bold text-[var(--invite-text)]">{title}</h2>
         <button
           onClick={() => { loadMessages(); loadPhotos() }}
           disabled={refreshing}
@@ -237,7 +266,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
           className="invite-wall-form border p-4 mb-4 space-y-3 bg-[var(--invite-surface)] [border-radius:var(--invite-radius)]"
           style={{ borderColor: 'var(--invite-border)' }}
         >
-          {!attachedFile && <WallTypeChipSelector value={type} onChange={setType} />}
+          {showTypeSelector && !attachedFile && <WallTypeChipSelector value={type} onChange={setType} />}
           <FieldError message={photoBlockedMessage} />
           <div className="flex items-start gap-2">
             <Avatar name={authorName} photoURL={authorPhoto} size={28} />
@@ -246,7 +275,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
                 ref={textareaRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder={attachedFile ? 'Agrega un mensaje (opcional)…' : `Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
+                placeholder={attachedFile ? 'Agrega un mensaje (opcional)…' : composerPlaceholder ?? `Escribe tu ${TYPE_CONFIG[type].label.toLowerCase()}…`}
                 rows={2}
                 maxLength={maxLength}
                 className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 bg-transparent text-[var(--invite-text)] focus:ring-[var(--invite-accent)]"
@@ -271,7 +300,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
               onClick={openPicker}
               disabled={photoBlocked}
               aria-label="Adjuntar foto"
-              className="shrink-0 disabled:opacity-40 text-[var(--invite-text-muted)]"
+              className="invite-wall-attach-btn shrink-0 disabled:opacity-40 text-[var(--invite-text-muted)]"
               style={{ background: 'var(--invite-page-bg, rgba(255,255,255,0.06))' }}
             >
               <IconCamera className="w-4 h-4" />
@@ -283,7 +312,7 @@ export function WallSection({ eventId, eventName = '', guestName: guestNameProp,
             <span className="text-xs text-[var(--invite-text-muted)]">{text.length}/{maxLength}</span>
             <button type="submit" disabled={posting || (!text.trim() && !attachedFile)}
               className="text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 bg-[var(--invite-accent)]">
-              {posting ? 'Publicando…' : 'Publicar'}
+              {posting ? 'Publicando…' : composerCta}
             </button>
           </div>
           <FieldError message={postError} />

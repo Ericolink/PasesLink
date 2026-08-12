@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { db, functions } from './config'
+import { auth, db, functions } from './config'
 import { assertCapacityAvailable, CapacityFullError, fetchOfferedWaitlistCount } from './attendeeLimit'
 import { applyCounterDeltas } from './counters'
 import { enqueueNotification } from './notifications'
@@ -113,7 +113,7 @@ function guestVersionStamp(expectedVersion: number) {
 
 // Variante con increment() para escrituras del ORGANIZADOR que no pasan por
 // una rama de campos acotados propia en firestore.rules (resetGuestRsvp,
-// unlockGuestPass, bulkSetGuestTags) y por eso cotizan contra la MISMA rama
+// bulkSetGuestTags) y por eso cotizan contra la MISMA rama
 // sin restricción de campos que updateGuest (editGuests/isAdmin,
 // accessControlFieldsUntouched) — esa rama exige guestVersionOk() sin
 // excepción, así que estas escrituras también tienen que avanzar `version`.
@@ -253,6 +253,10 @@ export interface UpdateGuestInput {
   lastName?: string
   phone?: string
   phoneCountry?: string
+  // Ver GuestData.whatsappConsent — solo tiene efecto cuando `phone` también
+  // viene en el mismo input (updateGuest calcula el consentimiento efectivo
+  // junto con el teléfono, nunca por separado).
+  whatsappConsent?: boolean
   companions?: CompanionData[]
   customData?: Record<string, string>
 }
@@ -278,7 +282,7 @@ export async function updateGuest(
   maxCompanions: number,
   expectedVersion: number,
 ) {
-  const { phone, phoneCountry, ...guestFields } = input
+  const { phone, phoneCountry, whatsappConsent, ...guestFields } = input
   const guestRef = doc(db, 'events', eventId, 'guests', guestId)
   const eventRef = doc(db, 'events', eventId)
   const companionsChanged = guestFields.companions !== undefined
@@ -297,6 +301,15 @@ export async function updateGuest(
     const existing = mapGuest(snap.id, snap.data())
     const before = partySize(existing)
     let after = before
+
+    // Leído acá (junto con el resto de los `get()`, antes de cualquier
+    // escritura — Firestore exige eso dentro de una transacción) para poder
+    // comparar el `whatsappConsent` previo contra el nuevo más abajo: solo se
+    // re-estampa la metadata de auditoría del organizador
+    // (whatsappConsentSource/At/By) cuando el valor efectivo REALMENTE
+    // cambia, no en cada guardado del formulario (ver EditGuestRow, que
+    // siempre reenvía el teléfono/checkbox tal como los precargó).
+    const contactSnap = phone !== undefined ? await transaction.get(contactRef(eventId, guestId)) : null
 
     // Si `companions` cambia de largo (acompañantes agregados/quitados, o
     // cantidad de integrantes editada en una familia), partySize() de este
@@ -354,7 +367,31 @@ export async function updateGuest(
       transaction.update(guestRef, { ...guestFields, ...guestVersionStamp(expectedVersion) })
     }
     if (phone !== undefined) {
-      transaction.set(contactRef(eventId, guestId), { phone, ...(phoneCountry !== undefined ? { phoneCountry } : {}) }, { merge: true })
+      const trimmedPhone = phone.trim()
+      // Sin teléfono no hay nada que consentir — mismo criterio que
+      // registerWalkInGuest.ts (autoregistro) al decidir whatsappConsent.
+      const nextConsent = trimmedPhone !== '' && whatsappConsent === true
+      const previousConsent = contactSnap?.data()?.whatsappConsent === true
+      transaction.set(
+        contactRef(eventId, guestId),
+        {
+          phone: trimmedPhone,
+          ...(phoneCountry !== undefined ? { phoneCountry } : {}),
+          whatsappConsent: nextConsent,
+          // Rastro de auditoría (ver GuestData.whatsappConsent): solo se
+          // escribe cuando el valor efectivo cambia en ESTE guardado, para no
+          // atribuirle al organizador un consentimiento que ya existía (p.ej.
+          // autoservicio) y que esta edición no tocó.
+          ...(nextConsent !== previousConsent
+            ? {
+                whatsappConsentSource: 'organizer' as const,
+                whatsappConsentAt: serverTimestamp(),
+                whatsappConsentBy: auth.currentUser?.uid ?? null,
+              }
+            : {}),
+        },
+        { merge: true },
+      )
     }
     if (after !== before) {
       applyCounterDeltas(transaction, eventRef, {
@@ -512,7 +549,7 @@ export async function moveGuestToWaitlist(
   eventId: string,
   guest: Pick<
     GuestData,
-    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'customData' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'registrationSource' | 'presentIndices'
+    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'whatsappConsent' | 'customData' | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus' | 'registrationSource' | 'presentIndices'
   >,
 ): Promise<void> {
   const size = partySize(guest)
@@ -537,6 +574,10 @@ export async function moveGuestToWaitlist(
     ...(guest.phone ? { phone: guest.phone } : {}),
     ...(guest.phoneCountry ? { phoneCountry: guest.phoneCountry } : {}),
     ...(guest.email ? { email: guest.email } : {}),
+    // Preserva el consentimiento de WhatsApp (manual u autoservicio) si el
+    // invitado que se manda a esperar ya lo tenía — sin esto, una eventual
+    // re-promoción (promoteToGuest.ts) lo perdía en silencio.
+    ...(guest.whatsappConsent ? { whatsappConsent: true } : {}),
     ...(guest.customData && Object.keys(guest.customData).length > 0 ? { customData: guest.customData } : {}),
     waitlistToken: crypto.randomUUID().replace(/-/g, ''),
     status: 'waiting',
@@ -747,8 +788,8 @@ const CONTACT_FETCH_CHUNK = 30
 async function fetchContactsByIds(
   eventId: string,
   ids: string[],
-): Promise<Record<string, { phone: string; phoneCountry: string; email: string }>> {
-  const result: Record<string, { phone: string; phoneCountry: string; email: string }> = {}
+): Promise<Record<string, { phone: string; phoneCountry: string; email: string; whatsappConsent: boolean }>> {
+  const result: Record<string, { phone: string; phoneCountry: string; email: string; whatsappConsent: boolean }> = {}
   const chunks: string[][] = []
   for (let i = 0; i < ids.length; i += CONTACT_FETCH_CHUNK) chunks.push(ids.slice(i, i + CONTACT_FETCH_CHUNK))
   await Promise.all(
@@ -761,6 +802,7 @@ async function fetchContactsByIds(
           phone: (d.data().phone as string) || '',
           phoneCountry: (d.data().phoneCountry as string) || '',
           email: (d.data().email as string) || '',
+          whatsappConsent: d.data().whatsappConsent === true,
         }
       })
     }),
@@ -775,7 +817,7 @@ export function subscribeToGuests(
   limitCount: number | null = GUEST_WINDOW_DEFAULT,
 ): Unsubscribe {
   let baseGuests: GuestData[] | null = null
-  let contacts: Record<string, { phone: string; phoneCountry: string; email: string }> = {}
+  let contacts: Record<string, { phone: string; phoneCountry: string; email: string; whatsappConsent: boolean }> = {}
   let cancelled = false
 
   function emit() {
@@ -786,6 +828,7 @@ export function subscribeToGuests(
         phone: contacts[g.id]?.phone || g.phone,
         phoneCountry: contacts[g.id]?.phoneCountry || g.phoneCountry,
         email: contacts[g.id]?.email || g.email,
+        whatsappConsent: contacts[g.id]?.whatsappConsent ?? g.whatsappConsent,
       })),
     )
   }
@@ -918,13 +961,6 @@ export async function resetGuestRsvp(eventId: string, guestId: string) {
       })
     }
   })
-}
-
-// A diferencia de resetGuestRsvp, NO toca el RSVP — solo libera el pase para
-// que pueda abrirse desde otro dispositivo (invitado que cambió de teléfono,
-// borró el navegador, o lo abrió por error desde el dispositivo equivocado).
-export async function unlockGuestPass(eventId: string, guestId: string) {
-  await updateDoc(doc(db, 'events', eventId, 'guests', guestId), { lockToken: null, lockTokens: [], ...guestVersionBump() })
 }
 
 // Acción del ORGANIZADOR: aprobar (`'paid'`) o revertir/rechazar (`'unpaid'`)

@@ -38,6 +38,17 @@ interface Props {
   // Distingue el origen para analytics y para el método guardado en
   // recordLegalAcceptance (ver LegalAcceptanceMethod).
   source: 'guest_pass' | 'event_join'
+  // Modo "gate": la decisión de cuenta ocurre ANTES de completar una acción
+  // pendiente (registro/RSVP), no después — ver useAccountConfirmGate y el
+  // rediseño de Fiesta Improvisada (INVITATION_REDESIGN_PLAN). Cambia el
+  // paso 'offer' a mostrar 3 opciones explícitas (Crear cuenta / Iniciar
+  // sesión / Continuar sin cuenta) en vez de las 2 de siempre, y habilita el
+  // paso 'warning' antes de continuar sin cuenta. Sin esta prop (default
+  // false), el modal se ve y comporta exactamente igual que hoy.
+  gateMode?: boolean
+  // Solo se usa con gateMode — se llama cuando el invitado confirma
+  // "Continuar sin cuenta" después de leer la advertencia.
+  onContinueWithoutAccount?: () => void
   onDismiss: () => void
   onSuccess: () => void
 }
@@ -50,9 +61,9 @@ interface Props {
 // la cuenta queda autenticada, cada llamador se encarga de lo suyo (el
 // efecto principal de GuestPass llama a saveUserInvitation solo; EventJoin ya
 // prellena el formulario y detecta una invitación existente por su cuenta).
-export function GuestSignupPrompt({ eventId, guest, initialFirstName, initialLastName, initialStep, source, onDismiss, onSuccess }: Props) {
+export function GuestSignupPrompt({ eventId, guest, initialFirstName, initialLastName, initialStep, source, gateMode, onContinueWithoutAccount, onDismiss, onSuccess }: Props) {
   const isGroup = guest?.isGroup ?? false
-  const [step, setStep] = useState<'offer' | 'form' | 'login' | 'success'>(initialStep ?? 'offer')
+  const [step, setStep] = useState<'offer' | 'form' | 'login' | 'warning' | 'success'>(initialStep ?? 'offer')
   const [firstName, setFirstName] = useState(guest?.name ?? initialFirstName ?? '')
   const [lastName, setLastName] = useState(isGroup ? '' : guest?.lastName || initialLastName || '')
   const [email, setEmail] = useState('')
@@ -202,21 +213,61 @@ export function GuestSignupPrompt({ eventId, guest, initialFirstName, initialLas
               </li>
             ))}
           </ul>
+          {gateMode ? (
+            // 3 opciones explícitas, igual de accesibles entre sí (ver
+            // INVITATION_REDESIGN_PLAN §5-6) — "Continuar sin cuenta" no es
+            // un link chico y apagado, es una acción tan clara como las otras
+            // dos, solo que pasa primero por una advertencia corta.
+            <div className="flex flex-col gap-2">
+              <AccessibleButton onClick={() => setStep('form')} className="w-full">
+                Crear cuenta
+              </AccessibleButton>
+              <AccessibleButton variant="secondary" onClick={() => { setAccountExistsHint(false); setStep('login') }} className="w-full">
+                Iniciar sesión
+              </AccessibleButton>
+              <AccessibleButton variant="text" onClick={() => setStep('warning')} className="w-full rounded-xl py-3">
+                Continuar sin cuenta
+              </AccessibleButton>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-2">
+                <AccessibleButton onClick={() => setStep('form')} className="w-full">
+                  Crear cuenta
+                </AccessibleButton>
+                <AccessibleButton variant="text" onClick={onDismiss} className="w-full rounded-xl py-3">
+                  Ahora no
+                </AccessibleButton>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setAccountExistsHint(false); setStep('login') }}
+                className="w-full text-center text-sm text-primary font-medium mt-1 py-2"
+              >
+                ¿Ya tienes cuenta? Inicia sesión
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {step === 'warning' && (
+        <div className="px-6 pt-7 pb-6">
+          <h2 ref={stepHeadingRef} tabIndex={-1} className="text-xl font-bold text-gray-900 dark:text-white text-center rounded focus:outline-none focus:ring-2 focus:ring-primary">
+            ¿Continuar sin cuenta?
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1.5 mb-6">
+            Puedes usar tu invitación sin crear una cuenta, pero es más fácil perder el acceso a ella. Con una cuenta la
+            encuentras después en "Mis invitaciones", desde cualquier dispositivo.
+          </p>
           <div className="flex flex-col gap-2">
-            <AccessibleButton onClick={() => setStep('form')} className="w-full">
-              Crear cuenta
+            <AccessibleButton onClick={() => setStep('offer')} className="w-full">
+              Crear cuenta o iniciar sesión
             </AccessibleButton>
-            <AccessibleButton variant="text" onClick={onDismiss} className="w-full rounded-xl py-3">
-              Ahora no
+            <AccessibleButton variant="text" onClick={onContinueWithoutAccount} className="w-full rounded-xl py-3">
+              Continuar sin cuenta
             </AccessibleButton>
           </div>
-          <button
-            type="button"
-            onClick={() => { setAccountExistsHint(false); setStep('login') }}
-            className="w-full text-center text-sm text-primary font-medium mt-1 py-2"
-          >
-            ¿Ya tienes cuenta? Inicia sesión
-          </button>
         </div>
       )}
 

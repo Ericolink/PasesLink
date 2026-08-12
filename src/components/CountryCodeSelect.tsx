@@ -8,14 +8,32 @@ export const DEFAULT_PHONE_COUNTRY: CountryCode = 'MX'
 
 const countryDisplayNames = new Intl.DisplayNames(['es'], { type: 'region' })
 
+// Emoji de bandera a partir del código ISO 3166-1 alpha-2 (ej. "MX" → 🇲🇽):
+// cada letra se mapea a su "regional indicator symbol" (U+1F1E6 = 'A').
+// Lectores de pantalla anuncian estos emoji por su nombre ("bandera:
+// México"), así que la opción sigue siendo identificable sin mostrar el
+// nombre del país en texto.
+function flagEmoji(code: string): string {
+  return [...code.toUpperCase()]
+    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
+    .join('')
+}
+
 // Lista completa (no una curada a mano) para no repetir el error que este
 // selector viene a arreglar: asumir que solo importan un puñado de países.
-const COUNTRY_OPTIONS: { code: CountryCode; label: string }[] = getCountries()
+// El label ANTES incluía el nombre del país ("México (+52)") pero eso
+// obligaba a un control ancho (ver STRUCTURAL_CLASS) que en filas angostas
+// (ej. acompañantes en celular) aplastaba el input de teléfono de al lado o
+// se salía del contenedor. Ahora el label es solo bandera+código — angosto,
+// consistente en toda la app — a costa de perder la búsqueda por nombre al
+// escribir en el <select> abierto (el usuario elige a ojo/tacto).
+const COUNTRY_OPTIONS: { code: CountryCode; label: string; countryName: string }[] = getCountries()
   .map((code) => ({
     code,
-    label: `${countryDisplayNames.of(code) || code} (+${getCountryCallingCode(code)})`,
+    label: `${flagEmoji(code)} +${getCountryCallingCode(code)}`,
+    countryName: countryDisplayNames.of(code) || code,
   }))
-  .sort((a, b) => a.label.localeCompare(b.label, 'es'))
+  .sort((a, b) => Number(getCountryCallingCode(a.code)) - Number(getCountryCallingCode(b.code)))
 
 interface Props {
   value: CountryCode
@@ -25,16 +43,12 @@ interface Props {
   'aria-label'?: string
 }
 
-// Un <select> nativo sin ancho fijo se dimensiona según su OPTION más ancha
-// (ej. "Territorio Británico del Océano Índico (+246)"), no según el valor
-// seleccionado — Chrome mide las 245 opciones aunque solo se vea "México
-// (+52)". Con 245 países eso vuelve al selector más ancho que su contenedor
-// y aplasta el input de teléfono a unos pocos píxeles. `w-28 truncate` fija
-// un ancho angosto e independiente del contenido; el desplegable abierto
-// sigue mostrando el texto completo de cada país sin recortar, solo el
-// control cerrado se acorta. No es overridable por className a propósito:
-// es la única forma de garantizar el fix en los 7 usos de este componente.
-const STRUCTURAL_CLASS = 'w-28 shrink-0 truncate'
+// Ancho fijo e independiente del contenido (bandera+código, ej. "🇲🇽 +52"),
+// para que el control cerrado sea angosto y predecible en filas apretadas
+// (ej. acompañantes en celular) sin depender de cuánto mida el país
+// seleccionado. No es overridable por className a propósito: es la única
+// forma de garantizar el mismo ancho en los 7 usos de este componente.
+const STRUCTURAL_CLASS = 'w-20 shrink-0 truncate'
 
 export function CountryCodeSelect({ value, onChange, id, className, 'aria-label': ariaLabel }: Props) {
   return (
@@ -49,7 +63,12 @@ export function CountryCodeSelect({ value, onChange, id, className, 'aria-label'
       }`}
     >
       {COUNTRY_OPTIONS.map((c) => (
-        <option key={c.code} value={c.code}>{c.label}</option>
+        // `title` (no `label` ni texto extra): el atributo HTML `label` y el
+        // contenido del <option> son lo que el navegador muestra tanto
+        // cerrado como en la lista abierta — si llevaran el nombre del país
+        // el control volvería a ensancharse. `title` solo da un tooltip al
+        // pasar el mouse, sin afectar el ancho.
+        <option key={c.code} value={c.code} title={c.countryName}>{c.label}</option>
       ))}
     </select>
   )

@@ -8,7 +8,6 @@ import {
   moveGuestToWaitlist,
   resetGuestRsvp,
   setGuestPaymentStatus,
-  unlockGuestPass,
 } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, PaymentMethod } from '../../types'
 import { IconChevronDown, IconInbox } from '../accessibility/AccessibleIcon'
@@ -157,7 +156,6 @@ export const GuestList = memo(function GuestList({
 }) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deletingGuest, setDeletingGuest] = useState<GuestData | null>(null)
-  const [unlockingGuest, setUnlockingGuest] = useState<GuestData | null>(null)
   const [reentryGuest, setReentryGuest] = useState<GuestData | null>(null)
   const [sendingToWaitlistGuest, setSendingToWaitlistGuest] = useState<GuestData | null>(null)
   // Solo el id, no el GuestData completo: una copia congelada del invitado
@@ -175,17 +173,17 @@ export const GuestList = memo(function GuestList({
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
   const { announce } = useAnnouncer()
 
-  // Los dos useCallback de acá abajo tienen que vivir ANTES del early return
-  // de "sin invitados" (regla de hooks: siempre en el mismo orden, nunca
-  // detrás de un return condicional), aunque conceptualmente sean parte del
-  // bloque de acciones sobre filas más abajo.
+  // Este useCallback tiene que vivir ANTES del early return de "sin
+  // invitados" (regla de hooks: siempre en el mismo orden, nunca detrás de
+  // un return condicional), aunque conceptualmente sea parte del bloque de
+  // acciones sobre filas más abajo.
 
   // useCallback (deps vacíos: solo usa el updater funcional de setSelected)
-  // — es una de las dos props "problema" que rowProps le pasa a cada
-  // GuestRow (memo, ver GuestRow.tsx). Sin esto, GuestList recreaba esta
-  // función en cada render y anulaba el memo de CADA fila visible ante
-  // cualquier cambio (ej. un check-in de OTRO invitado durante una hora
-  // pico de puerta), no solo la fila que de verdad cambió.
+  // — es una de las props que rowProps le pasa a cada GuestRow (memo, ver
+  // GuestRow.tsx). Sin esto, GuestList recreaba esta función en cada render
+  // y anulaba el memo de CADA fila visible ante cualquier cambio (ej. un
+  // check-in de OTRO invitado durante una hora pico de puerta), no solo la
+  // fila que de verdad cambió.
   const toggleSelect = useCallback((guest: GuestData) => {
     setSelected((prev) => {
       const next = new Set(prev)
@@ -194,24 +192,6 @@ export const GuestList = memo(function GuestList({
       return next
     })
   }, [])
-
-  // useCallback: la otra prop "problema" de rowProps — antes era un arrow
-  // function literal creado de nuevo en CADA render de GuestList. No reusa
-  // handleMarkPaid directamente porque esa sigue siendo una función plana
-  // (recreada cada render, usada también por GuestDetailSheet, que no está
-  // memoizado y no lo necesita) — duplicar estas pocas líneas es más simple
-  // que forzar a handleMarkPaid a ser estable para un único llamador que sí
-  // lo necesita.
-  const handleQuickPay = useCallback((guest: GuestData) => {
-    setActionError('')
-    const method = guest.paymentMethod || paymentMethods[0]
-    setGuestPaymentStatus(eventId, guest.id, 'paid', method)
-      .then(() => announce(`Pago confirmado: ${guest.name}`))
-      .catch((err) => {
-        console.error('Error marking guest as paid:', err)
-        setActionError(getFunctionsErrorMessage(err, 'No se pudo actualizar el estado de pago. Intenta de nuevo.'))
-      })
-  }, [eventId, paymentMethods, announce])
 
   if (guests.length === 0) {
     return hasActiveFilters ? (
@@ -326,19 +306,6 @@ export const GuestList = memo(function GuestList({
     }
   }
 
-  async function confirmUnlock() {
-    if (!unlockingGuest) return
-    setActionError('')
-    try {
-      await unlockGuestPass(eventId, unlockingGuest.id)
-    } catch (err) {
-      console.error('Error unlocking guest pass:', err)
-      setActionError('No se pudo desbloquear el pase. Intenta de nuevo.')
-    } finally {
-      setUnlockingGuest(null)
-    }
-  }
-
   async function confirmAllowReentry() {
     if (!reentryGuest) return
     setActionError('')
@@ -394,12 +361,8 @@ export const GuestList = memo(function GuestList({
     ticketPrice,
     currency,
     selectMode,
-    canConfirmPayments,
-    canDeleteGuests,
     onToggleSelect: toggleSelect,
     onOpenDetail: (guest: GuestData) => setDetailGuestId(guest.id),
-    onQuickPay: handleQuickPay,
-    onQuickDeleteRequest: setDeletingGuest,
   }
 
   const detailGuest = detailGuestId ? guests.find((g) => g.id === detailGuestId) ?? null : null
@@ -488,7 +451,6 @@ export const GuestList = memo(function GuestList({
         onMarkUnpaid={handleMarkUnpaid}
         onSetTags={handleSetGuestTags}
         onRequestDelete={(guest) => { setDetailGuestId(null); setDeletingGuest(guest) }}
-        onRequestUnlock={(guest) => { setDetailGuestId(null); setUnlockingGuest(guest) }}
         onRequestReentry={(guest) => { setDetailGuestId(null); setReentryGuest(guest) }}
         onReactivate={handleReactivate}
         onRequestSendToWaitlist={(guest) => { setDetailGuestId(null); setSendingToWaitlistGuest(guest) }}
@@ -510,14 +472,6 @@ export const GuestList = memo(function GuestList({
         confirmLabel="Enviar a lista de espera"
         onConfirm={confirmSendToWaitlist}
         onCancel={() => setSendingToWaitlistGuest(null)}
-      />
-      <ConfirmDialog
-        open={!!unlockingGuest}
-        title="Desbloquear pase"
-        message={`Esto permite que "${unlockingGuest?.name} ${unlockingGuest?.lastName || ''}" abra su pase desde un dispositivo distinto al que lo bloqueó (por ejemplo, si cambió de teléfono). No afecta su confirmación de asistencia ni su check-in.`}
-        confirmLabel="Desbloquear"
-        onConfirm={confirmUnlock}
-        onCancel={() => setUnlockingGuest(null)}
       />
       <ConfirmDialog
         open={!!reentryGuest}

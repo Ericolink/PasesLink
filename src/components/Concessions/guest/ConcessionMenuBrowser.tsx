@@ -29,7 +29,7 @@ export function ConcessionMenuBrowser({ items, cart, currency }: Props) {
 
         return (
           <div key={item.id} className="flex gap-3 pb-3 border-b last:border-b-0 last:pb-0" style={{ borderColor: 'var(--invite-border)' }}>
-            <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-[var(--invite-accent-soft)] flex items-center justify-center">
+            <div className="invite-icon-badge w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-[var(--invite-accent-soft)] flex items-center justify-center">
               {item.imageUrl ? (
                 <img src={optimizedImageUrl(item.imageUrl, 150)} alt="" loading="lazy" crossOrigin="anonymous" className="w-full h-full object-cover" />
               ) : (

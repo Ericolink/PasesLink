@@ -1,0 +1,4 @@
+Contact: mailto:ericmunoz441@gmail.com
+Expires: 2027-08-11T00:00:00.000Z
+Canonical: https://www.paselink.com/.well-known/security.txt
+Preferred-Languages: es, en
