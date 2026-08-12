@@ -650,13 +650,18 @@ export interface GuestData {
   // Consentimiento para enviar WhatsApp automático (Meta Cloud API, ver
   // functions/src/lib/waChannel.ts) sobre este evento — transaccional
   // únicamente (oferta de lista de espera, reconfirmación), nunca marketing.
-  // `true` solo cuando el propio invitado tecleó su teléfono (autoregistro
-  // vía registerWalkInGuest, auto-edición vía updateGuestSelf, o promovido
-  // desde una entrada de waitlist que él mismo creó) — vive en
-  // `guestContacts/{guestId}`, igual que `phone`. Ausente/false en alta
-  // manual del organizador o importación CSV: el organizador conoce el
-  // teléfono, pero eso no es consentimiento del invitado para recibir
-  // mensajes automáticos.
+  // `true` cuando el propio invitado tecleó su teléfono (autoregistro vía
+  // registerWalkInGuest, auto-edición vía updateGuestSelf, o promovido desde
+  // una entrada de waitlist que él mismo creó) — vive en
+  // `guestContacts/{guestId}`, igual que `phone`. También puede ser `true`
+  // en alta/edición manual del organizador (GuestEditForm), pero solo si
+  // marcó explícitamente el checkbox de consentimiento — nunca por default
+  // ni por el solo hecho de conocer el teléfono. Ese camino además deja
+  // rastro de auditoría (`whatsappConsentSource: 'organizer'`,
+  // `whatsappConsentAt`, `whatsappConsentBy` — ver updateGuest en
+  // src/firebase/guests.ts), campos que NO se leen de vuelta a este tipo
+  // porque ninguna UI los necesita. Ausente/false en importación CSV (no
+  // pide consentimiento).
   whatsappConsent?: boolean
   qrToken: string
   status: GuestStatus

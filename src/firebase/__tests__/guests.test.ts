@@ -1,14 +1,23 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { assertFails, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
-import { createTestEnv, getEventDoc, getGuestContactDoc, getGuestDoc, getWaitlistEntries, seedEvent, seedGuest, type EmulatorFirestore } from './helpers'
+import { createTestEnv, getEventDoc, getGuestContactDoc, getGuestDoc, getWaitlistEntries, seedEvent, seedGuest, seedGuestContact, type EmulatorFirestore } from './helpers'
 
 // Mismo mock que capacity.test.ts: redirige el `db` singleton de guests.ts/capacity.ts
 // al Firestore del emulador activo en cada test (ver comentario en capacity.test.ts).
 const dbHolder = vi.hoisted(() => ({ db: undefined as unknown as EmulatorFirestore }))
+// `auth.currentUser` (Firebase Auth SDK) es un concepto aparte de la
+// identidad que `rules-unit-testing` simula para Firestore (authenticatedContext) —
+// este entorno no lo puebla solo. Se mockea acá con el mismo truco de holder
+// mutable, solo para los tests que necesitan verificar whatsappConsentBy
+// (ver updateGuest en guests.ts). Sin setear, se comporta como "sin sesión".
+const authHolder = vi.hoisted(() => ({ currentUser: null as { uid: string } | null }))
 vi.mock('../config', () => ({
   get db() {
     return dbHolder.db
+  },
+  get auth() {
+    return authHolder
   },
 }))
 
@@ -42,6 +51,7 @@ describe('guests.ts', () => {
 
   afterEach(async () => {
     await testEnv.clearFirestore()
+    authHolder.currentUser = null
   })
 
   afterAll(async () => {
@@ -316,6 +326,50 @@ describe('guests.ts', () => {
     expect(entries[0].registrationSource).toBe('self')
   })
 
+  it('moveGuestToWaitlist should carry over whatsappConsent from the guest being moved, so a later re-promotion does not lose it', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 1, rsvpYesCount: 1 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await moveGuestToWaitlist(EVENT_ID, {
+      id: GUEST_ID,
+      name: 'Ana',
+      phone: '+525512345678',
+      whatsappConsent: true,
+      status: 'invited',
+      companions: [],
+      checkedOutAt: null,
+      exitType: null,
+      paymentStatus: 'unpaid',
+      rsvpStatus: 'yes',
+      registrationSource: 'organizer',
+    })
+
+    const entries = await getWaitlistEntries(testEnv, EVENT_ID)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].whatsappConsent).toBe(true)
+  })
+
+  it('moveGuestToWaitlist should not write whatsappConsent when the guest being moved never had it', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 1, rsvpYesCount: 1 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await moveGuestToWaitlist(EVENT_ID, {
+      id: GUEST_ID,
+      name: 'Ana',
+      status: 'invited',
+      companions: [],
+      checkedOutAt: null,
+      exitType: null,
+      paymentStatus: 'unpaid',
+      rsvpStatus: 'yes',
+      registrationSource: 'organizer',
+    })
+
+    const entries = await getWaitlistEntries(testEnv, EVENT_ID)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].whatsappConsent).toBeUndefined()
+  })
+
   it('moveGuestToWaitlist should decrement checkedInCount/occupancyCount/paidCount when converting a checked-in, paid guest (defense in depth — the UI never offers this combination)', async () => {
     await seedEvent(testEnv, EVENT_ID, { guestCount: 1, peopleCount: 1, checkedInCount: 1, occupancyCount: 1, paidCount: 1, rsvpYesCount: 1 })
     dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
@@ -505,6 +559,84 @@ describe('guests.ts', () => {
 
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.peopleCount).toBe(6)
+  })
+
+  describe('whatsappConsent en updateGuest (checkbox de consentimiento manual del organizador)', () => {
+    it('stamps whatsappConsent + audit metadata when the organizer grants consent alongside a new phone', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+      authHolder.currentUser = { uid: OWNER_UID }
+
+      await updateGuest(EVENT_ID, GUEST_ID, { phone: '+525512345678', whatsappConsent: true }, 0, 0)
+
+      const contact = await getGuestContactDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(contact?.whatsappConsent).toBe(true)
+      expect(contact?.whatsappConsentSource).toBe('organizer')
+      expect(contact?.whatsappConsentBy).toBe(OWNER_UID)
+      expect(contact?.whatsappConsentAt).toBeTruthy()
+    })
+
+    it('leaves whatsappConsent false without stamping audit metadata when the organizer does not check the box', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+      authHolder.currentUser = { uid: OWNER_UID }
+
+      await updateGuest(EVENT_ID, GUEST_ID, { phone: '+525512345678' }, 0, 0)
+
+      const contact = await getGuestContactDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(contact?.whatsappConsent).toBe(false)
+      expect(contact?.whatsappConsentSource).toBeUndefined()
+    })
+
+    it('forces whatsappConsent to false when the phone is cleared, even if whatsappConsent: true is sent', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
+      await seedGuestContact(testEnv, EVENT_ID, GUEST_ID, { phone: '+525512345678', whatsappConsent: true })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+      authHolder.currentUser = { uid: OWNER_UID }
+
+      await updateGuest(EVENT_ID, GUEST_ID, { phone: '', whatsappConsent: true }, 0, 0)
+
+      const contact = await getGuestContactDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(contact?.whatsappConsent).toBe(false)
+      expect(contact?.whatsappConsentSource).toBe('organizer')
+    })
+
+    it('re-stamps audit metadata as "organizer" when the organizer revokes a previously granted consent', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN })
+      await seedGuestContact(testEnv, EVENT_ID, GUEST_ID, { phone: '+525512345678', whatsappConsent: true })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+      authHolder.currentUser = { uid: OWNER_UID }
+
+      await updateGuest(EVENT_ID, GUEST_ID, { phone: '+525512345678', whatsappConsent: false }, 0, 0)
+
+      const contact = await getGuestContactDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(contact?.whatsappConsent).toBe(false)
+      expect(contact?.whatsappConsentSource).toBe('organizer')
+      expect(contact?.whatsappConsentBy).toBe(OWNER_UID)
+    })
+
+    it('does not attribute an unchanged self-service consent to the organizer when only unrelated fields are edited', async () => {
+      await seedEvent(testEnv, EVENT_ID)
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, registrationSource: 'self' })
+      // Consentimiento ya otorgado por el propio invitado — sin
+      // whatsappConsentSource, igual que registerWalkInGuest.ts lo deja.
+      await seedGuestContact(testEnv, EVENT_ID, GUEST_ID, { phone: '+525512345678', whatsappConsent: true })
+      dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+      authHolder.currentUser = { uid: OWNER_UID }
+
+      // EditGuestRow siempre reenvía phone/whatsappConsent tal como los
+      // precargó, aunque el organizador solo haya tocado el nombre.
+      await updateGuest(EVENT_ID, GUEST_ID, { name: 'Nombre corregido', phone: '+525512345678', whatsappConsent: true }, 0, 0)
+
+      const contact = await getGuestContactDoc(testEnv, EVENT_ID, GUEST_ID)
+      expect(contact?.whatsappConsent).toBe(true)
+      expect(contact?.whatsappConsentSource).toBeUndefined()
+      expect(contact?.whatsappConsentBy).toBeUndefined()
+    })
   })
 
   describe('maxCompanions (tope de acompañantes solo para autoregistro)', () => {

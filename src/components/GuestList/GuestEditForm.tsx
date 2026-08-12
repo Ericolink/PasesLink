@@ -10,7 +10,7 @@ import { GUEST_GROUP_MAX_MEMBERS, GUEST_MAX_COMPANIONS } from '../../utils/valid
 import { AccessibleButton } from '../accessibility/AccessibleButton'
 import { useFocusFirstInvalidField } from '../../hooks/useFocusFirstInvalidField'
 import { useIntegerFieldInput } from '../../hooks/useIntegerFieldInput'
-import { FieldError, InputField } from '../accessibility/AccessibleField'
+import { Checkbox, FieldError, InputField } from '../accessibility/AccessibleField'
 
 const EDIT_ROW_INPUT_CLASS =
   'border border-gray-300 dark:border-gray-600 rounded-md px-2 py-2.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary'
@@ -32,6 +32,7 @@ function EditGuestRow({
   const [lastName, setLastName] = useState(guest.lastName || '')
   const [phone, setPhone] = useState(guest.phone || '')
   const [phoneCountry, setPhoneCountry] = useState<CountryCode>((guest.phoneCountry as CountryCode) || DEFAULT_PHONE_COUNTRY)
+  const [whatsappConsent, setWhatsappConsent] = useState(guest.whatsappConsent === true)
   const [companions, setCompanions] = useState<CompanionData[]>(guest.companions)
   const [customValues, setCustomValues] = useState<Record<string, string>>(guest.customData || {})
   const [saving, setSaving] = useState(false)
@@ -61,6 +62,7 @@ function EditGuestRow({
         lastName: lastName.trim(),
         phone: phone.trim(),
         phoneCountry,
+        whatsappConsent,
         companions,
         customData: customValues,
       }, maxCompanions, guest.version ?? 0)
@@ -116,11 +118,30 @@ function EditGuestRow({
             containerClassName="flex-1 min-w-0"
             type="tel"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value
+              setPhone(value)
+              // Sin teléfono no hay nada que consentir — evita que el
+              // checkbox quede visualmente marcado pero deshabilitado.
+              if (!value.trim()) setWhatsappConsent(false)
+            }}
             className={EDIT_ROW_INPUT_CLASS}
             placeholder="Teléfono"
           />
         </div>
+        <label
+          htmlFor={`whatsapp-consent-${guest.id}`}
+          className={`flex items-start gap-2.5 text-sm text-gray-600 dark:text-gray-400 ${phone.trim() ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+        >
+          <Checkbox
+            id={`whatsapp-consent-${guest.id}`}
+            checked={whatsappConsent}
+            disabled={!phone.trim()}
+            onChange={(e) => setWhatsappConsent(e.target.checked)}
+            className="mt-0.5 shrink-0"
+          />
+          <span>El invitado acepta recibir notificaciones relacionadas con este evento por WhatsApp.</span>
+        </label>
         <CompanionFieldsEditor
           companions={companions}
           onChange={setCompanions}
