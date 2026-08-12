@@ -16,6 +16,7 @@
     "test:functions": "firebase emulators:exec --only firestore --project demo-paselink-test \"npm --prefix functions run test\"",
     "backup:firestore": "node scripts/backup-firestore.mjs",
     "restore:firestore": "node scripts/restore-firestore.mjs",
+    "firestore:explain": "node scripts/explain-query.mjs",
     "backfill:checkins-by-hour": "node scripts/backfill-checkins-by-hour.mjs",
     "backfill:reactions-subcollection": "node scripts/backfill-reactions-subcollection.mjs",
     "backfill:walkin-net-count": "node scripts/backfill-walkin-net-count.mjs"
