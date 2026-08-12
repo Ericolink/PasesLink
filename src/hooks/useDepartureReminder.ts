@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { computeDepartureRecommendation } from '../services/travel/departureCalculator'
+import { openRouteServiceProvider } from '../services/travel/providers/openRouteService'
 import type { Coordinates } from '../services/travel/types'
 import type { EventData } from '../types'
 import { extractCoords } from '../utils/extractCoords'
@@ -79,7 +80,8 @@ export function useDepartureReminder(event: EventData): DepartureReminderResult 
 
   const destination = useMemo(() => (event.mapsUrl ? extractCoords(event.mapsUrl) : null), [event.mapsUrl])
   const eventStartMs = useMemo(() => getEventStartMs(event.date, event.startTime), [event.date, event.startTime])
-  const available = !!destination && eventStartMs !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator
+  const available = openRouteServiceProvider.isConfigured
+    && !!destination && eventStartMs !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator
 
   const calculate = useCallback(() => {
     if (!destination || eventStartMs === null || !('geolocation' in navigator)) {

@@ -30,7 +30,13 @@ async function estimateTravelTime(origin: Coordinates, destination: Coordinates)
   }
 }
 
-export const openRouteServiceProvider: RouteProvider = {
+export const openRouteServiceProvider: RouteProvider & { isConfigured: boolean } = {
   id: 'openrouteservice',
   estimateTravelTime,
+  // Expuesto para que useDepartureReminder.ts pueda ocultar por completo la
+  // tarjeta de "hora de salida recomendada" cuando no hay key (degradación
+  // elegante documentada en .env.example) en vez de mostrarla y recién
+  // fallar cuando el invitado toca "Calcular" — antes `available` no
+  // consideraba esto (bug reportado).
+  isConfigured: !!API_KEY,
 }

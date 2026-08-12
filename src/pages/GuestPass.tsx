@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { CountryCode } from 'libphonenumber-js/min'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
@@ -34,7 +33,7 @@ import {
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { ThemeSeal } from '../components/ThemeSeal'
-import { toWhatsAppPhone } from '../utils/phone'
+import { organizerWhatsappUrl } from '../utils/phone'
 import { getAccentContrastText } from '../utils/contrastColor'
 import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
@@ -59,21 +58,10 @@ import { formatDate, formatTime12h, isEventPast } from '../utils/time'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { downloadPassImage } from '../utils/downloadPass'
 import { downloadIcsFile } from '../utils/calendar'
-import { getTemplate } from '../templates/registry'
+import { getTemplate, isRedesignedInvitationTemplate } from '../templates/registry'
 import { buildPassUrl, QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
-
-
-// Mismo canal (WhatsApp) que ya se usa para "compartir pase con
-// acompañantes" más abajo en este archivo — reutiliza wa.me en vez de un
-// canal nuevo, sin round-trip al servidor.
-// `context` arma el mensaje prellenado según lo que el
-// invitado necesita resolver (enviar comprobante, consultar, pedir
-// devolución o reportar un problema de acceso — todo el mismo canal, pedido
-// explícito).
-function organizerWhatsappUrl(phone: string, message: string, phoneCountry?: string): string {
-  return `https://wa.me/${toWhatsAppPhone(phone, phoneCountry as CountryCode | undefined)}?text=${encodeURIComponent(message)}`
-}
+import { HousePartyPassLayout } from '../components/invitation/HousePartyPassLayout'
 
 // El navegador reutiliza la misma instancia de GuestPass al navegar entre dos
 // URLs /pass/:eventId/:qrToken distintas (mismo patrón de ruta) — sin esta key,
@@ -258,14 +246,18 @@ function GuestPassInner() {
   // oportunidad que ya tiene el invitado de LISTA al confirmar RSVP (ver
   // handleRsvp más abajo). Mismo dismissKey que ese flujo: si ya la cerró en
   // esta sesión de navegador, no se le vuelve a ofrecer.
+  // No aplica a la invitación rediseñada (houseparty): ahí la decisión de
+  // cuenta ya ocurrió DURANTE el registro en EventJoin.tsx (su propio gate,
+  // antes de navegar acá) — repetirla al llegar sería redundante.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!guest || user || loading || !eventId || !qrToken) return
+    if (isRedesignedInvitationTemplate(event?.templateId)) return
     const state = location.state as { justRegistered?: boolean } | null
     if (!state?.justRegistered) return
     const dismissKey = `paselink_signup_prompt_${eventId}_${qrToken}`
     if (!sessionStorage.getItem(dismissKey)) setShowSignupPrompt(true)
-  }, [guest, user, loading, eventId, qrToken, location.state])
+  }, [guest, user, loading, eventId, qrToken, location.state, event?.templateId])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Un solo punto de medición para los tres disparadores del CTA (justo al
@@ -463,7 +455,13 @@ function GuestPassInner() {
     )
   }
 
-  async function handleRsvp(rsvpStatus: RsvpStatus) {
+  // `skipSignupPrompt`: la invitación rediseñada (houseparty) ya resuelve la
+  // decisión de cuenta ANTES de llamar acá (ver accountGate/InvitationPass)
+  // — sin esto, un invitado que acaba de elegir "continuar sin cuenta"
+  // vería el mismo cuadro reaparecer de inmediato después de escribir el
+  // RSVP. El resto de las plantillas nunca pasa este flag (default false,
+  // comportamiento idéntico al de siempre: ofrecer cuenta DESPUÉS de RSVP).
+  async function handleRsvp(rsvpStatus: RsvpStatus, opts?: { skipSignupPrompt?: boolean }) {
     if (!guest) return
     setRsvpSaving(true)
     setRsvpError(null)
@@ -480,7 +478,7 @@ function GuestPassInner() {
       // (no en cargas posteriores de un pase que ya estaba en 'yes') — solo a
       // invitados sin sesión, y no de nuevo si ya dijo "Ahora no" en esta
       // invitación durante esta sesión del navegador.
-      if (rsvpStatus === 'yes' && !user) {
+      if (rsvpStatus === 'yes' && !user && !opts?.skipSignupPrompt) {
         const dismissKey = `paselink_signup_prompt_${eventId}_${qrToken}`
         if (!sessionStorage.getItem(dismissKey)) setShowSignupPrompt(true)
       }
@@ -580,6 +578,40 @@ function GuestPassInner() {
   const timeLabel = event.startTime
     ? `${formatTime12h(event.startTime)}${event.endTime ? ` – ${formatTime12h(event.endTime)}` : ''}`
     : null
+
+  // Invitación rediseñada (ver INVITATION_REDESIGN_PLAN) — hoy solo Fiesta
+  // Improvisada. Único punto de bifurcación: HousePartyPassLayout es 100%
+  // presentacional, recibe los mismos handlers/estado ya calculados acá
+  // arriba (nada de lógica de negocio duplicada), solo cambia el árbol
+  // visual. El resto de las plantillas sigue devolviendo el JSX de siempre.
+  if (isRedesignedInvitationTemplate(event.templateId)) {
+    return (
+      <HousePartyPassLayout
+        event={event}
+        guest={guest}
+        eventId={eventId}
+        qrToken={qrToken}
+        passUrl={passUrl}
+        deviceToken={deviceToken}
+        hasAccount={!!user}
+        ticketRef={ticketRef}
+        downloaded={downloaded}
+        onDownload={handleDownload}
+        onAddToCalendar={handleAddToCalendar}
+        rsvpSaving={rsvpSaving}
+        rsvpError={rsvpError}
+        onRsvp={handleRsvp}
+        reconfirmSaving={reconfirmSaving}
+        reconfirmError={reconfirmError}
+        onReconfirm={handleReconfirm}
+        proof={proof}
+        cancelSaving={cancelSaving}
+        cancelError={cancelError}
+        onCancelAttendance={() => { void handleCancelAttendance() }}
+        onGuestSaved={(patch) => setGuest((g) => (g ? { ...g, ...patch } : g))}
+      />
+    )
+  }
 
   return (
     <InvitationThemeRoot
