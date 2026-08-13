@@ -38,6 +38,7 @@ service cloud.firestore {
         : role == 'caja' ? {'postWall': true, 'viewPayments': true, 'confirmPayments': true, 'viewCatalog': true, 'viewSales': true, 'viewOrders': true}
         : role == 'ventas' ? {'postWall': true, 'manageConcessions': true, 'viewCatalog': true, 'viewSales': true, 'viewOrders': true}
         : role == 'preparacion' ? {'postWall': true, 'viewCatalog': true, 'viewOrders': true, 'prepareOrders': true}
+        : role == 'comunidad' ? {'postWall': true, 'moderateWall': true}
         : {};
     }
 

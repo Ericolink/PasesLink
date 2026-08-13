@@ -109,6 +109,15 @@ describe('hasPermission', () => {
       expect(hasPermission(event, 'uid-1', 'addGuests')).toBe(false)
       expect(hasPermission(event, 'uid-1', 'confirmPayments')).toBe(true)
     })
+
+    it('rol comunidad solo puede moderar el muro (Fase 5)', () => {
+      const event: DocumentData = { ...baseEvent, collaborators: { 'com-1': { role: 'comunidad' } } }
+      expect(hasPermission(event, 'com-1', 'moderateWall')).toBe(true)
+      expect(hasPermission(event, 'com-1', 'postWall')).toBe(true)
+      expect(hasPermission(event, 'com-1', 'addGuests')).toBe(false)
+      expect(hasPermission(event, 'com-1', 'scanQr')).toBe(false)
+      expect(hasPermission(event, 'com-1', 'manageConcessions')).toBe(false)
+    })
   })
 
   describe('opts.isAdmin gana sobre cualquier resultado de rol', () => {

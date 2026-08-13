@@ -17,7 +17,7 @@
 // (isAdmin() en firestore.rules).
 import type { DocumentData } from 'firebase-admin/firestore'
 
-export type CollaboratorRole = 'administrador' | 'recepcion' | 'caja' | 'ventas' | 'preparacion'
+export type CollaboratorRole = 'administrador' | 'recepcion' | 'caja' | 'ventas' | 'preparacion' | 'comunidad'
 
 export type CollaboratorPermission =
   | 'addGuests'
@@ -130,6 +130,7 @@ const ROLE_PRESETS: Record<CollaboratorRole, PermissionSet> = {
     viewOrders: true,
   },
   preparacion: { ...NO_ACCESS, postWall: true, viewCatalog: true, viewOrders: true, prepareOrders: true },
+  comunidad: { ...NO_ACCESS, postWall: true, moderateWall: true },
 }
 
 // Validación de input en createCollaboratorInvite.ts (role/permissionOverrides

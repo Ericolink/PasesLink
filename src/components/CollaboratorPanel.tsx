@@ -13,7 +13,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { RadioGroup, RadioGroupOption } from './accessibility/AccessibleField'
 import { IconCheck, IconCopy, IconShare, IconX } from './accessibility/AccessibleIcon'
 
-const ROLES: CollaboratorRole[] = ['administrador', 'recepcion', 'caja', 'ventas', 'preparacion']
+const ROLES: CollaboratorRole[] = ['administrador', 'recepcion', 'caja', 'ventas', 'preparacion', 'comunidad']
 
 // Mismo patrón de copiar/compartir que CoOrganizerPanel.tsx — no se extrajo a
 // un helper compartido por un solo caso de reuso más (mismo criterio ya

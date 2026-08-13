@@ -146,6 +146,25 @@ describe('event.collaborators (modelo unificado de roles)', () => {
       })
       expect(remaining).toBe(1)
     })
+
+    it('un colaborador con rol comunidad puede moderar el muro pero no editar invitados (Fase 5)', async () => {
+      await seedEvent(testEnv, EVENT_ID, {
+        ownerId: OWNER_UID,
+        collaborators: { 'com-uid': { role: 'comunidad', email: 'c@test.com', invitedBy: OWNER_UID, invitedAt: 1 } },
+      })
+      await seedWallMessage(testEnv, 'msg-1')
+      await seedGuest(testEnv, EVENT_ID, GUEST_ID, { companions: [], lockTokens: ['someone-elses-device'] })
+      const db = testEnv.authenticatedContext('com-uid').firestore()
+
+      await assertSucceeds(deleteDoc(doc(db, 'events', EVENT_ID, 'wall', 'msg-1')))
+      await assertFails(
+        updateDoc(doc(db, 'events', EVENT_ID, 'guests', GUEST_ID), {
+          name: 'Nombre editado',
+          version: 1,
+          updatedAt: serverTimestamp(),
+        }),
+      )
+    })
   })
 
   describe('concessionsCatalog/{itemId} — manageConcessions (rol ventas) y prep-only status (rol preparación)', () => {

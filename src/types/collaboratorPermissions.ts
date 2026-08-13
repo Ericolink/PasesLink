@@ -14,7 +14,13 @@ import { resolveConcessionsStaffEntry } from './concessions'
 // `event.collaborators` hasta la Fase 2, así que resolveCollaboratorPermissions
 // siempre resuelve hoy por una de las ramas legacy, con el mismo resultado que
 // ya calculaba cada página por separado (ver comentarios de cada rama abajo).
-export type CollaboratorRole = 'administrador' | 'recepcion' | 'caja' | 'ventas' | 'preparacion'
+// 'comunidad' (Fase 5 de ROLES_PERMISSIONS_REDESIGN.md): aislado de
+// 'administrador' porque `moderateWall` ya existía como permiso suelto — no
+// se implementó en la v1 del rediseño por decisión explícita del usuario
+// (sin evidencia de necesidad todavía), se agregó después bajo el mismo
+// criterio ya documentado ahí: "extensión trivial a futuro" si aparece un
+// caso real de alguien que solo debe moderar el muro.
+export type CollaboratorRole = 'administrador' | 'recepcion' | 'caja' | 'ventas' | 'preparacion' | 'comunidad'
 
 // Lista corta y concreta de lo que puede hacer cada rol — usada en la
 // pantalla de aceptación de invitación (AcceptCollaboratorInvite.tsx) para
@@ -51,6 +57,10 @@ export const COLLABORATOR_ROLE_DESCRIPTIONS: Record<CollaboratorRole, string[]> 
     'Marcar pedidos como entregados',
     'Ver el catálogo de productos',
   ],
+  comunidad: [
+    'Moderar el muro del evento',
+    'Eliminar o fijar comentarios',
+  ],
 }
 
 export const COLLABORATOR_ROLE_LABELS: Record<CollaboratorRole, string> = {
@@ -59,6 +69,7 @@ export const COLLABORATOR_ROLE_LABELS: Record<CollaboratorRole, string> = {
   caja: 'Caja',
   ventas: 'Ventas',
   preparacion: 'Preparación',
+  comunidad: 'Comunidad',
 }
 
 // Permisos que hoy no existen como booleano propio de CoOrganizerPermissions
@@ -174,12 +185,27 @@ const PREPARACION_PRESET: EventCollaboratorPermissions = {
   cancelOrders: false,
 }
 
+// Únicamente moderateWall — sin acceso a nada más del evento (invitados,
+// pagos, catálogo, reportes, colaboradores).
+const COMUNIDAD_PRESET: EventCollaboratorPermissions = {
+  ...NO_ACCESS,
+  postWall: true,
+  moderateWall: true,
+  viewPayments: false,
+  viewCatalog: false,
+  viewSales: false,
+  viewOrders: false,
+  prepareOrders: false,
+  cancelOrders: false,
+}
+
 const COLLABORATOR_ROLE_PRESETS: Record<CollaboratorRole, EventCollaboratorPermissions> = {
   administrador: ADMINISTRADOR_PRESET,
   recepcion: RECEPCION_PRESET,
   caja: CAJA_PRESET,
   ventas: VENTAS_PRESET,
   preparacion: PREPARACION_PRESET,
+  comunidad: COMUNIDAD_PRESET,
 }
 
 // Única fuente de verdad de "qué puede hacer este usuario en este evento",

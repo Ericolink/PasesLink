@@ -183,6 +183,23 @@ describe('resolveCollaboratorPermissions', () => {
       expect(perms.addGuests).toBe(false)
     })
 
+    it('rol comunidad solo puede moderar el muro, nada más del evento (Fase 5)', () => {
+      const event: MinimalEvent = {
+        ...baseEvent,
+        collaborators: {
+          'com-1': { email: 'c@example.com', role: 'comunidad', invitedBy: 'owner-1', invitedAt: 1 },
+        },
+      }
+      const perms = resolveCollaboratorPermissions(event, 'com-1')
+      expect(perms.moderateWall).toBe(true)
+      expect(perms.postWall).toBe(true)
+      expect(perms.isCoOrg).toBe(false)
+      expect(perms.hasAccess).toBe(false)
+      expect(perms.addGuests).toBe(false)
+      expect(perms.scanQr).toBe(false)
+      expect(perms.viewCatalog).toBe(false)
+    })
+
     it('permissionOverrides puede otorgar un permiso puntual fuera del preset (ej. Recepción + confirmar pagos)', () => {
       const event: MinimalEvent = {
         ...baseEvent,
