@@ -101,11 +101,19 @@ jobs:
 
       # functions/node_modules ya se instaló arriba, antes del paso de
       # Hosting (ver comentario en ese paso) — no hace falta repetirlo acá.
+      #
+      # --force: sin esto, --non-interactive aborta el deploy entero (sin
+      # tocar rules/functions) apenas el código local borra una Cloud
+      # Function que todavía existe en el proyecto — no hay forma de
+      # confirmar el borrado sin un prompt, y CI no puede prompt-ear. Mismo
+      # criterio que el resto de este archivo ("romper staging es barato"):
+      # una función borrada del código se borra sola acá, sin bloquear el
+      # deploy ni requerir un paso manual cada vez.
       - name: Desplegar Firestore Rules, índices y Cloud Functions a staging
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING" > /tmp/staging-sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/staging-sa.json
-          npx firebase-tools deploy --only firestore:rules,firestore:indexes,functions --project paselink-staging --non-interactive
+          npx firebase-tools deploy --only firestore:rules,firestore:indexes,functions --project paselink-staging --non-interactive --force
         env:
           FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING }}
 
