@@ -60,26 +60,15 @@ export interface ConcessionsStaffEntry {
   roles: ConcessionsStaffRoles
 }
 
-// Único lugar que sabe interpretar el shape legado — usado tanto en cliente
-// (ConcessionStaffPanel, ConcessionsKitchen) como puerteado a
-// functions/src/lib/permissions.ts (no se puede importar src/ desde
-// functions/, mismo motivo documentado en ese archivo).
+// Único lugar que sabe interpretar el shape legado — usado por
+// ConcessionStaffPanel.tsx y resolveCollaboratorPermissions
+// (collaboratorPermissions.ts), y puerteado a functions/src/lib/permissions.ts
+// (no se puede importar src/ desde functions/, mismo motivo documentado en
+// ese archivo).
 export function resolveConcessionsStaffEntry(raw: ConcessionsStaffEntry | string | undefined): ConcessionsStaffEntry | null {
   if (raw == null) return null
   if (typeof raw === 'string') return { email: raw, roles: { cashier: false, prep: true } }
   return raw
-}
-
-// Puerto cliente de isConcessionsCashier/isConcessionsPrep
-// (functions/src/lib/permissions.ts) — usado por ConcessionsKitchen.tsx para
-// decidir qué tabs mostrarle a quien abre esa ruta (no reemplaza a
-// firestore.rules, que es la autorización real).
-export function isConcessionsCashier(staffMap: Record<string, ConcessionsStaffEntry | string> | undefined, uid: string): boolean {
-  return !!resolveConcessionsStaffEntry(staffMap?.[uid])?.roles.cashier
-}
-
-export function isConcessionsPrep(staffMap: Record<string, ConcessionsStaffEntry | string> | undefined, uid: string): boolean {
-  return !!resolveConcessionsStaffEntry(staffMap?.[uid])?.roles.prep
 }
 
 // Completitud mínima para desbloquear Catálogo/Pedidos/Historial — no exige

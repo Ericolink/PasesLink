@@ -1,4 +1,5 @@
 import type { CoOrganizerPermissions } from './coOrganizerPermissions'
+import type { CollaboratorEntry } from './collaboratorPermissions'
 import type { ConcessionsConfig } from './concessions'
 
 // Por ahora solo existe 'premium' (gratis durante el lanzamiento). Se deja como
@@ -534,6 +535,13 @@ export interface EventData {
   // antes de este campo) cae a LEGACY_COORG_DEFAULTS vía resolveEventPermissions,
   // nunca requiere backfill.
   coOrganizerPermissions?: Record<string, CoOrganizerPermissions>
+  // Modelo unificado de colaboradores (ver ROLES_PERMISSIONS_REDESIGN.md y
+  // src/types/collaboratorPermissions.ts) — reemplazo futuro de
+  // coOrganizersMap/coOrganizerPermissions/concessions.concessionsStaffMap.
+  // Opcional y aditivo: hoy ningún flujo de la app escribe acá todavía
+  // (Fase 1, solo lectura con fallback a los tres mapas legacy vía
+  // resolveCollaboratorPermissions); no requiere backfill.
+  collaborators?: Record<string, CollaboratorEntry>
   // Venta de alimentos/bebidas/souvenirs durante el evento (ver
   // src/types/concessions.ts y FOOD_BEVERAGE_ORDERING_ARCHITECTURE.md).
   // Ausente = el evento nunca activó el módulo. Mientras dure la beta, solo

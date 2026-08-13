@@ -6,7 +6,6 @@ import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useIsAdmin } from '../hooks/useIsAdmin'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
-import { isConcessionsCashier, isConcessionsPrep } from '../types/concessions'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { LoadingInline } from '../components/LoadingInline'
@@ -18,21 +17,27 @@ import { ConcessionAvailabilityPanel } from '../components/Concessions/kitchen/C
 type StaffTab = 'cashier' | 'prep' | 'availability'
 
 // Ruta compartida por enlace/QR con los encargados de "Ventas del evento"
-// (ver ConcessionStaffPanel.tsx) — deliberadamente NO reutiliza
-// ConcessionsManager.tsx (panel del organizador): esta pantalla se adapta al
-// rol de quien la abre. Un encargado de caja ve "Caja" (confirma/rechaza
-// pagos, igual que ConcessionOrdersPanel del organizador); uno de
+// (ver ConcessionStaffPanel.tsx/CollaboratorPanel.tsx) — deliberadamente NO
+// reutiliza ConcessionsManager.tsx (panel del organizador): esta pantalla se
+// adapta al rol de quien la abre. Un encargado de caja ve "Caja" (confirma/
+// rechaza pagos, igual que ConcessionOrdersPanel del organizador); uno de
 // preparación ve "Preparación"+"Disponibilidad" (qué preparar/entregar,
 // nunca dinero ni comprobantes); quien tiene ambos roles ve los tres tabs.
+//
+// canCashier/canPrep leen directo de `perms` (useEventPermissions), que ya
+// resuelve tanto el staff legado (concessions.concessionsStaffMap) como los
+// roles nuevos caja/preparación de event.collaborators — antes de la Fase 4
+// de ROLES_PERMISSIONS_REDESIGN.md, esta pantalla leía concessionsStaffMap
+// directo acá (isConcessionsCashier/isConcessionsPrep), así que un
+// colaborador dado de alta por el sistema nuevo no tenía ningún acceso.
 export function ConcessionsKitchen() {
   const { eventId } = useParams<{ eventId: string }>()
   const { user } = useAuth()
   const { event, loading, error } = useEventOnly(eventId)
   const perms = useEventPermissions(event, user)
   const { isAdmin } = useIsAdmin()
-  const staffMap = event?.concessions?.concessionsStaffMap
-  const canCashier = !!(user && isConcessionsCashier(staffMap, user.uid)) || perms.manageConcessions || isAdmin
-  const canPrep = !!(user && isConcessionsPrep(staffMap, user.uid)) || perms.manageConcessions || isAdmin
+  const canCashier = perms.confirmPayments || perms.manageConcessions || isAdmin
+  const canPrep = perms.prepareOrders || perms.manageConcessions || isAdmin
   const title = canCashier && canPrep ? 'Encargados' : canCashier ? 'Caja' : 'Preparación'
   useDocumentTitle(event ? `${title} · ${event.name}` : title)
   useDashboardTheme(event?.templateId, event?.accentColor)

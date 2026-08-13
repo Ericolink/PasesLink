@@ -87,6 +87,13 @@ export const EVENT_REMINDER_RULES_MAX = 5
 // eventContentCapsOk() en firestore.rules.
 export const EVENT_CO_ORGANIZERS_MAX = 20
 
+// Colaboradores por evento (EventData.collaborators, ver useCollaborators.ts
+// y ROLES_PERMISSIONS_REDESIGN.md) — sistema unificado que reemplaza a
+// coOrganizersMap/concessionsStaffMap. Debe coincidir con
+// eventContentCapsOk() en firestore.rules y EVENT_COLLABORATORS_MAX en
+// functions/src/callable/createCollaboratorInvite.ts.
+export const EVENT_COLLABORATORS_MAX = 20
+
 // Buzón de feedback (src/pages/Feedback.tsx, src/firebase/feedback.ts). Deben
 // coincidir con isValidFeedbackCreate() en firestore.rules — esa es la última
 // barrera real ante un cliente que evite por completo esta capa.

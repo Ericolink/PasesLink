@@ -4,7 +4,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { bulkConfirmGuestPayments, type PaymentMethod } from '../payments/confirmPayment.js'
-import { canConfirmPayments } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import { enqueueNotification } from '../lib/notifications.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
@@ -50,7 +50,7 @@ export const bulkSetGuestPaymentStatus = onCall<BulkSetGuestPaymentStatusInput>(
     if (!eventSnap.exists) {
       throw new HttpsError('not-found', 'El evento no existe.')
     }
-    if (!canConfirmPayments(eventSnap.data()!, request.auth.uid)) {
+    if (!hasPermission(eventSnap.data()!, request.auth.uid, 'confirmPayments', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para confirmar pagos en este evento.')
     }
 

@@ -6,7 +6,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { checkInGuest as checkInGuestService } from '../checkin/checkIn.js'
-import { canScanQr } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
 
@@ -62,7 +62,7 @@ export const checkInGuest = onCall<CheckInGuestInput>(
     if (!eventSnap.exists) {
       throw new HttpsError('not-found', 'El evento no existe.')
     }
-    if (!canScanQr(eventSnap.data()!, request.auth.uid)) {
+    if (!hasPermission(eventSnap.data()!, request.auth.uid, 'scanQr', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para escanear entradas en este evento.')
     }
 

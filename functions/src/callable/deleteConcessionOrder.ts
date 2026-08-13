@@ -6,7 +6,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { deleteConcessionOrder as deleteConcessionOrderService } from '../concessions/deleteConcessionOrder.js'
-import { canManageConcessions } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
 
@@ -33,7 +33,7 @@ export const deleteConcessionOrder = onCall<DeleteConcessionOrderInput>({ timeou
       throw new HttpsError('not-found', 'El evento no existe.')
     }
     const event = eventSnap.data()!
-    if (!canManageConcessions(event, request.auth.uid)) {
+    if (!hasPermission(event, request.auth.uid, 'manageConcessions', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para borrar pedidos de este evento.')
     }
 

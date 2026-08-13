@@ -14,7 +14,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { cancelOffer } from '../waitlist/promote.js'
 import { runCascade } from '../waitlist/cascade.js'
 import { sendOfferEmail } from '../waitlist/notify.js'
-import { canManageGuests } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import { brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId } from '../lib/secrets.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 
@@ -44,7 +44,7 @@ export const cancelWaitlistOffer = onCall<CancelWaitlistOfferInput>(
     if (!eventSnap.exists) {
       throw new HttpsError('not-found', 'El evento no existe.')
     }
-    if (!canManageGuests(eventSnap.data()!, request.auth.uid)) {
+    if (!hasPermission(eventSnap.data()!, request.auth.uid, 'addGuests', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para gestionar la lista de espera de este evento.')
     }
 

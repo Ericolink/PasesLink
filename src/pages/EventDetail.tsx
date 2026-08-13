@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { EntryMode } from '../types'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
@@ -9,6 +9,7 @@ import { useCheckinToast } from '../hooks/useCheckinToast'
 import { Toast } from '../components/Toast'
 import { useEventExport } from '../hooks/useEventExport'
 import { useCoOrganizers } from '../hooks/useCoOrganizers'
+import { useCollaborators } from '../hooks/useCollaborators'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useIsAdmin } from '../hooks/useIsAdmin'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
@@ -25,6 +26,7 @@ import { GuestSearchSheet } from '../components/GuestSearchSheet'
 import { EditEventForm } from '../components/EditEventForm'
 import { EventManagementPanel } from '../components/EventManagementPanel'
 import { CoOrganizerPanel } from '../components/CoOrganizerPanel'
+import { CollaboratorPanel } from '../components/CollaboratorPanel'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { SkeletonBlock } from '../components/Skeleton'
@@ -49,6 +51,7 @@ import {
   IconMessageSquare,
   IconSearch,
   IconShare,
+  IconShield,
   IconShuffle,
   IconUserPlus,
   IconUsers,
@@ -71,6 +74,7 @@ export function EventDetail() {
   const [guestSearchSheetOpen, setGuestSearchSheetOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(false)
   const [manageCoOrgOpen, setManageCoOrgOpen] = useState(false)
+  const [manageCollabOpen, setManageCollabOpen] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [checkinToast, dismissCheckinToast] = useCheckinToast(eventId)
@@ -86,6 +90,7 @@ export function EventDetail() {
   } = useEventExport(event, guests)
   const coOrg = useCoOrganizers(eventId, event?.coOrganizersMap)
   const { handleLeaveEvent } = coOrg
+  const collab = useCollaborators(eventId, event?.collaborators)
   const perms = useEventPermissions(event, user)
   const { isAdmin } = useIsAdmin()
 
@@ -207,7 +212,23 @@ export function EventDetail() {
 
   const coOrgsMap = event.coOrganizersMap || {}
 
+  // Un colaborador de rol angosto (Recepción/Caja/Ventas/Preparación) nunca
+  // tiene hasAccess (solo dueño/Administrador lo tienen, ver
+  // resolveCollaboratorPermissions) — antes de esto caía en un callejón sin
+  // salida ("No tienes acceso"); ahora se lo redirige a su pantalla
+  // dedicada según el permiso que sí tiene (ROLES_PERMISSIONS_REDESIGN.md
+  // Fase 4). Orden de prioridad: preparación/caja → Encargados, ventas →
+  // Ventas del evento, recepción → Escáner.
   if (user && !perms.hasAccess) {
+    if (perms.prepareOrders || perms.confirmPayments || (perms.viewOrders && !perms.manageConcessions)) {
+      return <Navigate to={`/events/${event.id}/kitchen`} replace />
+    }
+    if (perms.manageConcessions) {
+      return <Navigate to={`/events/${event.id}/menu`} replace />
+    }
+    if (perms.scanQr) {
+      return <Navigate to={`/events/${event.id}/scan`} replace />
+    }
     return <ErrorFallbackCTA message="No tienes acceso a este evento." />
   }
 
@@ -244,18 +265,22 @@ export function EventDetail() {
           visualmente con la acción del día del evento (rediseño del
           Dashboard del Evento). */}
       <div className="flex gap-2.5 mb-5">
-        <Link
-          to={`/events/${event.id}/scan`}
-          className="flex-1 flex items-center justify-center bg-primary text-white rounded-xl py-3.5 text-sm font-semibold hover:bg-primary-dark transition-colors"
-        >
-          Escanear pases
-        </Link>
-        <Link
-          to={`/events/${event.id}/reports`}
-          className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
-        >
-          Reportes
-        </Link>
+        {perms.scanQr && (
+          <Link
+            to={`/events/${event.id}/scan`}
+            className="flex-1 flex items-center justify-center bg-primary text-white rounded-xl py-3.5 text-sm font-semibold hover:bg-primary-dark transition-colors"
+          >
+            Escanear pases
+          </Link>
+        )}
+        {(perms.viewReports || perms.viewLiveDashboard) && (
+          <Link
+            to={`/events/${event.id}/reports`}
+            className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl px-4 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center whitespace-nowrap"
+          >
+            Reportes
+          </Link>
+        )}
         <Link
           to={`/events/${event.id}/wall`}
           aria-label="Muro del evento"
@@ -367,6 +392,25 @@ export function EventDetail() {
                     )}
                   </button>
                 )}
+                {perms.manageCoOrganizers && (
+                  <button
+                    onClick={() => setManageCollabOpen((v) => !v)}
+                    aria-label="Colaboradores"
+                    title="Colaboradores"
+                    className={`relative p-2 rounded-lg transition-colors ${
+                      manageCollabOpen
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <IconShield className="w-4 h-4" />
+                    {Object.entries(event.collaborators || {}).length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-primary text-white text-2xs leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                        {Object.entries(event.collaborators || {}).length}
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -421,6 +465,11 @@ export function EventDetail() {
 
       {/* Gestión de co-organizadores (inline, visible al hacer clic en el ícono junto al lápiz) */}
       {perms.manageCoOrganizers && <CoOrganizerPanel event={event} open={manageCoOrgOpen} coOrg={coOrg} />}
+
+      {/* Sistema unificado de colaboradores (ROLES_PERMISSIONS_REDESIGN.md
+          Fase 4) — vía nueva para altas nuevas, convive con el panel legacy
+          de arriba mientras dure la migración. */}
+      {perms.manageCoOrganizers && <CollaboratorPanel event={event} open={manageCollabOpen} collab={collab} />}
 
       {/* Un co-organizador (no el dueño) puede dejar de serlo sin depender de él */}
       {perms.isCoOrg && !perms.isOwner && (

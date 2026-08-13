@@ -144,12 +144,19 @@ export function subscribeToUserEvents(
 ): Unsubscribe {
   let owned: EventData[] | null = null
   let coOrganized: EventData[] | null = null
+  // Colaboradores del sistema unificado (ROLES_PERMISSIONS_REDESIGN.md Fase 4)
+  // — antes de este listener, un colaborador de rol angosto (recepción/caja/
+  // ventas/preparación) invitado vía event.collaborators no aparecía acá en
+  // absoluto: su único camino de vuelta al evento era reabrir el enlace/QR de
+  // invitación original. Bug real, no solo carencia de diseño.
+  let collaborating: EventData[] | null = null
 
   function emitIfReady() {
-    if (owned === null || coOrganized === null) return
+    if (owned === null || coOrganized === null || collaborating === null) return
     const merged = new Map<string, EventData>()
     for (const ev of owned) merged.set(ev.id, ev)
     for (const ev of coOrganized) merged.set(ev.id, ev)
+    for (const ev of collaborating) merged.set(ev.id, ev)
     callback(Array.from(merged.values()).sort(compareEventsByRelevance))
   }
 
@@ -165,9 +172,16 @@ export function subscribeToUserEvents(
     emitIfReady()
   }, withListenerReporting('userEvents.coOrganized'))
 
+  const collaboratorQuery = query(collection(db, 'events'), where(`collaborators.${uid}`, '!=', null))
+  const unsubCollaborating = onSnapshot(collaboratorQuery, (snapshot) => {
+    collaborating = snapshot.docs.map((d) => mapEvent(d.id, d.data()))
+    emitIfReady()
+  }, withListenerReporting('userEvents.collaborating'))
+
   return () => {
     unsubOwned()
     unsubCoOrganized()
+    unsubCollaborating()
   }
 }
 
@@ -363,6 +377,23 @@ export async function updateCoOrganizerPermissions(
 ) {
   await updateDoc(doc(db, 'events', eventId), {
     [`coOrganizerPermissions.${uid}`]: permissions,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+// Equivalentes de removeCoOrganizer/leaveCoOrganizer para el sistema
+// unificado de colaboradores (ROLES_PERMISSIONS_REDESIGN.md Fase 4) — un
+// solo campo por uid (`collaborators.${uid}`), no dos mapas.
+export async function removeCollaborator(eventId: string, uid: string) {
+  await updateDoc(doc(db, 'events', eventId), {
+    [`collaborators.${uid}`]: deleteField(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function leaveCollaborator(eventId: string, uid: string) {
+  await updateDoc(doc(db, 'events', eventId), {
+    [`collaborators.${uid}`]: deleteField(),
     updatedAt: serverTimestamp(),
   })
 }

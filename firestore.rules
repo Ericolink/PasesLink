@@ -9,24 +9,57 @@ service cloud.firestore {
     }
 
     function isCoOrganizer(eventId) {
-      let ev = get(/databases/$(database)/documents/events/$(eventId));
-      return request.auth != null &&
-        ev.data.coOrganizersMap != null &&
-        request.auth.uid in ev.data.coOrganizersMap;
+      return isCoOrganizerData(get(/databases/$(database)/documents/events/$(eventId)).data);
     }
 
     function isOwnerOrCoOrg(eventId) {
       return isOwner(eventId) || isCoOrganizer(eventId);
     }
 
-    // Permiso granular de un co-organizador (ver src/types/coOrganizerPermissions.ts).
-    // `def` es el default LEGACY para ese permiso — debe coincidir con
-    // LEGACY_COORG_DEFAULTS en ese archivo, así un co-organizador agregado
-    // antes de que existiera coOrganizerPermissions (o antes de que existiera
-    // este permiso puntual) conserva el mismo acceso amplio que ya tenía.
+    // Modelo unificado de colaboradores (Fase 3 de ROLES_PERMISSIONS_REDESIGN.md)
+    // — event.collaborators[uid] = { role, permissionOverrides?, ... },
+    // reemplazo futuro de coOrganizersMap+coOrganizerPermissions+
+    // concessions.concessionsStaffMap. Convive con los tres mapas legacy
+    // durante la migración (se leen en paralelo, nunca se escribe acá desde
+    // reglas — solo Cloud Functions con Admin SDK, ver collaboratorInvites
+    // más abajo).
+    function collaboratorEntry(evData) {
+      return evData.get('collaborators', {}).get(request.auth.uid, null);
+    }
+
+    // Mismos presets que COLLABORATOR_ROLE_PRESETS (src/types/collaboratorPermissions.ts)
+    // y ROLE_PRESETS (functions/src/lib/permissions.ts) — cuarta copia manual
+    // del mismo criterio (rules no puede importar código, mismo motivo que el
+    // resto de las constantes duplicadas de este archivo). 'administrador' se
+    // resuelve aparte como acceso total en collaboratorPermValue() de abajo,
+    // no necesita entrada acá.
+    function collaboratorRolePreset(role) {
+      return role == 'recepcion' ? {'viewGuestList': true, 'scanQr': true, 'postWall': true, 'viewPayments': true}
+        : role == 'caja' ? {'postWall': true, 'viewPayments': true, 'confirmPayments': true, 'viewCatalog': true, 'viewSales': true, 'viewOrders': true}
+        : role == 'ventas' ? {'postWall': true, 'manageConcessions': true, 'viewCatalog': true, 'viewSales': true, 'viewOrders': true}
+        : role == 'preparacion' ? {'postWall': true, 'viewCatalog': true, 'viewOrders': true, 'prepareOrders': true}
+        : {};
+    }
+
+    // Resuelve el valor de UN permiso para una entrada ya confirmada de
+    // event.collaborators (no null) — separado de coOrgPerm/coOrgPermData
+    // porque ahí todavía hace falta decidir si cae acá o al sistema legacy.
+    function collaboratorPermValue(entry, key) {
+      return entry.get('permissionOverrides', {}).get(
+        key,
+        entry.get('role', '') == 'administrador' ? true : collaboratorRolePreset(entry.get('role', '')).get(key, false)
+      );
+    }
+
+    // Permiso granular de un colaborador (ver src/types/coOrganizerPermissions.ts
+    // y src/types/collaboratorPermissions.ts). `def` es el default LEGACY para
+    // ese permiso — debe coincidir con LEGACY_COORG_DEFAULTS, así un
+    // co-organizador agregado antes de que existiera coOrganizerPermissions
+    // (o antes de que existiera este permiso puntual) conserva el mismo
+    // acceso amplio que ya tenía. Prioridad: event.collaborators (nuevo, si
+    // existe una entrada) → coOrganizerPermissions (legacy).
     function coOrgPerm(eventId, key, def) {
-      let ev = get(/databases/$(database)/documents/events/$(eventId));
-      return ev.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}).get(key, def);
+      return coOrgPermData(get(/databases/$(database)/documents/events/$(eventId)).data, key, def);
     }
 
     // El dueño siempre puede; un co-organizador puede si tiene ese permiso
@@ -58,12 +91,15 @@ service cloud.firestore {
 
     function isCoOrganizerData(evData) {
       return request.auth != null &&
-        evData.coOrganizersMap != null &&
-        request.auth.uid in evData.coOrganizersMap;
+        ((evData.coOrganizersMap != null && request.auth.uid in evData.coOrganizersMap) ||
+         collaboratorEntry(evData) != null);
     }
 
     function coOrgPermData(evData, key, def) {
-      return evData.get('coOrganizerPermissions', {}).get(request.auth.uid, {}).get(key, def);
+      let collab = collaboratorEntry(evData);
+      return collab != null
+        ? collaboratorPermValue(collab, key)
+        : evData.get('coOrganizerPermissions', {}).get(request.auth.uid, {}).get(key, def);
     }
 
     function canDoData(evData, key, def) {
@@ -145,6 +181,7 @@ service cloud.firestore {
       return d.get('customFields', []).size() <= 30
         && d.get('timeline', []).size() <= 20
         && d.get('coOrganizersMap', {}).size() <= 20
+        && d.get('collaborators', {}).size() <= 20
         && d.get('faq', []).size() <= 20
         && d.get('transport', {}).get('options', []).size() <= 20
         && d.get('transport', {}).get('specialInstructions', []).size() <= 20
@@ -689,17 +726,34 @@ service cloud.firestore {
     // encargado sin el rol necesario acá" (denegar) de "no es del staff en
     // absoluto, es el invitado dueño del pedido vía bearer-link" (permitir),
     // ver `concessionsFulfillment.get/list` más abajo.
+    // Cada una de las tres funciones de abajo reconoce, además del shape
+    // legado de concessionsStaffMap, una entrada equivalente en el mapa
+    // unificado event.collaborators (role 'caja'/'preparacion' — ver
+    // ROLES_PERMISSIONS_REDESIGN.md Fase 3). 'administrador'/'ventas' NO
+    // necesitan pasar por acá: ya tienen acceso más amplio vía
+    // canDo(eventId,'manageConcessions'/'confirmPayments',...), que ya es
+    // collaborators-aware (ver coOrgPermData).
     function isConcessionsStaffMember(evData) {
-      return request.auth != null && concessionsStaffEntry(evData) != null;
+      let collab = collaboratorEntry(evData);
+      return request.auth != null &&
+        (concessionsStaffEntry(evData) != null ||
+         (collab != null && collab.get('role', '') in ['caja', 'preparacion']));
     }
     function isConcessionsCashier(evData) {
       let entry = concessionsStaffEntry(evData);
-      return request.auth != null && entry != null && entry is map && entry.get('roles', {}).get('cashier', false) == true;
+      let collab = collaboratorEntry(evData);
+      return request.auth != null && (
+        (entry != null && entry is map && entry.get('roles', {}).get('cashier', false) == true) ||
+        (collab != null && collab.get('role', '') == 'caja')
+      );
     }
     function isConcessionsPrep(evData) {
       let entry = concessionsStaffEntry(evData);
-      return request.auth != null && entry != null &&
-        (entry is string || entry.get('roles', {}).get('prep', false) == true);
+      let collab = collaboratorEntry(evData);
+      return request.auth != null && (
+        (entry != null && (entry is string || entry.get('roles', {}).get('prep', false) == true)) ||
+        (collab != null && collab.get('role', '') == 'preparacion')
+      );
     }
 
     // Prueba de que quien escribe es dueño de ESTE pedido: igual criterio que
@@ -1158,18 +1212,28 @@ service cloud.firestore {
         || (isCoOrganizerData(resource.data)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coOrganizersMap', 'coOrganizerPermissions', 'updatedAt'])
             && !(request.auth.uid in request.resource.data.get('coOrganizersMap', {}))
-            && request.auth.uid in resource.data.coOrganizersMap)
-        // Administrar co-organizadores (permiso manageCoOrganizers, default
-        // false): puede agregar/editar/quitar a OTROS co-organizadores, pero
-        // no puede tocar su propia entrada en ninguno de los dos mapas — ni
-        // para autoescalarse más permisos ni para autoeliminarse por esta vía
-        // (para eso ya está la rama de "salir del evento" de arriba).
+            && request.auth.uid in resource.data.get('coOrganizersMap', {}))
+        // "Salir del evento", mismo criterio para un colaborador del sistema
+        // unificado (Fase 4 de ROLES_PERMISSIONS_REDESIGN.md) — mapa distinto
+        // (`collaborators`, un solo campo por uid, no dos).
+        || (isCoOrganizerData(resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['collaborators', 'updatedAt'])
+            && !(request.auth.uid in request.resource.data.get('collaborators', {}))
+            && request.auth.uid in resource.data.get('collaborators', {}))
+        // Administrar co-organizadores/colaboradores (permiso manageCoOrganizers,
+        // default false): puede agregar/editar/quitar a OTROS colaboradores
+        // (de cualquiera de los dos sistemas), pero no puede tocar su propia
+        // entrada en ninguno de los tres mapas — ni para autoescalarse más
+        // permisos ni para autoeliminarse por esta vía (para eso ya están las
+        // 2 ramas de "salir del evento" de arriba).
         || (isCoOrganizerData(resource.data)
             && coOrgPermData(resource.data, 'manageCoOrganizers', false)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coOrganizersMap', 'coOrganizerPermissions', 'updatedAt'])
-            && request.resource.data.get('coOrganizersMap', {}).get(request.auth.uid, null) == resource.data.coOrganizersMap.get(request.auth.uid, null)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coOrganizersMap', 'coOrganizerPermissions', 'collaborators', 'updatedAt'])
+            && request.resource.data.get('coOrganizersMap', {}).get(request.auth.uid, null) == resource.data.get('coOrganizersMap', {}).get(request.auth.uid, null)
             && request.resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {}) == resource.data.get('coOrganizerPermissions', {}).get(request.auth.uid, {})
-            && request.resource.data.get('coOrganizersMap', {}).size() <= 20)
+            && request.resource.data.get('collaborators', {}).get(request.auth.uid, null) == resource.data.get('collaborators', {}).get(request.auth.uid, null)
+            && request.resource.data.get('coOrganizersMap', {}).size() <= 20
+            && request.resource.data.get('collaborators', {}).size() <= 20)
         // RSVP (setGuestRsvp/resetGuestRsvp, auditoría F22) — ver
         // rsvpCountsOk más arriba. Sin gate de canDo/scanQr a propósito: lo
         // dispara el invitado sin cuenta desde su propio pase.
@@ -1622,6 +1686,17 @@ service cloud.firestore {
       // barrera de acceso real, se crean y canjean ÚNICAMENTE vía esas dos
       // Cloud Functions (Admin SDK, bypassa estas reglas).
       match /concessionsStaffInvites/{token} {
+        allow read, write: if false;
+      }
+
+      // Invitaciones unificadas de colaborador (Fase 3 de
+      // ROLES_PERMISSIONS_REDESIGN.md — createCollaboratorInvite.ts/
+      // acceptCollaboratorInvite.ts), reemplazo futuro de coOrganizerInvites/
+      // concessionsStaffInvites arriba (que se conservan mientras dure la
+      // migración). Mismo criterio: el token es la única barrera de acceso
+      // real, se crean y canjean ÚNICAMENTE vía esas dos Cloud Functions
+      // (Admin SDK, bypassa estas reglas).
+      match /collaboratorInvites/{token} {
         allow read, write: if false;
       }
 

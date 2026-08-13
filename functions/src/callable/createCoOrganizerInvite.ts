@@ -14,33 +14,8 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { randomUUID } from 'node:crypto'
-import { canManageCoOrganizers } from '../lib/permissions.js'
+import { hasPermission, LEGACY_COORG_DEFAULTS } from '../lib/permissions.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
-
-// Puerto de LEGACY_COORG_DEFAULTS (src/types/coOrganizerPermissions.ts) —
-// functions/ no importa nada de src/ (mismo motivo documentado en
-// guestValidation.ts). Mismos valores; si uno cambia allá, cambiarlo acá
-// también. Es el set de permisos que se otorga a quien canjea el enlace —
-// idéntico al que ya recibía un coorganizador agregado por correo.
-const INVITE_DEFAULT_PERMISSIONS = {
-  addGuests: true,
-  editGuests: true,
-  deleteGuests: true,
-  shareInviteLink: true,
-  confirmPayments: true,
-  scanQr: true,
-  viewGuestList: true,
-  postWall: true,
-  moderateWall: true,
-  editEvent: false,
-  manageCoOrganizers: false,
-  viewReports: true,
-  exportLists: true,
-  downloadEventInfo: true,
-  manageSeating: true,
-  viewLiveDashboard: true,
-  manageConcessions: false,
-}
 
 // Mismo tope que EVENT_CO_ORGANIZERS_MAX (src/utils/validation.ts) y
 // eventContentCapsOk() en firestore.rules — duplicado acá por el mismo
@@ -69,7 +44,7 @@ export const createCoOrganizerInvite = onCall<CreateCoOrganizerInviteInput>(
     const eventSnap = await eventRef.get()
     if (!eventSnap.exists) throw new HttpsError('not-found', 'El evento no existe.')
     const event = eventSnap.data()!
-    if (!canManageCoOrganizers(event, request.auth.uid)) {
+    if (!hasPermission(event, request.auth.uid, 'manageCoOrganizers', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para invitar coorganizadores a este evento.')
     }
 
@@ -94,7 +69,7 @@ export const createCoOrganizerInvite = onCall<CreateCoOrganizerInviteInput>(
     await invitesCol.doc(token).set({
       createdBy: request.auth.uid,
       createdByEmail: request.auth.token.email || null,
-      permissions: INVITE_DEFAULT_PERMISSIONS,
+      permissions: LEGACY_COORG_DEFAULTS,
       createdAt: FieldValue.serverTimestamp(),
       expiresAt,
       usedBy: null,

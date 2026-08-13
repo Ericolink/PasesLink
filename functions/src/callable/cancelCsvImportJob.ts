@@ -4,7 +4,7 @@
 // que el resto de las acciones de gestión de invitados en este proyecto.
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
-import { canManageGuests } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import { cancelCsvImportJob as cancelCsvImportJobRecord, CsvImportCancelError } from '../csvImport/cancelJob.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 
@@ -25,7 +25,7 @@ export const cancelCsvImportJob = onCall<CancelCsvImportJobInput>((request) =>
     const db = getFirestore()
     const eventSnap = await db.collection('events').doc(eventId).get()
     if (!eventSnap.exists) throw new HttpsError('not-found', 'El evento no existe.')
-    if (!canManageGuests(eventSnap.data()!, request.auth.uid)) {
+    if (!hasPermission(eventSnap.data()!, request.auth.uid, 'addGuests', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para cancelar esta importación.')
     }
 
