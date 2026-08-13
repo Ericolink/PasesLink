@@ -12,7 +12,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { CapacityFullError, createGuestsWithCapacity, type GuestWrite } from '../capacity/createGuests.js'
-import { canManageGuests } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import {
   type CustomFieldDef,
   GUEST_MAX_COMPANIONS,
@@ -74,7 +74,7 @@ export const addGuest = onCall<AddGuestInput>({ timeoutSeconds: 20 }, (request) 
     const eventSnap = await db.collection('events').doc(eventId).get()
     if (!eventSnap.exists) throw new HttpsError('not-found', 'El evento no existe.')
     const event = eventSnap.data()!
-    if (!canManageGuests(event, request.auth.uid)) {
+    if (!hasPermission(event, request.auth.uid, 'addGuests', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para agregar invitados a este evento.')
     }
 

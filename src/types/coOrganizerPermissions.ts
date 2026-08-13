@@ -87,7 +87,12 @@ export interface EventPermissions extends CoOrganizerPermissions {
   canPostWall: boolean
 }
 
-const NO_ACCESS: EventPermissions = {
+// Exportados (no solo de uso interno) para que
+// src/types/collaboratorPermissions.ts pueda construir sus propios presets
+// de rol sobre esta misma base, en vez de repetir los 17 booleanos a mano —
+// evita exactamente el tipo de drift que ya existe entre este archivo,
+// firestore.rules y createCoOrganizerInvite.ts.
+export const NO_ACCESS: EventPermissions = {
   addGuests: false,
   editGuests: false,
   deleteGuests: false,
@@ -111,7 +116,7 @@ const NO_ACCESS: EventPermissions = {
   canPostWall: true,
 }
 
-const FULL_ACCESS: CoOrganizerPermissions = {
+export const FULL_ACCESS: CoOrganizerPermissions = {
   addGuests: true,
   editGuests: true,
   deleteGuests: true,

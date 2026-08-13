@@ -52,7 +52,7 @@ export function ConcessionsSection({ event, guest, eventId, lockToken }: Props) 
           onClick={() => setModalOpen(true)}
           className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)] hover:opacity-90 transition-opacity"
         >
-          {hasOrders ? 'Ver mi pedido' : 'Ver menú'}
+          {hasOrders ? 'Ver mis pedidos' : 'Ver menú'}
         </button>
       </EventInfoSection>
       {modalOpen && (

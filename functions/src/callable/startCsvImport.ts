@@ -9,7 +9,7 @@
 // chunks después, encolado en Cloud Tasks.
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
-import { canManageGuests } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import { createCsvImportJob, CsvImportValidationError } from '../csvImport/createJob.js'
 import { enqueueCsvImportChunk } from '../csvImport/queue.js'
 import type { CsvImportRowInput } from '../csvImport/types.js'
@@ -40,7 +40,7 @@ export const startCsvImport = onCall<StartCsvImportInput>((request) =>
     const db = getFirestore()
     const eventSnap = await db.collection('events').doc(eventId).get()
     if (!eventSnap.exists) throw new HttpsError('not-found', 'El evento no existe.')
-    if (!canManageGuests(eventSnap.data()!, request.auth.uid)) {
+    if (!hasPermission(eventSnap.data()!, request.auth.uid, 'addGuests', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para agregar invitados a este evento.')
     }
 

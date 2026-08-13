@@ -5,7 +5,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { startCampaign, type ReminderRuleInput } from '../reconfirm/campaign.js'
-import { canManageGuests } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface StartReconfirmCampaignInput {
@@ -34,7 +34,7 @@ export const startReconfirmCampaign = onCall<StartReconfirmCampaignInput>({ time
     if (!eventSnap.exists) {
       throw new HttpsError('not-found', 'El evento no existe.')
     }
-    if (!canManageGuests(eventSnap.data()!, request.auth.uid)) {
+    if (!hasPermission(eventSnap.data()!, request.auth.uid, 'addGuests', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para gestionar este evento.')
     }
 

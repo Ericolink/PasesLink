@@ -15,10 +15,10 @@ interface Props {
 }
 
 // Flujo independiente al pago de entrada, pero misma filosofía (elegir
-// transferencia o efectivo, ver instrucciones, confirmar) — ver RFC §6. No
-// pide el comprobante acá: eso pasa DESPUÉS de crear el pedido, dentro de
-// "Mi pedido" (MyConcessionOrderCard), igual que el pago de entrada separa
-// "elegir método" de "subir comprobante" en dos pasos distintos.
+// transferencia o efectivo, ver instrucciones, confirmar) — ver RFC §6. Ya
+// no pide comprobante/referencia en ningún paso: tanto efectivo como
+// transferencia se validan en persona en caja (ver §14-16 del rediseño
+// "Ventas del evento") — el invitado nunca sube nada a PaseLink.
 export function ConcessionCheckoutView({
   paymentMethods, bankInstructions, pickupInstructions, totalLabel, submitting, error, onSubmit, onBack,
 }: Props) {
@@ -52,12 +52,13 @@ export function ConcessionCheckoutView({
       )}
 
       {method === 'transfer' ? (
-        <div className="rounded-lg px-3 py-2.5 text-sm whitespace-pre-line bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
-          {bankInstructions || 'El organizador todavía no cargó los datos para transferencia.'}
+        <div className="rounded-lg px-3 py-2.5 text-sm whitespace-pre-line bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)] space-y-1.5">
+          <p>{bankInstructions || 'El organizador todavía no cargó los datos para transferencia.'}</p>
+          <p className="font-medium">Después de transferir, acude a caja para mostrar tu comprobante y que confirmen tu pago.</p>
         </div>
       ) : (
-        <div className="rounded-lg px-3 py-2.5 text-sm whitespace-pre-line bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)]">
-          {pickupInstructions || 'Paga en taquilla antes de recoger tu pedido.'}
+        <div className="rounded-lg px-3 py-2.5 text-sm whitespace-pre-line bg-[var(--invite-accent-soft)] text-[var(--invite-accent-dark)] space-y-1.5">
+          <p>{pickupInstructions || 'Acude a caja para pagar y confirmar tu pedido.'}</p>
         </div>
       )}
 

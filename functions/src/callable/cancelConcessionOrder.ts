@@ -10,7 +10,7 @@ import {
   cancelConcessionOrder as cancelConcessionOrderService,
   type ConcessionCancelReason,
 } from '../concessions/cancelConcessionOrder.js'
-import { canConfirmPayments, canManageConcessions } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
 
@@ -38,7 +38,8 @@ export const cancelConcessionOrder = onCall<CancelConcessionOrderInput>({ timeou
       throw new HttpsError('not-found', 'El evento no existe.')
     }
     const event = eventSnap.data()!
-    if (!canManageConcessions(event, request.auth.uid) && !canConfirmPayments(event, request.auth.uid)) {
+    const isAdmin = request.auth.token.admin === true
+    if (!hasPermission(event, request.auth.uid, 'manageConcessions', { isAdmin }) && !hasPermission(event, request.auth.uid, 'confirmPayments', { isAdmin })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para cancelar pedidos en este evento.')
     }
 

@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { subscribeToConcessionsCatalog, archiveConcessionItem, setConcessionItemAvailability } from '../../firebase/concessions'
 import type { ConcessionItem } from '../../types/concessions'
-import { CONCESSIONS_CATEGORY_LABELS } from '../../types/concessions'
 import { formatMinorUnits } from '../../utils/concessionsMoney'
 import { optimizedImageUrl } from '../../utils/cloudinary'
 import { AccessibleButton } from '../accessibility/AccessibleButton'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingInline } from '../LoadingInline'
-import { IconEdit, IconInbox, IconTrash, IconUtensils } from '../accessibility/AccessibleIcon'
+import { IconAlertTriangle, IconEdit, IconInbox, IconTrash, IconUtensils } from '../accessibility/AccessibleIcon'
 import { ConcessionItemFormModal } from './ConcessionItemFormModal'
 
 interface Props {
@@ -16,9 +15,10 @@ interface Props {
 }
 
 // Catálogo del organizador: alta/edición/archivado + "marcar agotado" a
-// mano. El Menu Manager tiene su PROPIA vista de solo-agotado (Fase 3, ruta
-// /events/:eventId/kitchen) — este panel es exclusivo de quien administra el
-// módulo (manageConcessions), nunca se comparte con ese rol.
+// mano. El encargado de preparación tiene su PROPIA vista de solo-agotado
+// (ver ConcessionAvailabilityPanel, ruta /events/:eventId/kitchen) — este
+// panel es exclusivo de quien administra el módulo (manageConcessions),
+// nunca se comparte con ese rol.
 export function ConcessionCatalogPanel({ eventId, currency }: Props) {
   const [items, setItems] = useState<ConcessionItem[] | null>(null)
   const [editingItem, setEditingItem] = useState<ConcessionItem | 'new' | null>(null)
@@ -97,13 +97,21 @@ export function ConcessionCatalogPanel({ eventId, currency }: Props) {
                     </AccessibleButton>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{CONCESSIONS_CATEGORY_LABELS[item.category]}</p>
+                {item.description && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">{item.description}</p>
+                )}
                 <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1">
                   {item.priceMinorUnits === 0 ? 'Gratis' : formatMinorUnits(item.priceMinorUnits, item.currency || currency)}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   {item.stockMode === 'limited' ? `${item.stockRemaining ?? 0} disponibles` : 'Sin límite de stock'}
                 </p>
+                {item.status === 'outOfStock' && (
+                  <p className="flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-500 mt-1.5">
+                    <IconAlertTriangle className="w-3.5 h-3.5" />
+                    Agotado
+                  </p>
+                )}
                 <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -111,7 +119,9 @@ export function ConcessionCatalogPanel({ eventId, currency }: Props) {
                     onChange={() => handleToggleOutOfStock(item)}
                     className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
                   />
-                  <span className="text-xs text-gray-600 dark:text-gray-300">Marcar agotado</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-300">
+                    {item.status === 'outOfStock' ? 'Marcar disponible' : 'Marcar agotado'}
+                  </span>
                 </label>
               </div>
             </div>

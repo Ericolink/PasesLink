@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { setConcessionItemAvailability, subscribeToConcessionsCatalog } from '../../../firebase/concessions'
 import type { ConcessionItem } from '../../../types/concessions'
-import { CONCESSIONS_CATEGORY_LABELS } from '../../../types/concessions'
 import { LoadingInline } from '../../LoadingInline'
 import { IconInbox } from '../../accessibility/AccessibleIcon'
 
@@ -9,12 +8,12 @@ interface Props {
   eventId: string
 }
 
-// Único poder del Menu Manager sobre el catálogo: marcar/desmarcar
-// "agotado" a mano (ver RFC §11.4 — independiente del contador de stock,
-// para el caso "se acabó el hielo aunque el sistema diga que quedan
-// sodas"). Sin precio, sin edición de nombre/foto/stock — firestore.rules
-// ya lo restringe del lado servidor (concessionsCatalog.update, rama de
-// staff), esta pantalla ni siquiera ofrece esos campos.
+// Único poder del encargado de preparación sobre el catálogo:
+// marcar/desmarcar "agotado" a mano (ver RFC §11.4 — independiente del
+// contador de stock, para el caso "se acabó el hielo aunque el sistema diga
+// que quedan sodas"). Sin precio, sin edición de nombre/foto/stock —
+// firestore.rules ya lo restringe del lado servidor (concessionsCatalog.update,
+// rama de preparación), esta pantalla ni siquiera ofrece esos campos.
 export function ConcessionAvailabilityPanel({ eventId }: Props) {
   const [items, setItems] = useState<ConcessionItem[] | null>(null)
   const [busyItemId, setBusyItemId] = useState<string | null>(null)
@@ -61,13 +60,14 @@ export function ConcessionAvailabilityPanel({ eventId }: Props) {
           >
             <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{CONCESSIONS_CATEGORY_LABELS[item.category]}</p>
             </div>
             <span className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Agotado</span>
+              <span className={`text-xs ${item.status === 'outOfStock' ? 'text-amber-600 dark:text-amber-500 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+                {item.status === 'outOfStock' ? 'Agotado' : 'Disponible'}
+              </span>
               <input
                 type="checkbox"
-                aria-label={`Marcar "${item.name}" como agotado`}
+                aria-label={item.status === 'outOfStock' ? `Marcar "${item.name}" como disponible` : `Marcar "${item.name}" como agotado`}
                 checked={item.status === 'outOfStock'}
                 disabled={busyItemId === item.id}
                 onChange={() => handleToggle(item)}

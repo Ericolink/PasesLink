@@ -7,7 +7,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { guestVersionFields } from '../lib/guestVersion.js'
-import { canEditGuests } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface AllowGuestReentryInput {
@@ -38,7 +38,7 @@ export const allowGuestReentry = onCall<AllowGuestReentryInput>(
     if (!eventSnap.exists) {
       throw new HttpsError('not-found', 'El evento no existe.')
     }
-    if (!canEditGuests(eventSnap.data()!, request.auth.uid)) {
+    if (!hasPermission(eventSnap.data()!, request.auth.uid, 'editGuests', { isAdmin: request.auth.token.admin === true })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para editar invitados en este evento.')
     }
 

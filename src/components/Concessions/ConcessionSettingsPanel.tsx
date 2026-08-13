@@ -4,6 +4,7 @@ import { disableConcessions, enableConcessionsBeta, updateConcessionsSettings } 
 import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethods'
 import { AccessibleButton } from '../accessibility/AccessibleButton'
 import { AccessibleField, Checkbox, TextField } from '../accessibility/AccessibleField'
+import { AutoResizeTextarea } from '../AutoResizeTextarea'
 import { ConfirmDialog } from '../ConfirmDialog'
 
 interface Props {
@@ -92,6 +93,10 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
       setError('Pon un símbolo o código de moneda (ej. "$" o "MXN").')
       return
     }
+    if (!useEventInstructions && !paymentInstructions.trim()) {
+      setError('Escribe los datos para transferencia, o marca "Usar los datos bancarios del evento".')
+      return
+    }
     setSaving(true)
     try {
       await updateConcessionsSettings(event.id, {
@@ -171,14 +176,15 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
         <span className="text-sm text-gray-700 dark:text-gray-300">Usar los datos bancarios del evento</span>
       </label>
       {!useEventInstructions && (
-        <AccessibleField label="Datos para transferencia (exclusivos del menú)" id="concessions-payment-instructions">
+        <AccessibleField label="Datos para transferencia (exclusivos de ventas del evento)" id="concessions-payment-instructions">
           {(fieldProps) => (
-            <textarea
+            <AutoResizeTextarea
               {...fieldProps}
               value={paymentInstructions}
               onChange={(e) => setPaymentInstructions(e.target.value)}
               disabled={!canManage}
-              rows={3}
+              minHeight={76}
+              maxHeight={200}
               className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
             />
           )}
@@ -186,12 +192,13 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
       )}
       <AccessibleField label="Instrucciones de recolección" id="concessions-pickup-instructions" helperText='Ej. "Recoge tu pedido en la barra central".'>
         {(fieldProps) => (
-          <textarea
+          <AutoResizeTextarea
             {...fieldProps}
             value={pickupInstructions}
             onChange={(e) => setPickupInstructions(e.target.value)}
             disabled={!canManage}
-            rows={2}
+            minHeight={56}
+            maxHeight={160}
             className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
           />
         )}
@@ -210,8 +217,8 @@ export function ConcessionSettingsPanel({ event, canManage, isAdmin }: Props) {
 
       <ConfirmDialog
         open={confirmingDisable}
-        title="Desactivar módulo de menú"
-        message="Los invitados dejarán de ver la sección de menú en su invitación. El catálogo y los pedidos existentes no se borran — puedes volver a activarlo cuando quieras."
+        title="Desactivar ventas del evento"
+        message="Los invitados dejarán de ver la sección de ventas en su invitación. El catálogo y los pedidos existentes no se borran — puedes volver a activarlo cuando quieras."
         confirmLabel="Desactivar"
         danger
         onConfirm={handleDisable}

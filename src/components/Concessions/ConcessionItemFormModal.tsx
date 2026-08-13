@@ -3,17 +3,23 @@ import type { FormEvent } from 'react'
 import { AccessibleModal } from '../accessibility/AccessibleModal'
 import { DialogFooter } from '../DialogFooter'
 import { AccessibleButton } from '../accessibility/AccessibleButton'
-import { AccessibleField, Checkbox, FieldError, RadioGroup, RadioGroupOption, TextField } from '../accessibility/AccessibleField'
+import { AccessibleField, Checkbox, FieldError, TextField } from '../accessibility/AccessibleField'
+import { AutoResizeTextarea } from '../AutoResizeTextarea'
 import { ImageCropModal } from '../ImageCropModal'
 import { optimizedImageUrl } from '../../utils/cloudinary'
 import { sanitizeDecimalInput } from '../../utils/validationRules'
 import { majorToMinorUnits } from '../../utils/concessionsMoney'
 import { useConcessionItemPhoto } from '../../hooks/useConcessionItemPhoto'
 import { createConcessionItem, updateConcessionItem } from '../../firebase/concessions'
-import { CONCESSIONS_CATEGORY_LABELS } from '../../types/concessions'
-import type { ConcessionItem, ConcessionsCategory } from '../../types/concessions'
+import type { ConcessionItem } from '../../types/concessions'
 
-const CATEGORIES = Object.keys(CONCESSIONS_CATEGORY_LABELS) as ConcessionsCategory[]
+// Categoría (drink/food/snack/...) ya no se pide en este formulario — el
+// pedido explícito es que el nombre del producto ya deja claro qué es
+// ("Soda italiana" no necesita además la etiqueta "Bebidas"). El campo sigue
+// existiendo en el tipo/reglas porque ConcessionOrderLine.categorySnapshot y
+// ConcessionFulfillmentLine.categorySnapshot dependen de él para pedidos ya
+// hechos — un valor fijo alcanza, nunca se vuelve a mostrar en la interfaz.
+const DEFAULT_CATEGORY = 'food'
 
 interface Props {
   eventId: string
@@ -35,10 +41,9 @@ export function ConcessionItemFormModal({ eventId, currency, item, nextSortOrder
   const isEditing = !!item
   const [name, setName] = useState(item?.name || '')
   const [description, setDescription] = useState(item?.description || '')
-  const [category, setCategory] = useState<ConcessionsCategory>(item?.category || 'drink')
   const [isFree, setIsFree] = useState(item ? item.priceMinorUnits === 0 : false)
   const [priceInput, setPriceInput] = useState(item && item.priceMinorUnits > 0 ? String(item.priceMinorUnits / 100) : '')
-  const [stockMode, setStockMode] = useState<'unlimited' | 'limited'>(item?.stockMode || 'unlimited')
+  const [unlimited, setUnlimited] = useState(item ? item.stockMode === 'unlimited' : true)
   const [stockInitial, setStockInitial] = useState(item?.stockInitial != null ? String(item.stockInitial) : '')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
@@ -66,7 +71,7 @@ export function ConcessionItemFormModal({ eventId, currency, item, nextSortOrder
       return
     }
     const stockInitialNumber = Number(stockInitial) || 0
-    if (stockMode === 'limited' && stockInitialNumber <= 0) {
+    if (!unlimited && stockInitialNumber <= 0) {
       setFormError('Indica cuántas unidades hay disponibles.')
       return
     }
@@ -76,12 +81,12 @@ export function ConcessionItemFormModal({ eventId, currency, item, nextSortOrder
       const input = {
         name: trimmedName,
         description: description.trim() || undefined,
-        category,
+        category: item?.category || DEFAULT_CATEGORY,
         imageUrl: imageUrl || undefined,
         priceMinorUnits,
         currency,
-        stockMode,
-        stockInitial: stockMode === 'limited' ? stockInitialNumber : undefined,
+        stockMode: (unlimited ? 'unlimited' : 'limited') as 'unlimited' | 'limited',
+        stockInitial: unlimited ? undefined : stockInitialNumber,
       }
       if (item) {
         await updateConcessionItem(eventId, item.id, input)
@@ -139,34 +144,18 @@ export function ConcessionItemFormModal({ eventId, currency, item, nextSortOrder
 
             <AccessibleField label="Descripción" id="concession-item-description">
               {(fieldProps) => (
-                <textarea
+                <AutoResizeTextarea
                   {...fieldProps}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
+                  minHeight={60}
+                  maxHeight={160}
                   maxLength={500}
                   placeholder="Sabor a elegir en barra"
                   className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-gray-800 transition-colors"
                 />
               )}
             </AccessibleField>
-
-            <RadioGroup label="Categoría" className="flex flex-wrap gap-2">
-              {CATEGORIES.map((c) => (
-                <RadioGroupOption
-                  key={c}
-                  selected={category === c}
-                  onSelect={() => setCategory(c)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    category === c
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                  }`}
-                >
-                  {CONCESSIONS_CATEGORY_LABELS[c]}
-                </RadioGroupOption>
-              ))}
-            </RadioGroup>
 
             <div>
               <label className="flex items-center gap-2 cursor-pointer mb-2">
@@ -185,27 +174,13 @@ export function ConcessionItemFormModal({ eventId, currency, item, nextSortOrder
               )}
             </div>
 
-            <RadioGroup label="Inventario" className="flex gap-2">
-              <RadioGroupOption
-                selected={stockMode === 'unlimited'}
-                onSelect={() => setStockMode('unlimited')}
-                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
-                  stockMode === 'unlimited' ? 'border-primary bg-primary/10 text-primary' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                }`}
-              >
-                Ilimitado
-              </RadioGroupOption>
-              <RadioGroupOption
-                selected={stockMode === 'limited'}
-                onSelect={() => setStockMode('limited')}
-                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
-                  stockMode === 'limited' ? 'border-primary bg-primary/10 text-primary' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                }`}
-              >
-                Limitado
-              </RadioGroupOption>
-            </RadioGroup>
-            {stockMode === 'limited' && (
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer mb-2">
+                <Checkbox checked={unlimited} onChange={(e) => setUnlimited(e.target.checked)} />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Cantidad ilimitada</span>
+              </label>
+            </div>
+            {!unlimited && (
               <TextField
                 label="Unidades disponibles"
                 id="concession-item-stock"

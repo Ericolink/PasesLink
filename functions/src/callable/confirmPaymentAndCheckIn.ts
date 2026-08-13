@@ -5,7 +5,7 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { confirmPaymentAndCheckIn as confirmPaymentAndCheckInService } from '../checkin/confirmPaymentAndCheckIn.js'
-import { canConfirmPayments, canScanQr } from '../lib/permissions.js'
+import { hasPermission } from '../lib/permissions.js'
 import type { PaymentMethod } from '../payments/confirmPayment.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 import { BUSINESS_EVENTS, logBusinessEvent } from '../lib/observability/businessEvents.js'
@@ -59,9 +59,10 @@ export const confirmPaymentAndCheckIn = onCall<ConfirmPaymentAndCheckInInput>(
       throw new HttpsError('not-found', 'El evento no existe.')
     }
     const event = eventSnap.data()!
+    const isAdmin = request.auth.token.admin === true
     // Mismo doble gate que ya exige la UI del escáner: la pantalla entera
     // requiere scanQr, el botón "Sí, ya pagó" requiere además confirmPayments.
-    if (!canScanQr(event, request.auth.uid) || !canConfirmPayments(event, request.auth.uid)) {
+    if (!hasPermission(event, request.auth.uid, 'scanQr', { isAdmin }) || !hasPermission(event, request.auth.uid, 'confirmPayments', { isAdmin })) {
       throw new HttpsError('permission-denied', 'No tienes permiso para confirmar pagos y registrar ingresos en este evento.')
     }
 
