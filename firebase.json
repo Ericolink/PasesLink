@@ -16,6 +16,14 @@
     "ignore": ["firebase.json", "**/.*", "!**/.well-known/**", "**/node_modules/**", "**/*.map"],
     "rewrites": [
       {
+        "source": "/e/**",
+        "function": {
+          "functionId": "eventJoinMeta",
+          "region": "us-central1",
+          "pinTag": true
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

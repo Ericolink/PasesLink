@@ -7,17 +7,25 @@ import { EventShareCardTemplate } from './EventShareCardTemplate'
 import { ShareFallbackSheet } from './ShareFallbackSheet'
 import { Toast } from '../Toast'
 import { IconInstagram } from '../accessibility/AccessibleIcon'
+import { useAuth } from '../../hooks/useAuth'
 
-// Punto de entrada para difundir el evento en redes — montado tanto en
-// EventDetail.tsx (organizador) como en GuestPass.tsx (invitado, Feature 4)
-// sin ningún cambio a este componente, como estaba previsto. Solo tiene
-// sentido cuando existe un link público de auto-registro — cada padre gatea
-// el render con `event.entryMode !== 'list'`.
+// Punto de entrada para difundir el evento en redes — montado únicamente en
+// EventDetail.tsx, detrás de perms.shareInviteLink (organizador o
+// colaborador con ese permiso, nunca un invitado). Solo tiene sentido
+// cuando existe un link público de auto-registro — el padre gatea el
+// render con `event.entryMode !== 'list'`.
 export function ShareEventButton({ event }: { event: EventData }) {
+  const { user } = useAuth()
   // Ruta corta (/e/:id, ver App.tsx) en vez de /events/:id/join — mismo
   // destino (EventJoin), solo un alias más legible dentro de la imagen y al
-  // copiarse al portapapeles.
-  const joinUrl = `${window.location.origin}/e/${event.id}`
+  // copiarse al portapapeles. `?ref=` identifica quién generó el enlace
+  // (para la preview personalizada de eventJoinMeta.ts, Cloud Functions) —
+  // solo un uid, nunca un nombre: el servidor verifica del lado propio que
+  // ese uid tenga permiso `shareInviteLink` sobre este evento antes de usar
+  // su nombre en la preview, así que no hay nada que ganar falsificándolo.
+  const joinUrl = user
+    ? `${window.location.origin}/e/${event.id}?ref=${user.uid}`
+    : `${window.location.origin}/e/${event.id}`
   const content = useMemo(() => buildEventShareCard(event, joinUrl), [event, joinUrl])
 
   const cardNodeRef = useRef<HTMLDivElement>(null)
