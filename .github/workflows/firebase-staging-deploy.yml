@@ -60,6 +60,16 @@ jobs:
           node-version: 20
       - run: npm ci
 
+      # firebase.json tiene un rewrite de Hosting a una Cloud Function
+      # ("/e/**" -> eventJoinMeta, ver eventJoinMeta.ts) — desde que existe,
+      # incluso un deploy "solo Hosting" (el paso action-hosting-deploy de
+      # abajo) necesita resolver esa función, lo que dispara el predeploy de
+      # functions ("npm run build" -> tsc) ANTES de llegar al paso que
+      # despliega Functions más abajo. Sin esto acá arriba, tsc no
+      # encuentra firebase-functions/v2/* en un checkout limpio de CI (bug
+      # real, ver el commit que agregó este comentario).
+      - run: npm ci --prefix functions
+
       # --mode staging: vite build lee .env.staging (no existe en CI, todo
       # llega por env vars igual) y, sobre todo, pone
       # import.meta.env.MODE = 'staging' — src/lib/sentry.ts ya usa ese
@@ -89,12 +99,8 @@ jobs:
           channelId: live
           projectId: paselink-staging
 
-      # El predeploy de functions (firebase.json) corre "npm run build" con
-      # RESOURCE_DIR=functions pero nunca instala dependencias — asume que
-      # ya están, como pasa en una laptop de dev. En un checkout de CI
-      # limpio no existen, así que tsc no encuentra firebase-functions/v2/*.
-      - run: npm ci --prefix functions
-
+      # functions/node_modules ya se instaló arriba, antes del paso de
+      # Hosting (ver comentario en ese paso) — no hace falta repetirlo acá.
       - name: Desplegar Firestore Rules, índices y Cloud Functions a staging
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING" > /tmp/staging-sa.json

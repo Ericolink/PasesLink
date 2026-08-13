@@ -58,6 +58,16 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
+
+      # firebase.json tiene un rewrite de Hosting a una Cloud Function
+      # ("/e/**" -> eventJoinMeta) — action-hosting-deploy más abajo
+      # necesita resolver esa función aunque este workflow no despliegue
+      # Functions, lo que dispara el predeploy de functions ("npm run
+      # build" -> tsc) y sin node_modules instalado tsc no encuentra
+      # firebase-functions/v2/* (bug real visto en CI, ver el mismo
+      # comentario en firebase-staging-deploy.yml).
+      - run: npm ci --prefix functions
+
       - run: npm run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
