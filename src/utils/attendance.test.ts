@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { attendancePercent } from './attendance'
+import { attendancePercent, paymentProgress } from './attendance'
 import { partySize } from '../firebase/guests'
 
 describe('attendancePercent', () => {
@@ -64,5 +64,40 @@ describe('partySize', () => {
     ]
     const total = guests.reduce((sum, g) => sum + partySize(g), 0)
     expect(total).toBe(7)
+  })
+})
+
+describe('paymentProgress', () => {
+  it('regresa null en eventos gratuitos (nunca se debe mostrar la barra de pago)', () => {
+    expect(paymentProgress({ requiresPayment: false, peopleCount: 100, paidCount: 50 })).toBeNull()
+  })
+
+  it('invitados sin acompañantes: personas = invitados', () => {
+    const result = paymentProgress({ requiresPayment: true, peopleCount: 100, paidCount: 100 })
+    expect(result).toEqual({ totalPeople: 100, paidPeople: 100, pendingPeople: 0, percent: 100 })
+  })
+
+  it('invitados con acompañantes: personas totales suman a los acompañantes', () => {
+    const result = paymentProgress({ requiresPayment: true, peopleCount: 150, paidCount: 0 })
+    expect(result?.totalPeople).toBe(150)
+  })
+
+  // Caso del issue: 100 invitados pagaron, pero representan 110 personas
+  // (con acompañantes) sobre un total de 150 personas → 40 pendientes.
+  it('cuenta personas pagadas/pendientes, no invitados', () => {
+    const result = paymentProgress({ requiresPayment: true, peopleCount: 150, paidCount: 110 })
+    expect(result).toEqual({ totalPeople: 150, paidPeople: 110, pendingPeople: 40, percent: expect.closeTo(73.33, 1) })
+  })
+
+  // Ejemplo exacto del issue: 4 pases (A:1, B:3, C:2, D:4 personas),
+  // pagados A+B+D = 8 personas, pendiente C = 2 personas.
+  it('ejemplo del issue: 4 pases, 10 personas, 8 pagadas, 2 pendientes', () => {
+    const result = paymentProgress({ requiresPayment: true, peopleCount: 10, paidCount: 8 })
+    expect(result).toEqual({ totalPeople: 10, paidPeople: 8, pendingPeople: 2, percent: 80 })
+  })
+
+  it('pendingPeople nunca es negativo aunque paidCount exceda peopleCount', () => {
+    const result = paymentProgress({ requiresPayment: true, peopleCount: 10, paidCount: 12 })
+    expect(result?.pendingPeople).toBe(0)
   })
 })

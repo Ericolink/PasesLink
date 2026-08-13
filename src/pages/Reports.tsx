@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useEventDashboard } from '../hooks/useEventDashboard'
-import { attendancePercent } from '../utils/attendance'
+import { attendancePercent, paymentProgress } from '../utils/attendance'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { SkeletonBlock } from '../components/Skeleton'
 import { ScreenHeader } from '../components/ScreenHeader'
@@ -76,6 +76,7 @@ export function Reports() {
   const rsvpPending = event.rsvpPendingCount ?? 0
   const totalCollected = (event.ticketPrice ?? 0) * (event.paidCount ?? 0)
   const attendedPercent = Math.round(attendancePercent(event.checkedInCount, totalPeople))
+  const payment = paymentProgress(event)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
@@ -122,8 +123,12 @@ export function Reports() {
               <MetricTile label="Asistirán" value={rsvpYes} accent="primary" />
               <MetricTile label="No asistirán" value={rsvpNo} />
               <MetricTile label="Sin responder" value={rsvpPending} />
-              {event.requiresPayment && (
-                <MetricTile label={`Recaudado (${event.currency})`} value={totalCollected} accent="success" />
+              {payment && (
+                <>
+                  <MetricTile label={`Recaudado (${event.currency})`} value={totalCollected} accent="success" />
+                  <MetricTile label="Personas pagadas" value={payment.paidPeople} accent="success" />
+                  <MetricTile label="Personas pendientes" value={payment.pendingPeople} accent="warning" />
+                </>
               )}
             </div>
             {waitlist.length > 0 && (
@@ -219,8 +224,12 @@ export function Reports() {
               {event.attendeeLimitEnabled && (
                 <MetricTile label="Capacidad utilizada" value={`${Math.round(attendancePercent(totalPeople, event.capacity))}%`} />
               )}
-              {event.requiresPayment && (
-                <MetricTile label={`Recaudado (${event.currency})`} value={totalCollected} accent="success" />
+              {payment && (
+                <>
+                  <MetricTile label={`Recaudado (${event.currency})`} value={totalCollected} accent="success" />
+                  <MetricTile label="Personas pagadas" value={payment.paidPeople} accent="success" />
+                  <MetricTile label="Personas pendientes" value={payment.pendingPeople} accent="warning" />
+                </>
               )}
             </div>
           </>

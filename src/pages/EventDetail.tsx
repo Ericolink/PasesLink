@@ -37,6 +37,7 @@ import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { formatDate, formatTime12h } from '../utils/time'
+import { paymentProgress } from '../utils/attendance'
 import {
   IconCalendar,
   IconCheck,
@@ -143,6 +144,7 @@ export function EventDetail() {
   // total que se muestra siempre. event.peopleCount es exacto sin importar
   // cuántos invitados estén cargados en pantalla.
   const totalPeople = event?.peopleCount ?? 0
+  const payment = event ? paymentProgress(event) : null
 
   // Fase 6: exportar necesita el conjunto COMPLETO de invitados, no la
   // ventana acotada por default — si `guests` todavía está truncado al
@@ -549,6 +551,27 @@ export function EventDetail() {
               siguen entrando — el ingreso el día del evento dependerá del orden de llegada.
             </p>
           )
+        )}
+
+        {/* Personas que han pagado: solo eventos de pago (paymentProgress
+            regresa null en eventos gratuitos). paidPeople/totalPeople ya
+            cuentan personas (titular + acompañantes vía partySize en el
+            backend), no invitaciones — ver src/utils/attendance.ts. */}
+        {payment && (
+          <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Personas que han pagado</p>
+            <AttendanceProgressBar
+              present={payment.paidPeople}
+              expected={payment.totalPeople}
+              unitLabel="personas han pagado"
+              showPercentage
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {payment.pendingPeople > 0
+                ? `${payment.pendingPeople} persona${payment.pendingPeople === 1 ? '' : 's'} pendiente${payment.pendingPeople === 1 ? '' : 's'} de pago. Incluye acompañantes.`
+                : 'Todas las personas ya pagaron. Incluye acompañantes.'}
+            </p>
+          </div>
         )}
       </div>
 

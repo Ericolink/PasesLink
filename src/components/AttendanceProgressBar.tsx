@@ -48,6 +48,11 @@ export function AttendanceProgressBar({
         {rightLabel}
       </div>
       <div
+        role="progressbar"
+        aria-valuenow={percentInt}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${present} de ${expected} ${unitLabel}`}
         className={`h-1.5 rounded-full overflow-hidden ${isGlow ? '' : 'bg-gray-800'}`}
         style={isGlow ? { background: 'var(--invite-border, rgba(74,50,92,.8))' } : undefined}
       >
