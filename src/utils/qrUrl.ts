@@ -8,6 +8,13 @@ export function buildPassUrl(eventId: string, qrToken: string): string {
   return `${window.location.origin}/pass/${eventId}/${qrToken}`
 }
 
+// Una entrada de la lista de espera no tiene pase (todavía no es un
+// invitado) — "Compartir invitación" ahí comparte el link de estado
+// (WaitlistStatus.tsx, ruta ya existente en src/App.tsx), no un pase.
+export function buildWaitlistStatusUrl(eventId: string, waitlistToken: string): string {
+  return `${window.location.origin}/waitlist/${eventId}?token=${waitlistToken}`
+}
+
 export function isArriveQr(decodedText: string, eventId: string): boolean {
   try {
     const url = new URL(decodedText)

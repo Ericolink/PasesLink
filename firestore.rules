@@ -503,6 +503,24 @@ service cloud.firestore {
       return canDo(eventId, 'deleteGuests', true) && isValidOrganizerWaitlistEntryData(d);
     }
 
+    // "Modificar pase" del organizador sobre una entrada YA EXISTENTE en la
+    // fila (rediseño de la Waitlist) — no reusa isValidOrganizerWaitlistEntryData
+    // a propósito: esa función exige `createdAt == request.time` (solo tiene
+    // sentido en la creación) y revalida el documento entero, no solo los
+    // campos "de contacto/tamaño" que puede tocar una edición. Acá `d` es
+    // `request.resource.data` (el documento completo resultante), pero solo
+    // importan estos 7 campos porque `affectedKeys().hasOnly([...])` en la
+    // rama de `allow update` ya garantiza que ninguno de estado/token cambió.
+    function isValidWaitlistEntryEdit(evData, d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 121
+        && d.partySize is int && d.partySize >= 1 && d.partySize <= evData.get('maxCompanions', 9) + 1
+        && d.phone is string && d.phone.size() <= 40
+        && d.phoneCountry is string && d.phoneCountry.size() <= 2
+        && d.email is string && d.email.size() <= 254
+        && d.whatsappConsent is bool
+        && d.customData is map && d.customData.size() <= 30;
+    }
+
     // Contadores del EVENTO tolerantes a documentos legacy: eventos creados
     // antes de que existieran estos campos no los tienen, y en reglas de
     // Firestore leer una clave ausente (resource.data.peopleCount) es un
@@ -1815,6 +1833,15 @@ service cloud.firestore {
               request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
               && resource.data.status == 'waiting'
               && request.resource.data.status == 'removed'
+            )
+            // "Modificar pase": editar nombre/tamaño/contacto de una entrada
+            // 'waiting' (nunca 'offered' — no se tocan sus datos a mitad de
+            // una confirmación en curso). Ver isValidWaitlistEntryEdit.
+            || (
+              request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['name', 'partySize', 'phone', 'phoneCountry', 'email', 'customData', 'whatsappConsent'])
+              && resource.data.status == 'waiting'
+              && isValidWaitlistEntryEdit(eventDataFor(eventId), request.resource.data)
             )
           );
         allow delete: if false;

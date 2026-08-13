@@ -18,6 +18,17 @@ export interface PromoteToGuestOptions {
   paymentMethod?: PaymentMethod
   /** Si se pasa: exige status 'offered' + este token exacto (el invitado confirma su propia oferta). Si se omite: acepta 'waiting' u 'offered' (asignación directa del organizador). */
   offerToken?: string
+  /**
+   * "Marcar como pagado" del organizador (WaitlistPanel): crea el guest ya
+   * con `paymentStatus: 'paid'` en la MISMA transacción, en vez del
+   * `'unpaid'` de siempre — nunca un paso aparte, para que el chequeo de
+   * capacidad de acá abajo siga siendo la única puerta de entrada (evita que
+   * "pagó" se convierta en una forma de saltarse el cupo). Sin efecto si el
+   * evento no requiere pago.
+   */
+  markPaid?: boolean
+  /** uid del organizador que marcó el pago (para `paidBy`) — solo tiene sentido junto con `markPaid`. */
+  paidByUid?: string | null
 }
 
 export type PromoteToGuestResult =
@@ -65,6 +76,7 @@ export async function promoteEntryToGuest(
     // un método de pago si el evento lo requiere.
     const requiresPayment = (event.requiresPayment as boolean) || false
     const resolvedPaymentMethod = requiresPayment ? opts.paymentMethod || null : null
+    const markPaid = requiresPayment && opts.markPaid === true
 
     const qrToken = randomUUID().replace(/-/g, '')
     const guestRef = eventRef.collection('guests').doc()
@@ -84,8 +96,12 @@ export async function promoteEntryToGuest(
       exitType: null,
       lockToken: null,
       notes: '',
-      paymentStatus: 'unpaid',
+      paymentStatus: markPaid ? 'paid' : 'unpaid',
       paymentMethod: resolvedPaymentMethod,
+      // Date.now() (número), no FieldValue.serverTimestamp(): mismo formato
+      // que confirmPayment.ts (guestUpdates.paidAt = Date.now()) — GuestData.paidAt
+      // se lee como `number | null` en todo el resto de la app.
+      ...(markPaid ? { paidAt: Date.now(), paidBy: opts.paidByUid ?? null } : {}),
       holdExpiresAt: null,
       customData: (entry.customData as Record<string, string>) || {},
       // Se propaga el origen de la entrada de waitlist (ver

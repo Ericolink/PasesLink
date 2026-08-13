@@ -383,6 +383,96 @@ describe('firestore.rules — events/{eventId}/waitlist', () => {
     })
   })
 
+  describe('update (organizador: "Modificar pase" — rediseño de la Waitlist)', () => {
+    function validEditPayload(overrides: Record<string, unknown> = {}) {
+      return {
+        name: 'Editado',
+        partySize: 2,
+        phone: '5555555555',
+        phoneCountry: 'MX',
+        email: 'editado@test.com',
+        whatsappConsent: true,
+        customData: {},
+        ...overrides,
+      }
+    }
+
+    it('allows the owner to edit a waiting entry', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, maxCompanions: 5 })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertSucceeds(updateDoc(doc(ownerDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validEditPayload()))
+      const entry = await getWaitlistDoc(testEnv, EVENT_ID, 'entry-1')
+      expect(entry?.name).toBe('Editado')
+      expect(entry?.partySize).toBe(2)
+      expect(entry?.phone).toBe('5555555555')
+    })
+
+    it('rejects editing an entry that already has an active offer — not mid-confirmation', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1', { status: 'offered', offerToken: 'token-1' })
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertFails(updateDoc(doc(ownerDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validEditPayload()))
+    })
+
+    it('rejects a party size beyond maxCompanions + 1', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, maxCompanions: 2 })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertFails(updateDoc(doc(ownerDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validEditPayload({ partySize: 10 })))
+    })
+
+    it('rejects sneaking a status/priorityBoost change into the same write as an edit', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+      await assertFails(
+        updateDoc(doc(ownerDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validEditPayload({ status: 'promoted' })),
+      )
+      await assertFails(
+        updateDoc(doc(ownerDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validEditPayload({ priorityBoost: 99 })),
+      )
+    })
+
+    it('rejects a co-organizer without addGuests permission', async () => {
+      const COHOST_UID = 'cohost-uid'
+      await seedEvent(testEnv, EVENT_ID, {
+        ownerId: OWNER_UID,
+        coOrganizersMap: { [COHOST_UID]: true },
+        coOrganizerPermissions: { [COHOST_UID]: { addGuests: false } },
+      })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      const cohostDb = testEnv.authenticatedContext(COHOST_UID).firestore()
+
+      await assertFails(updateDoc(doc(cohostDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validEditPayload()))
+    })
+
+    it('allows a co-organizer with addGuests permission', async () => {
+      const COHOST_UID = 'cohost-uid'
+      await seedEvent(testEnv, EVENT_ID, {
+        ownerId: OWNER_UID,
+        coOrganizersMap: { [COHOST_UID]: true },
+        coOrganizerPermissions: { [COHOST_UID]: { addGuests: true } },
+      })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      const cohostDb = testEnv.authenticatedContext(COHOST_UID).firestore()
+
+      await assertSucceeds(updateDoc(doc(cohostDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validEditPayload()))
+    })
+
+    it('rejects an outsider', async () => {
+      await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+      await seedWaitlistEntry(testEnv, EVENT_ID, 'entry-1')
+      const outsiderDb = testEnv.authenticatedContext(OUTSIDER_UID).firestore()
+
+      await assertFails(updateDoc(doc(outsiderDb, 'events', EVENT_ID, 'waitlist', 'entry-1'), validEditPayload()))
+    })
+  })
+
   describe('delete', () => {
     it('rejects any client delete — "quitar" es un update a status:removed, no un borrado', async () => {
       await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })

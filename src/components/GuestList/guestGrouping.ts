@@ -72,6 +72,16 @@ export function groupGuestsByUrgency(guests: GuestData[], requiresPayment: boole
 // necesita intervención tuya todavía.
 export type GuestIndicator = 'action' | 'ok' | 'wait' | 'off'
 
+// Clases del punto de indicador — en su propio archivo de solo-valores (no
+// un archivo de componentes) para no romper Fast Refresh. GuestRow.tsx y
+// WaitlistEntryRow.tsx comparten este mismo mapeo de colores.
+export const INDICATOR_CLASS: Record<string, string> = {
+  action: 'bg-amber-500',
+  ok: 'bg-green-500',
+  off: 'bg-gray-300 dark:bg-gray-700',
+  wait: 'border-[1.5px] border-violet-400 dark:border-violet-500 bg-transparent',
+}
+
 export function guestIndicator(guest: GuestData, requiresPayment: boolean): GuestIndicator {
   if (needsAttention(guest, requiresPayment)) return 'action'
   if (guest.rsvpStatus === 'no' || guestPresence(guest) === 'final_out') return 'off'

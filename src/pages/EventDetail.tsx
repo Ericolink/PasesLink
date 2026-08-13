@@ -603,7 +603,15 @@ export function EventDetail() {
           de la sección "Qué sigue". */}
       {event.attendeeLimitEnabled && perms.viewGuestList && (
         <div id="waitlist">
-          <WaitlistPanel eventId={event.id} canManage={perms.addGuests} />
+          <WaitlistPanel
+            eventId={event.id}
+            eventName={event.name}
+            canManage={perms.addGuests}
+            requiresPayment={event.requiresPayment}
+            paymentMethods={event.paymentMethods}
+            maxCompanions={resolveMaxCompanions(event)}
+            customFields={event.customFields}
+          />
         </div>
       )}
 

@@ -10,7 +10,7 @@ import {
   setGuestPaymentStatus,
 } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, PaymentMethod } from '../../types'
-import { IconChevronDown, IconInbox } from '../accessibility/AccessibleIcon'
+import { IconInbox } from '../accessibility/AccessibleIcon'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../Empty/EmptyState'
 import { FormError } from '../FormError'
@@ -21,89 +21,22 @@ import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
 import { GuestSelectionBar } from './GuestSelectionBar'
 import { SECTION_ORDER, groupGuestsByUrgency, type GuestUrgency } from './guestGrouping'
+import { ListSection, LoadMoreButton, LIST_SECTION_PAGE_SIZE } from './ListSection'
 import { useAnnouncer } from '../accessibility/LiveRegion'
 import { getFunctionsErrorMessage } from '../../utils/firebaseErrorMessages'
 
-// Paginación de RENDERIZADO, no de datos: `guests` ya llega completo a este
-// componente (EventDetail lo carga entero vía useEvent/subscribeToGuests,
-// que también alimenta las estadísticas, la búsqueda y el export CSV/PDF —
-// truncar esa fuente rompería las tres). Cada sección de urgencia pagina por
-// separado (ver GuestSection) para no pintar cientos de filas a la vez.
-const GUEST_LIST_PAGE_SIZE = 50
+// `guests` ya llega completo a este componente (EventDetail lo carga entero
+// vía useEvent/subscribeToGuests, que también alimenta las estadísticas, la
+// búsqueda y el export CSV/PDF — truncar esa fuente rompería las tres). La
+// paginación es solo de renderizado, ver ListSection.tsx.
+const GUEST_LIST_PAGE_SIZE = LIST_SECTION_PAGE_SIZE
 
-function LoadMoreButton({ remaining, onClick }: { remaining: number; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full text-sm text-primary font-medium py-2.5 hover:underline">
-      Cargar más invitados ({remaining} restantes)
-    </button>
-  )
-}
-
-function GuestSection({
-  sectionKey,
-  title,
-  alwaysExpanded,
-  collapsedByDefault,
-  guests,
-  selectedIds,
-  rowProps,
-}: {
-  sectionKey: GuestUrgency
-  title: string
-  alwaysExpanded: boolean
-  collapsedByDefault: boolean
-  guests: GuestData[]
-  selectedIds: Set<string>
-  rowProps: Omit<React.ComponentProps<typeof GuestRow>, 'guest' | 'selected'>
-}) {
-  const [collapsed, setCollapsed] = useState(collapsedByDefault)
-  const [visibleCount, setVisibleCount] = useState(GUEST_LIST_PAGE_SIZE)
-
-  if (guests.length === 0) return null
-  const expanded = alwaysExpanded || !collapsed
-  const visible = guests.slice(0, visibleCount)
-
-  return (
-    <div>
-      <h3 className="contents">
-        <button
-          type="button"
-          onClick={() => !alwaysExpanded && setCollapsed((c) => !c)}
-          className={`w-full flex items-center justify-between gap-2 px-1 py-2 ${alwaysExpanded ? 'cursor-default' : ''}`}
-        >
-          <span
-            className={`text-xs font-bold uppercase tracking-wide ${
-              sectionKey === 'attention'
-                ? 'text-amber-600 dark:text-amber-400'
-                : sectionKey === 'confirmed_unpaid'
-                  ? 'text-violet-600 dark:text-violet-400'
-                  : 'text-gray-400 dark:text-gray-500'
-            }`}
-          >
-            {title}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5">
-              {guests.length}
-            </span>
-            {!alwaysExpanded && (
-              <IconChevronDown className={`w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
-            )}
-          </span>
-        </button>
-      </h3>
-      {expanded && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          {visible.map((guest) => (
-            <GuestRow key={guest.id} guest={guest} selected={selectedIds.has(guest.id)} {...rowProps} />
-          ))}
-          {guests.length > visibleCount && (
-            <LoadMoreButton remaining={guests.length - visibleCount} onClick={() => setVisibleCount((c) => c + GUEST_LIST_PAGE_SIZE)} />
-          )}
-        </div>
-      )}
-    </div>
-  )
+const SECTION_TONE: Record<GuestUrgency, 'amber' | 'violet' | 'gray'> = {
+  attention: 'amber',
+  confirmed_unpaid: 'violet',
+  confirmed: 'gray',
+  unanswered: 'gray',
+  declined: 'gray',
 }
 
 export const GuestList = memo(function GuestList({
@@ -393,15 +326,14 @@ export const GuestList = memo(function GuestList({
       {groups ? (
         <div className="space-y-4">
           {SECTION_ORDER.map((section) => (
-            <GuestSection
+            <ListSection
               key={section.key}
-              sectionKey={section.key}
               title={section.title}
+              titleTone={SECTION_TONE[section.key]}
               alwaysExpanded={section.key === 'attention'}
               collapsedByDefault={section.collapsedByDefault}
-              guests={groups[section.key]}
-              selectedIds={selected}
-              rowProps={rowProps}
+              items={groups[section.key]}
+              renderItem={(guest) => <GuestRow key={guest.id} guest={guest} selected={selected.has(guest.id)} {...rowProps} />}
             />
           ))}
         </div>

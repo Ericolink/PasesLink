@@ -188,14 +188,17 @@ export async function removeFromWaitlist(eventId: string, entryId: string): Prom
   await updateDoc(doc(db, 'events', eventId, 'waitlist', entryId), { status: 'removed' })
 }
 
-// "Asignar lugar": promoción manual saltando el orden — misma Callable que
-// dispara la oferta automática, con reason: 'manual' (ver
-// functions/src/callable/promoteWaitlistEntry.ts). Sigue siendo una
-// OFERTA (el invitado tiene que confirmar), no una asignación instantánea
-// — pero ya no vence sola, ver cancelWaitlistOffer.
-export async function promoteWaitlistEntryManually(eventId: string, entryId: string): Promise<void> {
-  const callable = httpsCallable<{ eventId: string; entryId: string }, { ok: boolean }>(functions, 'promoteWaitlistEntry')
-  await callable({ eventId, entryId })
+// "Modificar pase": edita nombre/tamaño/contacto de una entrada 'waiting' —
+// escritura directa (no Cloud Function), validada por firestore.rules
+// (isValidWaitlistEntryEdit). Se escriben los 7 campos siempre (aunque no
+// hayan cambiado): más simple que armar un patch parcial, y `affectedKeys()`
+// en las rules no distingue "reescribí el mismo valor" de "no lo toqué".
+export async function updateWaitlistEntry(
+  eventId: string,
+  entryId: string,
+  patch: { name: string; partySize: number; phone: string; phoneCountry: string; email: string; whatsappConsent: boolean; customData: Record<string, string> },
+): Promise<void> {
+  await updateDoc(doc(db, 'events', eventId, 'waitlist', entryId), { ...patch })
 }
 
 // El organizador cancela una oferta activa (nadie respondió y no quiere
@@ -207,14 +210,25 @@ export async function cancelWaitlistOffer(eventId: string, entryId: string): Pro
   await callable({ eventId, entryId })
 }
 
-// "Asignar lugar" (instantáneo): a diferencia de promoteWaitlistEntryManually
-// (que solo crea una oferta y espera a que el invitado confirme por correo),
-// esta acción crea el guest confirmado de inmediato — el organizador decide
-// sin pedirle confirmación a la persona. Funciona tanto sobre una entrada
-// 'waiting' como sobre una con oferta activa (la reemplaza). El invitado se
-// entera por correo (si dejó uno), no por el link de oferta de siempre.
-export async function assignWaitlistSpot(eventId: string, entryId: string, paymentMethod?: PaymentMethod): Promise<{ qrToken: string }> {
-  const callable = httpsCallable<{ eventId: string; entryId: string; paymentMethod?: PaymentMethod }, { qrToken: string }>(functions, 'assignWaitlistSpot')
-  const result = await callable({ eventId, entryId, paymentMethod })
+// "Pasar a la lista normal" / "Marcar como pagado": crea el guest confirmado
+// de inmediato — el organizador decide sin pedirle confirmación a la
+// persona. Funciona tanto sobre una entrada 'waiting' como sobre una con
+// oferta activa (la reemplaza). El invitado se entera por correo (si dejó
+// uno), no por el link de oferta de siempre. `markPaid` es lo único que
+// distingue las dos acciones del menú de la Waitlist — misma transacción,
+// mismo chequeo de capacidad (ver promoteEntryToGuest en
+// functions/src/waitlist/promoteToGuest.ts): "marcar como pagado" nunca
+// salta el cupo por ir acompañado de un pago.
+export async function assignWaitlistSpot(
+  eventId: string,
+  entryId: string,
+  paymentMethod?: PaymentMethod,
+  markPaid?: boolean,
+): Promise<{ qrToken: string }> {
+  const callable = httpsCallable<
+    { eventId: string; entryId: string; paymentMethod?: PaymentMethod; markPaid?: boolean },
+    { qrToken: string }
+  >(functions, 'assignWaitlistSpot')
+  const result = await callable({ eventId, entryId, paymentMethod, markPaid })
   return result.data
 }

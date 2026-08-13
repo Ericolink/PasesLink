@@ -137,9 +137,14 @@ export function WaitlistStatus() {
           {entry.status === 'waiting' && (
             <>
               <p className="text-base font-semibold text-[var(--invite-text)] mb-2">Sigues en la lista de espera.</p>
-              <p className="text-sm text-[var(--invite-text-muted)]">
+              <p className="text-sm text-[var(--invite-text-muted)] mb-3">
                 Te avisamos por email apenas se libere un lugar. Puedes cerrar esta página y volver cuando quieras con el
                 mismo link.
+              </p>
+              <p className="text-xs text-[var(--invite-text-muted)] bg-black/5 dark:bg-white/5 rounded-lg px-3 py-2.5 text-left">
+                <strong className="text-[var(--invite-text)]">Evento lleno.</strong> Estar en esta lista no garantiza un
+                lugar. Si decides ir de todas formas antes de recibir la confirmación, ten en cuenta que podrías no poder
+                ingresar si no se libera un espacio a tiempo.
               </p>
             </>
           )}
