@@ -74,7 +74,7 @@ export function EventNextSteps({
   if (canManageCoOrganizers && coOrganizersCount === 0) {
     steps.push({
       id: 'no-coorganizers',
-      text: '¿Alguien más te ayuda a organizar? Invítalo como coorganizador.',
+      text: '¿Alguien más te ayuda a organizar? Invítalo como colaborador.',
       ctaLabel: 'Invitar',
       onClick: onOpenCoOrganizers,
     })

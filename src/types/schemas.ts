@@ -206,6 +206,17 @@ const CoOrganizerPermissionsSchema = z.object({
   viewLiveDashboard: z.boolean(),
 })
 
+// Espeja CollaboratorEntry (src/types/collaboratorPermissions.ts) — modelo
+// unificado de colaboradores (ROLES_PERMISSIONS_REDESIGN.md). `invitedAt` ya
+// llega normalizado a number desde mapEvent (toMillisOrNumber).
+const CollaboratorEntrySchema = z.object({
+  email: z.string(),
+  role: z.enum(['administrador', 'recepcion', 'caja', 'ventas', 'preparacion', 'comunidad']),
+  permissionOverrides: z.record(z.string(), z.boolean()).optional(),
+  invitedBy: z.string(),
+  invitedAt: z.number(),
+})
+
 export const EventSchema = z.object({
   id: z.string().min(1),
   ownerId: z.string().min(1),
@@ -272,6 +283,7 @@ export const EventSchema = z.object({
   rsvpPendingCount: z.number(),
   coOrganizersMap: z.record(z.string(), z.string()),
   coOrganizerPermissions: z.record(z.string(), CoOrganizerPermissionsSchema).optional(),
+  collaborators: z.record(z.string(), CollaboratorEntrySchema).optional(),
   concessions: ConcessionsConfigSchema.optional(),
   createdAt: z.number(),
   updatedAt: z.number(),

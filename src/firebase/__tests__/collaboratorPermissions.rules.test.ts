@@ -222,7 +222,7 @@ describe('event.collaborators (modelo unificado de roles)', () => {
       expect((await getConcessionOrderDoc(testEnv, EVENT_ID, ORDER_ID))?.paymentPhase).toBe('confirmed')
     })
 
-    it('un colaborador con rol recepción, sin override, NO puede confirmar pagos de ventas', async () => {
+    it('un colaborador con rol recepción confirma pagos de ventas por default (preset base, no override)', async () => {
       await seedEvent(testEnv, EVENT_ID, {
         ownerId: OWNER_UID,
         concessions: enabledConcessions,
@@ -231,10 +231,10 @@ describe('event.collaborators (modelo unificado de roles)', () => {
       await seedConcessionOrder(testEnv, EVENT_ID, ORDER_ID)
       const db = testEnv.authenticatedContext('recep-uid').firestore()
 
-      await assertFails(updateDoc(doc(db, 'events', EVENT_ID, 'concessionsOrders', ORDER_ID), { paymentPhase: 'confirmed' }))
+      await assertSucceeds(updateDoc(doc(db, 'events', EVENT_ID, 'concessionsOrders', ORDER_ID), { paymentPhase: 'confirmed' }))
     })
 
-    it('un colaborador con rol recepción y permissionOverrides.confirmPayments=true SÍ puede confirmar pagos', async () => {
+    it('un colaborador con rol recepción y permissionOverrides.confirmPayments=false NO puede confirmar pagos (angosta el preset)', async () => {
       await seedEvent(testEnv, EVENT_ID, {
         ownerId: OWNER_UID,
         concessions: enabledConcessions,
@@ -244,14 +244,14 @@ describe('event.collaborators (modelo unificado de roles)', () => {
             email: 'r@test.com',
             invitedBy: OWNER_UID,
             invitedAt: 1,
-            permissionOverrides: { confirmPayments: true },
+            permissionOverrides: { confirmPayments: false },
           },
         },
       })
       await seedConcessionOrder(testEnv, EVENT_ID, ORDER_ID)
       const db = testEnv.authenticatedContext('recep-uid').firestore()
 
-      await assertSucceeds(updateDoc(doc(db, 'events', EVENT_ID, 'concessionsOrders', ORDER_ID), { paymentPhase: 'confirmed' }))
+      await assertFails(updateDoc(doc(db, 'events', EVENT_ID, 'concessionsOrders', ORDER_ID), { paymentPhase: 'confirmed' }))
     })
   })
 
