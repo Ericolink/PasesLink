@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-route
 import type { EntryMode } from '../types'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
+import { useDebounce } from '../hooks/useDebounce'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useLoadingAnnouncement } from '../hooks/useLoadingAnnouncement'
 import { useCheckinToast } from '../hooks/useCheckinToast'
@@ -16,12 +17,13 @@ import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { useEventLifecycleActions } from '../hooks/useEventLifecycleActions'
 import { trackEventOpen } from '../lib/analytics'
 import { resolveMaxCompanions } from '../firebase/guests'
+import { filterAndSortGuests } from '../utils/guestSearch'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { EventNextSteps } from '../components/EventNextSteps'
 import { WaitlistPanel } from '../components/WaitlistPanel'
 import { GuestList } from '../components/GuestList'
-import { GuestSearchSheet } from '../components/GuestSearchSheet'
+import { GuestSearchBar } from '../components/GuestSearchBar'
 import { EditEventForm } from '../components/EditEventForm'
 import { EventManagementPanel } from '../components/EventManagementPanel'
 import { CollaboratorPanel } from '../components/CollaboratorPanel'
@@ -48,7 +50,6 @@ import {
   IconLogOut,
   IconMapPin,
   IconMessageSquare,
-  IconSearch,
   IconShare,
   IconShield,
   IconShuffle,
@@ -69,7 +70,6 @@ export function EventDetail() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'scanned' | 'declined' | 'pending'>('all')
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'az' | 'za'>('newest')
-  const [guestSearchSheetOpen, setGuestSearchSheetOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(false)
   const [manageCollabOpen, setManageCollabOpen] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
@@ -110,31 +110,18 @@ export function EventDetail() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [event, location.hash])
 
-  // Memoizado para que GuestList (React.memo) reciba la misma referencia entre
-  // renders en los que guests/search/statusFilter/sortBy no cambiaron.
-  const filteredGuests = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    const filtered = guests.filter((g) => {
-      if (term && !g.name.toLowerCase().includes(term) && !(g.lastName || '').toLowerCase().includes(term)) {
-        return false
-      }
-      if (statusFilter === 'confirmed') return g.rsvpStatus === 'yes'
-      if (statusFilter === 'scanned') return g.status === 'checked_in'
-      if (statusFilter === 'declined') return g.rsvpStatus === 'no'
-      if (statusFilter === 'pending') return g.rsvpStatus === 'pending' && g.status !== 'checked_in'
-      return true
-    })
-    return [...filtered].sort((a, b) => {
-      if (sortBy === 'az') return `${a.name} ${a.lastName || ''}`.localeCompare(`${b.name} ${b.lastName || ''}`)
-      if (sortBy === 'za') return `${b.name} ${b.lastName || ''}`.localeCompare(`${a.name} ${a.lastName || ''}`)
-      if (sortBy === 'oldest') return a.createdAt - b.createdAt
-      return b.createdAt - a.createdAt
-    })
-  }, [guests, search, statusFilter, sortBy])
+  // Debounced: recalcular el filtro (y, más abajo, disparar showAllGuests)
+  // en cada tecla es innecesario en eventos grandes — 300ms es el tiempo
+  // estándar entre teclas para no sentirse "atrasado" pero evitar recalcular
+  // de más mientras el usuario todavía está escribiendo.
+  const debouncedSearch = useDebounce(search, 300)
 
-  // Cuenta solo estado/orden (no el texto de búsqueda, que ya se ve tal cual
-  // en el propio botón disparador) para el badge de "Buscar y filtrar".
-  const activeFilterCount = (statusFilter !== 'all' ? 1 : 0) + (sortBy !== 'newest' ? 1 : 0)
+  // Memoizado para que GuestList (React.memo) reciba la misma referencia entre
+  // renders en los que guests/debouncedSearch/statusFilter/sortBy no cambiaron.
+  const filteredGuests = useMemo(
+    () => filterAndSortGuests(guests, { search: debouncedSearch, statusFilter, sortBy }),
+    [guests, debouncedSearch, statusFilter, sortBy],
+  )
 
   // event.peopleCount (contador desnormalizado, mantenido con increment() en
   // cada alta/baja/edición de invitado) en vez de sumar partySize() sobre
@@ -172,13 +159,15 @@ export function EventDetail() {
     handleExportExcel()
   }
 
-  function handleSearchChange(value: string) {
-    setSearch(value)
-    // Búsqueda tiene que alcanzar a cualquier invitado, no solo a los que
-    // ya están en la ventana acotada por default — mismo criterio que
-    // exportar arriba.
-    if (value.trim()) showAllGuests()
-  }
+  // Búsqueda tiene que alcanzar a cualquier invitado, no solo a los que ya
+  // están en la ventana acotada por default — mismo criterio que exportar
+  // arriba. Atado a debouncedSearch (no a `search`) para no reabrir la
+  // suscripción sin límite en cada tecla; showAllGuests es idempotente
+  // (setUnbounded(true) no hace nada si ya estaba en true), así que esto
+  // solo importa para no repetir el efecto de más mientras se escribe.
+  useEffect(() => {
+    if (debouncedSearch.trim()) showAllGuests()
+  }, [debouncedSearch, showAllGuests])
 
   function handleStatusFilterChange(value: typeof statusFilter) {
     setStatusFilter(value)
@@ -697,32 +686,25 @@ export function EventDetail() {
           {/* Fase 6: en eventos grandes, `guests` puede venir acotado a los
               primeros GUEST_WINDOW_DEFAULT (ver useEvent.ts) — nunca en
               silencio: este aviso explica por qué la lista de abajo no
-              muestra a todos, y "Buscar y filtrar" ya trae al resto en
-              cuanto se escribe algo (ver handleSearchChange). */}
+              muestra a todos, y el buscador ya trae al resto en cuanto se
+              escribe algo (ver el efecto de showAllGuests más arriba). */}
           {guestsTruncated && (
             <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2 mb-3">
               Mostrando los primeros {guests.length} de {event.guestCount} invitados. Usá la búsqueda para encontrar a cualquiera.
             </p>
           )}
 
-          {/* Buscar y filtrar: un solo control abre el sheet con el input y
-              los dos filtros que antes ocupaban tres filas separadas. */}
+          {/* Buscador siempre visible, con los filtros desplegables aparte
+              (no más el botón que abría un sheet de pantalla completa). */}
           {guests.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setGuestSearchSheetOpen(true)}
-              className="w-full flex items-center gap-2.5 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2.5 text-sm mb-4 bg-gray-50 dark:bg-gray-700 text-left hover:border-gray-300 dark:hover:border-gray-500 focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
-            >
-              <IconSearch className="w-4 h-4 text-gray-400 shrink-0" />
-              <span className={`flex-1 truncate ${search ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-                {search || 'Buscar invitados'}
-              </span>
-              {activeFilterCount > 0 && (
-                <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-primary text-white text-2xs font-semibold">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
+            <GuestSearchBar
+              search={search}
+              onSearchChange={setSearch}
+              statusFilter={statusFilter}
+              onStatusFilterChange={handleStatusFilterChange}
+              sortBy={sortBy}
+              onSortByChange={setSortBy}
+            />
           )}
 
           <GuestList
@@ -737,8 +719,10 @@ export function EventDetail() {
             guestTags={event.guestTags}
             menu={event.menu}
             maxCompanions={resolveMaxCompanions(event)}
-            hasActiveFilters={Boolean(search.trim()) || statusFilter !== 'all'}
-            hasSearchText={Boolean(search.trim())}
+            searchTerm={debouncedSearch}
+            hasStatusFilter={statusFilter !== 'all'}
+            onClearSearch={() => setSearch('')}
+            onClearFilters={() => { setStatusFilter('all'); setSortBy('newest') }}
             canEditGuests={perms.editGuests}
             canConfirmPayments={perms.confirmPayments}
             canDeleteGuests={perms.deleteGuests}
@@ -759,18 +743,6 @@ export function EventDetail() {
 
       {/* ── GESTIÓN DEL EVENTO (solo propietario, colapsable) ── */}
       {perms.isOwner && <EventManagementPanel event={event} actions={eventActions} />}
-
-      <GuestSearchSheet
-        open={guestSearchSheetOpen}
-        search={search}
-        onSearchChange={handleSearchChange}
-        statusFilter={statusFilter}
-        onStatusFilterChange={handleStatusFilterChange}
-        sortBy={sortBy}
-        onSortByChange={setSortBy}
-        resultCount={filteredGuests.length}
-        onClose={() => setGuestSearchSheetOpen(false)}
-      />
 
       {/* Diálogos de confirmación */}
       <ConfirmDialog

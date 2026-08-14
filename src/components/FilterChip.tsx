@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 
-// Extraído de GuestSearchSheet.tsx (era un componente local ahí) — archivo
-// compartido para el botón-pill de filtros en vez de duplicarlo en cada
-// pantalla que necesite el mismo patrón.
+// Extraído originalmente de GuestSearchSheet.tsx (hoy GuestSearchBar.tsx) —
+// archivo compartido para el botón-pill de filtros en vez de duplicarlo en
+// cada pantalla que necesite el mismo patrón.
 export function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button

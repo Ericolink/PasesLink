@@ -52,8 +52,10 @@ export const GuestList = memo(function GuestList({
   guestTags = [],
   menu,
   maxCompanions = 0,
-  hasActiveFilters = false,
-  hasSearchText = false,
+  searchTerm = '',
+  hasStatusFilter = false,
+  onClearSearch,
+  onClearFilters,
   // Defaults en `true`: sin permisos granulares (dueño, o co-organizador
   // legacy sin coOrganizerPermissions) el comportamiento es el mismo que
   // antes de esta feature — acceso total a estas 3 acciones.
@@ -73,16 +75,15 @@ export const GuestList = memo(function GuestList({
   guestTags?: GuestSegmentTag[]
   menu?: { options: MenuOption[]; restrictions: DietaryRestriction[] }
   maxCompanions?: number
-  // true cuando `guests` ya viene reducido por búsqueda/filtro de estado (no
-  // por el orden, que nunca produce cero resultados) — distingue "todavía no
-  // hay invitados" de "ninguno coincide con lo que buscas", que antes
-  // compartían el mismo mensaje.
-  hasActiveFilters?: boolean
-  // Solo la mitad "hay texto de búsqueda" de hasActiveFilters: con texto
-  // activo se muestra la lista plana filtrada (pocos resultados, agrupar
-  // agregaría ruido); sin texto se agrupa por urgencia aunque haya un filtro
-  // de estado aplicado.
-  hasSearchText?: boolean
+  // Texto de búsqueda ya aplicado (mismo que filtró `guests`) — distingue
+  // "todavía no hay invitados" de "ninguno coincide con lo que buscas", y
+  // permite mostrarlo textualmente en el estado vacío.
+  searchTerm?: string
+  // Filtro de estado (Confirmados/Pendientes/etc.) aplicado — a diferencia
+  // del orden, que nunca produce cero resultados.
+  hasStatusFilter?: boolean
+  onClearSearch?: () => void
+  onClearFilters?: () => void
   canEditGuests?: boolean
   canConfirmPayments?: boolean
   canDeleteGuests?: boolean
@@ -131,14 +132,43 @@ export const GuestList = memo(function GuestList({
     })
   }, [])
 
+  const hasSearchText = Boolean(searchTerm.trim())
+
   if (guests.length === 0) {
-    return hasActiveFilters ? (
-      <EmptyState
-        icon={IconInbox}
-        title="Sin resultados"
-        description="Ningún invitado coincide con esa búsqueda o filtro."
-      />
-    ) : (
+    if (hasSearchText && hasStatusFilter) {
+      return (
+        <EmptyState
+          icon={IconInbox}
+          title="Sin resultados"
+          description="No encontramos invitados que coincidan con tu búsqueda y filtros."
+          ctaText="Limpiar búsqueda y filtros"
+          onAction={() => { onClearSearch?.(); onClearFilters?.() }}
+        />
+      )
+    }
+    if (hasSearchText) {
+      return (
+        <EmptyState
+          icon={IconInbox}
+          title="Sin resultados"
+          description={`No encontramos invitados que coincidan con "${searchTerm.trim()}".`}
+          ctaText="Limpiar búsqueda"
+          onAction={onClearSearch}
+        />
+      )
+    }
+    if (hasStatusFilter) {
+      return (
+        <EmptyState
+          icon={IconInbox}
+          title="Sin resultados"
+          description="Ningún invitado coincide con ese filtro."
+          ctaText="Limpiar filtros"
+          onAction={onClearFilters}
+        />
+      )
+    }
+    return (
       <EmptyState
         icon={IconInbox}
         title="Todavía no hay invitados"

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { GuestData, SeatingTableData } from '../../types'
 import { partySize } from '../../firebase/guests'
 import { assignGuestToTable } from '../../firebase/seating'
+import { matchesGuestSearch } from '../../utils/guestSearch'
 import { AccessibleModal } from '../accessibility/AccessibleModal'
 import { AccessibleButton } from '../accessibility/AccessibleButton'
 import { InputField } from '../accessibility/AccessibleField'
@@ -26,10 +27,9 @@ export function AssignGuestModal({ open, onClose, eventId, table, guests, tables
   const [error, setError] = useState('')
 
   const candidates = useMemo(() => {
-    const term = search.trim().toLowerCase()
     return guests
       .filter((g) => g.tableId !== table.id)
-      .filter((g) => !term || g.name.toLowerCase().includes(term) || g.lastName?.toLowerCase().includes(term))
+      .filter((g) => matchesGuestSearch(g, search))
       .slice(0, 50)
   }, [guests, search, table.id])
 
