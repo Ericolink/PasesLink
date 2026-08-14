@@ -1404,10 +1404,27 @@ service cloud.firestore {
           // referencia) sigue siendo OBLIGATORIO — pedido explícito: sin una
           // referencia concreta, el organizador no tiene nada que cotejar
           // contra su resumen bancario para aprobar/rechazar.
+          //
+          // Desde que el registro público ya no obliga a elegir método
+          // (eventos con transferencia + efectivo habilitados), un invitado
+          // recién registrado tiene `paymentMethod == null` — mandar el
+          // comprobante ES la forma en que declara que pagó por
+          // transferencia, así que también se permite en ese caso (nunca si
+          // ya quedó fijado en 'cash', eso sería contradictorio) y el propio
+          // paymentMethod se agrega a los campos que puede escribir para
+          // dejarlo asentado. `eventDataFor(eventId)` es el mismo helper que
+          // ya usan isOwnerData/isCoOrganizer para leer el evento padre.
           (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentNote']) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentNote', 'paymentMethod']) &&
             guestLockTokensOk(resource.data, request.resource.data.get('lockToken', null)) &&
-            resource.data.paymentMethod == 'transfer' &&
+            (
+              resource.data.paymentMethod == 'transfer' ||
+              (
+                resource.data.paymentMethod == null &&
+                eventDataFor(eventId).paymentMethods.hasAny(['transfer'])
+              )
+            ) &&
+            request.resource.data.paymentMethod == 'transfer' &&
             resource.data.paymentStatus != 'paid' &&
             resource.data.paymentStatus != 'pending_confirmation' &&
             request.resource.data.paymentStatus == 'pending_confirmation' &&

@@ -53,6 +53,11 @@ export interface NewEventInput {
   paymentMethods?: PaymentMethod[]
   ticketPrice?: number
   currency?: string
+  transferBankName?: string
+  transferAccountHolder?: string
+  transferAccountNumber?: string
+  transferReference?: string
+  cashInstructions?: string
   paymentInstructions?: string
   organizerContactPhone?: string
   organizerContactPhoneCountry?: string
@@ -94,6 +99,11 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     paymentMethods: input.requiresPayment ? input.paymentMethods || [] : [],
     ticketPrice: input.ticketPrice || 0,
     currency: input.currency || '',
+    transferBankName: input.transferBankName?.trim() || '',
+    transferAccountHolder: input.transferAccountHolder?.trim() || '',
+    transferAccountNumber: input.transferAccountNumber?.trim() || '',
+    transferReference: input.transferReference?.trim() || '',
+    cashInstructions: input.cashInstructions?.trim() || '',
     paymentInstructions: input.paymentInstructions || '',
     organizerContactPhone: input.organizerContactPhone?.trim() || '',
     organizerContactPhoneCountry: input.organizerContactPhoneCountry || '',
@@ -284,6 +294,11 @@ export interface UpdateEventInput {
   paymentMethods?: PaymentMethod[]
   ticketPrice?: number
   currency?: string
+  transferBankName?: string
+  transferAccountHolder?: string
+  transferAccountNumber?: string
+  transferReference?: string
+  cashInstructions?: string
   paymentInstructions?: string
   organizerContactPhone?: string
   organizerContactPhoneCountry?: string
@@ -327,6 +342,11 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     paymentMethods: input.requiresPayment ? input.paymentMethods || [] : [],
     ticketPrice: input.ticketPrice || 0,
     currency: input.currency ?? '',
+    transferBankName: input.transferBankName?.trim() ?? '',
+    transferAccountHolder: input.transferAccountHolder?.trim() ?? '',
+    transferAccountNumber: input.transferAccountNumber?.trim() ?? '',
+    transferReference: input.transferReference?.trim() ?? '',
+    cashInstructions: input.cashInstructions?.trim() ?? '',
     paymentInstructions: input.paymentInstructions ?? '',
     organizerContactPhone: input.organizerContactPhone?.trim() ?? '',
     organizerContactPhoneCountry: input.organizerContactPhoneCountry ?? '',
@@ -505,6 +525,11 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
       || (data.requiresPayment ? ['transfer'] : []),
     ticketPrice: (data.ticketPrice as number) || 0,
     currency: (data.currency as string) || '',
+    transferBankName: (data.transferBankName as string) || '',
+    transferAccountHolder: (data.transferAccountHolder as string) || '',
+    transferAccountNumber: (data.transferAccountNumber as string) || '',
+    transferReference: (data.transferReference as string) || '',
+    cashInstructions: (data.cashInstructions as string) || '',
     paymentInstructions: (data.paymentInstructions as string) || '',
     organizerContactPhone: (data.organizerContactPhone as string) || '',
     organizerContactPhoneCountry: (data.organizerContactPhoneCountry as string) || '',

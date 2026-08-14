@@ -457,6 +457,17 @@ describe('registerWalkInGuest (servicio)', () => {
     expect(guest?.paymentMethod).toBe('cash')
   })
 
+  it('does not throw and stores paymentMethod: null when 2+ methods are enabled and the client sends none', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', requiresPayment: true, paymentMethods: ['transfer', 'cash'] })
+
+    const result = await registerWalkInGuest(db, eventId, { name: 'Ana López' })
+
+    if (result.status !== 'success') throw new Error('expected success')
+    const guest = await getGuestDoc(db, eventId, result.guestId)
+    expect(guest?.paymentMethod).toBeNull()
+  })
+
   it('rejects a party size that would exceed capacity even with some room left', async () => {
     // Queda 1 lugar (199/200) pero pide traer 1 acompañante (2 personas en
     // total) — no entra, aunque el evento no esté técnicamente lleno todavía.

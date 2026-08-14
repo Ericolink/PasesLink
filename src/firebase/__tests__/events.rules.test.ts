@@ -95,6 +95,51 @@ describe('events.ts — isValidEventPricing en create', () => {
   })
 })
 
+// Rediseño de métodos de pago (transferencia + efectivo no excluyentes): los
+// 5 campos nuevos son strings simples sobre el mismo documento de evento, no
+// requieren ninguna regla propia — esto confirma que efectivamente caen bajo
+// la regla existente de `allow update` del dueño, sin necesitar un ajuste en
+// eventContentCapsOk() ni ninguna otra parte de firestore.rules.
+describe('events.ts — campos estructurados de pago (transferencia/efectivo)', () => {
+  let testEnv: RulesTestEnvironment
+
+  beforeAll(async () => {
+    testEnv = await createTestEnv()
+  })
+
+  afterEach(async () => {
+    await testEnv.clearFirestore()
+  })
+
+  afterAll(async () => {
+    await testEnv.cleanup()
+  })
+
+  it('allows the owner to write the structured transfer fields and cash message via updateEventDetails', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await updateEventDetails(EVENT_ID, {
+      ...BASE_UPDATE_INPUT,
+      requiresPayment: true,
+      paymentMethods: ['transfer', 'cash'],
+      ticketPrice: 5000,
+      transferBankName: 'BBVA',
+      transferAccountHolder: 'María Pérez',
+      transferAccountNumber: '012180001234567895',
+      transferReference: 'Nombre + evento',
+      cashInstructions: 'Trae cambio exacto.',
+    })
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.transferBankName).toBe('BBVA')
+    expect(event?.transferAccountHolder).toBe('María Pérez')
+    expect(event?.transferAccountNumber).toBe('012180001234567895')
+    expect(event?.transferReference).toBe('Nombre + evento')
+    expect(event?.cashInstructions).toBe('Trae cambio exacto.')
+  })
+})
+
 // Barrera de seguridad de capacidad, sentido "reducción" (spec §17, complementa
 // attendeeLimitOk que ya protege el sentido "alta"): el dueño no puede bajar
 // `capacity` (ni activar `attendeeLimitEnabled` recién ahora) a un valor por

@@ -17,6 +17,7 @@ import { FormError } from '../FormError'
 import { buildPassUrl } from '../../utils/qrUrl'
 import { buildResendMailtoUrl, buildResendMessage, buildResendWhatsAppUrl } from '../../utils/resendInvitation'
 import { trackGuestDelete } from '../../lib/analytics'
+import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethods'
 import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
 import { GuestSelectionBar } from './GuestSelectionBar'
@@ -104,6 +105,10 @@ export const GuestList = memo(function GuestList({
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  // Solo se usa cuando el evento acepta 2+ métodos: con uno solo,
+  // bulkMarkPaid dispara directo (mismo criterio que GuestDetailSheet/Scanner).
+  const [bulkMarkPaidConfirmOpen, setBulkMarkPaidConfirmOpen] = useState(false)
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<PaymentMethod | undefined>(undefined)
   const { announce } = useAnnouncer()
 
   // Este useCallback tiene que vivir ANTES del early return de "sin
@@ -274,9 +279,25 @@ export const GuestList = memo(function GuestList({
   async function bulkMarkPaid() {
     setActionError('')
     const targets = guests.filter((g) => selected.has(g.id))
-    const { failed } = await bulkSetGuestPaymentStatus(eventId, targets.map((g) => g.id), 'paid', paymentMethods[0])
+    const { failed } = await bulkSetGuestPaymentStatus(eventId, targets.map((g) => g.id), 'paid', bulkPaymentMethod ?? paymentMethods[0])
     if (failed > 0) setActionError(`No se pudo marcar como pagado a ${failed} de ${targets.length} invitados.`)
+    setBulkMarkPaidConfirmOpen(false)
+    setBulkPaymentMethod(undefined)
     exitSelectMode()
+  }
+
+  // Con 2+ métodos habilitados, un solo método aplicado a todo el lote no se
+  // puede asumir en silencio (mezclar transferencia/efectivo en una sola
+  // acción masiva no tiene sentido) — se pide confirmación explícita. Con
+  // uno solo, se dispara directo (mismo criterio que el resto de los
+  // confirmadores de pago).
+  function requestBulkMarkPaid() {
+    if (paymentMethods.length > 1) {
+      setBulkPaymentMethod(undefined)
+      setBulkMarkPaidConfirmOpen(true)
+    } else {
+      void bulkMarkPaid()
+    }
   }
 
   async function bulkDelete() {
@@ -354,7 +375,7 @@ export const GuestList = memo(function GuestList({
           requiresPayment={requiresPayment}
           canConfirmPayments={canConfirmPayments}
           canDeleteGuests={canDeleteGuests}
-          onMarkPaid={bulkMarkPaid}
+          onMarkPaid={requestBulkMarkPaid}
           onDelete={() => setBulkDeleteConfirmOpen(true)}
           onCancel={exitSelectMode}
         />
@@ -421,6 +442,38 @@ export const GuestList = memo(function GuestList({
         danger
         onConfirm={bulkDelete}
         onCancel={() => setBulkDeleteConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={bulkMarkPaidConfirmOpen}
+        title="Confirmar pago"
+        message={
+          <div className="space-y-3">
+            <p>¿Marcar como pagados a los {selected.size} invitados seleccionados?</p>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Método de pago</p>
+              <div className="flex gap-2">
+                {paymentMethods.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setBulkPaymentMethod(m)}
+                    aria-pressed={(bulkPaymentMethod ?? paymentMethods[0]) === m}
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      (bulkPaymentMethod ?? paymentMethods[0]) === m
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    {PAYMENT_METHOD_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        }
+        confirmLabel="Marcar como pagado"
+        onConfirm={bulkMarkPaid}
+        onCancel={() => { setBulkMarkPaidConfirmOpen(false); setBulkPaymentMethod(undefined) }}
       />
     </div>
   )

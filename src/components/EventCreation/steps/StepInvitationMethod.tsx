@@ -1,10 +1,8 @@
 import type { CountryCode } from 'libphonenumber-js/min'
 import { useAnnouncer } from '../../accessibility/LiveRegion'
 import { EntryModeSelector } from '../EntryModeSelector'
-import { AccessibleField, Checkbox, FieldError } from '../../accessibility/AccessibleField'
-import { CountryCodeSelect } from '../../CountryCodeSelect'
-import { PAYMENT_METHOD_LABELS } from '../../../utils/paymentMethods'
-import { sanitizeDecimalInput } from '../../../utils/validationRules'
+import { Checkbox } from '../../accessibility/AccessibleField'
+import { PaymentMethodsConfigSection } from '../../PaymentMethodsConfigSection'
 import { GUEST_MAX_COMPANIONS } from '../../../utils/validation'
 import type { EntryMode, PaymentMethod } from '../../../types'
 
@@ -34,8 +32,18 @@ interface StepInvitationMethodProps {
   onTicketPriceChange: (value: string) => void
   currency: string
   onCurrencyChange: (value: string) => void
+  transferBankName: string
+  onTransferBankNameChange: (value: string) => void
+  transferAccountHolder: string
+  onTransferAccountHolderChange: (value: string) => void
+  transferAccountNumber: string
+  onTransferAccountNumberChange: (value: string) => void
+  transferReference: string
+  onTransferReferenceChange: (value: string) => void
   paymentInstructions: string
   onPaymentInstructionsChange: (value: string) => void
+  cashInstructions: string
+  onCashInstructionsChange: (value: string) => void
   organizerContactPhone: string
   onOrganizerContactPhoneChange: (value: string) => void
   organizerContactPhoneCountry: string
@@ -59,8 +67,18 @@ export function StepInvitationMethod({
   onTicketPriceChange,
   currency,
   onCurrencyChange,
+  transferBankName,
+  onTransferBankNameChange,
+  transferAccountHolder,
+  onTransferAccountHolderChange,
+  transferAccountNumber,
+  onTransferAccountNumberChange,
+  transferReference,
+  onTransferReferenceChange,
   paymentInstructions,
   onPaymentInstructionsChange,
+  cashInstructions,
+  onCashInstructionsChange,
   organizerContactPhone,
   onOrganizerContactPhoneChange,
   organizerContactPhoneCountry,
@@ -165,129 +183,35 @@ export function StepInvitationMethod({
 
       {/* Cobro de entrada */}
       <div className="mt-6 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
-        <label className="flex items-center gap-2.5 cursor-pointer">
-          <Checkbox checked={requiresPayment} onChange={(e) => onRequiresPaymentChange(e.target.checked)} />
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-            ¿Deseas cobrar entrada a los invitados?
-          </span>
-        </label>
-        {requiresPayment && (
-          <>
-            <p className="text-xs text-gray-500">
-              El pago se confirma manualmente: marcas a cada invitado como pagado desde la lista o al escanear su pase.
-            </p>
-
-            <fieldset className="border-0 p-0 m-0">
-              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Métodos de cobro <span aria-hidden="true" className="text-error">*</span>
-              </legend>
-              <div className="flex gap-2">
-                {(['transfer', 'cash'] as PaymentMethod[]).map((m) => (
-                  <label
-                    key={m}
-                    className={`flex-1 flex items-center justify-center gap-2 border rounded-lg px-3 py-2.5 text-sm font-medium cursor-pointer transition-colors ${
-                      paymentMethods.includes(m)
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={paymentMethods.includes(m)}
-                      onChange={() => onTogglePaymentMethod(m)}
-                      className="sr-only"
-                    />
-                    {PAYMENT_METHOD_LABELS[m]}
-                  </label>
-                ))}
-              </div>
-              {paymentMethods.length === 0 && <FieldError message="Elige al menos un método." />}
-              {paymentMethods.includes('transfer') && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Transferencia: el invitado puede subir su comprobante cuando quiera, sin límite de tiempo — tú confirmas el pago manualmente desde la lista de invitados o el escáner.
-                </p>
-              )}
-            </fieldset>
-
-            <div className="grid grid-cols-3 gap-3">
-              <AccessibleField
-                label="Precio por persona"
-                id="event-ticket-price"
-                className="col-span-2"
-                error={!(parseFloat(ticketPrice) > 0) ? 'Ingresa un precio mayor a 0.' : null}
-              >
-                {(fieldProps) => (
-                  <input
-                    {...fieldProps}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={ticketPrice}
-                    onChange={(e) => onTicketPriceChange(sanitizeDecimalInput(e.target.value))}
-                    placeholder="Ej: 5000"
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                )}
-              </AccessibleField>
-              <AccessibleField label="Moneda" id="event-currency">
-                {(fieldProps) => (
-                  <input
-                    {...fieldProps}
-                    type="text"
-                    value={currency}
-                    onChange={(e) => onCurrencyChange(e.target.value)}
-                    placeholder="$"
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                )}
-              </AccessibleField>
-            </div>
-
-            {paymentMethods.includes('transfer') && (
-              <AccessibleField
-                label="Datos para transferencia"
-                id="event-payment-instructions"
-                helperText="Los invitados verán esto en su pase junto al monto a pagar."
-              >
-                {(fieldProps) => (
-                  <textarea
-                    {...fieldProps}
-                    value={paymentInstructions}
-                    onChange={(e) => onPaymentInstructionsChange(e.target.value)}
-                    rows={3}
-                    placeholder="Ej: Transfiere a alias fiesta.maria.mp, o por Mercado Pago: https://..."
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                )}
-              </AccessibleField>
-            )}
-
-            <AccessibleField
-              label="Tu WhatsApp para pagos"
-              id="event-organizer-contact"
-              helperText="Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución."
-            >
-              {(fieldProps) => (
-                <div className="flex items-center gap-1.5">
-                  <CountryCodeSelect
-                    value={organizerContactPhoneCountry as CountryCode}
-                    onChange={onOrganizerContactPhoneCountryChange}
-                    aria-label="País del WhatsApp de contacto"
-                    className="border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <input
-                    {...fieldProps}
-                    type="tel"
-                    value={organizerContactPhone}
-                    onChange={(e) => onOrganizerContactPhoneChange(e.target.value)}
-                    placeholder="Ej: 55 1234 5678"
-                    className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              )}
-            </AccessibleField>
-          </>
-        )}
+        <PaymentMethodsConfigSection
+          requiresPayment={requiresPayment}
+          onRequiresPaymentChange={onRequiresPaymentChange}
+          paymentMethods={paymentMethods}
+          onTogglePaymentMethod={onTogglePaymentMethod}
+          ticketPrice={ticketPrice}
+          onTicketPriceChange={onTicketPriceChange}
+          currency={currency}
+          onCurrencyChange={onCurrencyChange}
+          transferBankName={transferBankName}
+          onTransferBankNameChange={onTransferBankNameChange}
+          transferAccountHolder={transferAccountHolder}
+          onTransferAccountHolderChange={onTransferAccountHolderChange}
+          transferAccountNumber={transferAccountNumber}
+          onTransferAccountNumberChange={onTransferAccountNumberChange}
+          transferReference={transferReference}
+          onTransferReferenceChange={onTransferReferenceChange}
+          paymentInstructions={paymentInstructions}
+          onPaymentInstructionsChange={onPaymentInstructionsChange}
+          cashInstructions={cashInstructions}
+          onCashInstructionsChange={onCashInstructionsChange}
+          organizerContactPhone={organizerContactPhone}
+          onOrganizerContactPhoneChange={onOrganizerContactPhoneChange}
+          organizerContactPhoneCountry={organizerContactPhoneCountry}
+          onOrganizerContactPhoneCountryChange={onOrganizerContactPhoneCountryChange}
+          idPrefix="event"
+          showPriceError
+          dark
+        />
       </div>
     </>
   )

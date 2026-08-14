@@ -33,6 +33,34 @@ describe('confirmGuestPayment', () => {
     expect(event.data()?.paidCount).toBe(3)
   })
 
+  it('preserves paymentMethod: null (guest never chose at RSVP, event allows 2+ methods) when confirming without an explicit method', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { paidCount: 0, paymentMethods: ['transfer', 'cash'] })
+    await seedGuest(db, eventId, 'guest-1', { paymentStatus: 'unpaid', paymentMethod: null })
+
+    const result = await confirmGuestPayment(db, eventId, 'guest-1', 'paid', { source: MANUAL })
+
+    expect(result).toMatchObject({ ok: true, changed: true })
+    const guest = await getGuestDoc(db, eventId, 'guest-1')
+    expect(guest?.paymentStatus).toBe('paid')
+    expect(guest?.paymentMethod).toBeNull()
+  })
+
+  it('lets two guests of the same event coexist with different methods (Juan → transfer, María → cash)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { paidCount: 0, paymentMethods: ['transfer', 'cash'] })
+    await seedGuest(db, eventId, 'juan', { name: 'Juan', paymentStatus: 'unpaid', paymentMethod: null })
+    await seedGuest(db, eventId, 'maria', { name: 'María', paymentStatus: 'unpaid', paymentMethod: null })
+
+    await confirmGuestPayment(db, eventId, 'juan', 'paid', { method: 'transfer', source: MANUAL })
+    await confirmGuestPayment(db, eventId, 'maria', 'paid', { method: 'cash', source: MANUAL })
+
+    const juan = await getGuestDoc(db, eventId, 'juan')
+    const maria = await getGuestDoc(db, eventId, 'maria')
+    expect(juan?.paymentMethod).toBe('transfer')
+    expect(maria?.paymentMethod).toBe('cash')
+  })
+
   it('reverts a payment, decrements paidCount, and clears paidAt/paidBy', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { paidCount: 3 })

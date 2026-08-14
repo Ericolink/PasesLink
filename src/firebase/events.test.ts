@@ -109,4 +109,36 @@ describe('mapEvent', () => {
     expect(event.collaborators?.['from-function']?.invitedAt).toBe(1755000000000)
     expect(event.collaborators?.['from-backfill']?.invitedAt).toBe(1755000000000)
   })
+
+  // Campos nuevos del rediseño de métodos de pago (transferencia + efectivo
+  // no excluyentes) — mismo checklist que concessions/collaborators arriba:
+  // agregar un campo a EventData no alcanza, hay que sumarlo acá también.
+  it('copia los campos estructurados de transferencia y el mensaje de efectivo del documento crudo', () => {
+    const event = mapEvent('e1', baseData({
+      transferBankName: 'BBVA',
+      transferAccountHolder: 'María Pérez',
+      transferAccountNumber: '012180001234567895',
+      transferReference: 'Nombre + evento',
+      cashInstructions: 'Trae cambio exacto.',
+    }))
+    expect(event.transferBankName).toBe('BBVA')
+    expect(event.transferAccountHolder).toBe('María Pérez')
+    expect(event.transferAccountNumber).toBe('012180001234567895')
+    expect(event.transferReference).toBe('Nombre + evento')
+    expect(event.cashInstructions).toBe('Trae cambio exacto.')
+  })
+
+  it('los campos estructurados de pago caen a "" en un evento existente que todavía no los tiene', () => {
+    const event = mapEvent('e1', baseData())
+    expect(event.transferBankName).toBe('')
+    expect(event.transferAccountHolder).toBe('')
+    expect(event.transferAccountNumber).toBe('')
+    expect(event.transferReference).toBe('')
+    expect(event.cashInstructions).toBe('')
+  })
+
+  it('un evento legacy con requiresPayment pero sin paymentMethods sigue cayendo a ["transfer"]', () => {
+    const event = mapEvent('e1', baseData({ requiresPayment: true }))
+    expect(event.paymentMethods).toEqual(['transfer'])
+  })
 })

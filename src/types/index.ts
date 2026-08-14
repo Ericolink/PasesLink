@@ -408,6 +408,16 @@ export interface EventData {
   paymentMethods: PaymentMethod[]
   ticketPrice: number
   currency: string
+  // Datos bancarios estructurados para 'transfer' — cada uno opcional para no
+  // romper eventos viejos que solo tienen `paymentInstructions` (texto libre,
+  // se conserva como notas adicionales/fallback, ver GuestPass/InvitationPass).
+  transferBankName?: string
+  transferAccountHolder?: string
+  transferAccountNumber?: string
+  transferReference?: string
+  // Mensaje mostrado al invitado cuando 'cash' está activo. Si está vacío,
+  // el invitado ve un texto por default (ver GuestPass/InvitationPass).
+  cashInstructions?: string
   paymentInstructions: string
   // Teléfono del organizador (o de quien gestione los pagos) en formato
   // internacional para el link de WhatsApp (wa.me) que ve el invitado en su

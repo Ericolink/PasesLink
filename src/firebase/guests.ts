@@ -21,6 +21,7 @@ import { httpsCallable } from 'firebase/functions'
 import { auth, db, functions } from './config'
 import { assertCapacityAvailable, CapacityFullError, fetchOfferedWaitlistCount } from './attendeeLimit'
 import { applyCounterDeltas } from './counters'
+import { mapEvent } from './events'
 import { enqueueNotification } from './notifications'
 import { measureSpan, withListenerReporting } from '../lib/sentry'
 import type { CompanionData, CustomField, EventData, GuestData, PaymentMethod, RsvpStatus } from '../types'
@@ -1002,20 +1003,30 @@ export async function setGuestPaymentStatus(
 // Mismo requisito reforzado en firestore.rules (ver isValidPublicGuestRegistration
 // y la rama de update de guests/{guestId} ahí) para que no se pueda saltear
 // llamando a Firestore directo.
+// Desde que el autoregistro ya no obliga a elegir método cuando el evento
+// habilita transferencia + efectivo (ver registerWalkInGuest en functions/),
+// un invitado recién registrado puede tener `paymentMethod: null` — mandar
+// el comprobante ES la forma en que declara que pagó por transferencia, así
+// que también se acepta en ese caso (nunca si ya quedó fijado en 'cash') y
+// de paso se asienta `paymentMethod: 'transfer'` en el mismo update. Por
+// eso ahora también se lee el evento dentro de la transacción, mismo patrón
+// que otras funciones de este archivo (ver updateGuest más arriba).
 export async function submitPaymentProof(eventId: string, guestId: string, note: string) {
   const trimmedNote = requireMaxLength(requireNonEmpty(note, 'El número de referencia'), 300, 'El número de referencia')
   const guestRef = doc(db, 'events', eventId, 'guests', guestId)
+  const eventRef = doc(db, 'events', eventId)
 
   await runTransaction(db, async (transaction) => {
-    const guestSnap = await transaction.get(guestRef)
-    if (!guestSnap.exists()) return
+    const [guestSnap, eventSnap] = await Promise.all([transaction.get(guestRef), transaction.get(eventRef)])
+    if (!guestSnap.exists() || !eventSnap.exists()) return
     const guest = mapGuest(guestSnap.id, guestSnap.data())
-    if (guest.paymentMethod !== 'transfer') return
-    if (guest.paymentStatus === 'paid' || guest.paymentStatus === 'pending_confirmation') return
+    const event = mapEvent(eventSnap.id, eventSnap.data())
+    if (!canSubmitPaymentProof(guest, event.paymentMethods)) return
 
     transaction.update(guestRef, {
       paymentStatus: 'pending_confirmation',
       paymentNote: trimmedNote,
+      paymentMethod: 'transfer',
     })
   })
 }
@@ -1024,9 +1035,15 @@ export async function submitPaymentProof(eventId: string, guestId: string, note:
 // transferencia, y solo si no está ya pagado ni ya en revisión. Sin límite
 // de tiempo (ver submitPaymentProof). Movida acá desde utils/reservation.ts
 // al eliminar el "apartado temporal de lugar" (ya no depende del reloj).
-export function canSubmitPaymentProof(guest: Pick<GuestData, 'paymentMethod' | 'paymentStatus'>): boolean {
-  return guest.paymentMethod === 'transfer'
-    && guest.paymentStatus !== 'paid'
+// `eventPaymentMethods` cubre el caso `guest.paymentMethod == null` (evento
+// con ambos métodos habilitados, invitado que todavía no declaró ninguno).
+export function canSubmitPaymentProof(
+  guest: Pick<GuestData, 'paymentMethod' | 'paymentStatus'>,
+  eventPaymentMethods: PaymentMethod[],
+): boolean {
+  if (guest.paymentMethod === 'cash') return false
+  if (guest.paymentMethod !== 'transfer' && !eventPaymentMethods.includes('transfer')) return false
+  return guest.paymentStatus !== 'paid'
     && guest.paymentStatus !== 'pending_confirmation'
 }
 

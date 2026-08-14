@@ -107,6 +107,14 @@
       ]
     },
     {
+      "collectionGroup": "guests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
+        { "fieldPath": "paymentMethod", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "sendLog",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

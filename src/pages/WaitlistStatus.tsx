@@ -4,14 +4,14 @@ import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { getEvent } from '../firebase/events'
 import { confirmWaitlistOffer, declineWaitlistOffer, subscribeToWaitlistEntry } from '../firebase/waitlist'
-import type { EventData, PaymentMethod, WaitlistEntryData } from '../types'
+import type { EventData, WaitlistEntryData } from '../types'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { CrownLoader } from '../components/CrownLoader'
 import { IconBan } from '../components/accessibility/AccessibleIcon'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
+import { TransferInfoDisplay } from '../components/invitation/TransferInfoDisplay'
 
 type ActionState = 'idle' | 'confirming' | 'declining' | 'error'
 
@@ -32,7 +32,6 @@ export function WaitlistStatus() {
   const [entry, setEntry] = useState<WaitlistEntryData | null | undefined>(undefined)
   const [actionState, setActionState] = useState<ActionState>('idle')
   const [actionError, setActionError] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
 
   useDocumentTitle(event ? `Lista de espera · ${event.name}` : 'Lista de espera')
 
@@ -58,27 +57,12 @@ export function WaitlistStatus() {
     })
   }, [eventId, entry?.promotedGuestId, navigate])
 
-  // Mismo criterio que EventJoin.tsx: si el evento requiere pago y tiene
-  // más de un método configurado, hay que elegir antes de confirmar — con
-  // un solo método, se resuelve solo (nunca se le pide a la persona elegir
-  // entre una sola opción).
-  const needsMethodChoice = !!event?.requiresPayment && (event?.paymentMethods.length || 0) > 1
-  const resolvedPaymentMethod: PaymentMethod | undefined = !event?.requiresPayment
-    ? undefined
-    : needsMethodChoice
-      ? paymentMethod || undefined
-      : event.paymentMethods[0]
-
   async function handleConfirm() {
     if (!eventId || !entry?.offerToken) return
-    if (needsMethodChoice && !resolvedPaymentMethod) {
-      setActionError('Elige cómo vas a pagar antes de confirmar.')
-      return
-    }
     setActionState('confirming')
     setActionError('')
     try {
-      await confirmWaitlistOffer(eventId, entry.id, entry.offerToken, resolvedPaymentMethod)
+      await confirmWaitlistOffer(eventId, entry.id, entry.offerToken, undefined)
       // El redirect a /pass lo dispara el efecto de arriba en cuanto el
       // listener reciba promotedGuestId — no hace falta hacer nada más acá.
     } catch (err) {
@@ -158,24 +142,10 @@ export function WaitlistStatus() {
                 Confirma tu asistencia cuando puedas. Te recomendamos hacerlo pronto: si tarda demasiado, el
                 organizador puede ofrecerle el lugar a la siguiente persona en la fila.
               </p>
-              {needsMethodChoice && (
-                <div role="radiogroup" aria-label="Método de pago" className="grid grid-cols-2 gap-2 mb-3">
-                  {event!.paymentMethods.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      role="radio"
-                      aria-checked={paymentMethod === m}
-                      onClick={() => setPaymentMethod(m)}
-                      className={`min-h-11 rounded-full border text-sm font-semibold transition-colors ${
-                        paymentMethod === m
-                          ? 'bg-[var(--invite-accent)] text-white border-[var(--invite-accent)]'
-                          : 'border-[var(--invite-border)] text-[var(--invite-text)]'
-                      }`}
-                    >
-                      {PAYMENT_METHOD_LABELS[m]}
-                    </button>
-                  ))}
+              {event?.requiresPayment && (
+                <div className="mb-3 text-left">
+                  <p className="text-xs font-semibold uppercase tracking-wide mb-1.5 text-[var(--invite-text-muted)]">¿Cómo puedo pagar?</p>
+                  <TransferInfoDisplay event={event} />
                 </div>
               )}
               {actionError && <p className="text-sm text-error mb-3 text-center">{actionError}</p>}
@@ -183,7 +153,7 @@ export function WaitlistStatus() {
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  disabled={actionState === 'confirming' || actionState === 'declining' || (needsMethodChoice && !paymentMethod)}
+                  disabled={actionState === 'confirming' || actionState === 'declining'}
                   className="w-full text-white rounded-full py-3.5 font-bold text-base hover:opacity-90 active:scale-[.98] transition-all disabled:opacity-50 bg-[var(--invite-accent)]"
                 >
                   {actionState === 'confirming' ? 'Confirmando…' : 'Confirmar mi lugar'}

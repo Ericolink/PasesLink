@@ -1,10 +1,6 @@
-import type { GuestData, PaymentMethod } from '../../types'
+import type { GuestData } from '../../types'
 import { partySize, guestPresence } from '../../firebase/guests'
-
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  transfer: 'transferencia',
-  cash: 'efectivo',
-}
+import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethods'
 
 export function guestDisplayName(guest: Pick<GuestData, 'name' | 'lastName' | 'isGroup'>): string {
   return guest.isGroup ? guest.name : `${guest.name} ${guest.lastName || ''}`.trim()
@@ -108,7 +104,7 @@ export function getGuestSubtitle(
   }
 
   if (ctx.requiresPayment && guest.paymentStatus !== 'paid') {
-    const methodSuffix = guest.paymentMethod ? ` · ${PAYMENT_METHOD_LABELS[guest.paymentMethod]}` : ''
+    const methodSuffix = guest.paymentMethod ? ` · ${PAYMENT_METHOD_LABELS[guest.paymentMethod].toLowerCase()}` : ''
     return `${money(ctx.currency, amount)} pendiente${methodSuffix}`
   }
 
@@ -129,7 +125,7 @@ export function getGuestSubtitle(
 
   const companionsText = guest.companions.length > 0 ? `${guest.companions.length} acompañante${guest.companions.length > 1 ? 's' : ''} · ` : ''
   if (ctx.requiresPayment && guest.paymentStatus === 'paid') {
-    return `${companionsText}Pagó${guest.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[guest.paymentMethod]})` : ''}`
+    return `${companionsText}Pagó${guest.paymentMethod ? ` (${PAYMENT_METHOD_LABELS[guest.paymentMethod].toLowerCase()})` : ''}`
   }
   return `${companionsText}Confirmado`
 }
