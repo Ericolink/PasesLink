@@ -22,7 +22,6 @@ import {
   IconWhatsApp,
 } from '../accessibility/AccessibleIcon'
 import { AccessibleModal } from '../accessibility/AccessibleModal'
-import { InlineNotice } from '../InlineNotice'
 import { PassSecurityNotice } from '../PassSecurityNotice'
 import { PaymentProofForm } from '../PaymentProofForm'
 import { TransferInfoDisplay } from './TransferInfoDisplay'
@@ -46,9 +45,6 @@ interface Props {
   rsvpSaving: boolean
   rsvpError: string | null
   onRsvp: (status: RsvpStatus, opts?: { skipSignupPrompt?: boolean }) => void
-  reconfirmSaving: boolean
-  reconfirmError: string | null
-  onReconfirm: () => void
   proof: ReturnType<typeof usePaymentProof>
   cancelSaving: boolean
   cancelError: string | null
@@ -76,9 +72,6 @@ export function InvitationPass({
   rsvpSaving,
   rsvpError,
   onRsvp,
-  reconfirmSaving,
-  reconfirmError,
-  onReconfirm,
   proof,
   cancelSaving,
   cancelError,
@@ -127,22 +120,6 @@ export function InvitationPass({
 
       <div className="px-6 pt-6 pb-6">
       <h1 className="invite-pass-title text-2xl font-bold text-[var(--invite-text)] mb-4">{event.name}</h1>
-
-      {guest.reconfirmStatus === 'requested' && (
-        <InlineNotice icon={<IconAlertTriangle className="w-4 h-4 text-amber-400" />}>
-          <p className="text-[var(--invite-text)] font-medium">El organizador pidió reconfirmar tu asistencia.</p>
-          <p className="mt-0.5 mb-2 text-[var(--invite-text-muted)]">Responde para no perder tu lugar.</p>
-          {reconfirmError && <p className="text-error text-xs mb-2">{reconfirmError}</p>}
-          <button
-            type="button"
-            onClick={onReconfirm}
-            disabled={reconfirmSaving}
-            className="w-full rounded-full py-2 font-bold text-sm text-white disabled:opacity-50 bg-[var(--invite-accent)]"
-          >
-            {reconfirmSaving ? 'Guardando…' : 'Sí, voy a asistir'}
-          </button>
-        </InlineNotice>
-      )}
 
       {guest.rsvpStatus === 'no' && (
         <div className="py-8">

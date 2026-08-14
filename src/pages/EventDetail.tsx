@@ -20,7 +20,6 @@ import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { EventNextSteps } from '../components/EventNextSteps'
 import { WaitlistPanel } from '../components/WaitlistPanel'
-import { ReconfirmPanel } from '../components/ReconfirmPanel'
 import { GuestList } from '../components/GuestList'
 import { GuestSearchSheet } from '../components/GuestSearchSheet'
 import { EditEventForm } from '../components/EditEventForm'
@@ -613,14 +612,6 @@ export function EventDetail() {
             customFields={event.customFields}
           />
         </div>
-      )}
-
-      {/* Reconfirmación (WAITLIST_RECONFIRMATION_ARCHITECTURE.md Fase 2) —
-          no depende del límite de asistentes (a diferencia de la lista de
-          espera): cualquier evento puede querer recuperar lugares de gente
-          que confirmó pero probablemente no va a venir. */}
-      {perms.viewGuestList && (
-        <ReconfirmPanel eventId={event.id} event={event} guests={guests} canManage={perms.addGuests} />
       )}
 
       {/* ── GESTIÓN DE INVITADOS ── */}

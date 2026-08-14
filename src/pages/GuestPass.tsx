@@ -5,7 +5,6 @@ import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
 import { checkInGuest, claimGuestOwnership, claimGuestPass, deleteGuest, findGuestByToken, partySize, presentIndicesOf, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
-import { confirmMyAttendance } from '../firebase/reconfirm'
 import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -39,7 +38,6 @@ import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
 import { InAppBrowserBanner } from '../components/InAppBrowserBanner'
-import { InlineNotice } from '../components/InlineNotice'
 import { AccessibleModal } from '../components/accessibility/AccessibleModal'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { SkeletonBlock } from '../components/Skeleton'
@@ -87,8 +85,6 @@ function GuestPassInner() {
   const prefersReducedMotion = usePrefersReducedMotion()
   const [rsvpSaving, setRsvpSaving] = useState(false)
   const [rsvpError, setRsvpError] = useState<string | null>(null)
-  const [reconfirmSaving, setReconfirmSaving] = useState(false)
-  const [reconfirmError, setReconfirmError] = useState<string | null>(null)
   const [downloaded, setDownloaded] = useState(false)
   const [showMaybeMessage, setShowMaybeMessage] = useState(false)
   const [showDeclineModal, setShowDeclineModal] = useState(false)
@@ -491,24 +487,6 @@ function GuestPassInner() {
     }
   }
 
-  // Reconfirmación de asistencia (ver WAITLIST_RECONFIRMATION_ARCHITECTURE.md
-  // Fase 2, banner más abajo) — un solo tap, sin re-pedir datos ya
-  // cargados, mismo criterio optimista que handleRsvp de arriba.
-  async function handleReconfirm() {
-    if (!eventId || !guest) return
-    setReconfirmSaving(true)
-    setReconfirmError(null)
-    try {
-      await confirmMyAttendance(eventId, guest.id)
-      setGuest({ ...guest, reconfirmStatus: 'confirmed' })
-    } catch (err) {
-      console.error('Error reconfirmando asistencia:', err)
-      setReconfirmError('No se guardó. Intenta de nuevo.')
-    } finally {
-      setReconfirmSaving(false)
-    }
-  }
-
   // Autocancelación de un invitado ya confirmado (rsvpStatus 'yes', incluye
   // autoregistro — registerWalkInGuest siempre crea con 'yes'). A diferencia
   // de handleRsvp('no') de arriba (decline blando, invitado pendiente que
@@ -602,9 +580,6 @@ function GuestPassInner() {
         rsvpSaving={rsvpSaving}
         rsvpError={rsvpError}
         onRsvp={handleRsvp}
-        reconfirmSaving={reconfirmSaving}
-        reconfirmError={reconfirmError}
-        onReconfirm={handleReconfirm}
         proof={proof}
         cancelSaving={cancelSaving}
         cancelError={cancelError}
@@ -660,26 +635,6 @@ function GuestPassInner() {
             detalles del evento quedan como contexto secundario debajo). ── */}
         <div className="px-6 pb-6 pt-4 text-center">
           <InAppBrowserBanner />
-
-          {/* Reconfirmación de asistencia (WAITLIST_RECONFIRMATION_ARCHITECTURE.md
-              Fase 2) — solo mientras sigue pendiente ('requested'); una vez
-              confirmado, desaparece (no se re-pide hasta la próxima
-              campaña). No bloqueante, un solo tap. */}
-          {guest.reconfirmStatus === 'requested' && (
-            <InlineNotice icon={<IconAlertTriangle className="w-4 h-4 text-amber-400" />}>
-              <p className="text-[var(--invite-text)] font-medium">El organizador pidió reconfirmar tu asistencia.</p>
-              <p className="mt-0.5 mb-2 text-[var(--invite-text-muted)]">Responde para no perder tu lugar.</p>
-              {reconfirmError && <p className="text-error text-xs mb-2">{reconfirmError}</p>}
-              <button
-                type="button"
-                onClick={handleReconfirm}
-                disabled={reconfirmSaving}
-                className="w-full rounded-full py-2 font-bold text-sm text-white disabled:opacity-50 bg-[var(--invite-accent)]"
-              >
-                {reconfirmSaving ? 'Guardando…' : 'Sí, voy a asistir'}
-              </button>
-            </InlineNotice>
-          )}
 
           {/* Caso de "el organizador comparte nuevamente el link del pase":
               a diferencia del popup de arriba (justRegistered/RSVP-confirm,

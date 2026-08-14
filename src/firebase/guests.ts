@@ -1327,8 +1327,6 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     guestUid: (data.guestUid as string) || null,
     guestPhotoURL: (data.guestPhotoURL as string) || null,
     createdAt: toMillisOrNull(data.createdAt) || 0,
-    reconfirmStatus: (data.reconfirmStatus as GuestData['reconfirmStatus']) || undefined,
-    reconfirmDeadline: typeof data.reconfirmDeadline === 'number' ? data.reconfirmDeadline : null,
     version: typeof data.version === 'number' ? data.version : 0,
     updatedAt: toMillisOrNull(data.updatedAt),
   }

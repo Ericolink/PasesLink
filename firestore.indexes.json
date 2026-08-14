@@ -100,14 +100,6 @@
     },
     {
       "collectionGroup": "guests",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "reconfirmStatus", "order": "ASCENDING" },
-        { "fieldPath": "reconfirmDeadline", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "guests",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "paymentStatus", "order": "ASCENDING" },

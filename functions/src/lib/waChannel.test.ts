@@ -100,8 +100,8 @@ describe('sendWhatsAppTemplate', () => {
 
     const result = await sendWhatsAppTemplate({
       toPhone: '+525512345678',
-      templateKind: 'reconfirm_request',
-      vars: { guestName: 'Ana', organizerName: 'Org', eventName: 'Fiesta', deadline: 'mañana', link: 'https://x' },
+      templateKind: 'waitlist_offer',
+      vars: { guestName: 'Ana', eventName: 'Fiesta', deadline: 'mañana', link: 'https://x' },
     })
 
     expect(result.ok).toBe(false)

@@ -438,8 +438,8 @@ export function GuestDetailSheet({
                     lista de espera — libera su lugar igual (misma cascada
                     que deleteGuest, vía onCapacityFreed) pero conserva sus
                     datos por si aparece más tarde. No para quien ya pagó
-                    (mismo criterio que ReconfirmPanel: nunca se le quita el
-                    lugar a un pase pagado) ni para quien ya hizo check-in. */}
+                    (nunca se le quita el lugar a un pase pagado) ni para
+                    quien ya hizo check-in. */}
                 {canDeleteGuests && attendeeLimitEnabled && guest.paymentStatus !== 'paid' && presence === 'invited' && (
                   <ActionButton tone="subtle" icon={<IconClock className="w-4 h-4" />} onClick={() => onRequestSendToWaitlist(guest)}>
                     Enviar a lista de espera

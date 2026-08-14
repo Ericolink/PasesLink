@@ -37,9 +37,6 @@ interface Props {
   rsvpSaving: boolean
   rsvpError: string | null
   onRsvp: (status: RsvpStatus, opts?: { skipSignupPrompt?: boolean }) => void
-  reconfirmSaving: boolean
-  reconfirmError: string | null
-  onReconfirm: () => void
   proof: ReturnType<typeof usePaymentProof>
   cancelSaving: boolean
   cancelError: string | null
@@ -72,9 +69,6 @@ export function HousePartyPassLayout({
   rsvpSaving,
   rsvpError,
   onRsvp,
-  reconfirmSaving,
-  reconfirmError,
-  onReconfirm,
   proof,
   cancelSaving,
   cancelError,
@@ -113,9 +107,6 @@ export function HousePartyPassLayout({
         rsvpSaving={rsvpSaving}
         rsvpError={rsvpError}
         onRsvp={onRsvp}
-        reconfirmSaving={reconfirmSaving}
-        reconfirmError={reconfirmError}
-        onReconfirm={onReconfirm}
         proof={proof}
         cancelSaving={cancelSaving}
         cancelError={cancelError}

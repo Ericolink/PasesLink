@@ -1,7 +1,6 @@
 // Barrido diario (Cloud Scheduler, mismo horario que ya usaba
 // rsvp-reminders.yml: 13:00 UTC) — wrapper fino de sendDueRsvpReminders
-// (functions/src/rsvp/reminders.ts), mismo patrón que
-// scheduled/sweepReconfirmations.ts. Ver
+// (functions/src/rsvp/reminders.ts). Ver
 // NOTIFICATIONS_CONSOLIDATION_ARCHITECTURE.md Fase 2.
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { getFirestore } from 'firebase-admin/firestore'

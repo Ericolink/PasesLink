@@ -268,12 +268,6 @@ export const EventSchema = z.object({
   rsvpDeadline: z.string().optional(),
   remindersEnabled: z.boolean().optional(),
   reminderRules: z.array(ReminderRuleSchema).optional(),
-  reconfirmCampaign: z.object({
-    startedAt: z.number(),
-    deadline: z.number(),
-    excludeTagIds: z.array(z.string()).optional(),
-    reminderRules: z.array(ReminderRuleSchema),
-  }).optional(),
   guestTags: z.array(GuestSegmentTagSchema).optional(),
   vipTagId: z.string().nullable().optional(),
   sectionVisibility: z.record(z.string(), SectionVisibilityRuleSchema).optional(),
@@ -345,8 +339,6 @@ export const GuestSchema = z.object({
   guestUid: z.string().nullable().optional(),
   guestPhotoURL: z.string().nullable().optional(),
   createdAt: z.number(),
-  reconfirmStatus: z.enum(['requested', 'confirmed', 'expired']).optional(),
-  reconfirmDeadline: z.number().nullable().optional(),
   version: z.number().optional(),
   updatedAt: z.number().nullable().optional(),
 })
