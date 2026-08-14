@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { BottomTabBar } from './BottomTabBar'
 import { IconArrowLeft } from './accessibility/AccessibleIcon'
 import { useAuth } from '../hooks/useAuth'
+import { useNoIndex } from '../hooks/useNoIndex'
 import { SkipLink } from './accessibility/SkipLink'
 
 type AppShellMode = 'browse' | 'focus' | 'kiosk' | 'display'
@@ -67,6 +68,11 @@ function KioskExitBar() {
 export function AppShell({ mode = 'browse', guestExit = false, children }: AppShellProps) {
   const { user } = useAuth()
   const showKioskExit = mode === 'kiosk' && guestExit && !!user
+  // "kiosk" son las pantallas de invitado (pase con QR, auto-registro, muro,
+  // lista de espera) y el escáner — ninguna debe aparecer en resultados de
+  // búsqueda (ver useNoIndex.ts). robots.txt ya las bloquea, esto es defensa
+  // adicional para cuando la URL igual llega a cargar.
+  useNoIndex(mode === 'kiosk')
 
   return (
     <>

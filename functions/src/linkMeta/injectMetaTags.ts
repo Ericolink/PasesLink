@@ -25,6 +25,16 @@ function replaceMetaContent(html: string, attrName: 'property' | 'name', key: st
   return html.replace(pattern, `$1${value}$2`)
 }
 
+// /e/:id representa un evento privado puntual (nombre, fecha, portada,
+// invitador) — nunca debe indexarse en buscadores, sin importar si aplica
+// personalización o no (ver eventJoinMeta.ts, que llama esto sobre TODA
+// respuesta de esta ruta). No afecta el scraping de WhatsApp/Facebook/etc.
+// para las previews: esos bots ignoran <meta name="robots"> y solo leen
+// los og:*/twitter:* de abajo.
+export function injectNoIndex(html: string): string {
+  return replaceMetaContent(html, 'name', 'robots', 'noindex, nofollow')
+}
+
 export function injectMetaTags(baseHtml: string, meta: LinkMetadata, canonicalUrl: string): string {
   const title = escapeHtmlAttr(meta.title)
   const ogTitle = escapeHtmlAttr(meta.ogTitle)

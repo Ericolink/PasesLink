@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { escapeHtmlAttr, injectMetaTags } from './injectMetaTags.js'
+import { escapeHtmlAttr, injectMetaTags, injectNoIndex } from './injectMetaTags.js'
 import type { LinkMetadata } from './types.js'
 
 // Recorte representativo del <head> real de index.html — suficiente para
@@ -12,6 +12,7 @@ const SAMPLE_HTML = `<!doctype html>
     <link rel="icon" type="image/png" href="/Icon.png" />
     <title>PaseLink - Gestión de invitados para eventos</title>
     <meta name="description" content="Crea eventos, envía invitaciones digitales con QR y controla el acceso de tus invitados en tiempo real. Gratis y sin descargas." />
+    <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://app-pases-9e6e7.web.app/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="PaseLink" />
@@ -85,6 +86,15 @@ describe('injectMetaTags', () => {
     const meta: LinkMetadata = { ...META, ogTitle: 'AT&T Events te invita a Fiesta' }
     const html = injectMetaTags(SAMPLE_HTML, meta, CANONICAL_URL)
     expect(html).toContain('AT&amp;T Events te invita a Fiesta')
+  })
+})
+
+describe('injectNoIndex', () => {
+  it('replaces only the robots tag and leaves the rest untouched', () => {
+    const html = injectNoIndex(SAMPLE_HTML)
+    expect(html).toContain('<meta name="robots" content="noindex, nofollow" />')
+    expect(html).toContain('<title>PaseLink - Gestión de invitados para eventos</title>')
+    expect(html).toContain('<meta property="og:title" content="PaseLink - Gestión de invitados para eventos" />')
   })
 })
 

@@ -6,6 +6,7 @@ import { parseEventIdFromPath, renderEventJoinHtml } from './eventJoinMeta.js'
 const BASE_HTML = `<!doctype html>
 <html lang="es"><head>
 <title>PaseLink - Gestión de invitados para eventos</title>
+<meta name="robots" content="index, follow" />
 <meta property="og:title" content="PaseLink - Gestión de invitados para eventos" />
 <meta property="og:description" content="Crea eventos, envía invitaciones digitales con QR y controla el acceso de tus invitados en tiempo real." />
 <meta property="og:url" content="https://app-pases-9e6e7.web.app/" />
@@ -69,6 +70,9 @@ describe('renderEventJoinHtml', () => {
     expect(html).toContain('<meta property="og:title" content="Eric Muñoz te invita a Baile Improvisado Vol.1" />')
     expect(html).toContain(`<meta property="og:url" content="${BASE_URL}/e/${eventId}" />`)
     expect(html).toContain('<meta property="og:image" content="https://app-pases-9e6e7.web.app/icons/pwa-512.png" />')
+    // /e/:id es siempre un evento privado puntual: nunca debe indexarse,
+    // aunque sí se personalice para la preview de WhatsApp/Facebook.
+    expect(html).toContain('<meta name="robots" content="noindex, nofollow" />')
   })
 
   it('attributes the invitation to a verified collaborator, not the owner', async () => {
@@ -96,7 +100,7 @@ describe('renderEventJoinHtml', () => {
     expect(html).not.toContain('Eric Muñoz te invita')
   })
 
-  it('returns the base html unmodified for a non-existent event', async () => {
+  it('returns the base html un-personalized (but noindex) for a non-existent event', async () => {
     const html = await renderEventJoinHtml({
       db,
       fetchBaseHtml: async () => BASE_HTML,
@@ -104,10 +108,10 @@ describe('renderEventJoinHtml', () => {
       refUid: null,
       baseUrl: BASE_URL,
     })
-    expect(html).toBe(BASE_HTML)
+    expect(html).toBe(BASE_HTML.replace('content="index, follow"', 'content="noindex, nofollow"'))
   })
 
-  it('returns the base html unmodified for a list-only (invite-only) event', async () => {
+  it('returns the base html un-personalized (but noindex) for a list-only (invite-only) event', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'list' })
 
@@ -118,6 +122,6 @@ describe('renderEventJoinHtml', () => {
       refUid: null,
       baseUrl: BASE_URL,
     })
-    expect(html).toBe(BASE_HTML)
+    expect(html).toBe(BASE_HTML.replace('content="index, follow"', 'content="noindex, nofollow"'))
   })
 })

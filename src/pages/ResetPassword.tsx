@@ -9,9 +9,11 @@ import { AccessibleButton } from '../components/accessibility/AccessibleButton'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { getPasswordError, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../utils/validationRules'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useNoIndex } from '../hooks/useNoIndex'
 
 export function ResetPassword() {
   useDocumentTitle('Restablecer contraseña')
+  useNoIndex()
   const [searchParams] = useSearchParams()
   const oobCode = searchParams.get('oobCode') || ''
   const navigate = useNavigate()
