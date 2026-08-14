@@ -123,10 +123,16 @@ export function GuestDetailSheet({
   // cambiar de invitado porque este sheet no se desmonta entre uno y otro
   // (GuestList.tsx reusa la misma instancia, sin `key` por guest.id).
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | undefined>(undefined)
+  // "Confirmar pago" con 2+ métodos no confirma directo: primero pide elegir
+  // método acá mismo (inline, no un modal aparte) y recién con "Confirmar"
+  // dispara el pago — pedido explícito del organizador para no confirmar por
+  // error con el método equivocado ya preseleccionado.
+  const [confirmingPaymentMethod, setConfirmingPaymentMethod] = useState(false)
 
   /* eslint-disable react-hooks/set-state-in-effect -- reinicio de selección al cambiar de invitado (el sheet no se desmonta entre uno y otro) */
   useEffect(() => {
     setSelectedMethod(undefined)
+    setConfirmingPaymentMethod(false)
   }, [guest?.id])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -135,6 +141,7 @@ export function GuestDetailSheet({
     setHistoryOpen(false)
     setPaymentActionPending(false)
     setPaymentActionError('')
+    setConfirmingPaymentMethod(false)
     onClose()
   }
 
@@ -287,32 +294,6 @@ export function GuestDetailSheet({
                     )}
                     {guest.paymentNote && <Pill tone="gray">Ref: {guest.paymentNote}</Pill>}
                   </div>
-                  {canConfirmPayments && paymentMethods.length > 1 && guest.paymentStatus !== 'paid' && (
-                    <div>
-                      <p className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Método de pago</p>
-                      <div className="flex gap-2">
-                        {paymentMethods.map((m) => {
-                          const isSelected = (selectedMethod ?? guest.paymentMethod ?? paymentMethods[0]) === m
-                          return (
-                            <button
-                              key={m}
-                              type="button"
-                              onClick={() => setSelectedMethod(m)}
-                              disabled={paymentActionPending}
-                              aria-pressed={isSelected}
-                              className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
-                                isSelected
-                                  ? 'border-primary bg-primary/10 text-primary'
-                                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                              }`}
-                            >
-                              {PAYMENT_METHOD_LABELS[m]}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
                   {/* Feedback inline: el banner de error de GuestList.tsx
                       queda tapado por este modal, así que el único lugar
                       donde el organizador puede verlo mientras decide qué
@@ -381,13 +362,64 @@ export function GuestDetailSheet({
                   </>
                 )}
                 {canConfirmPayments && requiresPayment && guest.paymentStatus !== 'paid' && guest.paymentStatus !== 'pending_confirmation' && (
-                  <ActionButton
-                    icon={<IconTicket className="w-4 h-4" />}
-                    onClick={() => void handleMarkPaidClick(guest, selectedMethod ?? guest.paymentMethod ?? paymentMethods[0])}
-                    disabled={paymentActionPending}
-                  >
-                    {paymentActionPending ? 'Confirmando…' : 'Confirmar pago'}
-                  </ActionButton>
+                  paymentMethods.length > 1 && confirmingPaymentMethod ? (
+                    <div className="px-2 py-2 space-y-2">
+                      <p className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">¿Cómo pagó?</p>
+                      <div className="flex gap-2">
+                        {paymentMethods.map((m) => {
+                          const isSelected = (selectedMethod ?? paymentMethods[0]) === m
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setSelectedMethod(m)}
+                              disabled={paymentActionPending}
+                              aria-pressed={isSelected}
+                              className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+                                isSelected
+                                  ? 'border-primary bg-primary/10 text-primary'
+                                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                              }`}
+                            >
+                              {PAYMENT_METHOD_LABELS[m]}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingPaymentMethod(false)}
+                          disabled={paymentActionPending}
+                          className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleMarkPaidClick(guest, selectedMethod ?? paymentMethods[0])}
+                          disabled={paymentActionPending}
+                          className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                          {paymentActionPending ? 'Confirmando…' : 'Confirmar'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <ActionButton
+                      icon={<IconTicket className="w-4 h-4" />}
+                      onClick={() => {
+                        if (paymentMethods.length > 1) {
+                          setConfirmingPaymentMethod(true)
+                        } else {
+                          void handleMarkPaidClick(guest, guest.paymentMethod ?? paymentMethods[0])
+                        }
+                      }}
+                      disabled={paymentActionPending}
+                    >
+                      {paymentActionPending ? 'Confirmando…' : 'Confirmar pago'}
+                    </ActionButton>
+                  )
                 )}
 
                 {canEditGuests && guest.rsvpStatus === 'no' && (
