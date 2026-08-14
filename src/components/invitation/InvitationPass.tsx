@@ -25,6 +25,7 @@ import { AccessibleModal } from '../accessibility/AccessibleModal'
 import { InlineNotice } from '../InlineNotice'
 import { PassSecurityNotice } from '../PassSecurityNotice'
 import { PaymentProofForm } from '../PaymentProofForm'
+import { TransferInfoDisplay } from './TransferInfoDisplay'
 import { GuestEditModal } from '../GuestEditModal'
 import { GuestSignupPrompt } from '../GuestSignupPrompt'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -356,13 +357,8 @@ export function InvitationPass({
             </p>
           )}
 
-          {(guest.paymentMethod === 'transfer' || (!guest.paymentMethod && event.paymentInstructions)) && event.paymentInstructions && (
-            <p className="text-sm whitespace-pre-line text-[var(--invite-text-muted)]">{event.paymentInstructions}</p>
-          )}
-          {guest.paymentMethod === 'cash' && (
-            <p className="text-sm text-[var(--invite-text-muted)]">Pagas en efectivo, presencialmente, el día del evento.</p>
-          )}
-          <PaymentProofForm guest={guest} proof={proof} />
+          <TransferInfoDisplay event={event} className="mb-2" />
+          <PaymentProofForm guest={guest} eventPaymentMethods={event.paymentMethods} proof={proof} />
 
           {event.organizerContactPhone && (
             <a

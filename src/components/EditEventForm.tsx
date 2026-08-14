@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CountryCode } from 'libphonenumber-js/min'
 import { updateEventDetails } from '../firebase/events'
+import { capacityReductionAllowed } from '../firebase/attendeeLimit'
 import { trackEventEdit } from '../lib/analytics'
-import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
+import { DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
+import { PaymentMethodsConfigSection } from './PaymentMethodsConfigSection'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useApprovedCommunityTemplates } from '../hooks/useApprovedCommunityTemplates'
 import { useFormDraft } from '../hooks/useFormDraft'
 import { useLiveRef } from '../hooks/useLiveRef'
 import { isNetworkError } from '../utils/network'
-import { EVENT_NAME_MAX, parseCapacity, parseMaxCompanions, sanitizeDecimalInput } from '../utils/validationRules'
+import { EVENT_NAME_MAX, parseCapacity, parseMaxCompanions } from '../utils/validationRules'
 import { GUEST_MAX_COMPANIONS } from '../utils/validation'
 import { ImageCropModal } from './ImageCropModal'
 import { CustomFieldsBuilder } from './CustomFieldsBuilder'
@@ -57,6 +58,11 @@ interface EventEditDraftFields {
   paymentMethods: PaymentMethod[]
   ticketPrice: string
   currency: string
+  transferBankName: string
+  transferAccountHolder: string
+  transferAccountNumber: string
+  transferReference: string
+  cashInstructions: string
   paymentInstructions: string
   organizerContactPhone: string
   organizerContactPhoneCountry: string
@@ -167,6 +173,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     paymentMethods: event.paymentMethods?.length ? event.paymentMethods : ['transfer'],
     ticketPrice: event.ticketPrice ? String(event.ticketPrice) : '',
     currency: event.currency || '$',
+    transferBankName: event.transferBankName || '',
+    transferAccountHolder: event.transferAccountHolder || '',
+    transferAccountNumber: event.transferAccountNumber || '',
+    transferReference: event.transferReference || '',
+    cashInstructions: event.cashInstructions || '',
     paymentInstructions: event.paymentInstructions || '',
     organizerContactPhone: event.organizerContactPhone || '',
     organizerContactPhoneCountry: event.organizerContactPhoneCountry || DEFAULT_PHONE_COUNTRY,
@@ -223,6 +234,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       communityTemplateSnapshot: rest.communityTemplateSnapshot ?? null,
       departureReminderBufferMinutes: rest.departureReminderBufferMinutes ?? (event.departureReminderBufferMinutes != null ? String(event.departureReminderBufferMinutes) : ''),
       paymentMethods: rest.paymentMethods?.length ? rest.paymentMethods : ['transfer'],
+      transferBankName: rest.transferBankName || '',
+      transferAccountHolder: rest.transferAccountHolder || '',
+      transferAccountNumber: rest.transferAccountNumber || '',
+      transferReference: rest.transferReference || '',
+      cashInstructions: rest.cashInstructions || '',
       organizerContactPhone: rest.organizerContactPhone || '',
       organizerContactPhoneCountry: rest.organizerContactPhoneCountry || DEFAULT_PHONE_COUNTRY,
       timeline: rest.timeline || [],
@@ -367,7 +383,18 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         changes.push({ label: 'Precio por persona', detail: `${event.currency}${event.ticketPrice || 0} → ${trimmedCurrency}${parsedPrice}` })
       }
       if ((event.currency || '') !== trimmedCurrency) changes.push({ label: 'Moneda', detail: `${event.currency || '—'} → ${trimmedCurrency}` })
-      if ((event.paymentInstructions || '') !== trimmedInstructions) changes.push({ label: 'Instrucciones de pago', detail: 'Actualizadas' })
+      if (
+        (event.transferBankName || '') !== form.transferBankName.trim()
+        || (event.transferAccountHolder || '') !== form.transferAccountHolder.trim()
+        || (event.transferAccountNumber || '') !== form.transferAccountNumber.trim()
+        || (event.transferReference || '') !== form.transferReference.trim()
+      ) {
+        changes.push({ label: 'Datos de transferencia', detail: 'Actualizados' })
+      }
+      if ((event.cashInstructions || '') !== form.cashInstructions.trim()) {
+        changes.push({ label: 'Mensaje de efectivo', detail: 'Actualizado' })
+      }
+      if ((event.paymentInstructions || '') !== trimmedInstructions) changes.push({ label: 'Notas adicionales de pago', detail: 'Actualizadas' })
       if ((event.organizerContactPhone || '') !== trimmedContact) changes.push({ label: 'WhatsApp de contacto', detail: trimmedContact ? 'Actualizado' : 'Quitado' })
     }
     return changes
@@ -383,6 +410,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(form.maxCompanions)
     if (maxCompanionsValidationError) {
       setMaxCompanionsError(maxCompanionsValidationError)
+      return
+    }
+    if (!capacityReductionAllowed(event, parsedCapacity, form.attendeeLimitEnabled)) {
+      setCapacityError(`No puedes reducir la capacidad por debajo de las ${event.peopleCount} personas ya confirmadas.`)
       return
     }
     setCapacityError('')
@@ -423,6 +454,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         paymentMethods: form.requiresPayment ? form.paymentMethods : [],
         ticketPrice: form.requiresPayment ? parseFloat(form.ticketPrice) || 0 : 0,
         currency: form.requiresPayment ? form.currency.trim() : '',
+        transferBankName: form.requiresPayment ? form.transferBankName.trim() : '',
+        transferAccountHolder: form.requiresPayment ? form.transferAccountHolder.trim() : '',
+        transferAccountNumber: form.requiresPayment ? form.transferAccountNumber.trim() : '',
+        transferReference: form.requiresPayment ? form.transferReference.trim() : '',
+        cashInstructions: form.requiresPayment ? form.cashInstructions.trim() : '',
         paymentInstructions: form.requiresPayment ? form.paymentInstructions.trim() : '',
         organizerContactPhone: form.requiresPayment ? form.organizerContactPhone.trim() : '',
         organizerContactPhoneCountry: form.requiresPayment ? form.organizerContactPhoneCountry : '',
@@ -480,6 +516,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(form.maxCompanions)
     if (maxCompanionsValidationError) {
       setMaxCompanionsError(maxCompanionsValidationError)
+      setErrorAttempt((n) => n + 1)
+      return
+    }
+    if (!capacityReductionAllowed(event, parsedCapacity, form.attendeeLimitEnabled)) {
+      setCapacityError(`No puedes reducir la capacidad por debajo de las ${event.peopleCount} personas ya confirmadas.`)
       setErrorAttempt((n) => n + 1)
       return
     }
@@ -848,12 +889,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <Checkbox checked={form.attendeeLimitEnabled} onChange={(e) => updateField('attendeeLimitEnabled', e.target.checked)} />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Limitar número de asistentes</span>
         </label>
-        {/* No bloqueamos guardar un límite ya superado por los asistentes actuales
-            (ej. bajarlo de 250 a 180 con 220 ya registrados) — el organizador puede
-            necesitar frenar el registro YA. Nadie se elimina automáticamente: el
-            autorregistro y las altas manuales quedan cerrados hasta que baje del
-            límite por bajas/cancelaciones. Ver CAPACITY_LIMIT_ARCHITECTURE.md §3. */}
-        {form.attendeeLimitEnabled && event.peopleCount > (parseInt(form.capacity) || 0) && (
+        {/* capacityReductionAllowed (ver submitEvent/handleReviewSubmit) bloquea
+            bajar el límite (o activarlo recién ahora) por debajo de la gente ya
+            confirmada — un evento heredado que YA estaba en ese estado sin tocar
+            capacity/attendeeLimitEnabled en este guardado puede seguir así (nadie
+            se elimina automáticamente); este aviso solo cubre ese caso heredado,
+            el intento de reducirlo de verdad ya muestra el error de capacityError
+            arriba en vez de este aviso informativo. */}
+        {form.attendeeLimitEnabled && event.peopleCount > (parseInt(form.capacity) || 0) && !capacityError && (
           <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
             Ya hay {event.peopleCount} asistentes, por encima de este límite. No se elimina a nadie automáticamente —
             el autorregistro y las altas manuales quedan cerrados hasta que baje de {form.capacity} por cancelaciones
@@ -891,101 +934,33 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         subtitle={form.requiresPayment ? `Activo — ${form.currency}${form.ticketPrice || 0} por persona` : 'Desactivado'}
         defaultOpen={event.requiresPayment}
       >
-        <label className="flex items-center gap-2 cursor-pointer">
-          <Checkbox checked={form.requiresPayment} onChange={(e) => updateField('requiresPayment', e.target.checked)} />
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Cobrar entrada a los invitados
-          </span>
-        </label>
-        {form.requiresPayment && (
-          <>
-            <fieldset className="border-0 p-0 m-0">
-              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Métodos de cobro</legend>
-              <div className="flex gap-2">
-                {(['transfer', 'cash'] as PaymentMethod[]).map((m) => (
-                  <label
-                    key={m}
-                    className={`flex-1 flex items-center justify-center gap-2 border rounded-lg px-3 py-2.5 text-sm font-medium cursor-pointer transition-colors ${
-                      form.paymentMethods.includes(m)
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                    }`}
-                  >
-                    <input type="checkbox" checked={form.paymentMethods.includes(m)} onChange={() => togglePaymentMethod(m)} className="sr-only" />
-                    {PAYMENT_METHOD_LABELS[m]}
-                  </label>
-                ))}
-              </div>
-              {form.paymentMethods.length === 0 && <FieldError message="Elige al menos un método." />}
-            </fieldset>
-            <div className="grid grid-cols-3 gap-3">
-              <AccessibleField label="Precio por persona" id="edit-event-ticket-price" className="col-span-2">
-                {(fieldProps) => (
-                  <input
-                    {...fieldProps}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.ticketPrice}
-                    onChange={(e) => updateField('ticketPrice', sanitizeDecimalInput(e.target.value))}
-                    placeholder="Ej: 5000"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                )}
-              </AccessibleField>
-              <AccessibleField label="Moneda" id="edit-event-currency">
-                {(fieldProps) => (
-                  <input
-                    {...fieldProps}
-                    type="text"
-                    value={form.currency}
-                    onChange={(e) => updateField('currency', e.target.value)}
-                    placeholder="$"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                )}
-              </AccessibleField>
-            </div>
-            {form.paymentMethods.includes('transfer') && (
-              <AccessibleField label="Datos para transferencia" id="edit-event-payment-instructions">
-                {(fieldProps) => (
-                  <textarea
-                    {...fieldProps}
-                    value={form.paymentInstructions}
-                    onChange={(e) => updateField('paymentInstructions', e.target.value)}
-                    rows={3}
-                    placeholder="Ej: Transfiere a alias fiesta.maria.mp, o por Mercado Pago: https://link.mercadopago..."
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                )}
-              </AccessibleField>
-            )}
-            <AccessibleField
-              label="Tu WhatsApp para pagos"
-              id="edit-event-organizer-contact"
-              helperText="Los invitados verán un botón para escribirte por acá: enviar comprobante, resolver dudas o pedir una devolución."
-            >
-              {(fieldProps) => (
-                <div className="flex items-center gap-1.5">
-                  <CountryCodeSelect
-                    value={form.organizerContactPhoneCountry as CountryCode}
-                    onChange={(v) => updateField('organizerContactPhoneCountry', v)}
-                    aria-label="País del WhatsApp de contacto"
-                    className="border border-gray-300 rounded-lg px-1.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <input
-                    {...fieldProps}
-                    type="tel"
-                    value={form.organizerContactPhone}
-                    onChange={(e) => updateField('organizerContactPhone', e.target.value)}
-                    placeholder="Ej: 55 1234 5678"
-                    className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              )}
-            </AccessibleField>
-          </>
-        )}
+        <PaymentMethodsConfigSection
+          requiresPayment={form.requiresPayment}
+          onRequiresPaymentChange={(v) => updateField('requiresPayment', v)}
+          paymentMethods={form.paymentMethods}
+          onTogglePaymentMethod={togglePaymentMethod}
+          ticketPrice={form.ticketPrice}
+          onTicketPriceChange={(v) => updateField('ticketPrice', v)}
+          currency={form.currency}
+          onCurrencyChange={(v) => updateField('currency', v)}
+          transferBankName={form.transferBankName}
+          onTransferBankNameChange={(v) => updateField('transferBankName', v)}
+          transferAccountHolder={form.transferAccountHolder}
+          onTransferAccountHolderChange={(v) => updateField('transferAccountHolder', v)}
+          transferAccountNumber={form.transferAccountNumber}
+          onTransferAccountNumberChange={(v) => updateField('transferAccountNumber', v)}
+          transferReference={form.transferReference}
+          onTransferReferenceChange={(v) => updateField('transferReference', v)}
+          paymentInstructions={form.paymentInstructions}
+          onPaymentInstructionsChange={(v) => updateField('paymentInstructions', v)}
+          cashInstructions={form.cashInstructions}
+          onCashInstructionsChange={(v) => updateField('cashInstructions', v)}
+          organizerContactPhone={form.organizerContactPhone}
+          onOrganizerContactPhoneChange={(v) => updateField('organizerContactPhone', v)}
+          organizerContactPhoneCountry={form.organizerContactPhoneCountry}
+          onOrganizerContactPhoneCountryChange={(v) => updateField('organizerContactPhoneCountry', v)}
+          idPrefix="edit-event"
+        />
       </EditSection>
 
       {submitError && (

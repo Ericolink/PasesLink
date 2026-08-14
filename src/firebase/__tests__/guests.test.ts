@@ -175,6 +175,36 @@ describe('guests.ts', () => {
     expect(guest?.paymentStatus).toBe('unpaid')
   })
 
+  // Desde que el autoregistro ya no obliga a elegir método cuando el evento
+  // habilita transferencia + efectivo, un invitado recién registrado puede
+  // tener paymentMethod: null — mandar el comprobante ES la forma en que
+  // declara que pagó por transferencia (ver comentario en firestore.rules,
+  // rama de update de guests/{guestId}).
+  it('should let a guest with paymentMethod: null submit a payment proof when the event allows transfer, and record paymentMethod: "transfer"', async () => {
+    await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['transfer', 'cash'] })
+    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentMethod: null })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await submitPaymentProof(EVENT_ID, GUEST_ID, 'Transferencia a las 15:32')
+
+    const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+    expect(guest?.paymentStatus).toBe('pending_confirmation')
+    expect(guest?.paymentMethod).toBe('transfer')
+    expect(guest?.paymentNote).toBe('Transferencia a las 15:32')
+  })
+
+  it('should ignore submitPaymentProof for a paymentMethod: null guest when the event only accepts cash', async () => {
+    await seedEvent(testEnv, EVENT_ID, { requiresPayment: true, paymentMethods: ['cash'] })
+    await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentMethod: null })
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await submitPaymentProof(EVENT_ID, GUEST_ID, 'op. 789')
+
+    const guest = await getGuestDoc(testEnv, EVENT_ID, GUEST_ID)
+    expect(guest?.paymentStatus).toBe('unpaid')
+    expect(guest?.paymentMethod).toBeNull()
+  })
+
   // Confirmación de pago migrada a Cloud Functions (setGuestPaymentStatus/
   // bulkSetGuestPaymentStatus, Admin SDK — ver functions/src/payments/) —
   // ningún cliente, sin importar el permiso que tenga, puede seguir

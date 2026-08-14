@@ -48,6 +48,29 @@ export function assertCapacityAvailable(event: CapacitySnapshot, additionalPeopl
   if (remaining !== null && additionalPeople > remaining) throw new CapacityFullError()
 }
 
+// Complementa assertCapacityAvailable: esa protege que un alta no supere el
+// cupo; esta protege el sentido inverso — que el organizador no reduzca
+// `capacity` (o active `attendeeLimitEnabled` recién ahora) a un valor por
+// debajo de la gente ya confirmada (`peopleCount`), lo que dejaría pases ya
+// entregados en un estado inconsistente. Un evento heredado donde esa
+// inconsistencia ya existía de antes (por ejemplo, `attendeeLimitEnabled`
+// se activó hace tiempo con `capacity` ya por debajo de `peopleCount`, o el
+// límite nunca estuvo activado y el evento simplemente creció) puede seguir
+// guardándose sin tocar — solo se bloquea una reducción o una activación
+// NUEVAS que empeoren o creen esa situación en este mismo guardado.
+export function capacityReductionAllowed(
+  current: CapacitySnapshot,
+  nextCapacity: number,
+  nextAttendeeLimitEnabled: boolean,
+): boolean {
+  if (!nextAttendeeLimitEnabled) return true
+  const peopleCount = current.peopleCount ?? 0
+  if (nextCapacity >= peopleCount) return true
+  const isDecrease = nextCapacity < (current.capacity ?? 0)
+  const turningOn = !current.attendeeLimitEnabled
+  return !isDecrease && !turningOn
+}
+
 // ÚNICA función de este archivo que no es pura: lee en vivo cuántas
 // personas tienen una oferta de lista de espera activa (status=='offered')
 // para este evento. Se llama ANTES de abrir la transacción de alta (nunca

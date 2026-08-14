@@ -59,8 +59,8 @@ function InviteLink({ url }: { url: string }) {
 }
 
 // Genera y muestra el enlace/QR de invitación para un rol puntual (caja o
-// preparación) — mismo patrón que CoOrganizerPanel.tsx, pero acá cada botón
-// invita a un rol específico en vez de a un set de permisos genérico.
+// preparación) — mismo patrón que CollaboratorPanel.tsx, pero acá cada botón
+// invita a un rol específico en vez de dejarlo elegir de una lista.
 function InviteButton({ eventId, staffRole }: { eventId: string; staffRole: ConcessionsStaffRole }) {
   const [invite, setInvite] = useState<{ url: string } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -112,9 +112,9 @@ function InviteButton({ eventId, staffRole }: { eventId: string; staffRole: Conc
 
 // Alta/baja de encargados de "Ventas del evento" — reemplaza el alta por
 // email (exigía cuenta ya creada) por invitación con enlace/QR, mismo
-// mecanismo que ya usa CoOrganizerPanel.tsx para coorganizadores. El
-// encargado sigue sin ser coorganizador ni tener permisos granulares: solo
-// pertenece o no a cada rol (caja/preparación).
+// mecanismo que ya usa CollaboratorPanel.tsx para colaboradores. El
+// encargado sigue sin ser coorganizador/Administrador ni tener permisos
+// granulares: solo pertenece o no a cada rol (caja/preparación).
 export function ConcessionStaffPanel({ event }: Props) {
   const staffMap = event.concessions?.concessionsStaffMap || {}
   const [removing, setRemoving] = useState<{ uid: string; email: string } | null>(null)

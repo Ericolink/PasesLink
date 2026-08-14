@@ -10,100 +10,34 @@ import {
   setGuestPaymentStatus,
 } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, PaymentMethod } from '../../types'
-import { IconChevronDown, IconInbox } from '../accessibility/AccessibleIcon'
+import { IconInbox } from '../accessibility/AccessibleIcon'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../Empty/EmptyState'
 import { FormError } from '../FormError'
 import { buildPassUrl } from '../../utils/qrUrl'
 import { buildResendMailtoUrl, buildResendMessage, buildResendWhatsAppUrl } from '../../utils/resendInvitation'
 import { trackGuestDelete } from '../../lib/analytics'
+import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethods'
 import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
 import { GuestSelectionBar } from './GuestSelectionBar'
 import { SECTION_ORDER, groupGuestsByUrgency, type GuestUrgency } from './guestGrouping'
+import { ListSection, LoadMoreButton, LIST_SECTION_PAGE_SIZE } from './ListSection'
 import { useAnnouncer } from '../accessibility/LiveRegion'
 import { getFunctionsErrorMessage } from '../../utils/firebaseErrorMessages'
 
-// Paginación de RENDERIZADO, no de datos: `guests` ya llega completo a este
-// componente (EventDetail lo carga entero vía useEvent/subscribeToGuests,
-// que también alimenta las estadísticas, la búsqueda y el export CSV/PDF —
-// truncar esa fuente rompería las tres). Cada sección de urgencia pagina por
-// separado (ver GuestSection) para no pintar cientos de filas a la vez.
-const GUEST_LIST_PAGE_SIZE = 50
+// `guests` ya llega completo a este componente (EventDetail lo carga entero
+// vía useEvent/subscribeToGuests, que también alimenta las estadísticas, la
+// búsqueda y el export CSV/PDF — truncar esa fuente rompería las tres). La
+// paginación es solo de renderizado, ver ListSection.tsx.
+const GUEST_LIST_PAGE_SIZE = LIST_SECTION_PAGE_SIZE
 
-function LoadMoreButton({ remaining, onClick }: { remaining: number; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full text-sm text-primary font-medium py-2.5 hover:underline">
-      Cargar más invitados ({remaining} restantes)
-    </button>
-  )
-}
-
-function GuestSection({
-  sectionKey,
-  title,
-  alwaysExpanded,
-  collapsedByDefault,
-  guests,
-  selectedIds,
-  rowProps,
-}: {
-  sectionKey: GuestUrgency
-  title: string
-  alwaysExpanded: boolean
-  collapsedByDefault: boolean
-  guests: GuestData[]
-  selectedIds: Set<string>
-  rowProps: Omit<React.ComponentProps<typeof GuestRow>, 'guest' | 'selected'>
-}) {
-  const [collapsed, setCollapsed] = useState(collapsedByDefault)
-  const [visibleCount, setVisibleCount] = useState(GUEST_LIST_PAGE_SIZE)
-
-  if (guests.length === 0) return null
-  const expanded = alwaysExpanded || !collapsed
-  const visible = guests.slice(0, visibleCount)
-
-  return (
-    <div>
-      <h3 className="contents">
-        <button
-          type="button"
-          onClick={() => !alwaysExpanded && setCollapsed((c) => !c)}
-          className={`w-full flex items-center justify-between gap-2 px-1 py-2 ${alwaysExpanded ? 'cursor-default' : ''}`}
-        >
-          <span
-            className={`text-xs font-bold uppercase tracking-wide ${
-              sectionKey === 'attention'
-                ? 'text-amber-600 dark:text-amber-400'
-                : sectionKey === 'confirmed_unpaid'
-                  ? 'text-violet-600 dark:text-violet-400'
-                  : 'text-gray-400 dark:text-gray-500'
-            }`}
-          >
-            {title}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5">
-              {guests.length}
-            </span>
-            {!alwaysExpanded && (
-              <IconChevronDown className={`w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
-            )}
-          </span>
-        </button>
-      </h3>
-      {expanded && (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          {visible.map((guest) => (
-            <GuestRow key={guest.id} guest={guest} selected={selectedIds.has(guest.id)} {...rowProps} />
-          ))}
-          {guests.length > visibleCount && (
-            <LoadMoreButton remaining={guests.length - visibleCount} onClick={() => setVisibleCount((c) => c + GUEST_LIST_PAGE_SIZE)} />
-          )}
-        </div>
-      )}
-    </div>
-  )
+const SECTION_TONE: Record<GuestUrgency, 'amber' | 'violet' | 'gray'> = {
+  attention: 'amber',
+  confirmed_unpaid: 'violet',
+  confirmed: 'gray',
+  unanswered: 'gray',
+  declined: 'gray',
 }
 
 export const GuestList = memo(function GuestList({
@@ -171,6 +105,10 @@ export const GuestList = memo(function GuestList({
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  // Solo se usa cuando el evento acepta 2+ métodos: con uno solo,
+  // bulkMarkPaid dispara directo (mismo criterio que GuestDetailSheet/Scanner).
+  const [bulkMarkPaidConfirmOpen, setBulkMarkPaidConfirmOpen] = useState(false)
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<PaymentMethod | undefined>(undefined)
   const { announce } = useAnnouncer()
 
   // Este useCallback tiene que vivir ANTES del early return de "sin
@@ -341,9 +279,25 @@ export const GuestList = memo(function GuestList({
   async function bulkMarkPaid() {
     setActionError('')
     const targets = guests.filter((g) => selected.has(g.id))
-    const { failed } = await bulkSetGuestPaymentStatus(eventId, targets.map((g) => g.id), 'paid', paymentMethods[0])
+    const { failed } = await bulkSetGuestPaymentStatus(eventId, targets.map((g) => g.id), 'paid', bulkPaymentMethod ?? paymentMethods[0])
     if (failed > 0) setActionError(`No se pudo marcar como pagado a ${failed} de ${targets.length} invitados.`)
+    setBulkMarkPaidConfirmOpen(false)
+    setBulkPaymentMethod(undefined)
     exitSelectMode()
+  }
+
+  // Con 2+ métodos habilitados, un solo método aplicado a todo el lote no se
+  // puede asumir en silencio (mezclar transferencia/efectivo en una sola
+  // acción masiva no tiene sentido) — se pide confirmación explícita. Con
+  // uno solo, se dispara directo (mismo criterio que el resto de los
+  // confirmadores de pago).
+  function requestBulkMarkPaid() {
+    if (paymentMethods.length > 1) {
+      setBulkPaymentMethod(undefined)
+      setBulkMarkPaidConfirmOpen(true)
+    } else {
+      void bulkMarkPaid()
+    }
   }
 
   async function bulkDelete() {
@@ -393,15 +347,14 @@ export const GuestList = memo(function GuestList({
       {groups ? (
         <div className="space-y-4">
           {SECTION_ORDER.map((section) => (
-            <GuestSection
+            <ListSection
               key={section.key}
-              sectionKey={section.key}
               title={section.title}
+              titleTone={SECTION_TONE[section.key]}
               alwaysExpanded={section.key === 'attention'}
               collapsedByDefault={section.collapsedByDefault}
-              guests={groups[section.key]}
-              selectedIds={selected}
-              rowProps={rowProps}
+              items={groups[section.key]}
+              renderItem={(guest) => <GuestRow key={guest.id} guest={guest} selected={selected.has(guest.id)} {...rowProps} />}
             />
           ))}
         </div>
@@ -422,7 +375,7 @@ export const GuestList = memo(function GuestList({
           requiresPayment={requiresPayment}
           canConfirmPayments={canConfirmPayments}
           canDeleteGuests={canDeleteGuests}
-          onMarkPaid={bulkMarkPaid}
+          onMarkPaid={requestBulkMarkPaid}
           onDelete={() => setBulkDeleteConfirmOpen(true)}
           onCancel={exitSelectMode}
         />
@@ -489,6 +442,38 @@ export const GuestList = memo(function GuestList({
         danger
         onConfirm={bulkDelete}
         onCancel={() => setBulkDeleteConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={bulkMarkPaidConfirmOpen}
+        title="Confirmar pago"
+        message={
+          <div className="space-y-3">
+            <p>¿Marcar como pagados a los {selected.size} invitados seleccionados?</p>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Método de pago</p>
+              <div className="flex gap-2">
+                {paymentMethods.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setBulkPaymentMethod(m)}
+                    aria-pressed={(bulkPaymentMethod ?? paymentMethods[0]) === m}
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      (bulkPaymentMethod ?? paymentMethods[0]) === m
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    {PAYMENT_METHOD_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        }
+        confirmLabel="Marcar como pagado"
+        onConfirm={bulkMarkPaid}
+        onCancel={() => { setBulkMarkPaidConfirmOpen(false); setBulkPaymentMethod(undefined) }}
       />
     </div>
   )

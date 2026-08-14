@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AccessibleModal } from '../accessibility/AccessibleModal'
 import { guestPresence, partySize, presentIndicesOf } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, MenuSelection, PaymentMethod } from '../../types'
@@ -42,62 +42,10 @@ import {
 import { GuestAvatar } from './GuestAvatar'
 import { GuestEditForm } from './GuestEditForm'
 import { GuestHistory } from './GuestHistory'
-import { PAYMENT_METHOD_LABELS, guestDisplayName } from './guestGrouping'
+import { guestDisplayName } from './guestGrouping'
+import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethods'
 import { formatCustomFieldValue } from '../../utils/customFieldInput'
-
-function Pill({ tone, icon, children }: { tone: 'amber' | 'green' | 'gray' | 'red' | 'blue'; icon?: React.ReactNode; children: React.ReactNode }) {
-  const classes: Record<string, string> = {
-    amber: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-    green: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-    gray: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300',
-    red: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-    blue: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  }
-  return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${classes[tone]}`}>
-      {icon}
-      {children}
-    </span>
-  )
-}
-
-function ActionButton({
-  tone = 'default',
-  icon,
-  onClick,
-  disabled = false,
-  children,
-}: {
-  tone?: 'default' | 'subtle' | 'danger'
-  icon: React.ReactNode
-  onClick: () => void
-  disabled?: boolean
-  children: React.ReactNode
-}) {
-  const toneClass =
-    tone === 'danger'
-      ? 'text-red-600 dark:text-red-400'
-      : tone === 'subtle'
-        ? 'text-gray-500 dark:text-gray-400 font-medium'
-        : 'text-gray-900 dark:text-white'
-  const iconWrapClass =
-    tone === 'danger'
-      ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-      : tone === 'subtle'
-        ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-        : 'bg-primary/10 text-primary'
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg text-sm font-semibold text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:pointer-events-none ${toneClass}`}
-    >
-      <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconWrapClass}`}>{icon}</span>
-      {children}
-    </button>
-  )
-}
+import { ActionButton, Pill } from './ActionSheetKit'
 
 export function GuestDetailSheet({
   eventId,
@@ -170,6 +118,17 @@ export function GuestDetailSheet({
   // en vez de una copia congelada).
   const [paymentActionPending, setPaymentActionPending] = useState(false)
   const [paymentActionError, setPaymentActionError] = useState('')
+  // Solo relevante con 2+ métodos habilitados — con uno solo, paymentMethods[0]
+  // ya resuelve el método sin pedirle nada al organizador. Se reinicia al
+  // cambiar de invitado porque este sheet no se desmonta entre uno y otro
+  // (GuestList.tsx reusa la misma instancia, sin `key` por guest.id).
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | undefined>(undefined)
+
+  /* eslint-disable react-hooks/set-state-in-effect -- reinicio de selección al cambiar de invitado (el sheet no se desmonta entre uno y otro) */
+  useEffect(() => {
+    setSelectedMethod(undefined)
+  }, [guest?.id])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function handleClose() {
     setEditing(false)
@@ -328,6 +287,32 @@ export function GuestDetailSheet({
                     )}
                     {guest.paymentNote && <Pill tone="gray">Ref: {guest.paymentNote}</Pill>}
                   </div>
+                  {canConfirmPayments && paymentMethods.length > 1 && guest.paymentStatus !== 'paid' && (
+                    <div>
+                      <p className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Método de pago</p>
+                      <div className="flex gap-2">
+                        {paymentMethods.map((m) => {
+                          const isSelected = (selectedMethod ?? guest.paymentMethod ?? paymentMethods[0]) === m
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setSelectedMethod(m)}
+                              disabled={paymentActionPending}
+                              aria-pressed={isSelected}
+                              className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+                                isSelected
+                                  ? 'border-primary bg-primary/10 text-primary'
+                                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                              }`}
+                            >
+                              {PAYMENT_METHOD_LABELS[m]}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                   {/* Feedback inline: el banner de error de GuestList.tsx
                       queda tapado por este modal, así que el único lugar
                       donde el organizador puede verlo mientras decide qué
@@ -380,7 +365,7 @@ export function GuestDetailSheet({
                   <>
                     <ActionButton
                       icon={<IconCheck className="w-4 h-4" />}
-                      onClick={() => void handleMarkPaidClick(guest, guest.paymentMethod || undefined)}
+                      onClick={() => void handleMarkPaidClick(guest, selectedMethod ?? guest.paymentMethod ?? undefined)}
                       disabled={paymentActionPending}
                     >
                       {paymentActionPending ? 'Confirmando…' : 'Aprobar pago'}
@@ -398,7 +383,7 @@ export function GuestDetailSheet({
                 {canConfirmPayments && requiresPayment && guest.paymentStatus !== 'paid' && guest.paymentStatus !== 'pending_confirmation' && (
                   <ActionButton
                     icon={<IconTicket className="w-4 h-4" />}
-                    onClick={() => void handleMarkPaidClick(guest, guest.paymentMethod || paymentMethods[0])}
+                    onClick={() => void handleMarkPaidClick(guest, selectedMethod ?? guest.paymentMethod ?? paymentMethods[0])}
                     disabled={paymentActionPending}
                   >
                     {paymentActionPending ? 'Confirmando…' : 'Confirmar pago'}

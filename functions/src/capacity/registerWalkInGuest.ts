@@ -36,7 +36,10 @@ import type { PaymentMethod } from '../payments/confirmPayment.js'
 // en esa lista se rechaza en vez de guardarse tal cual. Con un solo método
 // habilitado, el organizador espera que el registro público funcione sin
 // que el invitado tenga que elegir nada (mismo criterio que EventJoin.tsx,
-// que en ese caso ni le muestra el selector) — se completa solo.
+// que en ese caso ni le muestra el selector) — se completa solo. Con dos
+// métodos habilitados ya NO se exige elegir uno al registrarse (el invitado
+// ve ambas instrucciones en su pase y paga como prefiera) — queda `null`
+// hasta que quien confirme el pago (caja/organizador) registre cuál usó.
 function resolvePaymentMethod(
   requiresPayment: boolean,
   allowedMethods: PaymentMethod[] | undefined,
@@ -44,9 +47,12 @@ function resolvePaymentMethod(
 ): PaymentMethod | null {
   if (!requiresPayment) return null
   const allowed = allowedMethods || []
-  if (candidate && allowed.includes(candidate)) return candidate
-  if (!candidate && allowed.length === 1) return allowed[0]
-  throw new GuestValidationError('Elige un método de pago válido para este evento.')
+  if (candidate && !allowed.includes(candidate)) {
+    throw new GuestValidationError('Elige un método de pago válido para este evento.')
+  }
+  if (candidate) return candidate
+  if (allowed.length === 1) return allowed[0]
+  return null
 }
 
 export interface RegisterWalkInGuestInput {

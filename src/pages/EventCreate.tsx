@@ -51,6 +51,11 @@ interface EventDraftFields {
   paymentMethods: PaymentMethod[]
   ticketPrice: string
   currency: string
+  transferBankName: string
+  transferAccountHolder: string
+  transferAccountNumber: string
+  transferReference: string
+  cashInstructions: string
   paymentInstructions: string
   organizerContactPhone: string
   organizerContactPhoneCountry: string
@@ -122,6 +127,11 @@ export function EventCreate() {
     paymentMethods: ['transfer'],
     ticketPrice: '',
     currency: '$',
+    transferBankName: '',
+    transferAccountHolder: '',
+    transferAccountNumber: '',
+    transferReference: '',
+    cashInstructions: '',
     paymentInstructions: '',
     organizerContactPhone: '',
     organizerContactPhoneCountry: DEFAULT_PHONE_COUNTRY,
@@ -168,6 +178,11 @@ export function EventCreate() {
       attendeeLimitEnabled: rest.attendeeLimitEnabled ?? false,
       maxCompanions: rest.maxCompanions ?? '0',
       paymentMethods: rest.paymentMethods?.length ? rest.paymentMethods : ['transfer'],
+      transferBankName: rest.transferBankName || '',
+      transferAccountHolder: rest.transferAccountHolder || '',
+      transferAccountNumber: rest.transferAccountNumber || '',
+      transferReference: rest.transferReference || '',
+      cashInstructions: rest.cashInstructions || '',
       organizerContactPhone: rest.organizerContactPhone || '',
       organizerContactPhoneCountry: rest.organizerContactPhoneCountry || DEFAULT_PHONE_COUNTRY,
       timeline: rest.timeline || [],
@@ -300,6 +315,11 @@ export function EventCreate() {
         paymentMethods: form.requiresPayment ? form.paymentMethods : [],
         ticketPrice: form.requiresPayment ? parseFloat(form.ticketPrice) || 0 : 0,
         currency: form.requiresPayment ? form.currency.trim() : '',
+        transferBankName: form.requiresPayment ? form.transferBankName.trim() : '',
+        transferAccountHolder: form.requiresPayment ? form.transferAccountHolder.trim() : '',
+        transferAccountNumber: form.requiresPayment ? form.transferAccountNumber.trim() : '',
+        transferReference: form.requiresPayment ? form.transferReference.trim() : '',
+        cashInstructions: form.requiresPayment ? form.cashInstructions.trim() : '',
         paymentInstructions: form.requiresPayment ? form.paymentInstructions.trim() : '',
         organizerContactPhone: form.requiresPayment ? form.organizerContactPhone.trim() : '',
         organizerContactPhoneCountry: form.requiresPayment ? form.organizerContactPhoneCountry : '',
@@ -425,8 +445,18 @@ export function EventCreate() {
             onTicketPriceChange={(v) => updateField('ticketPrice', v)}
             currency={form.currency}
             onCurrencyChange={(v) => updateField('currency', v)}
+            transferBankName={form.transferBankName}
+            onTransferBankNameChange={(v) => updateField('transferBankName', v)}
+            transferAccountHolder={form.transferAccountHolder}
+            onTransferAccountHolderChange={(v) => updateField('transferAccountHolder', v)}
+            transferAccountNumber={form.transferAccountNumber}
+            onTransferAccountNumberChange={(v) => updateField('transferAccountNumber', v)}
+            transferReference={form.transferReference}
+            onTransferReferenceChange={(v) => updateField('transferReference', v)}
             paymentInstructions={form.paymentInstructions}
             onPaymentInstructionsChange={(v) => updateField('paymentInstructions', v)}
+            cashInstructions={form.cashInstructions}
+            onCashInstructionsChange={(v) => updateField('cashInstructions', v)}
             organizerContactPhone={form.organizerContactPhone}
             onOrganizerContactPhoneChange={(v) => updateField('organizerContactPhone', v)}
             organizerContactPhoneCountry={form.organizerContactPhoneCountry}

@@ -34,7 +34,7 @@ service cloud.firestore {
     // resuelve aparte como acceso total en collaboratorPermValue() de abajo,
     // no necesita entrada acá.
     function collaboratorRolePreset(role) {
-      return role == 'recepcion' ? {'viewGuestList': true, 'scanQr': true, 'postWall': true, 'viewPayments': true}
+      return role == 'recepcion' ? {'viewGuestList': true, 'scanQr': true, 'postWall': true, 'viewPayments': true, 'confirmPayments': true}
         : role == 'caja' ? {'postWall': true, 'viewPayments': true, 'confirmPayments': true, 'viewCatalog': true, 'viewSales': true, 'viewOrders': true}
         : role == 'ventas' ? {'postWall': true, 'manageConcessions': true, 'viewCatalog': true, 'viewSales': true, 'viewOrders': true}
         : role == 'preparacion' ? {'postWall': true, 'viewCatalog': true, 'viewOrders': true, 'prepareOrders': true}
@@ -231,6 +231,25 @@ service cloud.firestore {
       return !(oldEv.get('attendeeLimitEnabled', false) == true)
         || newEv.peopleCount <= oldEv.peopleCount
         || newEv.peopleCount <= oldEv.get('capacity', 0);
+    }
+
+    // Complementa attendeeLimitOk (que protege que peopleCount no supere
+    // capacity): esta protege el sentido inverso, que el dueño no reduzca
+    // capacity (o active attendeeLimitEnabled recién ahora) a un valor por
+    // debajo de la gente ya confirmada. Espejo de capacityReductionAllowed
+    // en src/firebase/attendeeLimit.ts (misma regla, dos runtimes) — un
+    // evento heredado donde esa inconsistencia ya existía de antes puede
+    // seguir guardándose sin tocar, solo se bloquea una reducción o una
+    // activación NUEVAS que la empeoren o la creen en este guardado.
+    function capacityReductionOk(oldEv, newEv) {
+      let peopleCount = oldEv.get('peopleCount', 0);
+      let oldCapacity = oldEv.get('capacity', 0);
+      let oldEnabled = oldEv.get('attendeeLimitEnabled', false) == true;
+      let newCapacity = newEv.get('capacity', 0);
+      let newEnabled = newEv.get('attendeeLimitEnabled', false) == true;
+      return !newEnabled
+        || newCapacity >= peopleCount
+        || (newCapacity >= oldCapacity && oldEnabled);
     }
 
     // rsvpYesCount/rsvpNoCount/rsvpPendingCount (auditoría F22): a diferencia
@@ -501,6 +520,24 @@ service cloud.firestore {
     // exige esa baja.
     function canOrganizerCreateWaitlistEntry(eventId, d) {
       return canDo(eventId, 'deleteGuests', true) && isValidOrganizerWaitlistEntryData(d);
+    }
+
+    // "Modificar pase" del organizador sobre una entrada YA EXISTENTE en la
+    // fila (rediseño de la Waitlist) — no reusa isValidOrganizerWaitlistEntryData
+    // a propósito: esa función exige `createdAt == request.time` (solo tiene
+    // sentido en la creación) y revalida el documento entero, no solo los
+    // campos "de contacto/tamaño" que puede tocar una edición. Acá `d` es
+    // `request.resource.data` (el documento completo resultante), pero solo
+    // importan estos 7 campos porque `affectedKeys().hasOnly([...])` en la
+    // rama de `allow update` ya garantiza que ninguno de estado/token cambió.
+    function isValidWaitlistEntryEdit(evData, d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 121
+        && d.partySize is int && d.partySize >= 1 && d.partySize <= evData.get('maxCompanions', 9) + 1
+        && d.phone is string && d.phone.size() <= 40
+        && d.phoneCountry is string && d.phoneCountry.size() <= 2
+        && d.email is string && d.email.size() <= 254
+        && d.whatsappConsent is bool
+        && d.customData is map && d.customData.size() <= 30;
     }
 
     // Contadores del EVENTO tolerantes a documentos legacy: eventos creados
@@ -1118,6 +1155,7 @@ service cloud.firestore {
       // que el dueño también satisface vía canDoData/isOwnerData.
       allow update: if (isOwnerData(resource.data) || isAdmin()) && eventContentCapsOk()
           && concessionsEnableChangeIsAllowed(resource.data, request.resource.data)
+          && capacityReductionOk(resource.data, request.resource.data)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['checkinsByHour'])
         // Contador walk-in (Opciones A y C, src/firebase/capacity.ts —
         // walkIn/walkOut): solo quien tiene el permiso `scanQr` (dueño
@@ -1366,10 +1404,27 @@ service cloud.firestore {
           // referencia) sigue siendo OBLIGATORIO — pedido explícito: sin una
           // referencia concreta, el organizador no tiene nada que cotejar
           // contra su resumen bancario para aprobar/rechazar.
+          //
+          // Desde que el registro público ya no obliga a elegir método
+          // (eventos con transferencia + efectivo habilitados), un invitado
+          // recién registrado tiene `paymentMethod == null` — mandar el
+          // comprobante ES la forma en que declara que pagó por
+          // transferencia, así que también se permite en ese caso (nunca si
+          // ya quedó fijado en 'cash', eso sería contradictorio) y el propio
+          // paymentMethod se agrega a los campos que puede escribir para
+          // dejarlo asentado. `eventDataFor(eventId)` es el mismo helper que
+          // ya usan isOwnerData/isCoOrganizer para leer el evento padre.
           (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentNote']) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'paymentNote', 'paymentMethod']) &&
             guestLockTokensOk(resource.data, request.resource.data.get('lockToken', null)) &&
-            resource.data.paymentMethod == 'transfer' &&
+            (
+              resource.data.paymentMethod == 'transfer' ||
+              (
+                resource.data.paymentMethod == null &&
+                eventDataFor(eventId).paymentMethods.hasAny(['transfer'])
+              )
+            ) &&
+            request.resource.data.paymentMethod == 'transfer' &&
             resource.data.paymentStatus != 'paid' &&
             resource.data.paymentStatus != 'pending_confirmation' &&
             request.resource.data.paymentStatus == 'pending_confirmation' &&
@@ -1815,6 +1870,15 @@ service cloud.firestore {
               request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
               && resource.data.status == 'waiting'
               && request.resource.data.status == 'removed'
+            )
+            // "Modificar pase": editar nombre/tamaño/contacto de una entrada
+            // 'waiting' (nunca 'offered' — no se tocan sus datos a mitad de
+            // una confirmación en curso). Ver isValidWaitlistEntryEdit.
+            || (
+              request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['name', 'partySize', 'phone', 'phoneCountry', 'email', 'customData', 'whatsappConsent'])
+              && resource.data.status == 'waiting'
+              && isValidWaitlistEntryEdit(eventDataFor(eventId), request.resource.data)
             )
           );
         allow delete: if false;

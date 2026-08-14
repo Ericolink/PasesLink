@@ -38,9 +38,10 @@ export const COLLABORATOR_ROLE_DESCRIPTIONS: Record<CollaboratorRole, string[]> 
     'Invitar y gestionar otros colaboradores',
   ],
   recepcion: [
+    'Ver los datos del evento (sin poder modificarlos)',
     'Ver la lista de invitados',
     'Escanear pases y hacer check-in',
-    'Ver el estado de los pagos',
+    'Marcar invitados como pagados o no pagados',
   ],
   caja: [
     'Ver y confirmar pagos de ventas',
@@ -99,11 +100,19 @@ export interface CollaboratorEntry {
 export interface CollaboratorPermissions extends EventCollaboratorPermissions {
   isOwner: boolean
   // true solo para el rol 'administrador' (y para el coorganizador legacy,
-  // que migra 1:1 a ese rol) — los roles operativos angostos (Recepción,
-  // Caja, Ventas, Preparación) nunca fueron ni serán "coorganizador": no ven
-  // el dashboard general de EventDetail, solo su pantalla dedicada, exacto
-  // mismo criterio que ya aplica hoy concessionsStaffMap.
+  // que migra 1:1 a ese rol) — a diferencia de hasAccess (abajo), esto NO se
+  // amplía a Recepción: sigue significando específicamente "es un
+  // colaborador de nivel administrador", usado p.ej. en GuestPass.tsx para
+  // distinguir la vista de organizador.
   isCoOrg: boolean
+  // Puede ver el dashboard de EventDetail (aunque sea de solo lectura) en
+  // vez de ser redirigido a una pantalla dedicada. true para 'administrador'
+  // y para 'recepcion' (pedido explícito: ve los datos del evento sin
+  // modificarlos, con Escanear/pagos habilitados según su preset — cada
+  // acción puntual de edición sigue gateada por su propio permiso, editEvent/
+  // manageCoOrganizers/addGuests son false para Recepción). Caja/Ventas/
+  // Preparación/Comunidad siguen en false: van directo a su pantalla
+  // dedicada (ver EventDetail.tsx).
   hasAccess: boolean
   canPostWall: boolean
 }
@@ -128,16 +137,20 @@ const ADMINISTRADOR_PRESET: EventCollaboratorPermissions = {
   cancelOrders: true,
 }
 
-// Invitados + check-in + info mínima de pagos. Confirmar pago NO es parte
-// del preset base — se otorga por evento vía permissionOverrides si el
-// anfitrión lo necesita (ver ROLES_PERMISSIONS_REDESIGN.md §2.3), para no
-// forzar ese acceso en eventos donde solo Caja confirma pagos.
+// Invitados + check-in + pagos de entrada — pedido explícito del usuario
+// (2026-08-13): "dejarlo ver los datos del evento sin modificarlos, solo
+// permitir escanear, marcar invitados como pagados o no pagados". A
+// diferencia de la v1 de este diseño, confirmPayments SÍ es parte del
+// preset base (antes era opcional vía permissionOverrides) — el anfitrión
+// puede seguir angostándolo con `permissionOverrides: { confirmPayments: false }`
+// si un evento puntual solo quiere que Caja confirme pagos.
 const RECEPCION_PRESET: EventCollaboratorPermissions = {
   ...NO_ACCESS,
   viewGuestList: true,
   scanQr: true,
   postWall: true,
   viewPayments: true,
+  confirmPayments: true,
   viewCatalog: false,
   viewSales: false,
   viewOrders: false,
@@ -236,7 +249,9 @@ export function resolveCollaboratorPermissions(
       ...merged,
       isOwner: false,
       isCoOrg: isAdminRole,
-      hasAccess: isAdminRole,
+      // Recepción también ve el dashboard (de solo lectura) en vez de ser
+      // redirigida — ver el comentario de `hasAccess` en CollaboratorPermissions.
+      hasAccess: isAdminRole || collaboratorEntry.role === 'recepcion',
       canPostWall: merged.postWall,
     }
   }

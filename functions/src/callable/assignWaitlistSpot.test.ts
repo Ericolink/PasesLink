@@ -124,6 +124,57 @@ describe('assignWaitlistSpot', () => {
     expect(guestSnap.data()?.paymentMethod).toBe('cash')
   })
 
+  it('markPaid: creates the guest already paid, in the same transaction, when there is capacity', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, capacity: 10, peopleCount: 0, requiresPayment: true, paymentMethods: ['cash', 'transfer'] })
+    await seedWaitlistEntry(db, eventId, 'entry-1', { partySize: 2 })
+
+    const result = await assignWaitlistSpot.run(
+      fakeCallableRequest({ eventId, entryId: 'entry-1', paymentMethod: 'cash', markPaid: true }, OWNER_UID),
+    )
+    expect(result.qrToken).toBeTruthy()
+
+    const entry = await getWaitlistEntry(db, eventId, 'entry-1')
+    const guestSnap = await db.collection('events').doc(eventId).collection('guests').doc(entry!.promotedGuestId as string).get()
+    expect(guestSnap.data()?.paymentStatus).toBe('paid')
+    expect(guestSnap.data()?.paymentMethod).toBe('cash')
+    expect(guestSnap.data()?.paidBy).toBe(OWNER_UID)
+    expect(typeof guestSnap.data()?.paidAt).toBe('number')
+
+    // Nunca duplica el guest, y los contadores solo se movieron una vez.
+    const guestsSnap = await db.collection('events').doc(eventId).collection('guests').get()
+    expect(guestsSnap.docs).toHaveLength(1)
+    const eventSnap = await db.collection('events').doc(eventId).get()
+    expect(eventSnap.data()?.peopleCount).toBe(2)
+  })
+
+  it('markPaid: still rejected when the event is full — never bypasses capacity', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, capacity: 5, peopleCount: 4, requiresPayment: true })
+    await seedWaitlistEntry(db, eventId, 'entry-1', { partySize: 2 })
+
+    await expect(
+      assignWaitlistSpot.run(fakeCallableRequest({ eventId, entryId: 'entry-1', paymentMethod: 'cash', markPaid: true }, OWNER_UID)),
+    ).rejects.toThrow(HttpsError)
+
+    const entry = await getWaitlistEntry(db, eventId, 'entry-1')
+    expect(entry?.status).toBe('waiting')
+    const guestsSnap = await db.collection('events').doc(eventId).collection('guests').get()
+    expect(guestsSnap.docs).toHaveLength(0)
+  })
+
+  it('markPaid: ignored when the event does not require payment (guest is not marked paid)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, capacity: 10, peopleCount: 0, requiresPayment: false })
+    await seedWaitlistEntry(db, eventId, 'entry-1')
+
+    await assignWaitlistSpot.run(fakeCallableRequest({ eventId, entryId: 'entry-1', markPaid: true }, OWNER_UID))
+
+    const entry = await getWaitlistEntry(db, eventId, 'entry-1')
+    const guestSnap = await db.collection('events').doc(eventId).collection('guests').doc(entry!.promotedGuestId as string).get()
+    expect(guestSnap.data()?.paymentStatus).toBe('unpaid')
+  })
+
   it('never lets two concurrent direct assignments of the same entry both create a guest', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { ownerId: OWNER_UID, capacity: 10, peopleCount: 0 })

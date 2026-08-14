@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
 import type { EventData, GuestData, PaymentMethod } from '../types'
 import type { useEventPermissions } from '../hooks/useEventPermissions'
@@ -45,6 +46,10 @@ export function OrganizerPassView({
   onMarkPaid,
   onMarkUnpaid,
 }: Props) {
+  // Solo relevante cuando el evento acepta 2+ métodos: con uno solo,
+  // event.paymentMethods[0] ya resuelve el método sin pedirle nada al
+  // organizador (mismo criterio que ScanResultModal.tsx en el escáner).
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | undefined>(undefined)
   return (
     <InvitationThemeRoot
       templateId={event.templateId}
@@ -90,6 +95,31 @@ export function OrganizerPassView({
 
             {paymentError && <p className="text-xs text-red-600">{paymentError}</p>}
 
+            {perms.confirmPayments && guest.paymentStatus !== 'paid' && event.paymentMethods.length > 1 && (
+              <div className="w-full">
+                <p className="text-2xs uppercase tracking-wide font-semibold mb-1.5 text-[var(--invite-text-muted)]">Método de pago</p>
+                <div className="flex gap-2">
+                  {event.paymentMethods.map((m) => {
+                    const isSelected = (selectedMethod ?? guest.paymentMethod ?? event.paymentMethods[0]) === m
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setSelectedMethod(m)}
+                        disabled={paymentSaving}
+                        aria-pressed={isSelected}
+                        className={`flex-1 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+                          isSelected ? 'bg-[var(--invite-accent)] text-white border-[var(--invite-accent)]' : 'border-[var(--invite-border)] text-[var(--invite-text)]'
+                        }`}
+                      >
+                        {PAYMENT_METHOD_LABELS[m]}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {perms.confirmPayments && (
               guest.paymentStatus === 'paid' ? (
                 <button
@@ -102,7 +132,7 @@ export function OrganizerPassView({
               ) : guest.paymentStatus === 'pending_confirmation' ? (
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => onMarkPaid(guest.paymentMethod || undefined)}
+                    onClick={() => onMarkPaid(selectedMethod ?? guest.paymentMethod ?? undefined)}
                     disabled={paymentSaving}
                     className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
                   >
@@ -118,7 +148,7 @@ export function OrganizerPassView({
                 </div>
               ) : (
                 <button
-                  onClick={() => onMarkPaid(guest.paymentMethod || event.paymentMethods[0])}
+                  onClick={() => onMarkPaid(selectedMethod ?? guest.paymentMethod ?? event.paymentMethods[0])}
                   disabled={paymentSaving}
                   className="text-sm font-medium disabled:opacity-50 text-[var(--invite-accent)]"
                 >

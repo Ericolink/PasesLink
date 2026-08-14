@@ -42,9 +42,9 @@ import { IconBan, IconClock } from '../components/accessibility/AccessibleIcon'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useAnnouncer } from '../components/accessibility/LiveRegion'
-import type { CompanionData, EventData, PaymentMethod } from '../types'
+import type { CompanionData, EventData } from '../types'
 import { CustomFieldInput } from '../components/CustomFieldInput'
-import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
+import { TransferInfoDisplay } from '../components/invitation/TransferInfoDisplay'
 import { FieldError, AccessibleField } from '../components/accessibility/AccessibleField'
 import { regKey } from '../utils/joinRegistration'
 
@@ -104,7 +104,6 @@ export function EventJoin() {
   const [companions, setCompanions] = useState<CompanionData[]>([])
   const [companionErrors, setCompanionErrors] = useState<CompanionFieldErrors[]>([])
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
   const [regError, setRegError] = useState('')
   const [regErrorAttempt, setRegErrorAttempt] = useState(0)
   const [waitlistState, setWaitlistState] = useState<'form' | 'submitting' | 'joined' | 'error'>('form')
@@ -282,13 +281,6 @@ export function EventJoin() {
   // `event` todavía no cargó, cae a 1 (sin acompañantes) en vez de permitir
   // de más por un instante.
   const maxPartySize = 1 + resolveMaxCompanions({ maxCompanions: event?.maxCompanions })
-  const needsMethodChoice = !!event?.requiresPayment && (event?.paymentMethods.length || 0) > 1
-  const resolvedPaymentMethod: PaymentMethod | undefined = !event?.requiresPayment
-    ? undefined
-    : needsMethodChoice
-      ? paymentMethod || undefined
-      : event.paymentMethods[0]
-
   const customFields = event?.customFields || []
   // Un campo personalizado solo se pide por acompañante si el organizador lo
   // marcó `appliesToCompanions` (rediseño del Dashboard del Evento) — antes
@@ -353,11 +345,6 @@ export function EventJoin() {
       setRegErrorAttempt((n) => n + 1)
       return
     }
-    if (needsMethodChoice && !resolvedPaymentMethod) {
-      setRegError('Elige cómo vas a pagar antes de continuar.')
-      setRegErrorAttempt((n) => n + 1)
-      return
-    }
     // Fiesta Improvisada: la decisión de cuenta (crear/iniciar sesión/
     // continuar sin cuenta) ocurre acá, ANTES de registrar — ver
     // INVITATION_REDESIGN_PLAN §5-7. Para el resto de las plantillas (y para
@@ -387,7 +374,7 @@ export function EventJoin() {
         phone,
         customValues,
         companions,
-        resolvedPaymentMethod,
+        undefined,
         user?.uid,
         profile?.photoURL,
         phoneCountry,
@@ -985,34 +972,10 @@ export function EventJoin() {
               <fieldset className="border-0 p-0 m-0">
                 <legend className={labelClass}>
                   Entrada: {event.currency}{(event.ticketPrice * registrationPartySize).toLocaleString('es')}
-                  {needsMethodChoice && ' — ¿cómo vas a pagar?'}
-                  {needsMethodChoice && <span aria-hidden="true" className="text-error"> *</span>}
                 </legend>
-                {needsMethodChoice ? (
-                  <div role="radiogroup" aria-label="Método de pago" className="grid grid-cols-2 gap-2">
-                    {event.paymentMethods.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        role="radio"
-                        aria-checked={paymentMethod === m}
-                        onClick={() => setPaymentMethod(m)}
-                        className={`min-h-11 rounded-full border text-sm font-semibold transition-colors ${
-                          paymentMethod === m
-                            ? 'bg-[var(--invite-accent)] text-white border-[var(--invite-accent)]'
-                            : 'border-[var(--invite-border)] text-[var(--invite-text)]'
-                        }`}
-                      >
-                        {PAYMENT_METHOD_LABELS[m]}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-[var(--invite-text-muted)]">
-                    {event.paymentMethods[0] === 'cash' ? 'Se paga en efectivo el día del evento.' : 'Se paga por transferencia.'}
-                  </p>
-                )}
-                {event.paymentMethods.includes('transfer') && (needsMethodChoice ? paymentMethod === 'transfer' : true) && (
+                <p className="text-xs font-semibold uppercase tracking-wide mb-1.5 text-[var(--invite-text-muted)]">¿Cómo puedo pagar?</p>
+                <TransferInfoDisplay event={event} />
+                {event.paymentMethods.includes('transfer') && (
                   <p className="text-xs mt-1.5 text-[var(--invite-text-muted)]">Puedes enviar tu comprobante cuando quieras después de registrarte.</p>
                 )}
               </fieldset>
@@ -1038,7 +1001,7 @@ export function EventJoin() {
             <FieldError message={regError} />
             <button
               type="submit"
-              disabled={state === 'submitting' || (needsMethodChoice && !paymentMethod)}
+              disabled={state === 'submitting'}
               className="w-full text-white rounded-full py-3.5 font-bold text-base hover:opacity-90 active:scale-[.98] transition-all disabled:opacity-50 bg-[var(--invite-accent)]"
             >
               {state === 'submitting' ? 'Registrando…' : 'Confirmar asistencia'}

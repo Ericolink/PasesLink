@@ -3,14 +3,7 @@ import { partySize } from '../../firebase/guests'
 import type { GuestData } from '../../types'
 import { IconCheck } from '../accessibility/AccessibleIcon'
 import { GuestAvatar } from './GuestAvatar'
-import { getGuestSubtitle, guestDisplayName, guestIndicator } from './guestGrouping'
-
-const INDICATOR_CLASS: Record<string, string> = {
-  action: 'bg-amber-500',
-  ok: 'bg-green-500',
-  off: 'bg-gray-300 dark:bg-gray-700',
-  wait: 'border-[1.5px] border-violet-400 dark:border-violet-500 bg-transparent',
-}
+import { INDICATOR_CLASS, getGuestSubtitle, guestDisplayName, guestIndicator } from './guestGrouping'
 
 export const GuestRow = memo(function GuestRow({
   guest,

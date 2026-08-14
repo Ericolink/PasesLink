@@ -1,12 +1,14 @@
-// Asignación directa del organizador ("Asignar lugar" en WaitlistPanel.tsx):
-// crea el guest confirmado al instante, sin pasar por el paso de
-// oferta+confirmación por correo (para eso está promoteWaitlistEntry.ts,
-// que sigue existiendo — el organizador elige entre asignar directo o
-// mandar una oferta y dejar que el invitado confirme). Reutiliza el mismo
-// núcleo transaccional (promoteEntryToGuest) que ya usa confirmWaitlistOffer
-// — la única diferencia real es quién autoriza la promoción: acá el
-// organizador (permiso `addGuests`), en vez de un offerToken que demuestra
-// que el propio invitado la aceptó.
+// Asignación directa del organizador ("Pasar a la lista normal"/"Marcar
+// como pagado" en WaitlistPanel.tsx): crea el guest confirmado al instante,
+// sin pasar por el paso de oferta+confirmación por correo (esa parte sigue
+// existiendo — la cascada automática de functions/src/waitlist/cascade.ts
+// dispara una oferta cuando se libera un lugar solo; el organizador puede
+// además asignar directo desde acá). Reutiliza el mismo núcleo transaccional
+// (promoteEntryToGuest) que ya usa confirmWaitlistOffer — la única
+// diferencia real es quién autoriza la promoción: acá el organizador
+// (permiso `addGuests`), en vez de un offerToken que demuestra que el
+// propio invitado la aceptó. `markPaid` es lo único que distingue "pasar a
+// la lista normal" de "marcar como pagado" en el menú de acciones.
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { promoteEntryToGuest } from '../waitlist/promoteToGuest.js'
@@ -21,6 +23,8 @@ interface AssignWaitlistSpotInput {
   eventId: string
   entryId: string
   paymentMethod?: PaymentMethod
+  /** "Marcar como pagado" del menú de la Waitlist — ver PromoteToGuestOptions.markPaid. */
+  markPaid?: boolean
 }
 
 interface AssignWaitlistSpotResult {
@@ -36,7 +40,7 @@ export const assignWaitlistSpot = onCall<AssignWaitlistSpotInput>({ secrets: [br
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
     }
-    const { eventId, entryId, paymentMethod } = request.data || {}
+    const { eventId, entryId, paymentMethod, markPaid } = request.data || {}
     ctx.addContext({ uid: request.auth.uid, eventId })
     if (!eventId || !entryId) {
       throw new HttpsError('invalid-argument', 'Faltan datos para asignar el lugar.')
@@ -51,7 +55,7 @@ export const assignWaitlistSpot = onCall<AssignWaitlistSpotInput>({ secrets: [br
       throw new HttpsError('permission-denied', 'No tienes permiso para gestionar la lista de espera de este evento.')
     }
 
-    const result = await promoteEntryToGuest(db, eventId, entryId, { guestUid: null, paymentMethod })
+    const result = await promoteEntryToGuest(db, eventId, entryId, { guestUid: null, paymentMethod, markPaid, paidByUid: request.auth.uid })
 
     if (!result.ok) {
       const messages: Record<typeof result.reason, string> = {
@@ -82,7 +86,7 @@ export const assignWaitlistSpot = onCall<AssignWaitlistSpotInput>({ secrets: [br
       }
     }
 
-    logBusinessEvent(ctx.logger, BUSINESS_EVENTS.GUEST_PROMOTED_FROM_WAITLIST, { eventId, entryId, reason: 'organizer_direct' })
+    logBusinessEvent(ctx.logger, BUSINESS_EVENTS.GUEST_PROMOTED_FROM_WAITLIST, { eventId, entryId, reason: 'organizer_direct', markPaid: markPaid === true })
 
     return { qrToken: result.qrToken }
   }),

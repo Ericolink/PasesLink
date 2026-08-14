@@ -53,6 +53,36 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
+
+      # firebase.json tiene un rewrite de Hosting a una Cloud Function
+      # ("/e/**" -> eventJoinMeta) — action-hosting-deploy más abajo
+      # necesita resolver esa función aunque este workflow no despliegue
+      # Functions, lo que dispara el predeploy de functions ("npm run
+      # build" -> tsc) y sin node_modules instalado tsc no encuentra
+      # firebase-functions/v2/* (bug real visto en CI, ver el mismo
+      # comentario en firebase-staging-deploy.yml).
+      - run: npm ci --prefix functions
+
+      # Bug real visto en CI (2026-08-14): al resolver el rewrite de arriba,
+      # firebase-tools también recorre TODAS las funciones del codebase para
+      # ver qué secrets (defineSecret) declara cada una, y en ese paso
+      # puntual de "function discovery" hace la llamada a Secret Manager SIN
+      # las credenciales que action-hosting-deploy le pasa más abajo — el
+      # log de --debug mostró literalmente "No OAuth tokens found" antes del
+      # 403, con la request marcada [none] de auth. Ya se confirmó por fuera
+      # (gcloud) que el permiso de la cuenta de servicio está bien — esto es
+      # un agujero de auth interno de la herramienta, no de IAM. Exportar
+      # GOOGLE_APPLICATION_CREDENTIALS acá (mecanismo estándar de Application
+      # Default Credentials) hace que CUALQUIER llamada interna de
+      # firebase-tools en este job encuentre credenciales, sin depender de
+      # que action-hosting-deploy las propague bien a ese code path puntual.
+      - name: Autenticar credenciales de GCP (workaround bug de firebase-tools con secrets + rewrites de Hosting)
+        env:
+          GCP_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7 }}
+        run: |
+          echo "$GCP_SA_JSON" > /tmp/gcp-sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa.json" >> "$GITHUB_ENV"
+
       - run: npm run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}

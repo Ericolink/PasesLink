@@ -89,14 +89,19 @@ describe('hasPermission', () => {
       expect(hasPermission(event, 'prep-1', 'addGuests')).toBe(false)
     })
 
-    it('permissionOverrides puede otorgar un permiso puntual fuera del preset (ej. Recepción + confirmar pagos)', () => {
+    it('rol recepción confirma pagos por default (preset base, no override)', () => {
+      const event: DocumentData = { ...baseEvent, collaborators: { 'recep-1': { role: 'recepcion' } } }
+      expect(hasPermission(event, 'recep-1', 'scanQr')).toBe(true)
+      expect(hasPermission(event, 'recep-1', 'confirmPayments')).toBe(true)
+      expect(hasPermission(event, 'recep-1', 'viewCatalog')).toBe(false)
+    })
+
+    it('permissionOverrides puede angostar un permiso del preset (ej. Recepción sin confirmar pagos)', () => {
       const event: DocumentData = {
         ...baseEvent,
-        collaborators: { 'recep-1': { role: 'recepcion', permissionOverrides: { confirmPayments: true } } },
+        collaborators: { 'recep-1': { role: 'recepcion', permissionOverrides: { confirmPayments: false } } },
       }
-      expect(hasPermission(event, 'recep-1', 'scanQr')).toBe(true)
-      expect(hasPermission(event, 'recep-1', 'confirmPayments')).toBe(true) // override
-      expect(hasPermission(event, 'recep-1', 'viewCatalog')).toBe(false) // resto del preset intacto
+      expect(hasPermission(event, 'recep-1', 'confirmPayments')).toBe(false)
     })
 
     it('event.collaborators tiene prioridad sobre coOrganizersMap si el mismo uid está en ambos', () => {

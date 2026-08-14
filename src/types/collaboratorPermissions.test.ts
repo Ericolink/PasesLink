@@ -200,14 +200,33 @@ describe('resolveCollaboratorPermissions', () => {
       expect(perms.viewCatalog).toBe(false)
     })
 
-    it('permissionOverrides puede otorgar un permiso puntual fuera del preset (ej. Recepción + confirmar pagos)', () => {
+    it('rol recepción ve el dashboard (hasAccess) de solo lectura, con escaneo y confirmar pagos por default', () => {
+      const event: MinimalEvent = {
+        ...baseEvent,
+        collaborators: {
+          'recep-1': { email: 'r@example.com', role: 'recepcion', invitedBy: 'owner-1', invitedAt: 1 },
+        },
+      }
+      const perms = resolveCollaboratorPermissions(event, 'recep-1')
+      expect(perms.hasAccess).toBe(true)
+      expect(perms.isCoOrg).toBe(false) // ve el dashboard, pero no es "administrador"
+      expect(perms.scanQr).toBe(true)
+      expect(perms.confirmPayments).toBe(true)
+      expect(perms.viewGuestList).toBe(true)
+      // Solo lectura: nada de edición/gestión.
+      expect(perms.editEvent).toBe(false)
+      expect(perms.addGuests).toBe(false)
+      expect(perms.manageCoOrganizers).toBe(false)
+    })
+
+    it('permissionOverrides puede angostar un permiso del preset (ej. Recepción sin confirmar pagos)', () => {
       const event: MinimalEvent = {
         ...baseEvent,
         collaborators: {
           'recep-1': {
             email: 'r@example.com',
             role: 'recepcion',
-            permissionOverrides: { confirmPayments: true },
+            permissionOverrides: { confirmPayments: false },
             invitedBy: 'owner-1',
             invitedAt: 1,
           },
@@ -215,7 +234,7 @@ describe('resolveCollaboratorPermissions', () => {
       }
       const perms = resolveCollaboratorPermissions(event, 'recep-1')
       expect(perms.scanQr).toBe(true)
-      expect(perms.confirmPayments).toBe(true) // override
+      expect(perms.confirmPayments).toBe(false) // override angosta el default del preset
       expect(perms.viewCatalog).toBe(false) // resto del preset intacto
     })
 

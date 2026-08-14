@@ -28,6 +28,7 @@ function clampMaxCompanions(value: number | undefined): number {
 import { EventSchema, warnIfInvalidShape } from '../types/schemas'
 import type { CoOrganizerPermissions } from '../types/coOrganizerPermissions'
 import type { ConcessionsConfig } from '../types/concessions'
+import type { CollaboratorEntry } from '../types/collaboratorPermissions'
 
 export interface NewEventInput {
   name: string
@@ -52,6 +53,11 @@ export interface NewEventInput {
   paymentMethods?: PaymentMethod[]
   ticketPrice?: number
   currency?: string
+  transferBankName?: string
+  transferAccountHolder?: string
+  transferAccountNumber?: string
+  transferReference?: string
+  cashInstructions?: string
   paymentInstructions?: string
   organizerContactPhone?: string
   organizerContactPhoneCountry?: string
@@ -93,6 +99,11 @@ export async function createEvent(ownerId: string, input: NewEventInput) {
     paymentMethods: input.requiresPayment ? input.paymentMethods || [] : [],
     ticketPrice: input.ticketPrice || 0,
     currency: input.currency || '',
+    transferBankName: input.transferBankName?.trim() || '',
+    transferAccountHolder: input.transferAccountHolder?.trim() || '',
+    transferAccountNumber: input.transferAccountNumber?.trim() || '',
+    transferReference: input.transferReference?.trim() || '',
+    cashInstructions: input.cashInstructions?.trim() || '',
     paymentInstructions: input.paymentInstructions || '',
     organizerContactPhone: input.organizerContactPhone?.trim() || '',
     organizerContactPhoneCountry: input.organizerContactPhoneCountry || '',
@@ -283,6 +294,11 @@ export interface UpdateEventInput {
   paymentMethods?: PaymentMethod[]
   ticketPrice?: number
   currency?: string
+  transferBankName?: string
+  transferAccountHolder?: string
+  transferAccountNumber?: string
+  transferReference?: string
+  cashInstructions?: string
   paymentInstructions?: string
   organizerContactPhone?: string
   organizerContactPhoneCountry?: string
@@ -326,6 +342,11 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
     paymentMethods: input.requiresPayment ? input.paymentMethods || [] : [],
     ticketPrice: input.ticketPrice || 0,
     currency: input.currency ?? '',
+    transferBankName: input.transferBankName?.trim() ?? '',
+    transferAccountHolder: input.transferAccountHolder?.trim() ?? '',
+    transferAccountNumber: input.transferAccountNumber?.trim() ?? '',
+    transferReference: input.transferReference?.trim() ?? '',
+    cashInstructions: input.cashInstructions?.trim() ?? '',
     paymentInstructions: input.paymentInstructions ?? '',
     organizerContactPhone: input.organizerContactPhone?.trim() ?? '',
     organizerContactPhoneCountry: input.organizerContactPhoneCountry ?? '',
@@ -504,6 +525,11 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
       || (data.requiresPayment ? ['transfer'] : []),
     ticketPrice: (data.ticketPrice as number) || 0,
     currency: (data.currency as string) || '',
+    transferBankName: (data.transferBankName as string) || '',
+    transferAccountHolder: (data.transferAccountHolder as string) || '',
+    transferAccountNumber: (data.transferAccountNumber as string) || '',
+    transferReference: (data.transferReference as string) || '',
+    cashInstructions: (data.cashInstructions as string) || '',
     paymentInstructions: (data.paymentInstructions as string) || '',
     organizerContactPhone: (data.organizerContactPhone as string) || '',
     organizerContactPhoneCountry: (data.organizerContactPhoneCountry as string) || '',
@@ -548,6 +574,17 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     rsvpPendingCount: (data.rsvpPendingCount as number) || 0,
     coOrganizersMap: (data.coOrganizersMap as Record<string, string>) || {},
     coOrganizerPermissions: data.coOrganizerPermissions as EventData['coOrganizerPermissions'],
+    // Bug real (2026-08-13): este campo se agregó a EventData en la Fase 1
+    // del rediseño de roles/permisos, pero nunca se sumó acá — mapEvent()
+    // construye un objeto nuevo campo por campo (no un spread de `data`), así
+    // que TODO el sistema de collaborators quedaba invisible para cualquier
+    // pantalla que leyera el evento por la vía normal (subscribeToEvent/
+    // getEvent), aunque el documento crudo de Firestore sí lo tuviera y las
+    // reglas/Cloud Functions ya lo resolvieran bien. `invitedAt` puede venir
+    // como Timestamp real (Cloud Function, FieldValue.serverTimestamp()) o
+    // como number (scripts/backfill-collaborators-from-legacy.mjs, que usa
+    // Date.now()) — se normaliza acá, mismo criterio que createdAt/updatedAt.
+    collaborators: mapCollaborators(data.collaborators),
     // Ausente = el evento nunca activó el módulo de comida/bebida (ver
     // src/types/concessions.ts) — nunca se le pone un default acá, un
     // objeto vacío se interpretaría como "activado sin config".
@@ -564,4 +601,31 @@ function toMillis(value: unknown): number {
     return (value as { toMillis: () => number }).toMillis()
   }
   return 0
+}
+
+// A diferencia de toMillis (siempre Timestamp real, createdAt/updatedAt
+// vienen de serverTimestamp() sin excepción), invitedAt de un colaborador
+// puede ser un Timestamp (acceptCollaboratorInvite.ts, Cloud Function) o un
+// number ya resuelto (scripts/backfill-collaborators-from-legacy.mjs) — acá
+// se acepta cualquiera de los dos.
+function toMillisOrNumber(value: unknown): number {
+  if (typeof value === 'number') return value
+  return toMillis(value)
+}
+
+function mapCollaborators(raw: unknown): EventData['collaborators'] {
+  if (!raw || typeof raw !== 'object') return undefined
+  const entries = Object.entries(raw as Record<string, Record<string, unknown>>).map(
+    ([uid, entry]): [string, CollaboratorEntry] => [
+      uid,
+      {
+        email: entry.email as string,
+        role: entry.role as CollaboratorEntry['role'],
+        permissionOverrides: entry.permissionOverrides as CollaboratorEntry['permissionOverrides'],
+        invitedBy: entry.invitedBy as string,
+        invitedAt: toMillisOrNumber(entry.invitedAt),
+      },
+    ],
+  )
+  return Object.fromEntries(entries)
 }

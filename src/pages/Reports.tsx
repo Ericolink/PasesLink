@@ -1,10 +1,14 @@
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useEventOnly } from '../hooks/useEventOnly'
+import { getPaymentMethodBreakdown } from '../firebase/paymentBreakdown'
+import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
+import type { PaymentMethod } from '../types'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useEventPermissions } from '../hooks/useEventPermissions'
 import { useEventDashboard } from '../hooks/useEventDashboard'
-import { attendancePercent } from '../utils/attendance'
+import { attendancePercent, paymentProgress } from '../utils/attendance'
 import { useDashboardTheme } from '../hooks/useDashboardTheme'
 import { SkeletonBlock } from '../components/Skeleton'
 import { ScreenHeader } from '../components/ScreenHeader'
@@ -43,6 +47,27 @@ export function Reports() {
     waitlist, lastCheckinAt, recentPaceCount,
   } = useEventDashboard(eventId, event, perms)
 
+  // Desglose transferencia/efectivo — solo aporta algo con 2+ métodos
+  // habilitados (con uno solo, el total ya cuenta todo). Agregación en vivo
+  // (src/firebase/paymentBreakdown.ts), no un contador persistido — mismo
+  // criterio que la analítica de plataforma del admin.
+  const [paymentBreakdown, setPaymentBreakdown] = useState<Partial<Record<PaymentMethod, number | null>> | null>(null)
+  const paymentMethodsKey = event?.paymentMethods?.join(',') || ''
+  /* eslint-disable react-hooks/set-state-in-effect -- limpia el desglose previo al cambiar de evento/config antes de que llegue (o no) el nuevo fetch */
+  useEffect(() => {
+    if (!eventId || !event?.requiresPayment || event.paymentMethods.length < 2) {
+      setPaymentBreakdown(null)
+      return
+    }
+    let cancelled = false
+    getPaymentMethodBreakdown(eventId, event.paymentMethods).then((result) => {
+      if (!cancelled) setPaymentBreakdown(result)
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- paymentMethodsKey resume el array (evita refetch por identidad nueva en cada render)
+  }, [eventId, event?.requiresPayment, paymentMethodsKey])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   useDocumentTitle(event ? `${stage === 'live' ? 'En vivo' : 'Reportes'} · ${event.name}` : 'Reportes')
   useDashboardTheme(event?.templateId, event?.accentColor)
 
@@ -76,6 +101,18 @@ export function Reports() {
   const rsvpPending = event.rsvpPendingCount ?? 0
   const totalCollected = (event.ticketPrice ?? 0) * (event.paidCount ?? 0)
   const attendedPercent = Math.round(attendancePercent(event.checkedInCount, totalPeople))
+  const payment = paymentProgress(event)
+
+  const paymentMethodTiles = payment && event.paymentMethods.length > 1 && paymentBreakdown
+    ? event.paymentMethods.map((m) => (
+      <MetricTile
+        key={m}
+        label={`Pagos por ${PAYMENT_METHOD_LABELS[m].toLowerCase()}`}
+        value={paymentBreakdown[m] ?? '—'}
+        accent="success"
+      />
+    ))
+    : null
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 animate-fade-in">
@@ -122,8 +159,13 @@ export function Reports() {
               <MetricTile label="Asistirán" value={rsvpYes} accent="primary" />
               <MetricTile label="No asistirán" value={rsvpNo} />
               <MetricTile label="Sin responder" value={rsvpPending} />
-              {event.requiresPayment && (
-                <MetricTile label={`Recaudado (${event.currency})`} value={totalCollected} accent="success" />
+              {payment && (
+                <>
+                  <MetricTile label={`Recaudado (${event.currency})`} value={totalCollected} accent="success" />
+                  <MetricTile label="Personas pagadas" value={payment.paidPeople} accent="success" />
+                  <MetricTile label="Personas pendientes" value={payment.pendingPeople} accent="warning" />
+                  {paymentMethodTiles}
+                </>
               )}
             </div>
             {waitlist.length > 0 && (
@@ -219,8 +261,13 @@ export function Reports() {
               {event.attendeeLimitEnabled && (
                 <MetricTile label="Capacidad utilizada" value={`${Math.round(attendancePercent(totalPeople, event.capacity))}%`} />
               )}
-              {event.requiresPayment && (
-                <MetricTile label={`Recaudado (${event.currency})`} value={totalCollected} accent="success" />
+              {payment && (
+                <>
+                  <MetricTile label={`Recaudado (${event.currency})`} value={totalCollected} accent="success" />
+                  <MetricTile label="Personas pagadas" value={payment.paidPeople} accent="success" />
+                  <MetricTile label="Personas pendientes" value={payment.pendingPeople} accent="warning" />
+                  {paymentMethodTiles}
+                </>
               )}
             </div>
           </>

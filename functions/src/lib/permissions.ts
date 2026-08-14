@@ -111,7 +111,7 @@ export const LEGACY_COORG_DEFAULTS: LegacyCoOrgPermissions = {
 // Mismos valores que COLLABORATOR_ROLE_PRESETS (src/types/collaboratorPermissions.ts).
 const ROLE_PRESETS: Record<CollaboratorRole, PermissionSet> = {
   administrador: FULL_ACCESS,
-  recepcion: { ...NO_ACCESS, viewGuestList: true, scanQr: true, postWall: true, viewPayments: true },
+  recepcion: { ...NO_ACCESS, viewGuestList: true, scanQr: true, postWall: true, viewPayments: true, confirmPayments: true },
   caja: {
     ...NO_ACCESS,
     postWall: true,

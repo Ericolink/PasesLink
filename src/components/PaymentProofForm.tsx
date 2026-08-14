@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import type { GuestData } from '../types'
+import type { GuestData, PaymentMethod } from '../types'
 import type { usePaymentProof } from '../hooks/usePaymentProof'
 import { canSubmitPaymentProof } from '../firebase/guests'
 import { AccessibleField } from './accessibility/AccessibleField'
@@ -7,6 +7,7 @@ import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 
 interface Props {
   guest: GuestData
+  eventPaymentMethods: PaymentMethod[]
   proof: ReturnType<typeof usePaymentProof>
 }
 
@@ -14,12 +15,12 @@ interface Props {
 // escalabilidad, hallazgo F13). Independiente del botón de WhatsApp que
 // sigue en GuestPass.tsx: este marca el estado en la app, WhatsApp sigue
 // siendo el canal para mandar la imagen real del comprobante.
-export function PaymentProofForm({ guest, proof }: Props) {
+export function PaymentProofForm({ guest, eventPaymentMethods, proof }: Props) {
   const { proofNote, setProofNote, proofFormOpen, setProofFormOpen, proofSubmitting, proofError, proofErrorAttempt, handleSubmitProof } = proof
   const containerRef = useRef<HTMLDivElement>(null)
   useFocusFirstInvalidField(containerRef, proofErrorAttempt)
 
-  if (!canSubmitPaymentProof(guest)) return null
+  if (!canSubmitPaymentProof(guest, eventPaymentMethods)) return null
 
   return (
     <div ref={containerRef} className="mt-3">

@@ -25,7 +25,6 @@ import { GuestList } from '../components/GuestList'
 import { GuestSearchSheet } from '../components/GuestSearchSheet'
 import { EditEventForm } from '../components/EditEventForm'
 import { EventManagementPanel } from '../components/EventManagementPanel'
-import { CoOrganizerPanel } from '../components/CoOrganizerPanel'
 import { CollaboratorPanel } from '../components/CollaboratorPanel'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
@@ -38,6 +37,7 @@ import { AttendanceProgressBar } from '../components/AttendanceProgressBar'
 import { ShareEventButton } from '../components/ShareCard/ShareEventButton'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { formatDate, formatTime12h } from '../utils/time'
+import { paymentProgress } from '../utils/attendance'
 import {
   IconCalendar,
   IconCheck,
@@ -53,7 +53,6 @@ import {
   IconShare,
   IconShield,
   IconShuffle,
-  IconUserPlus,
   IconUsers,
 } from '../components/accessibility/AccessibleIcon'
 
@@ -73,7 +72,6 @@ export function EventDetail() {
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'az' | 'za'>('newest')
   const [guestSearchSheetOpen, setGuestSearchSheetOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(false)
-  const [manageCoOrgOpen, setManageCoOrgOpen] = useState(false)
   const [manageCollabOpen, setManageCollabOpen] = useState(false)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -88,8 +86,7 @@ export function EventDetail() {
     handleExportExcel,
     handleCancelExport,
   } = useEventExport(event, guests)
-  const coOrg = useCoOrganizers(eventId, event?.coOrganizersMap)
-  const { handleLeaveEvent } = coOrg
+  const coOrg = useCoOrganizers(eventId)
   const collab = useCollaborators(eventId, event?.collaborators)
   const perms = useEventPermissions(event, user)
   const { isAdmin } = useIsAdmin()
@@ -147,6 +144,7 @@ export function EventDetail() {
   // total que se muestra siempre. event.peopleCount es exacto sin importar
   // cuántos invitados estén cargados en pantalla.
   const totalPeople = event?.peopleCount ?? 0
+  const payment = event ? paymentProgress(event) : null
 
   // Fase 6: exportar necesita el conjunto COMPLETO de invitados, no la
   // ventana acotada por default — si `guests` todavía está truncado al
@@ -211,14 +209,20 @@ export function EventDetail() {
   }
 
   const coOrgsMap = event.coOrganizersMap || {}
+  // Cuenta combinada legacy+nuevo — un coorganizador YA es, en la práctica,
+  // un colaborador de rol Administrador (ver CollaboratorPanel.tsx).
+  const collaboratorsCount = Object.keys(coOrgsMap).length + Object.keys(event.collaborators || {}).length
 
-  // Un colaborador de rol angosto (Recepción/Caja/Ventas/Preparación) nunca
-  // tiene hasAccess (solo dueño/Administrador lo tienen, ver
+  // Un colaborador de rol angosto (Caja/Ventas/Preparación/Comunidad) nunca
+  // tiene hasAccess (solo dueño/Administrador/Recepción lo tienen, ver
   // resolveCollaboratorPermissions) — antes de esto caía en un callejón sin
-  // salida ("No tienes acceso"); ahora se lo redirige a su pantalla
-  // dedicada según el permiso que sí tiene (ROLES_PERMISSIONS_REDESIGN.md
-  // Fase 4). Orden de prioridad: preparación/caja → Encargados, ventas →
-  // Ventas del evento, recepción → Escáner.
+  // salida ("No tienes acceso"); ahora se lo redirige a su pantalla dedicada
+  // según el permiso que sí tiene (ROLES_PERMISSIONS_REDESIGN.md Fase 4).
+  // Orden de prioridad: preparación/caja → Encargados, ventas → Ventas del
+  // evento. La rama `scanQr` de abajo ya no aplica a ningún preset por
+  // default (Recepción tiene hasAccess=true y ve el dashboard directo) —
+  // sigue viva para el caso de un `permissionOverrides.scanQr` puntual sobre
+  // un rol sin hasAccess (ej. Comunidad + scanQr habilitado a mano).
   if (user && !perms.hasAccess) {
     if (perms.prepareOrders || perms.confirmPayments || (perms.viewOrders && !perms.manageConcessions)) {
       return <Navigate to={`/events/${event.id}/kitchen`} replace />
@@ -232,12 +236,20 @@ export function EventDetail() {
     return <ErrorFallbackCTA message="No tienes acceso a este evento." />
   }
 
+  // Un uid puede ser coorganizador legacy o colaborador del sistema nuevo
+  // (nunca ambos a la vez para el mismo evento) — cada uno vive en un mapa
+  // distinto y sale por una escritura distinta (ver useCoOrganizers.ts/
+  // useCollaborators.ts).
   async function handleLeave() {
     if (!user) return
     setLeaving(true)
     setActionError('')
     try {
-      await handleLeaveEvent(user.uid)
+      if (event?.collaborators?.[user.uid]) {
+        await collab.handleLeaveEvent(user.uid)
+      } else {
+        await coOrg.handleLeaveEvent(user.uid)
+      }
       navigate('/dashboard')
     } catch {
       setConfirmLeave(false)
@@ -375,25 +387,6 @@ export function EventDetail() {
                 )}
                 {perms.manageCoOrganizers && (
                   <button
-                    onClick={() => setManageCoOrgOpen((v) => !v)}
-                    aria-label="Coorganizadores"
-                    title="Coorganizadores"
-                    className={`relative p-2 rounded-lg transition-colors ${
-                      manageCoOrgOpen
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <IconUserPlus className="w-4 h-4" />
-                    {Object.entries(coOrgsMap).length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-primary text-white text-2xs leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
-                        {Object.entries(coOrgsMap).length}
-                      </span>
-                    )}
-                  </button>
-                )}
-                {perms.manageCoOrganizers && (
-                  <button
                     onClick={() => setManageCollabOpen((v) => !v)}
                     aria-label="Colaboradores"
                     title="Colaboradores"
@@ -404,9 +397,9 @@ export function EventDetail() {
                     }`}
                   >
                     <IconShield className="w-4 h-4" />
-                    {Object.entries(event.collaborators || {}).length > 0 && (
+                    {collaboratorsCount > 0 && (
                       <span className="absolute -top-1 -right-1 bg-primary text-white text-2xs leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
-                        {Object.entries(event.collaborators || {}).length}
+                        {collaboratorsCount}
                       </span>
                     )}
                   </button>
@@ -463,20 +456,21 @@ export function EventDetail() {
         </div>
       )}
 
-      {/* Gestión de co-organizadores (inline, visible al hacer clic en el ícono junto al lápiz) */}
-      {perms.manageCoOrganizers && <CoOrganizerPanel event={event} open={manageCoOrgOpen} coOrg={coOrg} />}
+      {/* Colaboradores (inline, visible al hacer clic en el ícono junto al
+          lápiz) — panel único, fusiona coorganizadores (legacy) y el sistema
+          unificado de colaboradores (ROLES_PERMISSIONS_REDESIGN.md), ver
+          CollaboratorPanel.tsx. */}
+      {perms.manageCoOrganizers && <CollaboratorPanel event={event} open={manageCollabOpen} coOrg={coOrg} collab={collab} />}
 
-      {/* Sistema unificado de colaboradores (ROLES_PERMISSIONS_REDESIGN.md
-          Fase 4) — vía nueva para altas nuevas, convive con el panel legacy
-          de arriba mientras dure la migración. */}
-      {perms.manageCoOrganizers && <CollaboratorPanel event={event} open={manageCollabOpen} collab={collab} />}
-
-      {/* Un co-organizador (no el dueño) puede dejar de serlo sin depender de él */}
+      {/* Un colaborador con acceso de Administrador (no el dueño) puede
+          dejar de serlo sin depender de él — funciona tanto para
+          coorganizadores legacy como para colaboradores del sistema nuevo,
+          ver handleLeave más arriba. */}
       {perms.isCoOrg && !perms.isOwner && (
         <div className="rounded-xl bg-gray-50 dark:bg-gray-800 dark:border dark:border-gray-700 p-4 mb-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Eres co-organizador de este evento</h2>
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Eres colaborador de este evento</h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Puedes dejar de serlo cuando quieras.</p>
             </div>
             <button
@@ -503,10 +497,10 @@ export function EventDetail() {
         event={event}
         guests={guests}
         totalPeople={totalPeople}
-        coOrganizersCount={Object.entries(coOrgsMap).length}
+        coOrganizersCount={collaboratorsCount}
         canAddGuests={perms.addGuests}
         canManageCoOrganizers={perms.manageCoOrganizers}
-        onOpenCoOrganizers={() => setManageCoOrgOpen(true)}
+        onOpenCoOrganizers={() => setManageCollabOpen(true)}
       />
 
       {/* ── ESTADO OPERATIVO ── fusiona lo que antes eran dos cards
@@ -558,6 +552,27 @@ export function EventDetail() {
             </p>
           )
         )}
+
+        {/* Personas que han pagado: solo eventos de pago (paymentProgress
+            regresa null en eventos gratuitos). paidPeople/totalPeople ya
+            cuentan personas (titular + acompañantes vía partySize en el
+            backend), no invitaciones — ver src/utils/attendance.ts. */}
+        {payment && (
+          <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Personas que han pagado</p>
+            <AttendanceProgressBar
+              present={payment.paidPeople}
+              expected={payment.totalPeople}
+              unitLabel="personas han pagado"
+              showPercentage
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {payment.pendingPeople > 0
+                ? `${payment.pendingPeople} persona${payment.pendingPeople === 1 ? '' : 's'} pendiente${payment.pendingPeople === 1 ? '' : 's'} de pago. Incluye acompañantes.`
+                : 'Todas las personas ya pagaron. Incluye acompañantes.'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── ACCESO ── compacto: compartir/copiar el enlace de auto-registro
@@ -588,7 +603,15 @@ export function EventDetail() {
           de la sección "Qué sigue". */}
       {event.attendeeLimitEnabled && perms.viewGuestList && (
         <div id="waitlist">
-          <WaitlistPanel eventId={event.id} canManage={perms.addGuests} />
+          <WaitlistPanel
+            eventId={event.id}
+            eventName={event.name}
+            canManage={perms.addGuests}
+            requiresPayment={event.requiresPayment}
+            paymentMethods={event.paymentMethods}
+            maxCompanions={resolveMaxCompanions(event)}
+            customFields={event.customFields}
+          />
         </div>
       )}
 

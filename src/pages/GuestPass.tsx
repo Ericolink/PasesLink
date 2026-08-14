@@ -46,6 +46,7 @@ import { SkeletonBlock } from '../components/Skeleton'
 import { PerforatedDivider } from '../components/PerforatedDivider'
 import { PassInfoCell } from '../components/PassInfoCell'
 import { GuestPassTicket } from '../components/GuestPassTicket'
+import { TransferInfoDisplay } from '../components/invitation/TransferInfoDisplay'
 import { OrganizerPassView, type CheckInState } from '../components/OrganizerPassView'
 import { CheckInSelectionModal } from '../components/CheckInSelectionModal'
 import { buildPendingSelection, type PendingCheckInSelection } from '../utils/checkInSelection'
@@ -939,19 +940,14 @@ function GuestPassInner() {
                 </p>
               )}
 
-              {(guest.paymentMethod === 'transfer' || (!guest.paymentMethod && event.paymentInstructions)) && event.paymentInstructions && (
-                <p className="text-sm whitespace-pre-line text-[var(--invite-text-muted)]">{event.paymentInstructions}</p>
-              )}
-              {guest.paymentMethod === 'cash' && (
-                <p className="text-sm text-[var(--invite-text-muted)]">Pagas en efectivo, presencialmente, el día del evento.</p>
-              )}
+              <TransferInfoDisplay event={event} className="mb-2" />
 
               {/* "Ya pagué" — extraído a PaymentProofForm.tsx (auditoría de
                   escalabilidad, hallazgo F13). Independiente del botón de
                   WhatsApp de abajo: este marca el estado en la app (pausa el
                   cronómetro), WhatsApp sigue siendo el canal para mandar la
                   imagen real del comprobante. */}
-              <PaymentProofForm guest={guest} proof={proof} />
+              <PaymentProofForm guest={guest} eventPaymentMethods={event.paymentMethods} proof={proof} />
 
               {event.organizerContactPhone && (
                 <a
