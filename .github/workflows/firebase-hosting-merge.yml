@@ -68,6 +68,15 @@ jobs:
       # comentario en firebase-staging-deploy.yml).
       - run: npm ci --prefix functions
 
+      # Workaround de un bug real de firebase-tools — ver el mismo comentario
+      # en firebase-hosting-pull-request.yml (confirmado en CI 2026-08-14:
+      # "No OAuth tokens found" al resolver secrets durante el descubrimiento
+      # del backend para el rewrite de Hosting, no un problema de IAM).
+      - name: Autenticar credenciales de GCP (workaround bug de firebase-tools con secrets + rewrites de Hosting)
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7 }}' > /tmp/gcp-sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa.json" >> "$GITHUB_ENV"
+
       - run: npm run build
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}

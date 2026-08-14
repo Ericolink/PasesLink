@@ -70,6 +70,19 @@ jobs:
       # real, ver el commit que agregó este comentario).
       - run: npm ci --prefix functions
 
+      # Workaround de un bug real de firebase-tools — ver el mismo comentario
+      # en firebase-hosting-pull-request.yml (confirmado en CI 2026-08-14:
+      # "No OAuth tokens found" al resolver secrets durante el descubrimiento
+      # del backend para el rewrite de Hosting, no un problema de IAM). Acá
+      # además destraba el paso de "Desplegar Firestore Rules..." de más
+      # abajo, que hasta ahora fijaba GOOGLE_APPLICATION_CREDENTIALS recién
+      # en su propio `run:` — quedaba sin efecto para el paso de Hosting de
+      # arriba, que corre antes.
+      - name: Autenticar credenciales de GCP (workaround bug de firebase-tools con secrets + rewrites de Hosting)
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING }}' > /tmp/gcp-sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa.json" >> "$GITHUB_ENV"
+
       # --mode staging: vite build lee .env.staging (no existe en CI, todo
       # llega por env vars igual) y, sobre todo, pone
       # import.meta.env.MODE = 'staging' — src/lib/sentry.ts ya usa ese
