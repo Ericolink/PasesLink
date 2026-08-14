@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CountryCode } from 'libphonenumber-js/min'
 import { updateEventDetails } from '../firebase/events'
+import { capacityReductionAllowed } from '../firebase/attendeeLimit'
 import { trackEventEdit } from '../lib/analytics'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { resolveMaxCompanions } from '../firebase/guests'
@@ -385,6 +386,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       setMaxCompanionsError(maxCompanionsValidationError)
       return
     }
+    if (!capacityReductionAllowed(event, parsedCapacity, form.attendeeLimitEnabled)) {
+      setCapacityError(`No puedes reducir la capacidad por debajo de las ${event.peopleCount} personas ya confirmadas.`)
+      return
+    }
     setCapacityError('')
     setMaxCompanionsError('')
     setSubmitError('')
@@ -480,6 +485,11 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     const { value: parsedMaxCompanions, error: maxCompanionsValidationError } = parseMaxCompanions(form.maxCompanions)
     if (maxCompanionsValidationError) {
       setMaxCompanionsError(maxCompanionsValidationError)
+      setErrorAttempt((n) => n + 1)
+      return
+    }
+    if (!capacityReductionAllowed(event, parsedCapacity, form.attendeeLimitEnabled)) {
+      setCapacityError(`No puedes reducir la capacidad por debajo de las ${event.peopleCount} personas ya confirmadas.`)
       setErrorAttempt((n) => n + 1)
       return
     }
@@ -848,12 +858,14 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           <Checkbox checked={form.attendeeLimitEnabled} onChange={(e) => updateField('attendeeLimitEnabled', e.target.checked)} />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Limitar número de asistentes</span>
         </label>
-        {/* No bloqueamos guardar un límite ya superado por los asistentes actuales
-            (ej. bajarlo de 250 a 180 con 220 ya registrados) — el organizador puede
-            necesitar frenar el registro YA. Nadie se elimina automáticamente: el
-            autorregistro y las altas manuales quedan cerrados hasta que baje del
-            límite por bajas/cancelaciones. Ver CAPACITY_LIMIT_ARCHITECTURE.md §3. */}
-        {form.attendeeLimitEnabled && event.peopleCount > (parseInt(form.capacity) || 0) && (
+        {/* capacityReductionAllowed (ver submitEvent/handleReviewSubmit) bloquea
+            bajar el límite (o activarlo recién ahora) por debajo de la gente ya
+            confirmada — un evento heredado que YA estaba en ese estado sin tocar
+            capacity/attendeeLimitEnabled en este guardado puede seguir así (nadie
+            se elimina automáticamente); este aviso solo cubre ese caso heredado,
+            el intento de reducirlo de verdad ya muestra el error de capacityError
+            arriba en vez de este aviso informativo. */}
+        {form.attendeeLimitEnabled && event.peopleCount > (parseInt(form.capacity) || 0) && !capacityError && (
           <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
             Ya hay {event.peopleCount} asistentes, por encima de este límite. No se elimina a nadie automáticamente —
             el autorregistro y las altas manuales quedan cerrados hasta que baje de {form.capacity} por cancelaciones

@@ -233,6 +233,25 @@ service cloud.firestore {
         || newEv.peopleCount <= oldEv.get('capacity', 0);
     }
 
+    // Complementa attendeeLimitOk (que protege que peopleCount no supere
+    // capacity): esta protege el sentido inverso, que el dueño no reduzca
+    // capacity (o active attendeeLimitEnabled recién ahora) a un valor por
+    // debajo de la gente ya confirmada. Espejo de capacityReductionAllowed
+    // en src/firebase/attendeeLimit.ts (misma regla, dos runtimes) — un
+    // evento heredado donde esa inconsistencia ya existía de antes puede
+    // seguir guardándose sin tocar, solo se bloquea una reducción o una
+    // activación NUEVAS que la empeoren o la creen en este guardado.
+    function capacityReductionOk(oldEv, newEv) {
+      let peopleCount = oldEv.get('peopleCount', 0);
+      let oldCapacity = oldEv.get('capacity', 0);
+      let oldEnabled = oldEv.get('attendeeLimitEnabled', false) == true;
+      let newCapacity = newEv.get('capacity', 0);
+      let newEnabled = newEv.get('attendeeLimitEnabled', false) == true;
+      return !newEnabled
+        || newCapacity >= peopleCount
+        || (newCapacity >= oldCapacity && oldEnabled);
+    }
+
     // rsvpYesCount/rsvpNoCount/rsvpPendingCount (auditoría F22): a diferencia
     // del resto de los contadores del evento, ESTE lo escribe directamente
     // el invitado sin cuenta desde su propio pase (setGuestRsvp/
@@ -1136,6 +1155,7 @@ service cloud.firestore {
       // que el dueño también satisface vía canDoData/isOwnerData.
       allow update: if (isOwnerData(resource.data) || isAdmin()) && eventContentCapsOk()
           && concessionsEnableChangeIsAllowed(resource.data, request.resource.data)
+          && capacityReductionOk(resource.data, request.resource.data)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['checkinsByHour'])
         // Contador walk-in (Opciones A y C, src/firebase/capacity.ts —
         // walkIn/walkOut): solo quien tiene el permiso `scanQr` (dueño
