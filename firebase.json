@@ -14,6 +14,12 @@
   "hosting": {
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "!**/.well-known/**", "**/node_modules/**", "**/*.map"],
+    "redirects": [
+      { "source": "/register", "destination": "https://www.paselink.com/register", "type": 301 },
+      { "source": "/login", "destination": "https://www.paselink.com/login", "type": 301 },
+      { "source": "/terminos", "destination": "https://www.paselink.com/terminos", "type": 301 },
+      { "source": "/privacidad", "destination": "https://www.paselink.com/privacidad", "type": 301 }
+    ],
     "rewrites": [
       {
         "source": "/e/**",
