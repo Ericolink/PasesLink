@@ -17,6 +17,7 @@ import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { useEventLifecycleActions } from '../hooks/useEventLifecycleActions'
 import { trackEventOpen } from '../lib/analytics'
 import { resolveMaxCompanions } from '../firebase/guests'
+import { subscribeToWaitlist } from '../firebase/waitlist'
 import { filterAndSortGuests } from '../utils/guestSearch'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
@@ -89,6 +90,20 @@ export function EventDetail() {
   const collab = useCollaborators(eventId, event?.collaborators)
   const perms = useEventPermissions(event, user)
   const { isAdmin } = useIsAdmin()
+
+  // Solo el conteo (waiting + offered), no las entradas — lo único que
+  // necesita el badge "Lista de espera" del resumen de GuestList. Mismo
+  // gate que WaitlistPanel más abajo (attendeeLimitEnabled + viewGuestList)
+  // para no suscribirse cuando esa sección ni se va a mostrar. Independiente
+  // de la suscripción propia de WaitlistPanel (mismo criterio ya usado en
+  // Reports.tsx/useEventDashboard.ts: cada consumidor pide lo que necesita).
+  const [waitlistCount, setWaitlistCount] = useState(0)
+  /* eslint-disable react-hooks/set-state-in-effect -- limpia el conteo previo al cambiar de evento/permisos antes de que llegue (o no) la nueva suscripción */
+  useEffect(() => {
+    if (!event?.id || !event.attendeeLimitEnabled || !perms.viewGuestList) { setWaitlistCount(0); return }
+    return subscribeToWaitlist(event.id, (entries) => setWaitlistCount(entries.length))
+  }, [event?.id, event?.attendeeLimitEnabled, perms.viewGuestList])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // event.id (no un booleano): useEvent puede entregar varios snapshots del
   // mismo evento a medida que cambian datos (invitados, contadores) — sin
@@ -712,6 +727,8 @@ export function EventDetail() {
             eventName={event.name}
             guests={filteredGuests}
             requiresPayment={event.requiresPayment}
+            entryMode={event.entryMode}
+            waitlistCount={waitlistCount}
             paymentMethods={event.paymentMethods}
             ticketPrice={event.ticketPrice}
             currency={event.currency}

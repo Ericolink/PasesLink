@@ -36,6 +36,7 @@ export function ListSection<T>({
   renderItem,
   pageSize = LIST_SECTION_PAGE_SIZE,
   loadMoreLabel,
+  hideCount = false,
 }: {
   title: string
   titleTone?: ListSectionTone
@@ -45,6 +46,15 @@ export function ListSection<T>({
   renderItem: (item: T) => React.ReactNode
   pageSize?: number
   loadMoreLabel?: string
+  // GuestList ya muestra este mismo número, más grande, en el resumen de
+  // MetricTile de arriba (ver GuestList.tsx) — mostrarlo también acá era
+  // literal duplicación. Se mantiene disponible (default false) porque
+  // WaitlistPanel no tiene ese resumen: su único "Lista de espera" mezcla
+  // waiting+offered, un total que ningún MetricTile de arriba repite. El
+  // conteo sigue anunciándose por lectura de pantalla vía aria-label aunque
+  // no se muestre — ocultarlo visualmente no debe borrar la información
+  // para quien no ve el resumen de arriba.
+  hideCount?: boolean
 }) {
   const [collapsed, setCollapsed] = useState(collapsedByDefault)
   const [visibleCount, setVisibleCount] = useState(pageSize)
@@ -52,6 +62,7 @@ export function ListSection<T>({
   if (items.length === 0) return null
   const expanded = alwaysExpanded || !collapsed
   const visible = items.slice(0, visibleCount)
+  const countLabel = `${items.length} invitado${items.length === 1 ? '' : 's'}`
 
   return (
     <div>
@@ -59,13 +70,16 @@ export function ListSection<T>({
         <button
           type="button"
           onClick={() => !alwaysExpanded && setCollapsed((c) => !c)}
+          aria-label={`${title}, ${countLabel}${alwaysExpanded ? '' : collapsed ? ', colapsado' : ', expandido'}`}
           className={`w-full flex items-center justify-between gap-2 px-1 py-2 ${alwaysExpanded ? 'cursor-default' : ''}`}
         >
-          <span className={`text-xs font-bold uppercase tracking-wide ${TITLE_TONE_CLASS[titleTone]}`}>{title}</span>
-          <span className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5">
-              {items.length}
-            </span>
+          <span aria-hidden="true" className={`text-xs font-bold uppercase tracking-wide ${TITLE_TONE_CLASS[titleTone]}`}>{title}</span>
+          <span aria-hidden="true" className="flex items-center gap-1.5">
+            {!hideCount && (
+              <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-0.5">
+                {items.length}
+              </span>
+            )}
             {!alwaysExpanded && (
               <IconChevronDown className={`w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
             )}

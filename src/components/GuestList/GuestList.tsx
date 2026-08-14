@@ -9,7 +9,7 @@ import {
   resetGuestRsvp,
   setGuestPaymentStatus,
 } from '../../firebase/guests'
-import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, PaymentMethod } from '../../types'
+import type { CustomField, DietaryRestriction, EntryMode, GuestData, GuestSegmentTag, MenuOption, PaymentMethod } from '../../types'
 import { IconInbox } from '../accessibility/AccessibleIcon'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../Empty/EmptyState'
@@ -21,8 +21,9 @@ import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethods'
 import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
 import { GuestSelectionBar } from './GuestSelectionBar'
-import { SECTION_ORDER, groupGuestsByUrgency, type GuestUrgency } from './guestGrouping'
+import { SECTION_ORDER, groupGuestsByUrgency, guestSummaryBadges, sectionTitle, type GuestUrgency } from './guestGrouping'
 import { ListSection, LoadMoreButton, LIST_SECTION_PAGE_SIZE } from './ListSection'
+import { MetricTile } from '../MetricTile'
 import { useAnnouncer } from '../accessibility/LiveRegion'
 import { getFunctionsErrorMessage } from '../../utils/firebaseErrorMessages'
 
@@ -45,6 +46,8 @@ export const GuestList = memo(function GuestList({
   eventName,
   guests,
   requiresPayment = false,
+  entryMode = 'list',
+  waitlistCount = 0,
   paymentMethods = [],
   ticketPrice = 0,
   currency = '',
@@ -68,6 +71,12 @@ export const GuestList = memo(function GuestList({
   eventName: string
   guests: GuestData[]
   requiresPayment?: boolean
+  entryMode?: EntryMode
+  // Cuántas personas hay en lista de espera ahora mismo (waiting + offered,
+  // mismo criterio que WaitlistPanel) — GuestList no se suscribe a esa
+  // colección, EventDetail.tsx se la pasa ya calculada. Solo se usa para
+  // decidir si el badge "Lista de espera" del resumen aparece (>0).
+  waitlistCount?: number
   paymentMethods?: PaymentMethod[]
   ticketPrice?: number
   currency?: string
@@ -376,14 +385,29 @@ export const GuestList = memo(function GuestList({
 
       {groups ? (
         <div className="space-y-4">
+          {/* Única fuente visible de "cuántos hay": el badge chico que
+              ListSection mostraba en su propio encabezado se ocultó
+              (hideCount) para no duplicar el mismo número dos veces en la
+              misma pantalla. Qué 2-3 tarjetas se arman depende de cómo
+              llegan los invitados a la lista (entryMode) y de si el evento
+              cobra — ver guestSummaryBadges. Se oculta junto con las
+              secciones al buscar (groups === null), porque deja de
+              representar "todo el evento". */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {guestSummaryBadges(groups, guests.length, entryMode, requiresPayment, waitlistCount).map((badge) => (
+              <MetricTile key={badge.label} label={badge.label} value={badge.count} sub={badge.sub} accent={badge.accent} />
+            ))}
+          </div>
+
           {SECTION_ORDER.map((section) => (
             <ListSection
               key={section.key}
-              title={section.title}
+              title={sectionTitle(section.key, requiresPayment)}
               titleTone={SECTION_TONE[section.key]}
               alwaysExpanded={section.key === 'attention'}
               collapsedByDefault={section.collapsedByDefault}
               items={groups[section.key]}
+              hideCount
               renderItem={(guest) => <GuestRow key={guest.id} guest={guest} selected={selected.has(guest.id)} {...rowProps} />}
             />
           ))}

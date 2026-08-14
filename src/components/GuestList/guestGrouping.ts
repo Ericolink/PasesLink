@@ -1,4 +1,4 @@
-import type { GuestData } from '../../types'
+import type { EntryMode, GuestData } from '../../types'
 import { partySize, guestPresence } from '../../firebase/guests'
 import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethods'
 
@@ -54,10 +54,83 @@ export const SECTION_ORDER: { key: GuestUrgency; title: string; collapsedByDefau
   { key: 'declined', title: 'No asistirán', collapsedByDefault: true },
 ]
 
+// "Confirmados" es ambiguo en eventos de pago: todo lo que cae en esa
+// sección ya tiene paymentStatus 'paid' (ver guestUrgency), así que el
+// nombre genérico se leía como si fuera sobre asistencia — no sobre pago.
+// En eventos gratis no hay pago que confirmar, así que el título original
+// (asistencia) sigue siendo el correcto y no cambia. Separado de
+// SECTION_ORDER porque el título de esta única sección depende de
+// `requiresPayment`, algo que SECTION_ORDER no conoce.
+export function sectionTitle(key: GuestUrgency, requiresPayment: boolean): string {
+  if (key === 'confirmed' && requiresPayment) return 'Pagos confirmados'
+  return SECTION_ORDER.find((s) => s.key === key)!.title
+}
+
 export function groupGuestsByUrgency(guests: GuestData[], requiresPayment: boolean): Record<GuestUrgency, GuestData[]> {
   const groups: Record<GuestUrgency, GuestData[]> = { attention: [], confirmed_unpaid: [], confirmed: [], unanswered: [], declined: [] }
   for (const guest of guests) groups[guestUrgency(guest, requiresPayment)].push(guest)
   return groups
+}
+
+export interface SummaryBadge {
+  label: string
+  count: number
+  accent: 'success' | 'warning' | 'gray'
+  sub?: string
+}
+
+// Fila de resumen (MetricTile, ver GuestList.tsx) arriba de las listas — no
+// repite groups[key] tal cual (esas ya no muestran su propio conteo, ver
+// `hideCount` en ListSection), sino que cambia qué pregunta responde según
+// cómo llegan los invitados: en "lista" (entryMode) el organizador arma la
+// lista a mano y lo que importa es si cada quien confirmó asistencia; en
+// "auto-registro"/"ingreso libre" cualquiera se suma solo, así que lo que
+// importa es si ya pagó (o, en evento gratis, simplemente cuántos hay).
+// Reutiliza `groups` tal cual lo devuelve `groupGuestsByUrgency` — ningún
+// conteo nuevo, solo otra forma de sumarlos.
+export function guestSummaryBadges(
+  groups: Record<GuestUrgency, GuestData[]>,
+  totalGuests: number,
+  entryMode: EntryMode,
+  requiresPayment: boolean,
+  waitlistCount: number,
+): SummaryBadge[] {
+  if (entryMode === 'list') {
+    // "Confirmado" acá es asistencia (rsvpStatus 'yes'), sin importar el
+    // pago — attention/confirmed_unpaid/confirmed son las tres formas de
+    // llegar a rsvp 'yes' (ver guestUrgency), unanswered/declined las dos
+    // de no llegar.
+    const confirmed = groups.attention.length + groups.confirmed_unpaid.length + groups.confirmed.length
+    return [
+      { label: 'Registrados', count: totalGuests, accent: 'gray' },
+      {
+        label: 'Confirmados',
+        count: confirmed,
+        accent: 'success',
+        sub: confirmed === 0 ? 'Todavía no hay invitados confirmados.' : undefined,
+      },
+      { label: 'No confirmados', count: totalGuests - confirmed, accent: 'gray' },
+    ]
+  }
+
+  if (requiresPayment) {
+    const unpaid = groups.attention.length + groups.confirmed_unpaid.length
+    const badges: SummaryBadge[] = [
+      { label: 'Pendientes de pago', count: unpaid, accent: 'warning', sub: unpaid === 0 ? 'No hay pagos pendientes.' : undefined },
+      {
+        label: 'Pagos confirmados',
+        count: groups.confirmed.length,
+        accent: 'success',
+        sub: groups.confirmed.length === 0 ? 'Todavía no hay pagos confirmados.' : undefined,
+      },
+    ]
+    if (waitlistCount > 0) badges.push({ label: 'Lista de espera', count: waitlistCount, accent: 'warning' })
+    return badges
+  }
+
+  const badges: SummaryBadge[] = [{ label: 'Registrados', count: totalGuests, accent: 'gray' }]
+  if (waitlistCount > 0) badges.push({ label: 'Lista de espera', count: waitlistCount, accent: 'warning' })
+  return badges
 }
 
 // Color del indicador de la fila. Comparte `needsAttention` como única fuente
