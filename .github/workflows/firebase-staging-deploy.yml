@@ -79,8 +79,10 @@ jobs:
       # en su propio `run:` — quedaba sin efecto para el paso de Hosting de
       # arriba, que corre antes.
       - name: Autenticar credenciales de GCP (workaround bug de firebase-tools con secrets + rewrites de Hosting)
+        env:
+          GCP_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING }}
         run: |
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASELINK_STAGING }}' > /tmp/gcp-sa.json
+          echo "$GCP_SA_JSON" > /tmp/gcp-sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa.json" >> "$GITHUB_ENV"
 
       # --mode staging: vite build lee .env.staging (no existe en CI, todo
