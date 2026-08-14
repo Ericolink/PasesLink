@@ -181,7 +181,14 @@ const ConcessionsConfigSchema = z.object({
   useEventPaymentInstructions: z.boolean(),
   paymentInstructions: z.string().optional(),
   pickupInstructions: z.string().optional(),
-  concessionsStaffMap: z.record(z.string(), z.string()).optional(),
+  // Union con el shape legado (string = solo email, ver ConcessionsStaffEntry
+  // en src/types/concessions.ts) — el schema anterior solo aceptaba string y
+  // fallaba la validación (silenciosa, warnIfInvalidShape no lanza) para
+  // cualquier encargado ya migrado al shape nuevo, real en producción.
+  concessionsStaffMap: z.record(
+    z.string(),
+    z.union([z.string(), z.object({ email: z.string(), roles: z.object({ cashier: z.boolean(), prep: z.boolean() }) })]),
+  ).optional(),
 })
 
 // Espeja CoOrganizerPermissions (src/types/coOrganizerPermissions.ts).
@@ -282,6 +289,7 @@ export const EventSchema = z.object({
   checkedInCount: z.number(),
   occupancyCount: z.number(),
   paidCount: z.number(),
+  walkInNetCount: z.number().optional(),
   checkinsByHour: z.record(z.string(), z.number()),
   rsvpYesCount: z.number(),
   rsvpNoCount: z.number(),
