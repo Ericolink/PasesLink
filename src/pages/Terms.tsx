@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { LEGAL_DOCS, formatLegalDocDate } from '../legal/documents'
-import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useSeoMeta } from '../hooks/useSeoMeta'
 
 // Contenido separado del layout de página para poder reusarlo dentro de
 // LegalDocumentSheet (el modal que se abre desde el registro) sin duplicar texto.
@@ -73,7 +73,11 @@ export function TermsContent() {
 }
 
 export function Terms() {
-  useDocumentTitle('Términos y condiciones')
+  useSeoMeta({
+    title: 'Términos y condiciones',
+    description: 'Términos y condiciones de uso de PaseLink: qué es el servicio, responsabilidades del organizador y de la plataforma.',
+    path: '/terminos',
+  })
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 animate-fade-in">
       <TermsContent />

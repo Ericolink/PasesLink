@@ -1,6 +1,6 @@
 // Barrido completo semanal (Cloud Scheduler, domingo 04:00 UTC — horario
-// distinto al de sweepReconfirmations, 13:00 UTC, para no acumular jobs en
-// el mismo instante) — wrapper fino de reconcileAllGuestCounters
+// elegido para no acumular jobs con otros barridos programados) — wrapper
+// fino de reconcileAllGuestCounters
 // (functions/src/reconciliation/reconcileGuestCounters.ts). Ver
 // BLAZE_ENTERPRISE_ARCHITECTURE_AUDIT.md §4.4 / FIRESTORE_RULES_SIMPLIFICATION_AUDIT.md
 // Fase D.

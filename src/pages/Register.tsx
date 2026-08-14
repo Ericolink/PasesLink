@@ -10,7 +10,7 @@ import { PasswordInput } from '../components/PasswordInput'
 import { AccessibleButton } from '../components/accessibility/AccessibleButton'
 import { IconGoogle } from '../components/accessibility/AccessibleIcon'
 import { useAuth } from '../hooks/useAuth'
-import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useSeoMeta } from '../hooks/useSeoMeta'
 import { uploadImage } from '../utils/cloudinary'
 import { usePickAndCropImage } from '../hooks/usePickAndCropImage'
 import { ImageCropModal } from '../components/ImageCropModal'
@@ -22,7 +22,11 @@ const DEV_AUTO_SKIP_MS = 30000
 
 export function Register() {
   const { user } = useAuth()
-  useDocumentTitle('Crear cuenta')
+  useSeoMeta({
+    title: 'Crear cuenta',
+    description: 'Crea tu cuenta gratis en PaseLink y empieza a gestionar invitados, pases con QR y check-in de tus eventos.',
+    path: '/register',
+  })
   const navigate = useNavigate()
   const location = useLocation()
 

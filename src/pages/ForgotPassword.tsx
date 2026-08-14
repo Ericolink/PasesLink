@@ -7,10 +7,12 @@ import { IconCheckCircle } from '../components/accessibility/AccessibleIcon'
 import { AccessibleButton } from '../components/accessibility/AccessibleButton'
 import { TextField } from '../components/accessibility/AccessibleField'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useNoIndex } from '../hooks/useNoIndex'
 import { getAuthErrorInfo, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 
 export function ForgotPassword() {
   useDocumentTitle('Recuperar contraseña')
+  useNoIndex()
   const [email, setEmail] = useState('')
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)
   const [loading, setLoading] = useState(false)

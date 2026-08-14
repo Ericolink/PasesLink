@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useSeoMeta } from '../hooks/useSeoMeta'
 import { IconBarChart, IconCamera, IconCheck, IconCheckCircle, IconTicket } from '../components/accessibility/AccessibleIcon'
 
 const FEATURES = [
@@ -52,7 +52,12 @@ const STEPS = [
 
 export function Landing() {
   const { user, loading } = useAuth()
-  useDocumentTitle('Gestión de invitados para eventos')
+  useSeoMeta({
+    title: 'Gestión de invitados para eventos',
+    description:
+      'Crea eventos, envía invitaciones digitales con QR y controla el acceso de tus invitados en tiempo real. Gratis y sin descargas.',
+    path: '/',
+  })
 
   if (!loading && user) {
     return <Navigate to="/dashboard" replace />

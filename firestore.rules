@@ -710,15 +710,15 @@ service cloud.firestore {
     // caso de uso claro: updateGuestSelf) y en las 2 ramas del organizador/
     // admin (editGuests/isAdmin) que NO restringen qué campos se pueden
     // tocar — esas dos son el fallback de CUALQUIER escritura del
-    // organizador que no encaje en una rama más específica (tableId,
-    // reconfirmDeadline, etc. tienen la suya propia), así que no solo cubren
-    // updateGuest: también resetGuestRsvp, unlockGuestPass y
-    // bulkSetGuestTags cotizan contra esta misma rama y por eso ellas
-    // también avanzan `version` (con increment(), ver guestVersionBump en
-    // src/firebase/guests.ts — no necesitan detectar conflicto, solo
-    // mantener el campo consistente). El resto de las ramas de
-    // `guests/{guestId}` (RSVP del invitado, comprobante de pago, reconfirmar,
-    // dispositivos reconocidos, vincular cuenta) son transiciones de estado
+    // organizador que no encaje en una rama más específica (tableId tiene
+    // la suya propia), así que no solo cubren updateGuest: también
+    // resetGuestRsvp, unlockGuestPass y bulkSetGuestTags cotizan contra
+    // esta misma rama y por eso ellas también avanzan `version` (con
+    // increment(), ver guestVersionBump en src/firebase/guests.ts — no
+    // necesitan detectar conflicto, solo mantener el campo consistente).
+    // El resto de las ramas de `guests/{guestId}` (RSVP del invitado,
+    // comprobante de pago, dispositivos reconocidos, vincular cuenta) son
+    // transiciones de estado
     // de 1-2 campos ya protegidas por su propia lectura fresca / gate de
     // lockTokens y no llevan este chequeo.
     function guestVersionOk(oldData, newData) {
@@ -1360,34 +1360,9 @@ service cloud.firestore {
             canDoData(eventDataFor(eventId), 'manageSeating', true) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tableId'])
           ) ||
-          // "Dar más tiempo" del organizador (ReconfirmPanel.tsx) — mismo
-          // permiso que ya gatea el resto de la gestión de invitados
-          // (addGuests, reutilizado también por la lista de espera). Vuelve
-          // a poner 'requested' con un plazo nuevo — no valida que el plazo
-          // nuevo sea mayor al viejo (el organizador puede necesitar
-          // corregir una fecha mal puesta, no solo extenderla).
-          (
-            canDoData(eventDataFor(eventId), 'addGuests', true) &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reconfirmStatus', 'reconfirmDeadline']) &&
-            request.resource.data.reconfirmStatus == 'requested'
-          ) ||
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpStatus', 'lockToken']) &&
             guestLockTokensOk(resource.data, request.resource.data.lockToken)
-          ) ||
-          // El propio invitado reconfirma su asistencia ("Sí, voy a
-          // asistir", GuestPass — ver WAITLIST_RECONFIRMATION_ARCHITECTURE.md
-          // Fase 2). Solo puede escribir 'confirmed' — 'requested'/'expired'
-          // los escribe exclusivamente la Callable/el barrido (Admin SDK,
-          // ignora esta regla) o el organizador (rama aparte, "dar más
-          // tiempo"). Sin esto, un invitado que nunca fue parte de una
-          // campaña (reconfirmStatus ausente) no tiene nada que confirmar,
-          // así que se exige que ya exista 'requested' antes.
-          (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reconfirmStatus', 'lockToken']) &&
-            guestLockTokensOk(resource.data, request.resource.data.get('lockToken', null)) &&
-            resource.data.get('reconfirmStatus', null) == 'requested' &&
-            request.resource.data.reconfirmStatus == 'confirmed'
           ) ||
           // El propio invitado marca "ya pagué / comprobante enviado"
           // (submitPaymentProof, src/firebase/guests.ts) — solo desde un

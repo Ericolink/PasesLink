@@ -448,22 +448,6 @@ export interface EventData {
   rsvpDeadline?: string
   remindersEnabled?: boolean
   reminderRules?: ReminderRule[]
-  // Campaña de reconfirmación de asistencia (ver
-  // WAITLIST_RECONFIRMATION_ARCHITECTURE.md, Fase 2) — solo la campaña
-  // ACTIVA/última, no un historial (una por vez, se reemplaza al relanzar).
-  // Ausente = el evento nunca inició una. reminderRules reutiliza el mismo
-  // tipo que reminderRules de arriba (mismo componente de UI,
-  // ReminderRulesEditor.tsx, mismo motor de envío en functions/).
-  reconfirmCampaign?: {
-    startedAt: number
-    deadline: number
-    // Siempre se les pide reconfirmar a invitados confirmados (rsvpStatus
-    // 'yes') que todavía no pagaron — sin excepción ni opción para incluir
-    // a quien ya pagó (decisión explícita: más simple que el diseño
-    // original, que permitía incluirlos).
-    excludeTagIds?: string[]
-    reminderRules: ReminderRule[]
-  }
   plan: Plan
   paymentStatus: PaymentStatus
   status: EventStatus
@@ -776,16 +760,6 @@ export interface GuestData {
   guestUid?: string | null
   guestPhotoURL?: string | null
   createdAt: number
-  // Reconfirmación de asistencia (ver WAITLIST_RECONFIRMATION_ARCHITECTURE.md,
-  // Fase 2). Ausente = nunca fue parte de ninguna campaña. 'requested' lo
-  // escribe la Callable que arranca la campaña o "dar más tiempo" del
-  // organizador; 'confirmed' solo lo puede escribir el propio invitado
-  // (autoservicio por lockToken); 'expired' solo el barrido diario
-  // (Admin SDK) cuando vence reconfirmDeadline sin respuesta — nunca se
-  // libera el lugar automáticamente al llegar acá, es un estado "en
-  // riesgo" que el organizador resuelve a mano (liberar o dar más tiempo).
-  reconfirmStatus?: 'requested' | 'confirmed' | 'expired'
-  reconfirmDeadline?: number | null
   // Control de concurrencia optimista: se incrementa en +1 en cada escritura
   // que lo chequea (updateGuest/updateGuestSelf, ver src/firebase/guests.ts).
   // Ausente/0 en invitados creados antes de este campo. NO todas las

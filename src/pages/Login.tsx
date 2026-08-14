@@ -8,13 +8,17 @@ import { PasswordInput } from '../components/PasswordInput'
 import { AccessibleButton } from '../components/accessibility/AccessibleButton'
 import { IconCheckCircle, IconGoogle } from '../components/accessibility/AccessibleIcon'
 import { useAuth } from '../hooks/useAuth'
-import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useSeoMeta } from '../hooks/useSeoMeta'
 import { getAuthErrorInfo, isAuthCancellation, type AuthErrorInfo } from '../utils/firebaseErrorMessages'
 import { captureException } from '../lib/sentry'
 
 export function Login() {
   const { user } = useAuth()
-  useDocumentTitle('Iniciar sesión')
+  useSeoMeta({
+    title: 'Iniciar sesión',
+    description: 'Inicia sesión en PaseLink para administrar tus eventos, invitados y pases con QR.',
+    path: '/login',
+  })
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errorInfo, setErrorInfo] = useState<AuthErrorInfo | null>(null)

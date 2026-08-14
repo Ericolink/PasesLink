@@ -1,14 +1,32 @@
 User-agent: *
 Allow: /
-# Rutas privadas o sin valor para buscadores
+
+# Autenticadas / de organizador — requieren ProtectedRoute o AdminRoute,
+# nunca sirven contenido a un bot sin sesión, pero se listan igual para no
+# depender solo de eso.
 Disallow: /dashboard
 Disallow: /admin
 Disallow: /profile
 Disallow: /events/
-Disallow: /pass/
 Disallow: /my-invitations
 Disallow: /my-events
+Disallow: /my-templates
 Disallow: /complete-profile
+Disallow: /co/
+Disallow: /collab/
+Disallow: /menu-staff/
+
+# Públicas pero de un invitado/evento puntual (pase con QR, auto-registro,
+# muro, lista de espera) — nunca deben aparecer en buscadores aunque no
+# requieran sesión. Ver también <meta name="robots" content="noindex"> en
+# estas mismas rutas (src/hooks/useNoIndex.ts) para bloquear también la
+# indexación si el link llega a descubrirse por otro medio.
+Disallow: /pass/
+Disallow: /e/
+Disallow: /waitlist/
+
+# Recuperación de contraseña: /reset-password lleva el código de un solo uso
+# en la URL (?oobCode=...), nunca debe quedar cacheado por un buscador.
 Disallow: /reset-password
 
 Sitemap: https://app-pases-9e6e7.web.app/sitemap.xml

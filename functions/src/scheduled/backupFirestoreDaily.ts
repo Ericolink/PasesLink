@@ -1,7 +1,7 @@
 // Backup nativo diario de Firestore → Cloud Storage (ver
 // docs/firestore-backups.md). Horario elegido para no coincidir con los
 // otros jobs de baja demanda del proyecto (reconcileGuestCounters 04:00 UTC,
-// backup-firestore.mjs vía GitHub Actions 08:17 UTC, sweepReconfirmations
+// backup-firestore.mjs vía GitHub Actions 08:17 UTC, sendRsvpReminders
 // 13:00 UTC). timeoutSeconds generoso porque esperamos a que termine la
 // operación de export (LRO) para poder loguear duración/tamaño en un solo
 // lugar — ver exportFirestore.ts.

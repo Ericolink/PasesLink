@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useNoIndex } from '../hooks/useNoIndex'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { submitFeedback } from '../firebase/feedback'
 import { FEEDBACK_CATEGORY_LABELS } from '../types'
@@ -31,6 +32,7 @@ const inputClass =
 
 export function Feedback() {
   useDocumentTitle('Buzón de sugerencias')
+  useNoIndex()
   const { user } = useAuth()
   const { profile } = useUserProfile()
   const prefersReducedMotion = usePrefersReducedMotion()

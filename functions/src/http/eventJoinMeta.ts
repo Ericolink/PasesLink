@@ -21,7 +21,7 @@ import { getApp } from 'firebase-admin/app'
 import { getFirestore, type DocumentData, type Firestore } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions/logger'
 import { buildSelfRegistrationMetadata } from '../linkMeta/buildSelfRegistrationMetadata.js'
-import { injectMetaTags } from '../linkMeta/injectMetaTags.js'
+import { injectMetaTags, injectNoIndex } from '../linkMeta/injectMetaTags.js'
 import { resolveLinkCreator } from '../linkMeta/resolveLinkCreator.js'
 
 export function parseEventIdFromPath(path: string): string | null {
@@ -52,7 +52,10 @@ export async function renderEventJoinHtml({
   refUid,
   baseUrl,
 }: RenderEventJoinHtmlParams): Promise<string> {
-  const [baseHtml, eventSnap] = await Promise.all([fetchBaseHtml(), db.collection('events').doc(eventId).get()])
+  const [fetchedHtml, eventSnap] = await Promise.all([fetchBaseHtml(), db.collection('events').doc(eventId).get()])
+  // /e/:id es siempre un evento privado puntual — nunca debe indexarse, con
+  // o sin personalización aplicada (ver injectNoIndex).
+  const baseHtml = injectNoIndex(fetchedHtml)
 
   if (!eventSnap.exists) return baseHtml
   const event = eventSnap.data() as DocumentData

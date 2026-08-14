@@ -3,13 +3,13 @@
 // construir el payload de Meta a mano dentro de cada caller (ver §6 del
 // issue: "no hardcodees toda la lógica dentro de cada Cloud Function").
 //
-// Los dos nombres de acá (`oferta_lugar`, `reconfirmar`) son los definidos
-// en WAITLIST_RECONFIRMATION_ARCHITECTURE.md §10.3 — DEBEN coincidir
+// El nombre de acá (`oferta_lugar`) es el definido en
+// WAITLIST_RECONFIRMATION_ARCHITECTURE.md §10.3 — DEBE coincidir
 // exactamente con el nombre y el orden de variables de la plantilla ya
 // aprobada en Meta Business Manager cuando se configure (§10.4, trámite
 // externo). Si el texto final aprobado por Meta pide reordenar/quitar una
 // variable, se ajusta acá — ningún caller arma componentes a mano.
-export type WhatsAppTemplateKind = 'waitlist_offer' | 'reconfirm_request'
+export type WhatsAppTemplateKind = 'waitlist_offer'
 
 export interface WhatsAppTemplateDef {
   name: string
@@ -28,13 +28,5 @@ export const WHATSAPP_TEMPLATES: Record<WhatsAppTemplateKind, WhatsAppTemplateDe
     name: 'oferta_lugar',
     language: 'es_MX',
     buildBodyParams: (vars) => [vars.guestName, vars.eventName, vars.deadline, vars.link],
-  },
-  // "Hola {{1}}, {{2}} pidió reconfirmar tu asistencia a {{3}}. Responde
-  // antes de {{4}} para no perder tu lugar: {{5}} Gracias." — mismo motivo
-  // que waitlist_offer.
-  reconfirm_request: {
-    name: 'reconfirmar',
-    language: 'es_MX',
-    buildBodyParams: (vars) => [vars.guestName, vars.organizerName, vars.eventName, vars.deadline, vars.link],
   },
 }
