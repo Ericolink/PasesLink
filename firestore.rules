@@ -858,6 +858,26 @@ service cloud.firestore {
         && request.resource.data.updatedBy == request.auth.uid;
     }
 
+    // Publicidad (doc singleton, ver src/hooks/useAdsConfig.ts y
+    // src/components/ads/AdSlot.tsx). Mismo criterio que platformConfig/
+    // maintenance de arriba: `allow get` público porque AdSlot se monta en
+    // páginas sin sesión (landing, invitación pública) y necesita leer si
+    // hay que mostrar algo antes de saber si hay usuario autenticado. Los
+    // 2 placements conocidos van fijos en `placements` (ver AD_PLACEMENTS
+    // en src/types/ads.ts) — un doc con un placement de más/de menos se
+    // rechaza para que Firestore y el código nunca queden desincronizados.
+    match /platformConfig/ads {
+      allow get: if true;
+      allow list: if false;
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['enabled', 'placements', 'updatedAt', 'updatedBy'])
+        && request.resource.data.enabled is bool
+        && request.resource.data.placements.keys().hasOnly(['landing-bottom', 'invitation-bottom'])
+        && request.resource.data.placements['landing-bottom'] is bool
+        && request.resource.data.placements['invitation-bottom'] is bool
+        && request.resource.data.updatedBy == request.auth.uid;
+    }
+
     // Buzón de feedback (src/pages/Feedback.tsx). Solo el admin puede leer —
     // ni siquiera el propio autor puede releer lo que envió (pedido
     // explícito: "no permitir que usuarios lean comentarios de otros").

@@ -38,6 +38,7 @@ import { InviteDivider } from '../components/InviteDivider'
 import { EventCountdown } from '../components/EventCountdown'
 import { PassSecurityNotice } from '../components/PassSecurityNotice'
 import { InAppBrowserBanner } from '../components/InAppBrowserBanner'
+import { AdSlot } from '../components/ads/AdSlot'
 import { AccessibleModal } from '../components/accessibility/AccessibleModal'
 import { ErrorFallbackCTA } from '../components/ErrorFallbackCTA'
 import { SkeletonBlock } from '../components/Skeleton'
@@ -1001,6 +1002,9 @@ function GuestPassInner() {
           </div>
         )
       )}
+
+      <AdSlot placement="invitation-bottom" />
+
       {editOpen && eventId && (
         <GuestEditModal
           eventId={eventId}

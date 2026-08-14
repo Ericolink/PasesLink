@@ -2,6 +2,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useSeoMeta } from '../hooks/useSeoMeta'
 import { IconBarChart, IconCamera, IconCheck, IconCheckCircle, IconTicket } from '../components/accessibility/AccessibleIcon'
+import { AdSlot } from '../components/ads/AdSlot'
 
 const FEATURES = [
   {
@@ -288,6 +289,10 @@ export function Landing() {
           </Link>
         </div>
       </section>
+
+      <div className="max-w-2xl mx-auto px-4">
+        <AdSlot placement="landing-bottom" />
+      </div>
     </div>
   )
 }

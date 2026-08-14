@@ -6,6 +6,7 @@ import { HeroKpiGrid } from '../../components/Admin/ControlCenter/HeroKpiGrid'
 import { AlertsPanel } from '../../components/Admin/ControlCenter/AlertsPanel'
 import { PlatformHealthPanel } from '../../components/Admin/ControlCenter/PlatformHealthPanel'
 import { MaintenanceModePanel } from '../../components/Admin/ControlCenter/MaintenanceModePanel'
+import { AdsPanel } from '../../components/Admin/ControlCenter/AdsPanel'
 import { GrowthSection } from '../../components/Admin/ControlCenter/GrowthSection'
 import { FunnelSection } from '../../components/Admin/ControlCenter/FunnelSection'
 import { RecentActivityFeed } from '../../components/Admin/ControlCenter/RecentActivityFeed'
@@ -16,6 +17,7 @@ import { QuickActionsBar } from '../../components/Admin/ControlCenter/QuickActio
 import {
   IconAlertTriangle,
   IconClock,
+  IconGlobe,
   IconMonitor,
   IconSmartphone,
   IconTicket,
@@ -55,6 +57,10 @@ export function AdminControlCenter({
 
       <DashboardSection title="Modo mantenimiento" icon={IconTool} description="¿Necesitas bloquear la app mientras hacés cambios?">
         <MaintenanceModePanel />
+      </DashboardSection>
+
+      <DashboardSection title="Publicidad" icon={IconGlobe} description="Landing e invitación pública, fase 1 — ver AdSlot.tsx.">
+        <AdsPanel />
       </DashboardSection>
 
       <DashboardSection title="Resumen" icon={IconTrendingUp} description="¿Cómo está el negocio hoy?">

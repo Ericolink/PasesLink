@@ -178,6 +178,13 @@ export function trackLogout() {
   track('logout')
 }
 
+// ---- Publicidad (AdSlot) ----
+
+/** Un placement de anuncio entró en el viewport. Solo el id del placement — nunca datos del invitado/evento. */
+export function trackAdSlotView(placement: string) {
+  track('ad_slot_view', { placement })
+}
+
 /** Asocia el uid (no es información sensible, es un identificador opaco) a los eventos siguientes. Llamar con `null` al cerrar sesión. */
 export function setAnalyticsUserId(uid: string | null) {
   void ready.then(() => {

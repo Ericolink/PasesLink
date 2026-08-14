@@ -21,6 +21,7 @@ import { InvitationMenu } from './InvitationMenu'
 import { InvitationGuestInfo } from './InvitationGuestInfo'
 import { InvitationScrollCue } from './InvitationScrollCue'
 import { InvitationAccountFab } from './InvitationAccountFab'
+import { AdSlot } from '../ads/AdSlot'
 
 interface Props {
   event: EventData
@@ -176,6 +177,8 @@ export function HousePartyPassLayout({
           Confirma tu asistencia para ver la comunidad del evento.
         </p>
       )}
+
+      <AdSlot placement="invitation-bottom" />
 
       <footer className="pt-6 pb-2">
         <Logo variant="invite" className="h-6 mx-auto opacity-70" />

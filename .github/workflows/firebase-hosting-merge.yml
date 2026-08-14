@@ -95,6 +95,14 @@ jobs:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           # Solo en este workflow (deploy real a producción) — no en el de
           # preview de PRs, para no crear un release de Sentry por cada PR.
+          # Publicidad (AdSense) — a propósito SOLO acá, nunca en staging ni
+          # en previews de PR: servir anuncios reales desde dominios que no
+          # son tráfico real de usuarios puede marcarse como tráfico
+          # inválido ante Google. Mientras estas 3 no estén en Secrets del
+          # repo, AdSlot sigue sin renderizar nada (ver .env.example).
+          VITE_ADSENSE_CLIENT_ID: ${{ secrets.VITE_ADSENSE_CLIENT_ID }}
+          VITE_ADSENSE_SLOT_LANDING_BOTTOM: ${{ secrets.VITE_ADSENSE_SLOT_LANDING_BOTTOM }}
+          VITE_ADSENSE_SLOT_INVITATION_BOTTOM: ${{ secrets.VITE_ADSENSE_SLOT_INVITATION_BOTTOM }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}

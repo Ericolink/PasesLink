@@ -11,7 +11,7 @@ export const LEGAL_DOCS = {
   },
   privacy: {
     id: 'privacy',
-    version: '2026-07-10',
+    version: '2026-08-14',
     label: 'Política de Privacidad',
     path: '/privacidad',
   },

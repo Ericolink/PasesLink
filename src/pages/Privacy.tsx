@@ -41,14 +41,43 @@ export function PrivacyContent() {
         </section>
 
         <section>
-          <h2 className="font-medium text-gray-900 mb-1">4. Acceso de los invitados a su pase</h2>
+          <h2 className="font-medium text-gray-900 mb-1">4. Publicidad y cookies de terceros</h2>
+          <p>
+            En algunas páginas públicas de PaseLink (la página de inicio y la invitación pública de un evento) puede
+            mostrarse publicidad a través de Google AdSense. Cuando eso ocurre, tu navegador se comunica
+            directamente con Google, que puede usar cookies u otros identificadores del dispositivo para mostrar
+            anuncios relevantes y medir su rendimiento. Esta publicidad nunca aparece en el pase con código QR, en el
+            formulario de confirmación de asistencia, en el registro de pago ni en ninguna pantalla del panel del
+            organizador (invitados, reportes, caja, configuración).
+          </p>
+          <p className="mt-2">
+            PaseLink no le entrega a Google los datos de tus invitados (nombre, teléfono, email, código QR ni
+            comprobantes de pago); la relación entre tu navegador y Google al mostrar un anuncio es directa y se rige
+            por las políticas de privacidad de Google. Si visitas PaseLink desde la Unión Europea, el Reino Unido o
+            Suiza, puede aparecer un aviso de consentimiento de Google antes de mostrarte publicidad personalizada;
+            ese aviso nunca bloquea el acceso a tu invitación, tu pase o tu confirmación de asistencia. Puedes
+            revisar cómo Google usa esta información en su{' '}
+            <a
+              href="https://policies.google.com/technologies/partner-sites"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary font-medium"
+            >
+              política de tecnologías de publicidad
+            </a>
+            .
+          </p>
+        </section>
+
+        <section>
+          <h2 className="font-medium text-gray-900 mb-1">5. Acceso de los invitados a su pase</h2>
           <p>
             Cada invitado recibe un enlace único y personal a su pase, que puede abrir desde cualquier dispositivo.
           </p>
         </section>
 
         <section>
-          <h2 className="font-medium text-gray-900 mb-1">5. Eliminación de datos</h2>
+          <h2 className="font-medium text-gray-900 mb-1">6. Eliminación de datos</h2>
           <p>
             El organizador puede eliminar invitados individuales o el evento completo (incluyendo todos sus
             invitados e historial de check-ins) en cualquier momento. Esta acción es permanente.
@@ -56,7 +85,7 @@ export function PrivacyContent() {
         </section>
 
         <section>
-          <h2 className="font-medium text-gray-900 mb-1">6. Contacto</h2>
+          <h2 className="font-medium text-gray-900 mb-1">7. Contacto</h2>
           <p>
             Para solicitudes relacionadas con tus datos personales, escríbenos a{' '}
             <a href="mailto:ericmunoz441@gmail.com" className="text-primary font-medium">
