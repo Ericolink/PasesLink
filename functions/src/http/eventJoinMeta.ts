@@ -96,9 +96,22 @@ async function fetchBaseHtmlFromHosting(baseUrl: string): Promise<string> {
   return html
 }
 
-function resolveBaseUrl(): string {
-  const projectId = getApp().options.projectId as string
+// *.web.app: usado SIEMPRE para el self-fetch del HTML base (fiable, propio
+// de Firebase, sin depender de que Cloudflare/DNS del dominio público estén
+// arriba para una llamada servidor-a-servidor interna).
+function resolveInternalBaseUrl(projectId: string): string {
   return `https://${projectId}.web.app`
+}
+
+// paselink.com: dominio público real (ver src/hooks/useSeoMeta.ts, mismo
+// criterio) — Cloudflare lo proxea hacia este mismo sitio de Hosting, pero
+// no está conectado como dominio custom dentro de Firebase (.firebaserc sin
+// targets), así que no hay forma de derivarlo de projectId. Solo producción
+// tiene dominio propio; cualquier otro proyecto (staging) sigue anunciando
+// su propio *.web.app en canonical/OG — nunca debe publicitar el dominio de
+// producción.
+export function resolvePublicBaseUrl(projectId: string): string {
+  return projectId === 'app-pases-9e6e7' ? 'https://www.paselink.com' : resolveInternalBaseUrl(projectId)
 }
 
 // Igual configuración implícita que whatsappWebhook.ts (único onRequest
@@ -111,7 +124,9 @@ function resolveBaseUrl(): string {
 // instrumentación que whatsappWebhook.ts, logger plano en los puntos clave.
 export const eventJoinMeta = onRequest({ cors: false }, async (req, res) => {
   const eventId = parseEventIdFromPath(req.path)
-  const baseUrl = resolveBaseUrl()
+  const projectId = getApp().options.projectId as string
+  const internalBaseUrl = resolveInternalBaseUrl(projectId)
+  const publicBaseUrl = resolvePublicBaseUrl(projectId)
 
   if (!eventId) {
     res.redirect(302, '/')
@@ -123,10 +138,10 @@ export const eventJoinMeta = onRequest({ cors: false }, async (req, res) => {
   try {
     const html = await renderEventJoinHtml({
       db: getFirestore(),
-      fetchBaseHtml: () => fetchBaseHtmlFromHosting(baseUrl),
+      fetchBaseHtml: () => fetchBaseHtmlFromHosting(internalBaseUrl),
       eventId,
       refUid,
-      baseUrl,
+      baseUrl: publicBaseUrl,
     })
     logger.info('eventJoinMeta: preview servida', { eventId, hasRef: !!refUid })
     res.set('Content-Type', 'text/html; charset=utf-8')

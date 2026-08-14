@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
 
-// Dominio de producción real (ver .firebaserc / firebase.json — sin dominio
-// custom todavía). Único punto de verdad para canonical/OG dinámicos; si se
-// agrega un dominio propio más adelante, cambia solo acá (más index.html y
-// functions/src/http/eventJoinMeta.ts, que no pueden importar este módulo).
-export const SITE_URL = 'https://app-pases-9e6e7.web.app'
+// Dominio público real (paselink.com apunta acá vía redirect 301, Cloudflare
+// proxea www hacia el sitio de Firebase Hosting — app-pases-9e6e7.web.app no
+// tiene dominio propio conectado dentro de Firebase, ver .firebaserc). Único
+// punto de verdad para canonical/OG dinámicos; el resto de las referencias
+// vive en index.html y functions/src/http/eventJoinMeta.ts, que no pueden
+// importar este módulo.
+export const SITE_URL = 'https://www.paselink.com'
 
 interface SeoMetaOptions {
   /** Sin el sufijo " · PaseLink" — se agrega acá, igual que useDocumentTitle. */

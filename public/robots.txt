@@ -29,4 +29,4 @@ Disallow: /waitlist/
 # en la URL (?oobCode=...), nunca debe quedar cacheado por un buscador.
 Disallow: /reset-password
 
-Sitemap: https://app-pases-9e6e7.web.app/sitemap.xml
+Sitemap: https://www.paselink.com/sitemap.xml

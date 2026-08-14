@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Firestore } from 'firebase-admin/firestore'
 import { clearFirestoreEmulator, getTestFirestore, seedEvent, seedUserProfile, uniqueId } from '../__tests__/helpers.js'
-import { parseEventIdFromPath, renderEventJoinHtml } from './eventJoinMeta.js'
+import { parseEventIdFromPath, renderEventJoinHtml, resolvePublicBaseUrl } from './eventJoinMeta.js'
 
 const BASE_HTML = `<!doctype html>
 <html lang="es"><head>
@@ -38,6 +38,16 @@ describe('parseEventIdFromPath', () => {
 
   it('returns null for an unrelated path', () => {
     expect(parseEventIdFromPath('/events/evt-123/join')).toBeNull()
+  })
+})
+
+describe('resolvePublicBaseUrl', () => {
+  it('uses the paselink.com custom domain for the production project', () => {
+    expect(resolvePublicBaseUrl('app-pases-9e6e7')).toBe('https://www.paselink.com')
+  })
+
+  it('falls back to *.web.app for any other project (never leaks the prod domain to staging)', () => {
+    expect(resolvePublicBaseUrl('paselink-staging')).toBe('https://paselink-staging.web.app')
   })
 })
 
