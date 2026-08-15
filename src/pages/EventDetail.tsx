@@ -740,6 +740,8 @@ export function EventDetail() {
             hasStatusFilter={statusFilter !== 'all'}
             onClearSearch={() => setSearch('')}
             onClearFilters={() => { setStatusFilter('all'); setSortBy('newest') }}
+            guestsTruncated={guestsTruncated}
+            onLoadAllGuests={showAllGuests}
             canEditGuests={perms.editGuests}
             canConfirmPayments={perms.confirmPayments}
             canDeleteGuests={perms.deleteGuests}

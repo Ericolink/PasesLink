@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import {
   allowGuestReentry,
   bulkDeleteGuests,
@@ -10,7 +10,8 @@ import {
   setGuestPaymentStatus,
 } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, EntryMode, GuestData, GuestSegmentTag, MenuOption, PaymentMethod } from '../../types'
-import { IconInbox } from '../accessibility/AccessibleIcon'
+import { IconCheck, IconInbox, IconX } from '../accessibility/AccessibleIcon'
+import { AccessibleButton } from '../accessibility/AccessibleButton'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../Empty/EmptyState'
 import { FormError } from '../FormError'
@@ -20,6 +21,7 @@ import { trackGuestDelete } from '../../lib/analytics'
 import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethods'
 import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
+import { GuestSelectAllBar } from './GuestSelectAllBar'
 import { GuestSelectionBar } from './GuestSelectionBar'
 import { SECTION_ORDER, groupGuestsByUrgency, guestSummaryBadges, sectionTitle, type GuestUrgency } from './guestGrouping'
 import { ListSection, LoadMoreButton, LIST_SECTION_PAGE_SIZE } from './ListSection'
@@ -66,6 +68,8 @@ export const GuestList = memo(function GuestList({
   canConfirmPayments = true,
   canDeleteGuests = true,
   attendeeLimitEnabled = false,
+  guestsTruncated = false,
+  onLoadAllGuests,
 }: {
   eventId: string
   eventName: string
@@ -97,6 +101,13 @@ export const GuestList = memo(function GuestList({
   canConfirmPayments?: boolean
   canDeleteGuests?: boolean
   attendeeLimitEnabled?: boolean
+  // `guests` puede venir acotado a los primeros GUEST_WINDOW_DEFAULT (ver
+  // useEvent.ts) — "Seleccionar todos" necesita el conjunto completo del
+  // filtro actual, no solo lo ya cargado. `onLoadAllGuests` es el mismo
+  // `showAllGuests` que búsqueda/filtros de estado ya disparan en
+  // EventDetail.tsx.
+  guestsTruncated?: boolean
+  onLoadAllGuests?: () => void
 }) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deletingGuest, setDeletingGuest] = useState<GuestData | null>(null)
@@ -140,6 +151,46 @@ export const GuestList = memo(function GuestList({
       return next
     })
   }, [])
+
+  // Si cambia el filtro/búsqueda (o un invitado seleccionado deja de existir
+  // — eliminado, movido a lista de espera) mientras selectMode sigue activo,
+  // `selected` puede quedar con ids que ya no están en `guests`. Podar en
+  // vez de vaciar entero: mantiene la selección de lo que SÍ sigue visible.
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev
+      const validIds = new Set(guests.map((g) => g.id))
+      let changed = false
+      const next = new Set<string>()
+      prev.forEach((id) => {
+        if (validIds.has(id)) next.add(id)
+        else changed = true
+      })
+      return changed ? next : prev
+    })
+  }, [guests])
+
+  const allSelected = guests.length > 0 && guests.every((g) => selected.has(g.id))
+  const someSelected = !allSelected && selected.size > 0
+  const selectAllLoading = guestsTruncated && selectMode
+
+  function enterSelectMode() {
+    setSelectMode(true)
+    // Sin esto, "Seleccionar todos" en un evento con más invitados que la
+    // ventana por default solo seleccionaría los primeros N cargados bajo
+    // el nombre de "todos" — mismo criterio que ya usan búsqueda/filtros.
+    if (guestsTruncated) onLoadAllGuests?.()
+  }
+
+  function handleToggleSelectAll() {
+    if (allSelected) {
+      setSelected(new Set())
+      announce('Selección de invitados borrada')
+      return
+    }
+    setSelected(new Set(guests.map((g) => g.id)))
+    announce(`${guests.length} invitados seleccionados`)
+  }
 
   const hasSearchText = Boolean(searchTerm.trim())
 
@@ -373,14 +424,25 @@ export const GuestList = memo(function GuestList({
           real disponible. */}
       {(canDeleteGuests || (requiresPayment && canConfirmPayments)) && (
         <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
-            className="text-xs font-semibold text-primary hover:underline"
+          <AccessibleButton
+            variant={selectMode ? 'tonal' : 'secondary'}
+            size="sm"
+            onClick={() => (selectMode ? exitSelectMode() : enterSelectMode())}
+            className="inline-flex items-center gap-1.5"
           >
+            {selectMode ? <IconX className="w-3.5 h-3.5" /> : <IconCheck className="w-3.5 h-3.5" />}
             {selectMode ? 'Cancelar selección' : 'Seleccionar'}
-          </button>
+          </AccessibleButton>
         </div>
+      )}
+
+      {selectMode && (
+        <GuestSelectAllBar
+          checkedState={allSelected ? 'all' : someSelected ? 'some' : 'none'}
+          count={selected.size}
+          loading={selectAllLoading}
+          onToggleAll={handleToggleSelectAll}
+        />
       )}
 
       {groups ? (
