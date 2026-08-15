@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ComponentType } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { EntryMode } from '../types'
 import { useEvent } from '../hooks/useEvent'
@@ -53,7 +54,6 @@ import {
   IconMessageSquare,
   IconShare,
   IconShield,
-  IconShuffle,
   IconUsers,
 } from '../components/accessibility/AccessibleIcon'
 
@@ -803,14 +803,13 @@ function StatusPill({ status }: { status: string }) {
   )
 }
 
-// Píldora de tipo de acceso — mismos 3 modos y textos cortos que
+// Píldora de tipo de acceso — mismos 2 modos y textos cortos que
 // EntryModeSelector.tsx (creación/edición del evento), acá en versión
 // de solo lectura para el header del dashboard.
-const ACCESS_MODE_CONFIG = {
+const ACCESS_MODE_CONFIG: Record<EntryMode, { Icon: ComponentType<{ className?: string }>; label: string }> = {
   list: { Icon: IconUsers, label: 'Solo invitados' },
   open: { Icon: IconGlobe, label: 'Registro abierto' },
-  hybrid: { Icon: IconShuffle, label: 'Invitados + registro abierto' },
-} as const
+}
 
 function AccessModeChip({ mode }: { mode: EntryMode }) {
   const { Icon, label } = ACCESS_MODE_CONFIG[mode]

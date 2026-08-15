@@ -11,7 +11,7 @@ type PaymentStatus = 'pending' | 'paid' | 'free_trial'
 
 export type EventStatus = 'active' | 'cancelled' | 'archived'
 
-export type EntryMode = 'list' | 'open' | 'hybrid'
+export type EntryMode = 'list' | 'open'
 
 // Ciclo de vida del pago de un invitado. Deliberadamente el ÚNICO campo que
 // responde "¿está pagado?" — independiente de si el invitado cuenta para el

@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { collection, doc, getDocs, updateDoc } from 'firebase/firestore'
+import { collection, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore'
 import { createTestEnv, getEventDoc, seedEvent, type EmulatorFirestore } from './helpers'
 
 // Mismo mock que guests.test.ts/wall.test.ts: redirige el `db` singleton de
@@ -92,6 +92,55 @@ describe('events.ts — isValidEventPricing en create', () => {
     await createEvent(OWNER_UID, { ...BASE_INPUT, requiresPayment: false })
 
     expect(await countEvents(testEnv)).toBe(1)
+  })
+})
+
+// Eliminación del modo "Ambos" (entryMode: 'hybrid'): ya no se puede crear
+// un evento nuevo con ese valor (isValidEntryMode en firestore.rules), pero
+// eventos viejos que ya lo tenían siguen pudiendo actualizarse sin problema
+// — la validación es deliberadamente solo de `create`, mismo criterio que
+// isValidEventPricing/isValidMaxCompanions.
+describe('events.ts — isValidEntryMode en create', () => {
+  let testEnv: RulesTestEnvironment
+
+  beforeAll(async () => {
+    testEnv = await createTestEnv()
+  })
+
+  afterEach(async () => {
+    await testEnv.clearFirestore()
+  })
+
+  afterAll(async () => {
+    await testEnv.cleanup()
+  })
+
+  it('allows creating events with entryMode "list" or "open"', async () => {
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await createEvent(OWNER_UID, { ...BASE_INPUT, entryMode: 'list' })
+    await createEvent(OWNER_UID, { ...BASE_INPUT, entryMode: 'open' })
+
+    expect(await countEvents(testEnv)).toBe(2)
+  })
+
+  it('rejects a raw create with entryMode "hybrid", bypassing the app entirely', async () => {
+    const ownerDb = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await expect(
+      setDoc(doc(ownerDb, 'events', EVENT_ID), { ownerId: OWNER_UID, entryMode: 'hybrid' }),
+    ).rejects.toThrow()
+    expect(await countEvents(testEnv)).toBe(0)
+  })
+
+  it('still allows updating an existing legacy entryMode: "hybrid" event (no romper eventos existentes)', async () => {
+    await seedEvent(testEnv, EVENT_ID, { ownerId: OWNER_UID, entryMode: 'hybrid' })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    await updateEventDetails(EVENT_ID, { ...BASE_UPDATE_INPUT, name: 'Nombre actualizado' })
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.name).toBe('Nombre actualizado')
   })
 })
 

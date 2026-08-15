@@ -7,7 +7,6 @@ import type { CustomField, EntryMode, PaymentMethod, TemplateId, TimelineEntry }
 const ENTRY_MODE_LABELS: Record<EntryMode, string> = {
   list: 'Por lista de invitados',
   open: 'Entrada libre',
-  hybrid: 'Mixto (lista + entrada libre)',
 }
 
 interface StepReviewTemplateProps {

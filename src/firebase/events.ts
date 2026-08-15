@@ -520,7 +520,12 @@ export function mapEvent(id: string, data: Record<string, unknown>): EventData {
     themeOverrides: (data.themeOverrides as ThemeOverrides) || undefined,
     welcomeMessage: (data.welcomeMessage as string) || '',
     mapsUrl: (data.mapsUrl as string) || '',
-    entryMode: (data.entryMode as EntryMode) || 'list',
+    // 'hybrid' fue un tercer modo ("Ambos") retirado de la app: ya no se
+    // puede crear ni elegir, pero eventos viejos pueden seguir teniendo ese
+    // valor guardado en Firestore. Se normaliza acá (no con una migración
+    // destructiva) porque 'hybrid' y 'open' siempre tuvieron el mismo
+    // comportamiento real — ver EntryMode en types/index.ts.
+    entryMode: data.entryMode === 'hybrid' ? 'open' : (data.entryMode as EntryMode) || 'list',
     capacity: (data.capacity as number) || 0,
     // Ausente/false en eventos anteriores a este campo (o que nunca lo
     // activaron): cupo ilimitado, comportamiento de siempre — ver

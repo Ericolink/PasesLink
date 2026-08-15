@@ -79,13 +79,25 @@ describe('registerWalkInGuest (servicio)', () => {
     expect(contact?.phoneCountry).toBe('HN')
   })
 
-  it('rejects registration when entryMode is not open/hybrid', async () => {
+  it('rejects registration when entryMode is not open', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { entryMode: 'invite_only' })
 
     const result = await registerWalkInGuest(db, eventId, { name: 'Ana López' })
 
     expect(result.status).toBe('not_open')
+  })
+
+  // El modo 'hybrid' ("Ambos") ya no se puede crear desde la app, pero
+  // eventos viejos pueden seguir con ese valor en Firestore — el
+  // autoregistro no debe romperse para ellos.
+  it('accepts registration on a legacy entryMode: "hybrid" event (backward compat)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'hybrid' })
+
+    const result = await registerWalkInGuest(db, eventId, { name: 'Ana López' })
+
+    expect(result.status).toBe('success')
   })
 
   it('returns event_not_found for a missing event', async () => {

@@ -116,6 +116,12 @@ export async function registerWalkInGuest(
     if (!eventSnap.exists) return { status: 'event_not_found' }
     const event = eventSnap.data()!
 
+    // 'hybrid' fue un tercer modo ("Ambos") retirado de la app: ya no se puede
+    // crear ni elegir, pero eventos viejos pueden seguir teniendo ese valor en
+    // Firestore (el frontend lo normaliza a 'open' al leer, pero acá se lee
+    // el documento crudo). Se sigue aceptando para no romper el autoregistro
+    // de esos eventos existentes — nunca tuvo un comportamiento distinto de
+    // 'open' en este flujo.
     const entryMode = event.entryMode as string | undefined
     if (entryMode !== 'open' && entryMode !== 'hybrid') return { status: 'not_open' }
 

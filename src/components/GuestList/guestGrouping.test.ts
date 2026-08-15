@@ -116,13 +116,13 @@ describe('guestSummaryBadges', () => {
     expect(sinWaitlist.map((b) => b.label)).toEqual(['Pendientes de pago', 'Pagos confirmados'])
   })
 
-  it('auto-registro (hybrid) + gratis: 1 badge de registrados, más waitlist si corresponde', () => {
+  it('auto-registro (open) + gratis: 1 badge de registrados, más waitlist si corresponde', () => {
     const guests = [guest({ id: '1', rsvpStatus: 'yes' }), guest({ id: '2', rsvpStatus: 'yes' })]
     const groups = groupGuestsByUrgency(guests, false)
-    const sinWaitlist = guestSummaryBadges(groups, guests.length, 'hybrid', false, 0)
+    const sinWaitlist = guestSummaryBadges(groups, guests.length, 'open', false, 0)
     expect(sinWaitlist.map((b) => [b.label, b.count])).toEqual([['Registrados', 2]])
 
-    const conWaitlist = guestSummaryBadges(groups, guests.length, 'hybrid', false, 3)
+    const conWaitlist = guestSummaryBadges(groups, guests.length, 'open', false, 3)
     expect(conWaitlist.map((b) => b.label)).toEqual(['Registrados', 'Lista de espera'])
     expect(conWaitlist.at(-1)?.count).toBe(3)
   })

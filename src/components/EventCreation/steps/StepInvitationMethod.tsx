@@ -174,9 +174,8 @@ export function StepInvitationMethod({
           <p className="text-xs text-gray-400 mt-2">
             Cuántos acompañantes puede sumar cada invitado que se autoregistre. 0 = no se permiten acompañantes en
             autoregistro.{' '}
-            {entryMode === 'hybrid'
-              ? 'Este límite aplica solo al autoregistro: los invitados que agregues tú (o tus coanfitriones) a mano pueden tener los acompañantes que definas, sin este tope.'
-              : 'No limita las altas manuales que hagas tú (o tus coanfitriones) desde el panel, ni aplica a "Familia o grupo", que tiene su propio límite de integrantes.'}
+            No limita las altas manuales que hagas tú (o tus coanfitriones) desde el panel, ni aplica a "Familia o
+            grupo", que tiene su propio límite de integrantes.
           </p>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { IconGlobe, IconShuffle, IconUsers } from '../accessibility/AccessibleIcon'
+import { IconGlobe, IconUsers } from '../accessibility/AccessibleIcon'
 import { RadioGroup, RadioGroupOption } from '../accessibility/AccessibleField'
 import type { ComponentType } from 'react'
 import type { EntryMode } from '../../types'
@@ -24,14 +24,7 @@ const MODES: ModeOption[] = [
     Icon: IconGlobe,
     title: 'Acceso público',
     badge: 'Registro abierto a cualquiera',
-    description: 'Cualquiera puede registrarse — el cupo configurado es solo una referencia. Evento público, feria, conferencia.',
-  },
-  {
-    id: 'hybrid',
-    Icon: IconShuffle,
-    title: 'Ambos modos',
-    badge: 'Invitados + registro abierto',
-    description: 'Invitados especiales Y el público general también puede registrarse.',
+    description: 'Comparte un enlace para que cualquiera se registre — el cupo configurado es solo una referencia. También puedes agregar invitados manualmente desde la gestión del evento. Evento público, feria, conferencia.',
   },
 ]
 

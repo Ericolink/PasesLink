@@ -168,6 +168,16 @@ service cloud.firestore {
         || (d.maxCompanions is number && d.maxCompanions >= 0 && d.maxCompanions <= 20);
     }
 
+    // EventData.entryMode: 'list' | 'open' (src/types/index.ts). 'hybrid'
+    // ("Ambos") fue un tercer modo retirado de la app — ya no se puede crear.
+    // Mismo criterio que isValidEventPricing/isValidMaxCompanions: solo se
+    // valida en `create`, para no romper eventos ya existentes con
+    // entryMode: 'hybrid' (ver canJoinWaitlist más abajo, que sigue
+    // tolerando ese valor en lectura/escritura de otros campos).
+    function isValidEntryMode() {
+      return request.resource.data.entryMode in ['list', 'open'];
+    }
+
     // Techo de cantidad para 3 arrays/mapas del evento que antes no tenían
     // ningún límite server-side (solo disciplina del organizador): definían
     // un riesgo de documento gigante sin barrera real, ya que un cliente que
@@ -475,6 +485,10 @@ service cloud.firestore {
     // abuso de una colección que en ese caso nunca la va a procesar nadie).
     function canJoinWaitlist(eventId, d) {
       let evData = eventDataFor(eventId);
+      // 'hybrid' fue un tercer modo de entrada ("Ambos") retirado de la app:
+      // ya no se puede crear ni elegir, pero eventos viejos pueden seguir
+      // teniendo ese valor guardado — nunca tuvo un comportamiento distinto
+      // de 'open' acá, así que se lo sigue aceptando para no romperlos.
       return evData.entryMode in ['open', 'hybrid']
         && evData.get('attendeeLimitEnabled', false) == true
         && isValidWaitlistJoinData(evData, d);
@@ -1163,7 +1177,7 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if true;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId
-        && isValidEventPricing() && isValidMaxCompanions() && eventContentCapsOk();
+        && isValidEventPricing() && isValidMaxCompanions() && isValidEntryMode() && eventContentCapsOk();
       // checkinsByHour explícitamente afuera de la rama sin restricción de
       // campos del dueño/admin (igual que accessControlFieldsUntouched hace
       // en guests/{guestId}) — si no, el dueño podría fabricar el gráfico

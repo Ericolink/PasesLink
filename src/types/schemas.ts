@@ -245,7 +245,7 @@ export const EventSchema = z.object({
   }).optional(),
   welcomeMessage: z.string(),
   mapsUrl: z.string(),
-  entryMode: z.enum(['list', 'open', 'hybrid']),
+  entryMode: z.enum(['list', 'open']),
   capacity: z.number(),
   attendeeLimitEnabled: z.boolean().optional(),
   maxCompanions: z.number().optional(),

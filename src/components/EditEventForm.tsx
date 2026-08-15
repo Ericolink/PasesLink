@@ -977,11 +977,10 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           El modo de ingreso no se puede cambiar después de crear el evento, para no romper invitaciones o links de
           autoregistro que ya hayas compartido.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {([
             { id: 'list', label: 'Lista cerrada', desc: 'Solo invitados con QR propio' },
             { id: 'open', label: 'Ingreso libre', desc: 'Cualquiera entra hasta el cupo' },
-            { id: 'hybrid', label: 'Mixto', desc: 'Lista + ingreso libre combinados' },
           ] as { id: EntryMode; label: string; desc: string }[]).map((m) => (
             <div key={m.id}
               className={`text-left border rounded-lg p-3 text-sm ${
@@ -1036,11 +1035,7 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             label="Acompañantes por invitado (autoregistro)"
             id="edit-event-max-companions"
             error={maxCompanionsError || null}
-            helperText={
-              entryMode === 'hybrid'
-                ? 'Cuántos acompañantes puede sumar cada invitado que se autoregistre. 0 = no se permiten acompañantes en autoregistro. Este límite aplica solo al autoregistro: los invitados que agregues tú (o tus coanfitriones) a mano pueden tener los acompañantes que definas, sin este tope.'
-                : 'Cuántos acompañantes puede sumar cada invitado que se autoregistre. 0 = no se permiten acompañantes en autoregistro. No limita las altas manuales que hagas tú (o tus coanfitriones) desde el panel, ni aplica a "Familia o grupo", que tiene su propio límite de integrantes.'
-            }
+            helperText='Cuántos acompañantes puede sumar cada invitado que se autoregistre. 0 = no se permiten acompañantes en autoregistro. No limita las altas manuales que hagas tú (o tus coanfitriones) desde el panel, ni aplica a "Familia o grupo", que tiene su propio límite de integrantes.'
           >
             {(fieldProps) => (
               <input
