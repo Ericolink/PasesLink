@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { updateEventDetails } from '../firebase/events'
+import { updateEventDetails, getEvent, setEventCapacityLimit } from '../firebase/events'
 import { capacityReductionAllowed } from '../firebase/attendeeLimit'
 import { trackEventEdit } from '../lib/analytics'
 import { DEFAULT_PHONE_COUNTRY } from './CountryCodeSelect'
 import { PaymentMethodsConfigSection } from './PaymentMethodsConfigSection'
-import { resolveMaxCompanions } from '../firebase/guests'
+import { resolveMaxCompanions, getAllGuests, planWaitlistDowngrade, bulkMoveGuestsToWaitlist } from '../firebase/guests'
+import type { WaitlistDowngradePlan } from '../firebase/guests'
 import { useCoverPhoto } from '../hooks/useCoverPhoto'
 import { useApprovedCommunityTemplates } from '../hooks/useApprovedCommunityTemplates'
 import { useFormDraft } from '../hooks/useFormDraft'
@@ -218,6 +219,22 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
   // querer, un checkbox desmarcado sin darse cuenta) con un solo tap.
   const [pendingChanges, setPendingChanges] = useState<ChangeEntry[] | null>(null)
 
+  // Reducir el límite por debajo de event.peopleCount con attendeeLimitEnabled
+  // activo ya no bloquea directo: se ofrece pasar a los últimos registrados
+  // (sin pagar/check-in) a la lista de espera. `downgradePlan` no-null abre
+  // el diálogo de confirmación dedicado (ver confirmDowngrade). `desiredCapacity`
+  // guarda el valor que el organizador tipeó, para mostrarlo en el diálogo
+  // aunque `form.capacity` cambie después de ejecutar la degradación.
+  const [downgradePlan, setDowngradePlan] = useState<WaitlistDowngradePlan | null>(null)
+  const [desiredCapacity, setDesiredCapacity] = useState(0)
+  // Autoritativo una vez que confirmDowngrade() corre: el peopleCount recién
+  // leído del servidor después de mover gente a la waitlist. Sin esto, el
+  // siguiente submitEvent() volvería a evaluar capacityReductionAllowed
+  // contra el event.peopleCount del prop (stale hasta que el listener en
+  // vivo alcance a refrescar) y bloquearía de nuevo un guardado que ya es
+  // válido en el servidor.
+  const reconciledPeopleCountRef = useRef<number | null>(null)
+
   const draftKey = `eventDraft_${event.ownerId}_${event.id}`
   const { pendingDraft, saveDraft, clearDraft, dismissPrompt } = useFormDraft<EventEditDraftFields>(draftKey, event.updatedAt)
 
@@ -412,8 +429,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       setMaxCompanionsError(maxCompanionsValidationError)
       return
     }
-    if (!capacityReductionAllowed(event, parsedCapacity, form.attendeeLimitEnabled)) {
-      setCapacityError(`No puedes reducir la capacidad por debajo de las ${event.peopleCount} personas ya confirmadas.`)
+    const effectivePeopleCount = reconciledPeopleCountRef.current ?? event.peopleCount
+    if (!capacityReductionAllowed({ ...event, peopleCount: effectivePeopleCount }, parsedCapacity, form.attendeeLimitEnabled)) {
+      setCapacityError(`No puedes reducir la capacidad por debajo de las ${effectivePeopleCount} personas ya confirmadas.`)
       return
     }
     setCapacityError('')
@@ -491,10 +509,31 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
     }
   }
 
-  // El submit del form ya no guarda directo: valida, arma el resumen de
-  // cambios y lo muestra para confirmar. Si no hay nada distinto, no tiene
-  // sentido interrumpir con un diálogo vacío — cierra el editor directo.
-  function handleReviewSubmit(e: React.FormEvent) {
+  // Cola común del review: arma el resumen de cambios contra la capacidad
+  // YA resuelta (la tipeada, o la lograda tras degradar a la waitlist) y lo
+  // muestra para confirmar. Si no hay nada distinto, no tiene sentido
+  // interrumpir con un diálogo vacío — cierra el editor directo.
+  function proceedToReview(capacityForSave: number, parsedMaxCompanions: number) {
+    setCapacityError('')
+    setMaxCompanionsError('')
+    const changes = computeChanges(capacityForSave, parsedMaxCompanions)
+    if (changes.length === 0) {
+      onDone()
+      return
+    }
+    setPendingChanges(changes)
+  }
+
+  // El submit del form ya no guarda directo: valida y, si la capacidad
+  // pedida entra sin tocar a nadie, pasa directo a proceedToReview. Si hace
+  // falta reducir por debajo de la gente ya confirmada (con el límite
+  // activo), en vez de bloquear arma un plan de degradación a la lista de
+  // espera (planWaitlistDowngrade, sobre una lectura fresca de invitados —
+  // NO el `guests[]` de la pantalla, que puede venir acotado) y abre el
+  // diálogo dedicado (ver confirmDowngrade). Async por esa lectura; React
+  // tolera un handler async en onSubmit — preventDefault ya corrió antes
+  // del primer await.
+  async function handleReviewSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name.trim() || !form.date || !form.location.trim()) return
     if (form.requiresPayment && form.paymentMethods.length === 0) {
@@ -519,19 +558,80 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       setErrorAttempt((n) => n + 1)
       return
     }
+
     if (!capacityReductionAllowed(event, parsedCapacity, form.attendeeLimitEnabled)) {
-      setCapacityError(`No puedes reducir la capacidad por debajo de las ${event.peopleCount} personas ya confirmadas.`)
+      setSubmitError('')
+      setSaving(true)
+      try {
+        const guests = await getAllGuests(event.id)
+        const plan = planWaitlistDowngrade(guests, event.peopleCount, parsedCapacity)
+        setSaving(false)
+        if (plan.candidates.length === 0) {
+          setCapacityError(
+            `No es posible reducir el límite a ${parsedCapacity}: las ${event.peopleCount} personas confirmadas ya pagaron o hicieron check-in. El límite mínimo posible ahora mismo es ${event.peopleCount}.`,
+          )
+          setErrorAttempt((n) => n + 1)
+          return
+        }
+        setDesiredCapacity(parsedCapacity)
+        setDowngradePlan(plan)
+      } catch {
+        setSaving(false)
+        setSubmitError('No pudimos revisar la lista de invitados. Intenta de nuevo.')
+        setErrorAttempt((n) => n + 1)
+      }
+      return
+    }
+
+    proceedToReview(parsedCapacity, parsedMaxCompanions)
+  }
+
+  // Confirmar el diálogo de degradación: apaga attendeeLimitEnabled (evita
+  // que onCapacityFreed dispare su cascada de promoción mientras se mueve
+  // gente — ver plan), mueve a los candidatos, y reactiva el límite con la
+  // capacidad realmente alcanzada en un write aparte — todo ANTES de que el
+  // organizador llegue a revisar el resto de los cambios del formulario, no
+  // después, para que la ventana sin límite dure solo lo que tardan los
+  // batches del movimiento.
+  async function confirmDowngrade() {
+    const plan = downgradePlan
+    if (!plan) return
+    setDowngradePlan(null)
+    setSaving(true)
+    setSubmitError('')
+
+    let finalCapacity = desiredCapacity
+    let failed = 0
+    try {
+      await setEventCapacityLimit(event.id, { capacity: event.capacity || 0, attendeeLimitEnabled: false })
+      try {
+        const result = await bulkMoveGuestsToWaitlist(event.id, plan.candidates)
+        failed = result.failed
+      } finally {
+        const fresh = await getEvent(event.id)
+        const freshPeopleCount = fresh?.peopleCount ?? Math.max(0, event.peopleCount - plan.removedCount)
+        finalCapacity = Math.max(desiredCapacity, freshPeopleCount)
+        reconciledPeopleCountRef.current = freshPeopleCount
+        await setEventCapacityLimit(event.id, { capacity: finalCapacity, attendeeLimitEnabled: form.attendeeLimitEnabled })
+      }
+    } catch {
+      setSaving(false)
+      setSubmitError('No pudimos mover a los invitados a la lista de espera. Intenta de nuevo.')
       setErrorAttempt((n) => n + 1)
       return
     }
-    setCapacityError('')
-    setMaxCompanionsError('')
-    const changes = computeChanges(parsedCapacity, parsedMaxCompanions)
-    if (changes.length === 0) {
-      onDone()
+
+    setSaving(false)
+    updateField('capacity', String(finalCapacity))
+
+    if (failed > 0) {
+      setSubmitError(`Se pasaron invitados a la lista de espera, pero algunos no se pudieron mover. Vuelve a intentarlo — el límite quedó en ${finalCapacity}.`)
+      setErrorAttempt((n) => n + 1)
       return
     }
-    setPendingChanges(changes)
+
+    const { value: parsedMaxCompanions } = parseMaxCompanions(form.maxCompanions)
+    proceedToReview(finalCapacity, parsedMaxCompanions)
   }
 
   return (
@@ -551,6 +651,34 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
         onCancel={onCoverCropCancelled}
       />
     )}
+    <ConfirmDialog
+      open={!!downgradePlan}
+      title="Pasar invitados a lista de espera"
+      danger
+      message={
+        downgradePlan && (
+          <>
+            <p className="mb-2">
+              Para bajar el límite a {desiredCapacity}, hace falta pasar a{' '}
+              <strong>{downgradePlan.candidates.length}</strong> invitado{downgradePlan.candidates.length === 1 ? '' : 's'} a la
+              lista de espera — los últimos registrados, sin contar a quienes ya pagaron o ya hicieron check-in.
+            </p>
+            {downgradePlan.achievedCapacity > desiredCapacity && (
+              <p className="mb-2">
+                No alcanza para llegar a {desiredCapacity}: {downgradePlan.protectedWithinWindow} de los últimos registrados ya
+                pagaron o hicieron check-in y no se tocan. El límite quedará en <strong>{downgradePlan.achievedCapacity}</strong>,
+                el mínimo posible sin afectarlos.
+              </p>
+            )}
+            <p className="text-gray-500 dark:text-gray-400">Esta acción no envía ninguna notificación automática a los invitados afectados.</p>
+          </>
+        )
+      }
+      confirmLabel={`Sí, pasar a ${downgradePlan?.candidates.length ?? 0} a la lista de espera`}
+      cancelLabel="Cancelar, no reducir el límite"
+      onConfirm={() => void confirmDowngrade()}
+      onCancel={() => setDowngradePlan(null)}
+    />
     <ConfirmDialog
       open={!!pendingChanges}
       title="Confirmar cambios"

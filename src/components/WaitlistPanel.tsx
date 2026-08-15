@@ -38,6 +38,10 @@ export function WaitlistPanel({ eventId, eventName, canManage, requiresPayment, 
   const [entries, setEntries] = useState<WaitlistEntryData[]>([])
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  // Informativo (no error): quién se corrió a la waitlist para hacerle
+  // lugar a un "Pasar a la lista normal"/"Marcar como pagado" sin cupo —
+  // ver allowBumpToFit en promoteEntryToGuest.
+  const [info, setInfo] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [detailEntryId, setDetailEntryId] = useState<string | null>(null)
   const [removeTarget, setRemoveTarget] = useState<WaitlistEntryData | null>(null)
@@ -80,17 +84,25 @@ export function WaitlistPanel({ eventId, eventName, canManage, requiresPayment, 
   const detailEntry = detailEntryId ? entries.find((e) => e.id === detailEntryId) ?? null : null
   const detailPosition = detailEntry ? entries.findIndex((e) => e.id === detailEntry.id) + 1 : 0
 
-  async function runAction(entryId: string, action: () => Promise<void>) {
+  async function runAction<T>(entryId: string, action: () => Promise<T>): Promise<T | undefined> {
     setBusyEntryId(entryId)
     setError('')
+    setInfo('')
     try {
-      await action()
+      return await action()
     } catch (err) {
       console.error('Error managing waitlist entry:', err)
       setError(getFunctionsErrorMessage(err, 'No se pudo completar la acción. Intenta de nuevo.'))
+      return undefined
     } finally {
       setBusyEntryId(null)
     }
+  }
+
+  function describeBumped(bumped: { name: string; partySize: number }[], promotedName: string): string {
+    const names = bumped.map((b) => b.name).join(', ')
+    const verb = bumped.length === 1 ? 'pasó' : 'pasaron'
+    return `${names} ${verb} a la lista de espera para hacerle lugar a ${promotedName}.`
   }
 
   async function handleShare(entry: WaitlistEntryData) {
@@ -135,6 +147,7 @@ export function WaitlistPanel({ eventId, eventName, canManage, requiresPayment, 
       </div>
 
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
+      {info && <p className="text-sm text-violet-600 dark:text-violet-400 mb-3">{info}</p>}
 
       <ListSection
         title="Lista de espera"
@@ -188,13 +201,16 @@ export function WaitlistPanel({ eventId, eventName, canManage, requiresPayment, 
       <ConfirmDialog
         open={!!promoteTarget}
         title="¿Pasar a la lista normal?"
-        message={`${promoteTarget?.name} (${promoteTarget?.partySize ?? 1} persona${(promoteTarget?.partySize ?? 1) === 1 ? '' : 's'}) va a quedar confirmado de inmediato, sin pedirle que confirme por correo. Solo se puede si todavía hay lugar disponible.`}
+        message={`${promoteTarget?.name} (${promoteTarget?.partySize ?? 1} persona${(promoteTarget?.partySize ?? 1) === 1 ? '' : 's'}) va a quedar confirmado de inmediato, sin pedirle que confirme por correo. Si ya no hay lugar disponible, se pasa a la lista de espera al último invitado registrado que no haya pagado ni hecho check-in, para hacerle lugar.`}
         confirmLabel="Pasar a la lista normal"
         onConfirm={() => {
           if (!promoteTarget) return
           const target = promoteTarget
           setPromoteTarget(null)
-          runAction(target.id, async () => { await assignWaitlistSpot(eventId, target.id) })
+          void runAction(target.id, async () => {
+            const result = await assignWaitlistSpot(eventId, target.id)
+            if (result.bumped.length > 0) setInfo(describeBumped(result.bumped, target.name))
+          })
         }}
         onCancel={() => setPromoteTarget(null)}
       />
@@ -202,13 +218,16 @@ export function WaitlistPanel({ eventId, eventName, canManage, requiresPayment, 
       <ConfirmDialog
         open={!!markPaidTarget}
         title="¿Marcar como pagado?"
-        message={`${markPaidTarget?.name} va a quedar confirmado y pagado de inmediato. Solo se puede si todavía hay lugar disponible.`}
+        message={`${markPaidTarget?.name} va a quedar confirmado y pagado de inmediato. Si ya no hay lugar disponible, se pasa a la lista de espera al último invitado registrado que no haya pagado ni hecho check-in, para hacerle lugar.`}
         confirmLabel="Marcar como pagado"
         onConfirm={() => {
           if (!markPaidTarget) return
           const target = markPaidTarget
           setMarkPaidTarget(null)
-          runAction(target.id, async () => { await assignWaitlistSpot(eventId, target.id, paymentMethods[0], true) })
+          void runAction(target.id, async () => {
+            const result = await assignWaitlistSpot(eventId, target.id, paymentMethods[0], true)
+            if (result.bumped.length > 0) setInfo(describeBumped(result.bumped, target.name))
+          })
         }}
         onCancel={() => setMarkPaidTarget(null)}
       />

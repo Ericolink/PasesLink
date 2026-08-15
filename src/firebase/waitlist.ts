@@ -219,15 +219,22 @@ export async function cancelWaitlistOffer(eventId: string, entryId: string): Pro
 // mismo chequeo de capacidad (ver promoteEntryToGuest en
 // functions/src/waitlist/promoteToGuest.ts): "marcar como pagado" nunca
 // salta el cupo por ir acompañado de un pago.
+export interface AssignWaitlistSpotResult {
+  qrToken: string
+  // Invitados corridos a la lista de espera para hacerle lugar (sin cupo en
+  // el momento de asignar) — vacío cuando no hizo falta correr a nadie.
+  bumped: { name: string; partySize: number }[]
+}
+
 export async function assignWaitlistSpot(
   eventId: string,
   entryId: string,
   paymentMethod?: PaymentMethod,
   markPaid?: boolean,
-): Promise<{ qrToken: string }> {
+): Promise<AssignWaitlistSpotResult> {
   const callable = httpsCallable<
     { eventId: string; entryId: string; paymentMethod?: PaymentMethod; markPaid?: boolean },
-    { qrToken: string }
+    AssignWaitlistSpotResult
   >(functions, 'assignWaitlistSpot')
   const result = await callable({ eventId, entryId, paymentMethod, markPaid })
   return result.data

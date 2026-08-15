@@ -9,7 +9,7 @@
 //     'waiting' u 'offered' (puede saltarse una oferta activa sin
 //     resolver).
 import { randomUUID } from 'node:crypto'
-import { FieldValue, type DocumentData, type Firestore } from 'firebase-admin/firestore'
+import { FieldValue, type DocumentData, type DocumentReference, type Firestore } from 'firebase-admin/firestore'
 import type { PaymentMethod } from '../payments/confirmPayment.js'
 
 export interface PromoteToGuestOptions {
@@ -29,11 +29,38 @@ export interface PromoteToGuestOptions {
   markPaid?: boolean
   /** uid del organizador que marcó el pago (para `paidBy`) — solo tiene sentido junto con `markPaid`. */
   paidByUid?: string | null
+  /**
+   * Solo assignWaitlistSpot.ts (asignación en la puerta): si no hay cupo,
+   * en vez de fallar corre automáticamente al último invitado registrado
+   * que no haya pagado ni hecho check-in (puede correr a más de uno si el
+   * grupo que llega necesita más de un lugar) — ver `bumped` en el
+   * resultado. confirmWaitlistOffer.ts (oferta remota, ya reservó cupo vía
+   * offeredCount al extenderse) nunca pasa esto en true.
+   */
+  allowBumpToFit?: boolean
 }
 
 export type PromoteToGuestResult =
-  | { ok: true; qrToken: string; guestId: string; entry: DocumentData; eventName: string }
+  | { ok: true; qrToken: string; guestId: string; entry: DocumentData; eventName: string; bumped: { name: string; partySize: number }[] }
   | { ok: false; reason: 'not_found' | 'not_available' | 'no_capacity' }
+
+// Mismo problema que normalizeCompanions (functions/src/checkin/shared.ts) —
+// `companions` puede venir como array (invitados con acompañantes con
+// nombre) o como número legacy (altas de registerWalkInGuest/este mismo
+// archivo). Acá solo hace falta el conteo, no los objetos completos, así
+// que no vale la pena importar esa función (no está exportada).
+function guestPartySize(data: DocumentData): number {
+  const companions = data.companions
+  if (Array.isArray(companions)) return 1 + companions.length
+  if (typeof companions === 'number' && companions > 0) return 1 + companions
+  return 1
+}
+
+function rsvpCountField(status: unknown): 'rsvpYesCount' | 'rsvpNoCount' | 'rsvpPendingCount' {
+  if (status === 'yes') return 'rsvpYesCount'
+  if (status === 'no') return 'rsvpNoCount'
+  return 'rsvpPendingCount'
+}
 
 export async function promoteEntryToGuest(
   db: Firestore,
@@ -68,8 +95,31 @@ export async function promoteEntryToGuest(
     // principio que registerWalkInGuest ("la transacción es la garantía
     // real"). Cubre tanto el caso de la oferta (pudo quedar vieja) como el
     // de la asignación directa (nunca pasó por attemptPromote antes).
+    const bumped: { ref: DocumentReference; data: DocumentData; size: number }[] = []
     if (peopleCount + partySize > capacity) {
-      return { ok: false, reason: 'no_capacity' }
+      if (!opts.allowBumpToFit) {
+        return { ok: false, reason: 'no_capacity' }
+      }
+
+      const deficit = peopleCount + partySize - capacity
+      // Lectura ANTES de cualquier write de esta transacción (regla de
+      // Firestore: todas las lecturas primero) — límite generoso (50,
+      // mismo criterio que COUNTER_DELTA_CAP del cliente) para no perder
+      // de vista candidatos elegibles si los más recientes están
+      // protegidos.
+      const recentSnap = await tx.get(eventRef.collection('guests').orderBy('createdAt', 'desc').limit(50))
+      let freed = 0
+      for (const doc of recentSnap.docs) {
+        if (freed >= deficit) break
+        const data = doc.data()
+        if (data.paymentStatus === 'paid' || data.status === 'checked_in') continue
+        const size = guestPartySize(data)
+        bumped.push({ ref: doc.ref, data, size })
+        freed += size
+      }
+      if (freed < deficit) {
+        return { ok: false, reason: 'no_capacity' }
+      }
     }
 
     // Mismo criterio que registerWalkInGuest (capacity.ts): solo se guarda
@@ -128,10 +178,54 @@ export async function promoteEntryToGuest(
       })
     }
 
+    // Deltas del invitado que entra (arriba) + de los que se corren a la
+    // waitlist para hacerle lugar (abajo, si allowBumpToFit lo activó) —
+    // un único tx.update(eventRef, ...) con el neto de ambos, nunca dos
+    // escrituras separadas al mismo documento en la misma transacción.
+    let guestCountDelta = 1
+    let peopleCountDelta = partySize
+    let rsvpYesCountDelta = 1
+    let rsvpNoCountDelta = 0
+    let rsvpPendingCountDelta = 0
+
+    for (const candidate of bumped) {
+      const data = candidate.data
+      const fullName = `${data.name || ''}${data.lastName ? ` ${data.lastName}` : ''}`.trim()
+      tx.delete(candidate.ref)
+      tx.delete(eventRef.collection('guestContacts').doc(candidate.ref.id))
+      tx.set(eventRef.collection('waitlist').doc(), {
+        name: fullName,
+        partySize: candidate.size,
+        ...(data.phone ? { phone: data.phone } : {}),
+        ...(data.phoneCountry ? { phoneCountry: data.phoneCountry } : {}),
+        ...(data.email ? { email: data.email } : {}),
+        ...(data.whatsappConsent ? { whatsappConsent: true } : {}),
+        ...(data.customData && Object.keys(data.customData).length > 0 ? { customData: data.customData } : {}),
+        waitlistToken: randomUUID().replace(/-/g, ''),
+        status: 'waiting',
+        priorityBoost: 0,
+        createdAt: FieldValue.serverTimestamp(),
+        offerToken: null,
+        offerExpiresAt: null,
+        respondedAt: null,
+        promotedGuestId: null,
+        promotionReason: null,
+        registrationSource: data.registrationSource === 'self' ? 'self' : 'organizer',
+      })
+      guestCountDelta -= 1
+      peopleCountDelta -= candidate.size
+      const field = rsvpCountField(data.rsvpStatus)
+      if (field === 'rsvpYesCount') rsvpYesCountDelta -= 1
+      else if (field === 'rsvpNoCount') rsvpNoCountDelta -= 1
+      else rsvpPendingCountDelta -= 1
+    }
+
     tx.update(eventRef, {
-      guestCount: ((event.guestCount as number) ?? 0) + 1,
-      peopleCount: peopleCount + partySize,
-      rsvpYesCount: ((event.rsvpYesCount as number) ?? 0) + 1,
+      guestCount: ((event.guestCount as number) ?? 0) + guestCountDelta,
+      peopleCount: peopleCount + peopleCountDelta,
+      rsvpYesCount: ((event.rsvpYesCount as number) ?? 0) + rsvpYesCountDelta,
+      ...(rsvpNoCountDelta !== 0 ? { rsvpNoCount: ((event.rsvpNoCount as number) ?? 0) + rsvpNoCountDelta } : {}),
+      ...(rsvpPendingCountDelta !== 0 ? { rsvpPendingCount: ((event.rsvpPendingCount as number) ?? 0) + rsvpPendingCountDelta } : {}),
     })
 
     tx.update(entryRef, {
@@ -140,6 +234,13 @@ export async function promoteEntryToGuest(
       respondedAt: Date.now(),
     })
 
-    return { ok: true, qrToken, guestId: guestRef.id, entry, eventName: (event.name as string) || 'tu evento' }
+    return {
+      ok: true,
+      qrToken,
+      guestId: guestRef.id,
+      entry,
+      eventName: (event.name as string) || 'tu evento',
+      bumped: bumped.map((c) => ({ name: (c.data.name as string) || '', partySize: c.size })),
+    }
   })
 }

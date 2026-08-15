@@ -35,7 +35,7 @@ vi.mock('../attendeeLimit', async (importOriginal) => {
 })
 
 import { walkIn, walkOut } from '../capacity'
-import { claimGuestPass, deleteGuest, getAllGuests, GuestVersionConflictError, moveGuestToWaitlist, resetGuestRsvp, resolveMaxCompanions, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
+import { bulkMoveGuestsToWaitlist, claimGuestPass, deleteGuest, getAllGuests, GuestVersionConflictError, moveGuestToWaitlist, planWaitlistDowngrade, resetGuestRsvp, resolveMaxCompanions, setGuestRsvp, subscribeToGuests, submitPaymentProof, updateGuest, updateGuestSelf } from '../guests'
 
 const OWNER_UID = 'owner-uid'
 const EVENT_ID = 'event-1'
@@ -426,6 +426,58 @@ describe('guests.ts', () => {
     expect(event?.paidCount).toBe(0)
   })
 
+  it('bulkMoveGuestsToWaitlist should move several guests in one call with an aggregated counter delta and one waitlist entry per guest', async () => {
+    await seedEvent(testEnv, EVENT_ID, { guestCount: 2, peopleCount: 3, rsvpYesCount: 2 })
+    dbHolder.db = testEnv.authenticatedContext(OWNER_UID).firestore()
+
+    const result = await bulkMoveGuestsToWaitlist(EVENT_ID, [
+      {
+        id: 'guest-a',
+        name: 'Ana',
+        lastName: '',
+        phone: '',
+        phoneCountry: '',
+        email: 'ana@test.com',
+        customData: {},
+        status: 'invited',
+        companions: [],
+        checkedOutAt: null,
+        exitType: null,
+        paymentStatus: 'unpaid',
+        rsvpStatus: 'yes',
+      },
+      {
+        id: 'guest-b',
+        name: 'Beto',
+        lastName: '',
+        phone: '',
+        phoneCountry: '',
+        email: '',
+        customData: {},
+        status: 'invited',
+        companions: [{}],
+        checkedOutAt: null,
+        exitType: null,
+        paymentStatus: 'unpaid',
+        rsvpStatus: 'yes',
+      },
+    ])
+
+    expect(result).toEqual({ ok: 2, failed: 0 })
+
+    const event = await getEventDoc(testEnv, EVENT_ID)
+    expect(event?.guestCount).toBe(0)
+    expect(event?.peopleCount).toBe(0)
+    expect(event?.rsvpYesCount).toBe(0)
+
+    expect(await getGuestDoc(testEnv, EVENT_ID, 'guest-a')).toBeUndefined()
+    expect(await getGuestDoc(testEnv, EVENT_ID, 'guest-b')).toBeUndefined()
+
+    const entries = await getWaitlistEntries(testEnv, EVENT_ID)
+    expect(entries).toHaveLength(2)
+    expect(entries.map((e) => e.partySize).sort()).toEqual([1, 2])
+  })
+
   it('should adjust paidCount when updateGuest changes the companions count of an already-paid guest', async () => {
     await seedEvent(testEnv, EVENT_ID, { peopleCount: 4, paidCount: 4, maxCompanions: 20 })
     await seedGuest(testEnv, EVENT_ID, GUEST_ID, { qrToken: QR_TOKEN, paymentStatus: 'paid', companions: [{}, {}, {}] })
@@ -436,6 +488,62 @@ describe('guests.ts', () => {
     const event = await getEventDoc(testEnv, EVENT_ID)
     expect(event?.peopleCount).toBe(6)
     expect(event?.paidCount).toBe(6)
+  })
+
+  // Pura — no toca Firestore, pero vive en este archivo (mismo criterio que
+  // el resto de guests.ts) para poder importar `partySize`/GuestData sin
+  // duplicar fixtures.
+  describe('planWaitlistDowngrade', () => {
+    function fakeGuest(overrides: Partial<Record<string, unknown>>) {
+      return {
+        id: 'g',
+        name: 'G',
+        companions: [],
+        paymentStatus: 'unpaid',
+        status: 'invited',
+        rsvpStatus: 'yes',
+        createdAt: 0,
+        ...overrides,
+      } as unknown as Parameters<typeof planWaitlistDowngrade>[0][number]
+    }
+
+    it('degrades the most recently registered guests first, skipping paid/checked-in ones', () => {
+      const guests = [
+        fakeGuest({ id: 'oldest', createdAt: 1000 }),
+        fakeGuest({ id: 'paid-recent', createdAt: 4000, paymentStatus: 'paid' }),
+        fakeGuest({ id: 'checked-in-recent', createdAt: 3000, status: 'checked_in' }),
+        fakeGuest({ id: 'newest-eligible', createdAt: 2000 }),
+      ]
+
+      const plan = planWaitlistDowngrade(guests, 4, 3)
+
+      expect(plan.candidates.map((g) => g.id)).toEqual(['newest-eligible'])
+      expect(plan.removedCount).toBe(1)
+      expect(plan.achievedCapacity).toBe(3)
+      expect(plan.protectedWithinWindow).toBe(2)
+    })
+
+    it('falls back to the minimum achievable capacity when there are not enough eligible candidates (never touches protected guests)', () => {
+      const guests = [
+        fakeGuest({ id: 'paid', createdAt: 2000, paymentStatus: 'paid' }),
+        fakeGuest({ id: 'checked-in', createdAt: 1000, status: 'checked_in' }),
+      ]
+
+      const plan = planWaitlistDowngrade(guests, 2, 0)
+
+      expect(plan.candidates).toHaveLength(0)
+      expect(plan.removedCount).toBe(0)
+      expect(plan.achievedCapacity).toBe(2)
+    })
+
+    it('does nothing when the desired capacity already fits the current headcount', () => {
+      const guests = [fakeGuest({ id: 'a', createdAt: 1000 })]
+
+      const plan = planWaitlistDowngrade(guests, 1, 5)
+
+      expect(plan.candidates).toHaveLength(0)
+      expect(plan.achievedCapacity).toBe(5)
+    })
   })
 
   // checkInGuest se migró a Cloud Functions (ver más abajo, bloque "check-in/

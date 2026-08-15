@@ -695,6 +695,140 @@ export async function bulkDeleteGuests(
   return { ok, failed }
 }
 
+export interface WaitlistDowngradePlan {
+  // A mover a la lista de espera, en el orden en que se eligieron (los
+  // últimos registrados primero).
+  candidates: GuestData[]
+  // Suma de partySize() de candidates.
+  removedCount: number
+  // Math.max(desiredCapacity, peopleCount - removedCount) — puede quedar
+  // por encima de desiredCapacity si no hay suficientes candidatos
+  // elegibles (mejor esfuerzo, nunca se toca a alguien protegido).
+  achievedCapacity: number
+  // Cuántos de los últimos registrados (los que "les tocaría" salir por
+  // antigüedad) son en realidad pagados/check-in y por eso se saltearon.
+  protectedWithinWindow: number
+}
+
+// Pura: no lee Firestore. `guests` debe venir de una lectura fresca
+// (getAllGuests), no del listener paginado de una pantalla (puede venir
+// acotado en eventos grandes — ver GUEST_WINDOW_DEFAULT). Nunca degrada a
+// alguien que ya pagó o ya hizo check-in — si no alcanzan los candidatos
+// elegibles para llegar a desiredCapacity, achievedCapacity queda en el
+// mínimo posible sin tocarlos (ver EditEventForm.tsx).
+export function planWaitlistDowngrade(
+  guests: GuestData[],
+  peopleCount: number,
+  desiredCapacity: number,
+): WaitlistDowngradePlan {
+  const excess = peopleCount - desiredCapacity
+  if (excess <= 0) {
+    return { candidates: [], removedCount: 0, achievedCapacity: desiredCapacity, protectedWithinWindow: 0 }
+  }
+
+  const sorted = [...guests].sort((a, b) => b.createdAt - a.createdAt)
+  const candidates: GuestData[] = []
+  let removedCount = 0
+  let protectedWithinWindow = 0
+  for (const guest of sorted) {
+    if (removedCount >= excess) break
+    if (guest.paymentStatus === 'paid' || guest.status === 'checked_in') {
+      protectedWithinWindow += 1
+      continue
+    }
+    candidates.push(guest)
+    removedCount += partySize(guest)
+  }
+
+  return {
+    candidates,
+    removedCount,
+    achievedCapacity: Math.max(desiredCapacity, peopleCount - removedCount),
+    protectedWithinWindow,
+  }
+}
+
+// Versión masiva de moveGuestToWaitlist — mismo motivo que bulkDeleteGuests
+// vs deleteGuest (evitar que cada invitado dispare su propio batch contra el
+// documento caliente del evento): cada lote hace un único batch que borra
+// hasta 50 (en partySize) invitados/contactos, crea su entrada en waitlist/
+// (mismo shape que moveGuestToWaitlist) y ajusta los contadores del evento
+// con el delta agregado del lote.
+export async function bulkMoveGuestsToWaitlist(
+  eventId: string,
+  guests: Pick<
+    GuestData,
+    'id' | 'name' | 'lastName' | 'phone' | 'phoneCountry' | 'email' | 'whatsappConsent' | 'customData'
+    | 'status' | 'companions' | 'checkedOutAt' | 'exitType' | 'paymentStatus' | 'rsvpStatus'
+    | 'registrationSource' | 'presentIndices'
+  >[],
+): Promise<BulkResult> {
+  const chunks = chunkByPartySize(guests, partySize)
+  let ok = 0
+  let failed = 0
+  for (const chunk of chunks) {
+    try {
+      const batch = writeBatch(db)
+      let guestCountDelta = 0
+      let peopleCountDelta = 0
+      let checkedInCountDelta = 0
+      let occupancyCountDelta = 0
+      let paidCountDelta = 0
+      const rsvpDeltas: Record<'rsvpYesCount' | 'rsvpNoCount' | 'rsvpPendingCount', number> = {
+        rsvpYesCount: 0,
+        rsvpNoCount: 0,
+        rsvpPendingCount: 0,
+      }
+      for (const guest of chunk) {
+        const size = partySize(guest)
+        const present = presentIndicesOf(guest).length
+        const fullName = `${guest.name}${guest.lastName ? ` ${guest.lastName}` : ''}`.trim()
+        batch.delete(doc(db, 'events', eventId, 'guests', guest.id))
+        batch.delete(contactRef(eventId, guest.id))
+        batch.set(doc(collection(db, 'events', eventId, 'waitlist')), {
+          name: fullName,
+          partySize: size,
+          ...(guest.phone ? { phone: guest.phone } : {}),
+          ...(guest.phoneCountry ? { phoneCountry: guest.phoneCountry } : {}),
+          ...(guest.email ? { email: guest.email } : {}),
+          ...(guest.whatsappConsent ? { whatsappConsent: true } : {}),
+          ...(guest.customData && Object.keys(guest.customData).length > 0 ? { customData: guest.customData } : {}),
+          waitlistToken: crypto.randomUUID().replace(/-/g, ''),
+          status: 'waiting',
+          priorityBoost: 0,
+          createdAt: serverTimestamp(),
+          offerToken: null,
+          offerExpiresAt: null,
+          respondedAt: null,
+          promotedGuestId: null,
+          promotionReason: null,
+          registrationSource: guest.registrationSource ?? 'organizer',
+        })
+        guestCountDelta -= 1
+        peopleCountDelta -= size
+        checkedInCountDelta -= present
+        if (guestPresence(guest) === 'inside') occupancyCountDelta -= present
+        if (guest.paymentStatus === 'paid') paidCountDelta -= size
+        rsvpDeltas[rsvpCountField(guest.rsvpStatus)] -= 1
+      }
+      applyCounterDeltas(batch, doc(db, 'events', eventId), {
+        guestCount: guestCountDelta,
+        peopleCount: peopleCountDelta,
+        checkedInCount: checkedInCountDelta,
+        occupancyCount: occupancyCountDelta,
+        paidCount: paidCountDelta,
+        ...rsvpDeltas,
+      })
+      await batch.commit()
+      ok += chunk.length
+    } catch (err) {
+      console.error('Error en bulkMoveGuestsToWaitlist para un lote:', err)
+      failed += chunk.length
+    }
+  }
+  return { ok, failed }
+}
+
 // Versión masiva de setGuestPaymentStatus — igual que la versión suelta, toda
 // la lógica (releer cada invitado, delta agregado de paidCount, elegir
 // método) vive en la Cloud Function `bulkSetGuestPaymentStatus`

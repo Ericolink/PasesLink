@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { HttpsError } from 'firebase-functions/v2/https'
 import type { Firestore } from 'firebase-admin/firestore'
-import { clearFirestoreEmulator, getTestFirestore, getWaitlistEntry, seedEvent, seedWaitlistEntry, uniqueId } from '../__tests__/helpers.js'
+import { clearFirestoreEmulator, getGuestDoc, getTestFirestore, getWaitlistEntry, seedEvent, seedGuest, seedWaitlistEntry, uniqueId } from '../__tests__/helpers.js'
 import { fakeCallableRequest } from '../__tests__/callable.js'
 import { assignWaitlistSpot } from './assignWaitlistSpot.js'
 
@@ -90,6 +90,67 @@ describe('assignWaitlistSpot', () => {
     expect(entry?.status).toBe('waiting')
     const eventSnap = await db.collection('events').doc(eventId).get()
     expect(eventSnap.data()?.peopleCount).toBe(4)
+  })
+
+  it('bumps the most recently registered eligible guest to the waitlist when the event is full', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, capacity: 2, peopleCount: 2, guestCount: 2, rsvpYesCount: 2 })
+    await seedGuest(db, eventId, 'guest-old', { name: 'Ana', createdAt: 1000, rsvpStatus: 'yes' })
+    await seedGuest(db, eventId, 'guest-new', { name: 'Beto', createdAt: 2000, rsvpStatus: 'yes' })
+    await seedWaitlistEntry(db, eventId, 'entry-1', { name: 'Carla', partySize: 1 })
+
+    const result = await assignWaitlistSpot.run(fakeCallableRequest({ eventId, entryId: 'entry-1' }, OWNER_UID))
+
+    expect(result.qrToken).toBeTruthy()
+    expect(result.bumped).toEqual([{ name: 'Beto', partySize: 1 }])
+
+    // El más viejo (Ana) queda intacto; el más nuevo (Beto) se corrió.
+    expect(await getGuestDoc(db, eventId, 'guest-old')).toBeTruthy()
+    expect(await getGuestDoc(db, eventId, 'guest-new')).toBeUndefined()
+
+    const eventSnap = await db.collection('events').doc(eventId).get()
+    // Entra Carla, sale Beto: peopleCount neto sin cambios.
+    expect(eventSnap.data()?.peopleCount).toBe(2)
+    expect(eventSnap.data()?.guestCount).toBe(2)
+    expect(eventSnap.data()?.rsvpYesCount).toBe(2)
+
+    const waitlistSnap = await db.collection('events').doc(eventId).collection('waitlist').get()
+    const bumpedEntry = waitlistSnap.docs.find((d) => d.data().name === 'Beto')
+    expect(bumpedEntry?.data().status).toBe('waiting')
+  })
+
+  it('never bumps a guest who already paid or checked in, even if more recent', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, capacity: 2, peopleCount: 2, guestCount: 2, rsvpYesCount: 2 })
+    await seedGuest(db, eventId, 'guest-paid', { name: 'Diego', createdAt: 2000, paymentStatus: 'paid' })
+    await seedGuest(db, eventId, 'guest-checkedin', { name: 'Elena', createdAt: 3000, status: 'checked_in' })
+    await seedWaitlistEntry(db, eventId, 'entry-1', { name: 'Fabio', partySize: 1 })
+
+    await expect(
+      assignWaitlistSpot.run(fakeCallableRequest({ eventId, entryId: 'entry-1' }, OWNER_UID)),
+    ).rejects.toThrow(HttpsError)
+
+    expect(await getGuestDoc(db, eventId, 'guest-paid')).toBeTruthy()
+    expect(await getGuestDoc(db, eventId, 'guest-checkedin')).toBeTruthy()
+    const entry = await getWaitlistEntry(db, eventId, 'entry-1')
+    expect(entry?.status).toBe('waiting')
+  })
+
+  it('bumps more than one guest when the arriving party needs more than one spot', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, capacity: 2, peopleCount: 2, guestCount: 2, rsvpYesCount: 2 })
+    await seedGuest(db, eventId, 'guest-a', { name: 'Gina', createdAt: 1000 })
+    await seedGuest(db, eventId, 'guest-b', { name: 'Hugo', createdAt: 2000 })
+    await seedWaitlistEntry(db, eventId, 'entry-1', { name: 'Iris', partySize: 2 })
+
+    const result = await assignWaitlistSpot.run(fakeCallableRequest({ eventId, entryId: 'entry-1' }, OWNER_UID))
+
+    expect(result.bumped.map((b) => b.name).sort()).toEqual(['Gina', 'Hugo'])
+    expect(await getGuestDoc(db, eventId, 'guest-a')).toBeUndefined()
+    expect(await getGuestDoc(db, eventId, 'guest-b')).toBeUndefined()
+    const eventSnap = await db.collection('events').doc(eventId).get()
+    expect(eventSnap.data()?.peopleCount).toBe(2)
+    expect(eventSnap.data()?.guestCount).toBe(1)
   })
 
   it('rejects an unauthenticated caller', async () => {

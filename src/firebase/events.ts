@@ -368,6 +368,23 @@ export async function updateEventDetails(eventId: string, input: UpdateEventInpu
   })
 }
 
+// Write mínimo de capacity/attendeeLimitEnabled — a diferencia de
+// updateEventDetails (que siempre reescribe los ~35 campos editables del
+// formulario), esta función toca SOLO esos dos campos. La usa el flujo de
+// degradación a lista de espera de EditEventForm.tsx: primero para apagar
+// attendeeLimitEnabled (evita que onCapacityFreed dispare su cascada
+// mientras se mueve gente a la waitlist) y después para reactivarlo con la
+// capacidad ya ajustada — ninguno de los dos pasos puede esperar a que el
+// organizador confirme el resto de los cambios del formulario, así que no
+// puede pasar por updateEventDetails sin arriesgar guardar edits a medio
+// hacer del resto del form.
+export async function setEventCapacityLimit(
+  eventId: string,
+  input: { capacity: number; attendeeLimitEnabled: boolean },
+): Promise<void> {
+  await updateDoc(doc(db, 'events', eventId), input)
+}
+
 // Usado por el dueño (o un co-organizador con manageCoOrganizers) para quitar
 // a OTRO co-organizador. Para que un co-organizador se quite a sí mismo, ver
 // leaveCoOrganizer — misma escritura, pero autorizada por una rama distinta

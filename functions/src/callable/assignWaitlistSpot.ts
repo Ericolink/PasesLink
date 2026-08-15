@@ -29,6 +29,10 @@ interface AssignWaitlistSpotInput {
 
 interface AssignWaitlistSpotResult {
   qrToken: string
+  // Invitados corridos a la lista de espera para hacerle lugar al que se
+  // asignó, si no había cupo (ver allowBumpToFit en promoteEntryToGuest) —
+  // vacío cuando no hizo falta.
+  bumped: { name: string; partySize: number }[]
 }
 
 // secrets/timeoutSeconds: mismo motivo que registerWalkInGuest.ts — el
@@ -55,13 +59,13 @@ export const assignWaitlistSpot = onCall<AssignWaitlistSpotInput>({ secrets: [br
       throw new HttpsError('permission-denied', 'No tienes permiso para gestionar la lista de espera de este evento.')
     }
 
-    const result = await promoteEntryToGuest(db, eventId, entryId, { guestUid: null, paymentMethod, markPaid, paidByUid: request.auth.uid })
+    const result = await promoteEntryToGuest(db, eventId, entryId, { guestUid: null, paymentMethod, markPaid, paidByUid: request.auth.uid, allowBumpToFit: true })
 
     if (!result.ok) {
       const messages: Record<typeof result.reason, string> = {
         not_found: 'Esa entrada ya no existe.',
         not_available: 'Esa persona ya no está en la lista de espera (ya fue promovida, declinó la oferta, o se la quitó de la fila).',
-        no_capacity: 'No hay lugar suficiente para el tamaño de este grupo.',
+        no_capacity: 'No hay lugar suficiente, ni corriendo a los últimos registrados que no pagaron ni hicieron check-in.',
       }
       throw new HttpsError('failed-precondition', messages[result.reason])
     }
@@ -86,8 +90,8 @@ export const assignWaitlistSpot = onCall<AssignWaitlistSpotInput>({ secrets: [br
       }
     }
 
-    logBusinessEvent(ctx.logger, BUSINESS_EVENTS.GUEST_PROMOTED_FROM_WAITLIST, { eventId, entryId, reason: 'organizer_direct', markPaid: markPaid === true })
+    logBusinessEvent(ctx.logger, BUSINESS_EVENTS.GUEST_PROMOTED_FROM_WAITLIST, { eventId, entryId, reason: 'organizer_direct', markPaid: markPaid === true, bumpedCount: result.bumped.length })
 
-    return { qrToken: result.qrToken }
+    return { qrToken: result.qrToken, bumped: result.bumped }
   }),
 )
