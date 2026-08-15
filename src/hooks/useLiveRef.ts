@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react'
 // primer render — si ese callback necesita leer el valor ACTUAL más
 // adelante, tiene que hacerlo a través de un ref que un efecto mantiene
 // sincronizado, no leyendo el state directo. Este hook es ese patrón
-// (antes repetido a mano 4 veces en Scanner.tsx: eventRef, scanModeRef,
+// (antes repetido a mano varias veces en Scanner.tsx: eventRef,
 // pendingExitRef, feedbackRef) reducido a una sola línea por valor.
 export function useLiveRef<T>(value: T) {
   const ref = useRef(value)
