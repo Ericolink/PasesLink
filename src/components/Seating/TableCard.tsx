@@ -52,6 +52,13 @@ export function TableCard({ table, readOnly, onAssign, onEdit, onDelete, onRemov
             <IconAlertTriangle className="w-3.5 h-3.5" /> Sobrecupo
           </span>
         ) : undefined}
+        subtitle={
+          table.isOverCapacity
+            ? 'Mesa con sobrecupo.'
+            : table.capacity - table.occupancy > 0
+              ? `${table.capacity - table.occupancy} asiento${table.capacity - table.occupancy === 1 ? '' : 's'} libre${table.capacity - table.occupancy === 1 ? '' : 's'}.`
+              : 'Mesa llena.'
+        }
       />
 
       {table.guests.length > 0 ? (

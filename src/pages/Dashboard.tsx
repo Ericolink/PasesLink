@@ -239,6 +239,11 @@ function EventTicket({ event, index, past, isNext }: EventTicketProps) {
           showPercentage
           percentSuffix="asistencia"
           rightLabel={event.capacity > 0 ? <span className="text-[var(--invite-text-muted,#4b5563)]">cap. {event.capacity}</span> : undefined}
+          subtitle={
+            event.peopleCount - event.checkedInCount > 0
+              ? `${event.peopleCount - event.checkedInCount} pendientes de check-in.`
+              : 'Todos hicieron check-in.'
+          }
         />
       }
     />

@@ -15,6 +15,8 @@ interface AttendanceProgressBarProps {
   percentSuffix?: string
   /** Contenido extra al final de la fila de texto (ej. badge de cupo). Si se pasa, la fila usa layout "justify-between" en vez de centrado. */
   rightLabel?: ReactNode
+  /** Línea aclaratoria debajo de la barra, ej. "3 personas pendientes de pago." (ver "Personas que han pagado" en EventDetail). Opcional: sin esto, la barra queda igual que antes. */
+  subtitle?: ReactNode
   className?: string
 }
 
@@ -26,6 +28,7 @@ export function AttendanceProgressBar({
   showPercentage = true,
   percentSuffix,
   rightLabel,
+  subtitle,
   className = '',
 }: AttendanceProgressBarProps) {
   const percent = attendancePercent(present, expected)
@@ -71,6 +74,13 @@ export function AttendanceProgressBar({
           }
         />
       </div>
+      {subtitle && (
+        // Sin dark: en 'glow' — mismo criterio que la fila present/expected
+        // de arriba (isGlow ya usa gray-500 fijo): esas barras viven sobre
+        // el fondo temático de la invitación, no sobre el fondo claro/oscuro
+        // de la app.
+        <p className={`text-xs mt-2 ${isGlow ? 'text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>{subtitle}</p>
+      )}
     </div>
   )
 }

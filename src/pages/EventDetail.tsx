@@ -519,6 +519,11 @@ export function EventDetail() {
             expected={totalPeople}
             unitLabel="check-ins"
             showPercentage
+            subtitle={
+              totalPeople - event.checkedInCount > 0
+                ? `${totalPeople - event.checkedInCount} persona${totalPeople - event.checkedInCount === 1 ? '' : 's'} pendiente${totalPeople - event.checkedInCount === 1 ? '' : 's'} de check-in. Incluye acompañantes.`
+                : 'Todas las personas ya hicieron check-in. Incluye acompañantes.'
+            }
           />
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mt-3">
             <span>{event.guestCount} registrados</span>
@@ -540,12 +545,17 @@ export function EventDetail() {
             {totalPeople >= event.capacity && (
               <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">🔴 Evento lleno</p>
             )}
-            <AttendanceProgressBar present={totalPeople} expected={event.capacity} unitLabel="asistentes" showPercentage />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {totalPeople >= event.capacity
-                ? 'El autorregistro y las altas manuales están cerrados hasta que se libere un lugar.'
-                : `Cupos disponibles: ${Math.max(0, event.capacity - totalPeople)}`}
-            </p>
+            <AttendanceProgressBar
+              present={totalPeople}
+              expected={event.capacity}
+              unitLabel="asistentes"
+              showPercentage
+              subtitle={
+                totalPeople >= event.capacity
+                  ? 'El autorregistro y las altas manuales están cerrados hasta que se libere un lugar.'
+                  : `Cupos disponibles: ${Math.max(0, event.capacity - totalPeople)}`
+              }
+            />
           </div>
         ) : (
           event.capacity > 0 && totalPeople > event.capacity && (
@@ -568,12 +578,12 @@ export function EventDetail() {
               expected={payment.totalPeople}
               unitLabel="personas han pagado"
               showPercentage
+              subtitle={
+                payment.pendingPeople > 0
+                  ? `${payment.pendingPeople} persona${payment.pendingPeople === 1 ? '' : 's'} pendiente${payment.pendingPeople === 1 ? '' : 's'} de pago. Incluye acompañantes.`
+                  : 'Todas las personas ya pagaron. Incluye acompañantes.'
+              }
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {payment.pendingPeople > 0
-                ? `${payment.pendingPeople} persona${payment.pendingPeople === 1 ? '' : 's'} pendiente${payment.pendingPeople === 1 ? '' : 's'} de pago. Incluye acompañantes.`
-                : 'Todas las personas ya pagaron. Incluye acompañantes.'}
-            </p>
           </div>
         )}
       </div>

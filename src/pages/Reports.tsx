@@ -219,6 +219,11 @@ export function Reports() {
                 unitLabel="dentro"
                 variant="glow"
                 className="text-base sm:text-lg"
+                subtitle={
+                  (event.capacity || event.peopleCount) - event.occupancyCount > 0
+                    ? `${(event.capacity || event.peopleCount) - event.occupancyCount} lugares libres.`
+                    : 'Capacidad completa.'
+                }
               />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-5">

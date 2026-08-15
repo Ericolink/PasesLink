@@ -657,6 +657,11 @@ export function Scanner() {
           unitLabel="confirmados"
           showPercentage={false}
           variant="plain"
+          subtitle={
+            event.peopleCount - event.checkedInCount > 0
+              ? `${event.peopleCount - event.checkedInCount} persona${event.peopleCount - event.checkedInCount === 1 ? '' : 's'} pendiente${event.peopleCount - event.checkedInCount === 1 ? '' : 's'} de check-in. Incluye acompañantes.`
+              : 'Todas las personas ya hicieron check-in. Incluye acompañantes.'
+          }
         />
       )}
     </div>
