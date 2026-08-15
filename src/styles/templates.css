@@ -1264,6 +1264,18 @@
   transform: scale(.98);
 }
 
+/* Botones ghost (p.ej. "Agregar al calendario", stepper +/- de invitados en
+   EventJoin.tsx): su texto por defecto es --invite-text (blanco, pensado
+   para leerse sobre el fondo oscuro de la tarjeta), pero al hover/active
+   pintan su propio fondo con --invite-accent-soft (claro en todos los
+   temas, este incluido) — mismo problema de contraste que ya resuelve
+   --invite-ink para el botón primario, aplicado acá a los estados
+   hover/active en vez de al fondo base. */
+[data-template='houseparty'] .hover\:bg-\[var\(--invite-accent-soft\)\]:hover,
+[data-template='houseparty'] .active\:bg-\[var\(--invite-accent-soft\)\]:active {
+  color: var(--invite-ink) !important;
+}
+
 /* Insignias (RSVP/pago/check-in confirmados): borde de luz fina en vez del
    giro "estampado a mano" de la materialidad anterior — el vidrio no se
    sella a mano, se ilumina. */

@@ -38,7 +38,7 @@ import { InvitationCard } from '../components/InvitationCard'
 import { ThemeOrnament } from '../components/ThemeOrnament'
 import { EventCountdown } from '../components/EventCountdown'
 import { formatTime12h } from '../utils/time'
-import { IconBan, IconClock } from '../components/accessibility/AccessibleIcon'
+import { IconBan, IconCheckCircle, IconClock } from '../components/accessibility/AccessibleIcon'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useAnnouncer } from '../components/accessibility/LiveRegion'
@@ -507,9 +507,12 @@ export function EventJoin() {
 
             {waitlistState === 'joined' ? (
               <div className="rounded-2xl border border-[var(--invite-border)] bg-[var(--invite-surface)] p-4 text-left">
-                <p className="text-sm font-semibold text-[var(--invite-text)] mb-1">✅ Te agregamos a la lista de espera.</p>
+                <p className="flex items-center gap-2 text-sm font-semibold text-[var(--invite-text)] mb-1">
+                  <IconCheckCircle className="w-4 h-4 shrink-0 text-green-500" />
+                  Te agregamos a la lista de espera.
+                </p>
                 <p className="text-xs text-[var(--invite-text-muted)] mb-3">
-                  Te avisaremos por email si se libera un lugar. Guarda este link para consultar tu estado cuando quieras.
+                  Guarda este link para consultar tu estado cuando quieras.
                 </p>
                 <button
                   type="button"
