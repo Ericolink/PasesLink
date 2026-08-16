@@ -1,10 +1,29 @@
 import type { ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { matchPath, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
 import { logout } from '../firebase/auth'
+import { getPendingLegalAcceptance } from '../legal/documents'
 import { IconBan } from './accessibility/AccessibleIcon'
 import { CrownLoader } from './CrownLoader'
+import { LegalReacceptanceScreen } from './LegalReacceptanceScreen'
+
+// Rutas protegidas donde NO se debe interrumpir con el aviso de
+// re-aceptación legal, aunque el usuario tenga una versión pendiente:
+//  - /events/:eventId/scan: escanear el acceso en la puerta de un evento en
+//    vivo no puede quedar bloqueado por un aviso legal a mitad de la fila
+//    (decisión explícita del usuario, mismo criterio que ya usa
+//    MAINTENANCE_EXEMPT_PATTERNS en MaintenanceGate.tsx para el mismo caso).
+//  - /complete-profile: la propia pantalla ya pide aceptar los documentos
+//    vigentes como parte de su propio formulario (primer guardado de perfil
+//    tras Google) — interceptarla con este aviso ANTES de que el usuario
+//    llegue a ese checkbox le impediría completar su perfil.
+const LEGAL_GATE_EXEMPT_PATTERNS = ['/events/:eventId/scan', '/complete-profile']
+
+function isLegalGateExempt(pathname: string): boolean {
+  return LEGAL_GATE_EXEMPT_PATTERNS.some((pattern) => matchPath({ path: pattern, end: true }, pathname) !== null)
+}
 
 // Único punto de bloqueo "de app completa" para un baneo/suspensión global
 // (ver src/firebase/sanctions.ts) — no puede deshabilitar el login de
@@ -12,9 +31,18 @@ import { CrownLoader } from './CrownLoader'
 // así que el usuario sancionado sigue pudiendo autenticarse, pero cualquier
 // ruta protegida (dashboard, crear evento, etc.) le muestra este aviso en
 // vez de su contenido normal hasta que la sanción venza o el admin la quite.
+//
+// También es el único punto donde se pide re-aceptar Términos/Privacidad
+// cuando se publica una versión nueva (ver src/legal/documents.ts). Vive acá
+// (no envolviendo <SentryRoutes> como MaintenanceGate) porque el gate solo
+// tiene sentido para rutas que ya exigen sesión — así una ruta pública que
+// un usuario logueado visite de paso (la landing, /terminos) nunca queda
+// bloqueada por esto, sin necesidad de una lista de exención tan larga como
+// la de mantenimiento.
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   const { banned, banMessage } = useSanctionStatus()
+  const { profile, loadingProfile } = useUserProfile()
   const location = useLocation()
 
   if (loading) {
@@ -47,6 +75,17 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
         </div>
       </div>
     )
+  }
+
+  // "Fail open" a propósito, mismo criterio que useMaintenanceMode: mientras
+  // el perfil todavía no cargó su primer snapshot, no bloqueamos — más vale
+  // un flash breve del contenido real para alguien con aceptación pendiente
+  // que bloquear a todo el mundo por una lectura que puede tardar.
+  if (!loadingProfile && !isLegalGateExempt(location.pathname)) {
+    const pending = getPendingLegalAcceptance(profile?.legalAcceptedVersions)
+    if (pending.length > 0) {
+      return <LegalReacceptanceScreen uid={user.uid} pendingLabels={pending.map((d) => d.label)} />
+    }
   }
 
   return <>{children}</>

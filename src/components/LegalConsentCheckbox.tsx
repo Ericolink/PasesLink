@@ -44,7 +44,15 @@ export function LegalConsentCheckbox({ id, checked, onChange }: Props) {
           >
             {LEGAL_DOCS.privacy.label}
           </button>{' '}
-          de PaseLink.
+          de PaseLink. También puedes consultar nuestro{' '}
+          <button
+            type="button"
+            onClick={() => setOpenDoc('cookies')}
+            className="text-primary font-medium underline underline-offset-2"
+          >
+            {LEGAL_DOCS.cookies.label}
+          </button>
+          .
         </span>
       </label>
       <LegalDocumentSheet docId={openDoc} onClose={() => setOpenDoc(null)} />

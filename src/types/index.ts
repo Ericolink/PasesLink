@@ -895,6 +895,12 @@ export interface UserProfile {
   // Escrito directo por src/firebase/messaging.ts (arrayUnion/arrayRemove),
   // no pasa por updateUserProfile. Ausente = nunca activó push.
   fcmTokens?: string[]
+  // Última versión aceptada de cada documento legal que exige consentimiento
+  // (Términos/Privacidad — ver ACCEPTANCE_REQUIRED_DOCS en src/legal/documents.ts).
+  // Denormalizado por recordLegalAcceptance junto al historial append-only en
+  // users/{uid}/legalAcceptances; lo lee ProtectedRoute (vía useUserProfile)
+  // para decidir si pedir re-aceptación.
+  legalAcceptedVersions?: Partial<Record<'terms' | 'privacy' | 'cookies', string>>
   createdAt: number
 }
 

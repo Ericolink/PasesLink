@@ -22,6 +22,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword').then((m) => ({ 
 const Profile = lazy(() => import('./pages/Profile').then((m) => ({ default: m.Profile })))
 const Terms = lazy(() => import('./pages/Terms').then((m) => ({ default: m.Terms })))
 const Privacy = lazy(() => import('./pages/Privacy').then((m) => ({ default: m.Privacy })))
+const Cookies = lazy(() => import('./pages/Cookies').then((m) => ({ default: m.Cookies })))
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })))
 const EventCreate = lazy(() => import('./pages/EventCreate').then((m) => ({ default: m.EventCreate })))
 const EventDetail = lazy(() => import('./pages/EventDetail').then((m) => ({ default: m.EventDetail })))
@@ -120,6 +121,7 @@ function App() {
         <Route path="/reset-password" element={<PublicLayout><ResetPassword /></PublicLayout>} />
         <Route path="/terminos" element={<PublicLayout><Terms /></PublicLayout>} />
         <Route path="/privacidad" element={<PublicLayout><Privacy /></PublicLayout>} />
+        <Route path="/cookies" element={<PublicLayout><Cookies /></PublicLayout>} />
         <Route path="/feedback" element={<PublicLayout><Feedback /></PublicLayout>} />
 
         {/* Kiosko público: pases y flujos de invitado, sin chrome de marketing.
