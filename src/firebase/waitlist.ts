@@ -3,7 +3,7 @@
 // declined) son exclusivas de Cloud Functions (Admin SDK, ignora las
 // rules) — este archivo solo llama a esas Callable Functions, nunca
 // escribe esos campos directo a Firestore.
-import { addDoc, collection, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './config'
@@ -26,9 +26,16 @@ export async function joinWaitlist(
   phoneCountry?: string,
   email?: string,
   customData?: Record<string, string>,
+  // Auditoría de estabilidad (evento en vivo, 2026-08-16): mala conexión →
+  // la respuesta de este addDoc se pierde → el usuario cree que falló →
+  // reintenta (F5 o botón de nuevo) → sin esto, cada intento crea una
+  // entrada nueva. El llamador genera esta clave una sola vez por montaje
+  // (mismo valor en cada reintento) y acá se usa como id determinístico del
+  // documento en vez de un id aleatorio.
+  idempotencyKey?: string,
 ): Promise<{ waitlistToken: string }> {
   const waitlistToken = generateWaitlistToken()
-  await addDoc(collection(db, 'events', eventId, 'waitlist'), {
+  const data = {
     name,
     partySize,
     ...(phone ? { phone, whatsappConsent: true } : {}),
@@ -48,8 +55,32 @@ export async function joinWaitlist(
     // GuestData.registrationSource, se propaga tal cual si esta entrada se
     // promueve a invitado (functions/src/waitlist/promoteToGuest.ts).
     registrationSource: 'self',
-  })
-  return { waitlistToken }
+  }
+  if (!idempotencyKey) {
+    await addDoc(collection(db, 'events', eventId, 'waitlist'), data)
+    return { waitlistToken }
+  }
+  // Con id determinístico, la primera escritura matchea `allow create`; un
+  // reintento con la misma clave apunta al mismo documento (ya existente) y
+  // matchea `allow update` en su lugar — rama que exige el permiso
+  // `addGuests`, que un cliente público nunca tiene (ver firestore.rules
+  // `match /waitlist/{entryId}`). El reintento se rechaza con
+  // permission-denied en vez de crear una segunda entrada; se recupera
+  // leyendo la entrada que sí se creó (`allow get: if true`).
+  const ref = doc(db, 'events', eventId, 'waitlist', idempotencyKey)
+  try {
+    await setDoc(ref, data)
+    return { waitlistToken }
+  } catch (err) {
+    const code = (err as { code?: string } | undefined)?.code
+    if (code === 'permission-denied') {
+      const existing = await getDoc(ref)
+      if (existing.exists()) {
+        return { waitlistToken: (existing.data().waitlistToken as string | undefined) ?? waitlistToken }
+      }
+    }
+    throw err
+  }
 }
 
 function toMillisOrNull(value: unknown): number | null {

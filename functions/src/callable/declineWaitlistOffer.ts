@@ -1,10 +1,17 @@
-// El invitado dice "no, gracias" — libera el lugar de inmediato en vez de
-// dejar la oferta abierta indefinidamente (mejor experiencia para el
-// siguiente en la fila, que no tiene que esperar a que el organizador la
-// cancele a mano).
+// El invitado dice "no, gracias" — libera el lugar de inmediato (el status
+// pasa a 'declined', sale del cupo reservado) en vez de dejar la oferta
+// abierta indefinidamente.
+//
+// Ya NO dispara la cascada automática (runCascade) para ofertarle el lugar
+// al siguiente en la fila — desactivado a pedido del organizador (evento
+// debut, 2026-08-16): la cascada competía por capacidad recién liberada
+// contra ediciones manuales del propio organizador (ver el mismo motivo en
+// onCapacityFreed.ts y cancelWaitlistOffer.ts). La promoción desde la
+// waitlist es ahora 100% manual, vía "Pasar a la lista normal"
+// (assignWaitlistSpot.ts) — el organizador ve el lugar liberado en el panel
+// y decide a quién dárselo.
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
-import { runCascade } from '../waitlist/cascade.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface DeclineWaitlistOfferInput {
@@ -37,8 +44,6 @@ export const declineWaitlistOffer = onCall<DeclineWaitlistOfferInput>({ timeoutS
       if (entry.status !== 'offered' || entry.offerToken !== offerToken) return
       tx.update(entryRef, { status: 'declined', respondedAt: Date.now() })
     })
-
-    await runCascade(db, eventId)
 
     return { ok: true }
   }),

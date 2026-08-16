@@ -105,6 +105,11 @@ export async function registerWalkInGuest(
   // País (ISO alpha-2) elegido junto al teléfono — ver el mismo campo en
   // GuestData y toWhatsAppPhone (utils/phone.ts).
   phoneCountry?: string,
+  // Generada una sola vez por intento de registro en EventJoin.tsx y
+  // reutilizada en cada reintento del MISMO intento (doble-tap, F5 con la
+  // petición en vuelo, reintento manual tras una respuesta perdida) — ver
+  // el chequeo correspondiente en registerWalkInGuest.ts (Cloud Function).
+  idempotencyKey?: string,
 ): Promise<{ status: 'success' | 'error'; qrToken?: string }> {
   const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
   const trimmedLastName = lastName?.trim() ? requireMaxLength(lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido') : undefined
@@ -129,6 +134,7 @@ export async function registerWalkInGuest(
       customData?: Record<string, string>
       companions?: CompanionData[]
       paymentMethod?: PaymentMethod
+      idempotencyKey?: string
     },
     { status: 'success'; qrToken: string } | { status: 'full' } | { status: 'error' }
   >(functions, 'registerWalkInGuest')
@@ -143,6 +149,7 @@ export async function registerWalkInGuest(
     customData,
     companions,
     paymentMethod,
+    idempotencyKey,
   })
 
   if (result.data.status === 'full') throw new CapacityFullError()

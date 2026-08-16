@@ -24,6 +24,14 @@ interface Props {
   // definitivamente); cualquier otro ConfirmDialog puede sumarlo si necesita
   // el mismo nivel de fricción.
   confirmationText?: string
+  // Deshabilita el botón "Confirmar" mientras el caller tiene la acción en
+  // vuelo. Antes solo cambiaba `confirmLabel` (ej. "Eliminando…") pero el
+  // botón seguía clickeable durante toda la espera — un doble-tap en móvil
+  // podía disparar `onConfirm` dos veces antes de que el caller alcanzara a
+  // cerrar el diálogo (auditoría de estabilidad, evento en vivo). Opcional y
+  // `false` por defecto: ningún caller existente cambia de comportamiento
+  // sin pasarlo explícitamente.
+  busy?: boolean
 }
 
 export function ConfirmDialog({
@@ -36,6 +44,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   confirmationText,
+  busy = false,
 }: Props) {
   const confirmRef = useRef<HTMLButtonElement>(null)
   const typedInputRef = useRef<HTMLInputElement>(null)
@@ -121,7 +130,7 @@ export function ConfirmDialog({
           ref={confirmRef}
           variant={danger ? 'danger' : 'primary'}
           onClick={onConfirm}
-          disabled={!canConfirm}
+          disabled={!canConfirm || busy}
           className="flex-1"
         >
           {confirmLabel}

@@ -126,7 +126,7 @@ export function Scanner() {
     }
   }
 
-  const { walkInMsg, handleWalkIn, handleWalkOut } = useWalkInCounter(eventId, (detail) => showFeedback({ type: 'error', detail }))
+  const { walkInMsg, isSubmitting: walkInSubmitting, handleWalkIn, handleWalkOut } = useWalkInCounter(eventId, (detail) => showFeedback({ type: 'error', detail }))
   const { scanning, cameraError, startScanning, stopScanning } = useQrScanner({
     canAutoStart: !!(event && user && perms.scanQr),
     onDecode: processQr,
@@ -602,7 +602,7 @@ export function Scanner() {
           cámara — la mitad inferior de la pantalla es la zona de alcance
           cómodo del pulgar sosteniendo el teléfono con una mano. */}
       <div className="space-y-3 mb-4">
-        <WalkInCounter event={event} walkInMsg={walkInMsg} onWalkIn={handleWalkIn} onWalkOut={handleWalkOut} />
+        <WalkInCounter event={event} walkInMsg={walkInMsg} isSubmitting={walkInSubmitting} onWalkIn={handleWalkIn} onWalkOut={handleWalkOut} />
       </div>
 
       {feedback && (

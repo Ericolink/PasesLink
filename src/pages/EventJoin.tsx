@@ -70,6 +70,26 @@ function waitlistRegKey(eventId: string) {
   return `join_waitlist_${eventId}`
 }
 
+// Clave de idempotencia para joinWaitlist — separada de waitlistRegKey (que
+// solo se guarda DESPUÉS de un éxito confirmado). Esta se guarda ANTES de
+// llamar a joinWaitlist, así que sobrevive a un refresh con la petición
+// todavía en vuelo: un reintento (F5, "no vi respuesta", el botón de nuevo)
+// reutiliza la misma clave en vez de generar una entrada nueva en la lista
+// de espera (ver joinWaitlist en firebase/waitlist.ts).
+function waitlistIdemKey(eventId: string) {
+  return `join_waitlist_idem_${eventId}`
+}
+
+// Mismo motivo/patrón que waitlistIdemKey, para el registro real (no la
+// lista de espera): se guarda ANTES de llamar a registerWalkInGuest, así
+// que un reintento (F5 con la petición en vuelo, "no vi respuesta", el
+// botón de nuevo) reutiliza la misma clave en vez de crear un invitado
+// duplicado — ver el chequeo correspondiente del lado del servidor en
+// functions/src/capacity/registerWalkInGuest.ts.
+function regIdemKey(eventId: string) {
+  return `join_reg_idem_${eventId}`
+}
+
 // El pase de un invitado autoregistrado se ve y funciona igual que el de un
 // invitado agregado por lista: ambos son el mismo documento en
 // events/{eventId}/guests y ambos se muestran con GuestPass en
@@ -118,6 +138,13 @@ export function EventJoin() {
   const [signupPromptStep, setSignupPromptStep] = useState<'form' | 'login'>('form')
   const formRef = useRef<HTMLFormElement>(null)
   useFocusFirstInvalidField(formRef, regErrorAttempt)
+  // Guard síncrono contra doble-submit: el `disabled` del botón depende de
+  // `state`/`waitlistState`, que solo se actualiza en el próximo render —
+  // un doble-tap/doble-click en móvil puede disparar el handler dos veces
+  // antes de ese render (mismo problema y mismo patrón de fix que
+  // Scanner.tsx submitExit/handleConfirmPayment).
+  const submittingRegRef = useRef(false)
+  const submittingWaitlistRef = useRef(false)
 
   const { announce } = useAnnouncer()
   // Un stepper personalizado no anuncia su cambio de valor por sí solo como
@@ -361,11 +388,17 @@ export function EventJoin() {
     // Redundante con el guard de handleSubmit (que ya validó `id` antes de
     // llamar acá) — TypeScript no propaga esa validación entre funciones
     // distintas, y accountGate.requestConfirm puede diferir la llamada.
-    if (!id) return
+    if (!id || submittingRegRef.current) return
+    submittingRegRef.current = true
     setState('submitting')
     setRegError('')
     try {
       const fullName = `${name.trim()} ${lastName.trim()}`
+      let idemKey = localStorage.getItem(regIdemKey(id))
+      if (!idemKey) {
+        idemKey = crypto.randomUUID()
+        localStorage.setItem(regIdemKey(id), idemKey)
+      }
       const result = await registerWalkInGuest(
         id,
         name.trim(),
@@ -378,6 +411,7 @@ export function EventJoin() {
         user?.uid,
         profile?.photoURL,
         phoneCountry,
+        idemKey,
       )
       if (result.status === 'error') {
         setRegError('Este evento ya no está disponible. Actualiza la página e intenta de nuevo.')
@@ -427,6 +461,8 @@ export function EventJoin() {
       setRegError(getFunctionsErrorMessage(err, 'No se pudo completar el registro. Intenta de nuevo.'))
       setRegErrorAttempt((n) => n + 1)
       setState('form')
+    } finally {
+      submittingRegRef.current = false
     }
   }
 
@@ -437,17 +473,25 @@ export function EventJoin() {
   // conflicto en compartirlos.
   async function handleJoinWaitlist(e: React.FormEvent) {
     e.preventDefault()
-    if (!id || !name.trim() || !lastName.trim()) return
+    if (!id || !name.trim() || !lastName.trim() || submittingWaitlistRef.current) return
+    submittingWaitlistRef.current = true
     setWaitlistState('submitting')
     try {
       const fullName = `${name.trim()} ${lastName.trim()}`
-      const { waitlistToken: token } = await joinWaitlist(id, fullName, partySize, phone, phoneCountry, email, customValues)
+      let idemKey = localStorage.getItem(waitlistIdemKey(id))
+      if (!idemKey) {
+        idemKey = crypto.randomUUID()
+        localStorage.setItem(waitlistIdemKey(id), idemKey)
+      }
+      const { waitlistToken: token } = await joinWaitlist(id, fullName, partySize, phone, phoneCountry, email, customValues, idemKey)
       localStorage.setItem(waitlistRegKey(id), JSON.stringify({ waitlistToken: token }))
       setWaitlistToken(token)
       setWaitlistState('joined')
     } catch (err) {
       console.error('Error joining waitlist:', err)
       setWaitlistState('error')
+    } finally {
+      submittingWaitlistRef.current = false
     }
   }
 
@@ -490,16 +534,18 @@ export function EventJoin() {
                 de espera", no "está cerrado", así que tiene que notarse de
                 entrada, antes de que la persona vea el formulario. */}
             {/* Texto en negro fijo (no --invite-text, que en algunos temas
-                sale blanco): bg-accent-soft puede resultar en un azul poco
-                claro según la plantilla, y blanco sobre azul saturado no se
-                distingue — negro fijo garantiza contraste sin depender del
-                tema. */}
+                sale blanco, ni text-gray-900: en este repo la escala gray
+                está invertida dentro de .dark —fijo en <html>— así que
+                text-gray-900 sale casi blanco): bg-accent-soft puede
+                resultar en un azul poco claro según la plantilla, y blanco
+                sobre azul saturado no se distingue — negro fijo (text-black)
+                garantiza contraste sin depender del tema. */}
             <div className="rounded-2xl border-2 border-[var(--invite-accent)] bg-[var(--invite-accent-soft)] p-4 mb-5">
               <IconClock className="w-8 h-8 mx-auto mb-2 text-[var(--invite-accent)]" />
-              <p className="text-base font-bold text-gray-900 mb-1">
+              <p className="text-base font-bold text-black mb-1">
                 Este evento alcanzó su capacidad máxima
               </p>
-              <p className="text-sm text-gray-900">
+              <p className="text-sm text-black">
                 Pero puedes anotarte en la <strong>lista de espera</strong>: si se libera un lugar, te avisamos
                 automáticamente.
               </p>

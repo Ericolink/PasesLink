@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentType } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
-import type { EntryMode } from '../types'
+import type { EntryMode, WaitlistEntryData } from '../types'
 import { useEvent } from '../hooks/useEvent'
 import { useAuth } from '../hooks/useAuth'
 import { useDebounce } from '../hooks/useDebounce'
@@ -17,6 +17,7 @@ import { useIsAdmin } from '../hooks/useIsAdmin'
 import { useHasUnseenWallMessage } from '../hooks/useWallActivity'
 import { useEventLifecycleActions } from '../hooks/useEventLifecycleActions'
 import { trackEventOpen } from '../lib/analytics'
+import { captureException } from '../lib/sentry'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { subscribeToWaitlist } from '../firebase/waitlist'
 import { filterAndSortGuests } from '../utils/guestSearch'
@@ -91,19 +92,39 @@ export function EventDetail() {
   const perms = useEventPermissions(event, user)
   const { isAdmin } = useIsAdmin()
 
-  // Solo el conteo (waiting + offered), no las entradas — lo único que
-  // necesita el badge "Lista de espera" del resumen de GuestList. Mismo
-  // gate que WaitlistPanel más abajo (attendeeLimitEnabled + viewGuestList)
-  // para no suscribirse cuando esa sección ni se va a mostrar. Independiente
-  // de la suscripción propia de WaitlistPanel (mismo criterio ya usado en
-  // Reports.tsx/useEventDashboard.ts: cada consumidor pide lo que necesita).
-  const [waitlistCount, setWaitlistCount] = useState(0)
-  /* eslint-disable react-hooks/set-state-in-effect -- limpia el conteo previo al cambiar de evento/permisos antes de que llegue (o no) la nueva suscripción */
+  // Única suscripción a la waitlist de esta página — antes EventDetail traía
+  // solo el conteo (waiting + offered) para el badge de GuestList, y
+  // WaitlistPanel más abajo abría su propia suscripción idéntica para las
+  // entradas completas (misma query, mismo eventId). Como WaitlistPanel solo
+  // se usa acá (no hay otro consumidor que perder), se levantó a este único
+  // efecto y las entradas bajan por prop — evita duplicar la lectura en cada
+  // escritura de waitlist durante el check-in. Mismo gate que la sección de
+  // abajo (attendeeLimitEnabled + viewGuestList) para no suscribirse cuando
+  // esa sección ni se va a mostrar.
+  const [waitlistEntries, setWaitlistEntries] = useState<WaitlistEntryData[]>([])
+  const [waitlistSubscriptionError, setWaitlistSubscriptionError] = useState(false)
+  /* eslint-disable react-hooks/set-state-in-effect -- limpia las entradas previas al cambiar de evento/permisos antes de que llegue (o no) la nueva suscripción */
   useEffect(() => {
-    if (!event?.id || !event.attendeeLimitEnabled || !perms.viewGuestList) { setWaitlistCount(0); return }
-    return subscribeToWaitlist(event.id, (entries) => setWaitlistCount(entries.length))
+    if (!event?.id || !event.attendeeLimitEnabled || !perms.viewGuestList) {
+      setWaitlistEntries([])
+      setWaitlistSubscriptionError(false)
+      return
+    }
+    return subscribeToWaitlist(
+      event.id,
+      (entries) => {
+        setWaitlistSubscriptionError(false)
+        setWaitlistEntries(entries)
+      },
+      (err) => {
+        console.error('Error al suscribirse a la lista de espera:', err)
+        setWaitlistSubscriptionError(true)
+        captureException(err, { tags: { flow: 'waitlist-panel' } })
+      },
+    )
   }, [event?.id, event?.attendeeLimitEnabled, perms.viewGuestList])
   /* eslint-enable react-hooks/set-state-in-effect */
+  const waitlistCount = waitlistEntries.length
 
   // event.id (no un booleano): useEvent puede entregar varios snapshots del
   // mismo evento a medida que cambian datos (invitados, contadores) — sin
@@ -619,6 +640,8 @@ export function EventDetail() {
           <WaitlistPanel
             eventId={event.id}
             eventName={event.name}
+            entries={waitlistEntries}
+            subscriptionError={waitlistSubscriptionError}
             canManage={perms.addGuests}
             requiresPayment={event.requiresPayment}
             paymentMethods={event.paymentMethods}

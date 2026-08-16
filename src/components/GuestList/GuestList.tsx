@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
   allowGuestReentry,
   bulkDeleteGuests,
@@ -131,6 +131,23 @@ export const GuestList = memo(function GuestList({
   const [bulkMarkPaidConfirmOpen, setBulkMarkPaidConfirmOpen] = useState(false)
   const [bulkPaymentMethod, setBulkPaymentMethod] = useState<PaymentMethod | undefined>(undefined)
   const { announce } = useAnnouncer()
+  // Guard contra doble-tap para las acciones de un solo invitado detrás de
+  // ConfirmDialog (eliminar/reingreso/enviar a lista de espera): antes el
+  // botón "Confirmar" quedaba clickeable durante toda la espera (solo
+  // cambiaba el texto), así que un doble-tap podía disparar deleteGuest o
+  // moveGuestToWaitlist dos veces — el segundo golpe duplica la entrada de
+  // waitlist (moveGuestToWaitlist crea un doc nuevo) o descuenta contadores
+  // dos veces (deleteGuest usa increment(), no una transacción). Comparten
+  // un solo flag porque los tres diálogos son mutuamente excluyentes (una
+  // sola fila abierta a la vez). El ref es lo que de verdad bloquea el
+  // segundo click (síncrono, antes de cualquier render); el state solo
+  // alimenta `busy` de ConfirmDialog para deshabilitar el botón visualmente.
+  const actionBusyRef = useRef(false)
+  const [actionBusy, setActionBusy] = useState(false)
+  // Mismo problema, acciones masivas: bulkDelete/bulkMarkPaid tampoco
+  // bloqueaban un segundo click mientras la anterior seguía en vuelo.
+  const [bulkActionBusy, setBulkActionBusy] = useState(false)
+  const bulkActionBusyRef = useRef(false)
 
   // Este useCallback tiene que vivir ANTES del early return de "sin
   // invitados" (regla de hooks: siempre en el mismo orden, nunca detrás de
@@ -151,6 +168,14 @@ export const GuestList = memo(function GuestList({
       return next
     })
   }, [])
+
+  // Mismo motivo que toggleSelect arriba: sin useCallback, esta era una
+  // función inline nueva en cada render de GuestList — anulaba el memo de
+  // GuestRow (ver GuestRow.tsx) igual de completo que si toggleSelect no lo
+  // tuviera, sin importar qué tan estable venga `guest` desde
+  // subscribeToGuests. setDetailGuestId es el setter de useState (identidad
+  // estable), por eso deps vacíos.
+  const openDetail = useCallback((guest: GuestData) => setDetailGuestId(guest.id), [])
 
   // Si cambia el filtro/búsqueda (o un invitado seleccionado deja de existir
   // — eliminado, movido a lista de espera) mientras selectMode sigue activo,
@@ -320,7 +345,9 @@ export const GuestList = memo(function GuestList({
   }
 
   async function confirmDelete() {
-    if (!deletingGuest) return
+    if (!deletingGuest || actionBusyRef.current) return
+    actionBusyRef.current = true
+    setActionBusy(true)
     setActionError('')
     try {
       await deleteGuest(eventId, deletingGuest)
@@ -331,11 +358,15 @@ export const GuestList = memo(function GuestList({
       setActionError('No se pudo eliminar el invitado. Intenta de nuevo.')
     } finally {
       setDeletingGuest(null)
+      actionBusyRef.current = false
+      setActionBusy(false)
     }
   }
 
   async function confirmAllowReentry() {
-    if (!reentryGuest) return
+    if (!reentryGuest || actionBusyRef.current) return
+    actionBusyRef.current = true
+    setActionBusy(true)
     setActionError('')
     try {
       await allowGuestReentry(eventId, reentryGuest.id)
@@ -344,11 +375,15 @@ export const GuestList = memo(function GuestList({
       setActionError('No se pudo habilitar el reingreso. Intenta de nuevo.')
     } finally {
       setReentryGuest(null)
+      actionBusyRef.current = false
+      setActionBusy(false)
     }
   }
 
   async function confirmSendToWaitlist() {
-    if (!sendingToWaitlistGuest) return
+    if (!sendingToWaitlistGuest || actionBusyRef.current) return
+    actionBusyRef.current = true
+    setActionBusy(true)
     setActionError('')
     try {
       await moveGuestToWaitlist(eventId, sendingToWaitlistGuest)
@@ -358,6 +393,8 @@ export const GuestList = memo(function GuestList({
       setActionError('No se pudo enviar a la lista de espera. Intenta de nuevo.')
     } finally {
       setSendingToWaitlistGuest(null)
+      actionBusyRef.current = false
+      setActionBusy(false)
     }
   }
 
@@ -367,13 +404,24 @@ export const GuestList = memo(function GuestList({
   }
 
   async function bulkMarkPaid() {
+    if (bulkActionBusyRef.current) return
+    bulkActionBusyRef.current = true
+    setBulkActionBusy(true)
     setActionError('')
-    const targets = guests.filter((g) => selected.has(g.id))
-    const { failed } = await bulkSetGuestPaymentStatus(eventId, targets.map((g) => g.id), 'paid', bulkPaymentMethod ?? paymentMethods[0])
-    if (failed > 0) setActionError(`No se pudo marcar como pagado a ${failed} de ${targets.length} invitados.`)
-    setBulkMarkPaidConfirmOpen(false)
-    setBulkPaymentMethod(undefined)
-    exitSelectMode()
+    try {
+      const targets = guests.filter((g) => selected.has(g.id))
+      const { failed } = await bulkSetGuestPaymentStatus(eventId, targets.map((g) => g.id), 'paid', bulkPaymentMethod ?? paymentMethods[0])
+      if (failed > 0) setActionError(`No se pudo marcar como pagado a ${failed} de ${targets.length} invitados.`)
+    } catch (err) {
+      console.error('Error marking guests as paid:', err)
+      setActionError('No se pudo marcar el pago. Intenta de nuevo.')
+    } finally {
+      setBulkMarkPaidConfirmOpen(false)
+      setBulkPaymentMethod(undefined)
+      exitSelectMode()
+      bulkActionBusyRef.current = false
+      setBulkActionBusy(false)
+    }
   }
 
   // Con 2+ métodos habilitados, un solo método aplicado a todo el lote no se
@@ -391,13 +439,24 @@ export const GuestList = memo(function GuestList({
   }
 
   async function bulkDelete() {
+    if (bulkActionBusyRef.current) return
+    bulkActionBusyRef.current = true
+    setBulkActionBusy(true)
     setActionError('')
-    const targets = guests.filter((g) => selected.has(g.id))
-    const { failed } = await bulkDeleteGuests(eventId, targets)
-    if (targets.length - failed > 0) trackGuestDelete(eventId)
-    if (failed > 0) setActionError(`No se pudo eliminar a ${failed} de ${targets.length} invitados.`)
-    setBulkDeleteConfirmOpen(false)
-    exitSelectMode()
+    try {
+      const targets = guests.filter((g) => selected.has(g.id))
+      const { failed } = await bulkDeleteGuests(eventId, targets)
+      if (targets.length - failed > 0) trackGuestDelete(eventId)
+      if (failed > 0) setActionError(`No se pudo eliminar a ${failed} de ${targets.length} invitados.`)
+    } catch (err) {
+      console.error('Error bulk deleting guests:', err)
+      setActionError('No se pudieron eliminar los invitados. Intenta de nuevo.')
+    } finally {
+      setBulkDeleteConfirmOpen(false)
+      exitSelectMode()
+      bulkActionBusyRef.current = false
+      setBulkActionBusy(false)
+    }
   }
 
   const rowProps = {
@@ -406,7 +465,7 @@ export const GuestList = memo(function GuestList({
     currency,
     selectMode,
     onToggleSelect: toggleSelect,
-    onOpenDetail: (guest: GuestData) => setDetailGuestId(guest.id),
+    onOpenDetail: openDetail,
   }
 
   const detailGuest = detailGuestId ? guests.find((g) => g.id === detailGuestId) ?? null : null
@@ -529,8 +588,9 @@ export const GuestList = memo(function GuestList({
         open={!!deletingGuest}
         title="Eliminar invitado"
         message={`¿Eliminar a ${deletingGuest?.name} ${deletingGuest?.lastName || ''}? Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
+        confirmLabel={actionBusy ? 'Eliminando…' : 'Eliminar'}
         danger
+        busy={actionBusy}
         onConfirm={confirmDelete}
         onCancel={() => setDeletingGuest(null)}
       />
@@ -538,7 +598,8 @@ export const GuestList = memo(function GuestList({
         open={!!sendingToWaitlistGuest}
         title="Enviar a lista de espera"
         message={`"${sendingToWaitlistGuest?.name} ${sendingToWaitlistGuest?.lastName || ''}" deja de estar en la lista de invitados y su lugar queda libre — si alguien más está esperando cupo, se le ofrece automáticamente. Puedes reincorporarlo desde la lista de espera si aparece más tarde.`}
-        confirmLabel="Enviar a lista de espera"
+        confirmLabel={actionBusy ? 'Enviando…' : 'Enviar a lista de espera'}
+        busy={actionBusy}
         onConfirm={confirmSendToWaitlist}
         onCancel={() => setSendingToWaitlistGuest(null)}
       />
@@ -546,7 +607,8 @@ export const GuestList = memo(function GuestList({
         open={!!reentryGuest}
         title="Permitir reingreso"
         message={`"${reentryGuest?.name} ${reentryGuest?.lastName || ''}" se retiró definitivamente del evento. Esto habilita que vuelva a entrar escaneando su mismo pase.`}
-        confirmLabel="Permitir reingreso"
+        confirmLabel={actionBusy ? 'Habilitando…' : 'Permitir reingreso'}
+        busy={actionBusy}
         onConfirm={confirmAllowReentry}
         onCancel={() => setReentryGuest(null)}
       />
@@ -554,8 +616,9 @@ export const GuestList = memo(function GuestList({
         open={bulkDeleteConfirmOpen}
         title="Eliminar invitados"
         message={`¿Eliminar a ${selected.size} invitados seleccionados? Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
+        confirmLabel={bulkActionBusy ? 'Eliminando…' : 'Eliminar'}
         danger
+        busy={bulkActionBusy}
         onConfirm={bulkDelete}
         onCancel={() => setBulkDeleteConfirmOpen(false)}
       />
@@ -587,7 +650,8 @@ export const GuestList = memo(function GuestList({
             </div>
           </div>
         }
-        confirmLabel="Marcar como pagado"
+        confirmLabel={bulkActionBusy ? 'Marcando…' : 'Marcar como pagado'}
+        busy={bulkActionBusy}
         onConfirm={bulkMarkPaid}
         onCancel={() => { setBulkMarkPaidConfirmOpen(false); setBulkPaymentMethod(undefined) }}
       />

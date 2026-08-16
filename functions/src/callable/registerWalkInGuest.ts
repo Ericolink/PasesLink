@@ -26,6 +26,7 @@ interface RegisterWalkInGuestInput {
   customData?: Record<string, string>
   companions?: unknown
   paymentMethod?: PaymentMethod
+  idempotencyKey?: string
 }
 
 export type RegisterWalkInGuestResponse =
@@ -44,7 +45,7 @@ export type RegisterWalkInGuestResponse =
 export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
   { secrets: [brevoApiKey, brevoSenderEmail], maxInstances: 15, timeoutSeconds: 30 },
   (request) => withCallableObservability(request, 'registerWalkInGuest', async (ctx): Promise<RegisterWalkInGuestResponse> => {
-    const { eventId, name, lastName, email, phone, phoneCountry, customData, companions, paymentMethod } = request.data || {}
+    const { eventId, name, lastName, email, phone, phoneCountry, customData, companions, paymentMethod, idempotencyKey } = request.data || {}
     ctx.addContext({ uid: request.auth?.uid, eventId })
     if (!eventId || !name) {
       throw new HttpsError('invalid-argument', 'Faltan datos para completar el registro.')
@@ -61,6 +62,7 @@ export const registerWalkInGuest = onCall<RegisterWalkInGuestInput>(
         customData,
         companions,
         paymentMethod,
+        idempotencyKey,
         // Nunca un uid/foto que mande el cliente en el body — solo el uid ya
         // verificado del token de la Callable, si hay sesión.
         authUid: request.auth?.uid ?? null,

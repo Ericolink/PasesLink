@@ -1,50 +1,27 @@
-// Reacciona cuando se libera capacidad, reactivando la lista de espera. Dos
-// casos: (a) peopleCount baja — todo camino que libera un lugar
-// (deleteGuest, auto-cancelación, rechazo de pago) ya lo decrementa de
-// forma atómica, invariante ya establecida y probada en el código de
-// cliente; (b) el organizador SUBE `capacity` con gente todavía esperando
-// — sin este segundo caso, aumentar el cupo no ofertaría nada hasta la
-// próxima corrida del barrido de vencimiento (hasta 5 min de demora
-// innecesaria para algo que el organizador espera que se sienta
-// instantáneo). En ambos casos, este trigger es la ÚNICA implementación de
-// "cuándo ofertar" — ningún código de cliente necesita acordarse de
-// llamarlo (ver §1 de WAITLIST_RECONFIRMATION_ARCHITECTURE.md).
+// Desactivado a pedido del organizador (evento debut, 2026-08-16): este
+// trigger reaccionaba a que se liberara capacidad (peopleCount bajaba, o el
+// organizador subía `capacity` con gente todavía esperando) ofertando
+// automáticamente ese lugar a la fila vía runCascade — pero eso competía
+// contra el propio organizador cuando liberaba capacidad A PROPÓSITO para
+// otra cosa (ej. mover a alguien a la waitlist para poder agregarle
+// acompañantes a otro invitado ya confirmado): la cascada se adelantaba y
+// reservaba el lugar para la fila antes de que la segunda operación
+// alcanzara a usarlo, resultando en "No hay lugar suficiente" pese a que el
+// organizador acababa de liberarlo él mismo.
+//
+// La promoción desde la waitlist es ahora 100% manual, vía "Pasar a la
+// lista normal" (assignWaitlistSpot.ts) — el organizador ve el lugar
+// liberado en el panel de Waitlist y decide a quién dárselo, sin carrera
+// contra una asignación automática. Para reactivar la cascada automática,
+// restaurar el body de abajo a partir de la versión anterior de este
+// archivo (usaba runCascade de ../waitlist/cascade.js, que sigue intacto y
+// probado — ver cascade.test.ts).
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore'
-import { getFirestore } from 'firebase-admin/firestore'
-import { runCascade } from '../waitlist/cascade.js'
-import { sendOfferEmail } from '../waitlist/notify.js'
-import { brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId } from '../lib/secrets.js'
 import { withTriggerObservability } from '../lib/observability/withObservability.js'
 
-// timeoutSeconds por encima del default: la cascada puede promover a varias
-// entradas de la fila de espera de una sola vez (p.ej. el organizador borra
-// muchos invitados juntos), y sendOfferEmail hace una llamada HTTP real a
-// Brevo por cada una.
 export const onCapacityFreed = onDocumentUpdated(
-  {
-    document: 'events/{eventId}',
-    secrets: [brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId],
-    timeoutSeconds: 120,
-    maxInstances: 10,
-  },
-  (event) => withTriggerObservability(event, 'onCapacityFreed', async (ctx) => {
-    const before = event.data?.before.data()
-    const after = event.data?.after.data()
-    if (!before || !after) return
-    if (!after.attendeeLimitEnabled) return
-
-    const peopleCountDecreased = (after.peopleCount ?? 0) < (before.peopleCount ?? 0)
-    const capacityIncreased = (after.capacity ?? 0) > (before.capacity ?? 0)
-    if (!peopleCountDecreased && !capacityIncreased) return
-
-    const db = getFirestore()
-    const eventId = event.params.eventId
-    const outcome = await runCascade(db, eventId)
-    if (outcome.promoted.length > 0) {
-      ctx.logger.info('Cascada de lista de espera ofertó lugares liberados', { eventId, promotedCount: outcome.promoted.length })
-    }
-    for (const promotion of outcome.promoted) {
-      await sendOfferEmail(db, eventId, promotion.entryId, promotion.entry)
-    }
+  { document: 'events/{eventId}' },
+  (event) => withTriggerObservability(event, 'onCapacityFreed', async () => {
+    return
   }),
 )

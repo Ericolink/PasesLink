@@ -15,7 +15,7 @@ describe('declineWaitlistOffer', () => {
     await clearFirestoreEmulator()
   })
 
-  it('marks the offer declined and offers the spot to the next person right away', async () => {
+  it('marks the offer declined without auto-offering the spot to the next person', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { capacity: 10, peopleCount: 9 })
     await seedWaitlistEntry(db, eventId, 'declining', { status: 'offered', offerToken: 'token-1', offerExpiresAt: Date.now() + 60_000, partySize: 1 })
@@ -28,8 +28,10 @@ describe('declineWaitlistOffer', () => {
     expect(declined?.status).toBe('declined')
     expect(declined?.respondedAt).toBeTruthy()
 
+    // La cascada automática está desactivada (ver onCapacityFreed.ts) — el
+    // organizador asigna el lugar liberado a mano desde el panel.
     const next = await getWaitlistEntry(db, eventId, 'next')
-    expect(next?.status).toBe('offered')
+    expect(next?.status).toBe('waiting')
   })
 
   it('is a harmless no-op when the offer already resolved by another path', async () => {

@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   assignWaitlistSpot,
   cancelWaitlistOffer,
   moveWaitlistEntryToFront,
   removeFromWaitlist,
-  subscribeToWaitlist,
 } from '../firebase/waitlist'
 import type { CustomField, PaymentMethod, WaitlistEntryData } from '../types'
 import { MetricTile } from './MetricTile'
@@ -14,12 +13,15 @@ import { WaitlistEntryRow } from './GuestList/WaitlistEntryRow'
 import { WaitlistEntryDetailSheet } from './GuestList/WaitlistEntryDetailSheet'
 import { buildResendWhatsAppUrl, buildWaitlistResendMessage } from '../utils/resendInvitation'
 import { buildWaitlistStatusUrl } from '../utils/qrUrl'
-import { captureException } from '../lib/sentry'
 import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
 
 interface WaitlistPanelProps {
   eventId: string
   eventName: string
+  /** Entradas en vivo (status waiting/offered) — suscripción única de EventDetail.tsx, no propia: evita duplicar la lectura de la waitlist en cada escritura durante el check-in (antes este panel abría su propia suscripción idéntica). */
+  entries: WaitlistEntryData[]
+  /** Error de la suscripción de arriba (ej. permission-denied) — antes solo se mandaba a Sentry y el panel quedaba oculto igual que "no hay nadie esperando", sin ningún indicio de que había un error real. */
+  subscriptionError: boolean
   /** Gatea las acciones (mover/editar/promover/eliminar) — igual criterio que addGuests para GuestAddForm. */
   canManage: boolean
   requiresPayment: boolean
@@ -30,12 +32,12 @@ interface WaitlistPanelProps {
 
 // Misma familia visual que GuestList (ListSection + fila con avatar/badges +
 // hoja de detalle con menú de acciones) — antes era una <ul> plana con
-// botones de texto, ver git history. Sigue siendo su propio componente/
-// suscripción (WaitlistEntryData no comparte forma con GuestData: sin
-// companions[], sin pase/QR, sin RSVP), pegado arriba de GuestList en
-// EventDetail.tsx.
-export function WaitlistPanel({ eventId, eventName, canManage, requiresPayment, paymentMethods, maxCompanions, customFields = [] }: WaitlistPanelProps) {
-  const [entries, setEntries] = useState<WaitlistEntryData[]>([])
+// botones de texto, ver git history. Sigue siendo su propio componente
+// (WaitlistEntryData no comparte forma con GuestData: sin companions[], sin
+// pase/QR, sin RSVP), pegado arriba de GuestList en EventDetail.tsx — pero
+// ya no dueño de su propia suscripción: `entries`/`subscriptionError` bajan
+// como prop desde el único listener de EventDetail.tsx.
+export function WaitlistPanel({ eventId, eventName, entries, subscriptionError, canManage, requiresPayment, paymentMethods, maxCompanions, customFields = [] }: WaitlistPanelProps) {
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null)
   const [error, setError] = useState('')
   // Informativo (no error): quién se corrió a la waitlist para hacerle
@@ -47,25 +49,6 @@ export function WaitlistPanel({ eventId, eventName, canManage, requiresPayment, 
   const [removeTarget, setRemoveTarget] = useState<WaitlistEntryData | null>(null)
   const [promoteTarget, setPromoteTarget] = useState<WaitlistEntryData | null>(null)
   const [markPaidTarget, setMarkPaidTarget] = useState<WaitlistEntryData | null>(null)
-  // Antes, un error de suscripción (ej. permission-denied) solo se mandaba a
-  // Sentry — el panel se quedaba oculto igual que "no hay nadie esperando",
-  // sin ningún indicio de que había un error real. Ahora se muestra acá.
-  const [subscriptionError, setSubscriptionError] = useState(false)
-
-  useEffect(() => {
-    return subscribeToWaitlist(
-      eventId,
-      (data) => {
-        setSubscriptionError(false)
-        setEntries(data)
-      },
-      (err) => {
-        console.error('Error al suscribirse a la lista de espera:', err)
-        setSubscriptionError(true)
-        captureException(err, { tags: { flow: 'waitlist-panel' } })
-      },
-    )
-  }, [eventId])
 
   if (subscriptionError) {
     return (
@@ -80,7 +63,6 @@ export function WaitlistPanel({ eventId, eventName, canManage, requiresPayment, 
   if (entries.length === 0) return null
 
   const waitingCount = entries.filter((e) => e.status === 'waiting').length
-  const offeredCount = entries.filter((e) => e.status === 'offered').length
   const detailEntry = detailEntryId ? entries.find((e) => e.id === detailEntryId) ?? null : null
   const detailPosition = detailEntry ? entries.findIndex((e) => e.id === detailEntry.id) + 1 : 0
 
@@ -133,9 +115,8 @@ export function WaitlistPanel({ eventId, eventName, canManage, requiresPayment, 
 
   return (
     <div className="rounded-xl bg-gray-50 dark:bg-gray-800 dark:border dark:border-gray-700 p-4 mb-5">
-      <div className="grid grid-cols-2 gap-2 mb-4">
+      <div className="mb-4 max-w-[9rem]">
         <MetricTile label="En espera" value={waitingCount} align="start" />
-        <MetricTile label="Ofertas activas" value={offeredCount} align="start" accent={offeredCount > 0 ? 'warning' : 'gray'} />
       </div>
 
       <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 mb-4">

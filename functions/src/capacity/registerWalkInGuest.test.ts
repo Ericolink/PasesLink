@@ -516,6 +516,79 @@ describe('registerWalkInGuest (servicio)', () => {
     expect(event.data()?.peopleCount).toBe(200)
   })
 
+  // Auditoría de estabilidad (evento en vivo, 2026-08-16): mala conexión
+  // pierde la respuesta del primer intento -> el cliente reintenta con la
+  // MISMA idempotencyKey (ver EventJoin.tsx doRegister). Sin esto, cada
+  // reintento creaba un guest nuevo y consumía cupo dos veces.
+  it('returns the same guest instead of creating a duplicate when the same idempotencyKey is reused (retry after lost response)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', guestCount: 0, peopleCount: 0 })
+
+    const first = await registerWalkInGuest(db, eventId, { name: 'Ana López', idempotencyKey: 'retry-key-1' })
+    if (first.status !== 'success') throw new Error('expected success')
+
+    const second = await registerWalkInGuest(db, eventId, { name: 'Ana López', idempotencyKey: 'retry-key-1' })
+    if (second.status !== 'success') throw new Error('expected success')
+
+    expect(second.guestId).toBe(first.guestId)
+    expect(second.qrToken).toBe(first.qrToken)
+    const event = await db.collection('events').doc(eventId).get()
+    // Un solo documento, un solo incremento — el reintento no duplicó nada.
+    expect(event.data()?.guestCount).toBe(1)
+    expect(event.data()?.peopleCount).toBe(1)
+  })
+
+  it('does not reject a retry as "full" even if the event filled up with other guests in between (the spot is already theirs)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', attendeeLimitEnabled: true, capacity: 1, peopleCount: 0 })
+
+    const first = await registerWalkInGuest(db, eventId, { name: 'Ana López', idempotencyKey: 'retry-key-2' })
+    if (first.status !== 'success') throw new Error('expected success')
+
+    // Otra persona intenta después -> el evento ya está lleno.
+    const other = await registerWalkInGuest(db, eventId, { name: 'Otra Persona' })
+    expect(other.status).toBe('full')
+
+    // El reintento del primer registro (misma clave) no debe caer en "full"
+    // solo porque el evento se llenó mientras tanto con otra gente.
+    const retry = await registerWalkInGuest(db, eventId, { name: 'Ana López', idempotencyKey: 'retry-key-2' })
+    expect(retry.status).toBe('success')
+    if (retry.status !== 'success') throw new Error('expected success')
+    expect(retry.guestId).toBe(first.guestId)
+  })
+
+  it('never creates two guests when two concurrent calls share the same idempotencyKey', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', guestCount: 0, peopleCount: 0 })
+
+    const results = await Promise.all([
+      registerWalkInGuest(db, eventId, { name: 'Ana López', idempotencyKey: 'concurrent-key' }),
+      registerWalkInGuest(db, eventId, { name: 'Ana López', idempotencyKey: 'concurrent-key' }),
+    ])
+
+    expect(results.every((r) => r.status === 'success')).toBe(true)
+    const guestIds = new Set(results.map((r) => (r.status === 'success' ? r.guestId : null)))
+    // Ambas llamadas "ganan" (ninguna ve 'full'), pero apuntan al MISMO
+    // documento -> Firestore serializó el conflicto de escritura y una de
+    // las dos transacciones se reintentó, encontrando el doc ya creado por
+    // la otra en el chequeo de idempotencia.
+    expect(guestIds.size).toBe(1)
+    const event = await db.collection('events').doc(eventId).get()
+    expect(event.data()?.guestCount).toBe(1)
+    expect(event.data()?.peopleCount).toBe(1)
+  })
+
+  it('ignores a malformed idempotencyKey instead of failing the registration (public endpoint, untrusted input)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { entryMode: 'open', guestCount: 0, peopleCount: 0 })
+
+    // Contiene '/', inválido como id de documento de Firestore -> se
+    // descarta en silencio y se comporta como si no se hubiera mandado.
+    const result = await registerWalkInGuest(db, eventId, { name: 'Ana López', idempotencyKey: 'a/b' })
+
+    expect(result.status).toBe('success')
+  })
+
   it('falls back to the legacy limit (party of 10) when the event has no maxCompanions configured', async () => {
     // seedEvent no incluye maxCompanions por defecto -> mismo escenario que
     // un evento anterior a que existiera el campo.

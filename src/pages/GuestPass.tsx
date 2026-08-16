@@ -92,6 +92,13 @@ function GuestPassInner() {
   const [showSignupPrompt, setShowSignupPrompt] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [cancelSaving, setCancelSaving] = useState(false)
+  // Guard síncrono: `if (!cancelSaving)` en el onConfirm de abajo no alcanza
+  // porque `cancelSaving` (estado de React) recién se actualiza en el
+  // próximo render — un doble-tap puede disparar handleCancelAttendance dos
+  // veces antes de eso. deleteGuest no es una transacción (usa increment()),
+  // así que un segundo golpe descuenta los contadores del evento dos veces
+  // para un solo invitado (auditoría de estabilidad, evento en vivo).
+  const cancelSavingRef = useRef(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [cancelled, setCancelled] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -149,13 +156,29 @@ function GuestPassInner() {
       getEvent(id).then((ev) => {
         if (!cancelled && ev) setEvent(ev)
       })
+      // Mismo motivo que el refresco del evento de arriba, pero para el
+      // propio invitado: este pase tampoco tiene listener en vivo sobre su
+      // guest doc (solo la lectura puntual de findGuestByToken en el
+      // bootstrap de abajo) — sin esto, si el staff confirma el pago o hace
+      // el check-in en la puerta MIENTRAS el invitado tiene el pase
+      // abierto, la pantalla seguía mostrando "pendiente"/"sin ingresar"
+      // hasta que refrescara manualmente. `lockToken` se preserva del
+      // estado actual porque es el token de ESTE dispositivo (resuelto por
+      // claimGuestPass, no un campo que devuelva findGuestByToken con el
+      // mismo significado); `lockTokens` sí viene fresco del documento.
+      if (qrToken) {
+        findGuestByToken(id, qrToken).then((fresh) => {
+          if (cancelled || !fresh) return
+          setGuest((prev) => (prev ? { ...fresh, lockToken: prev.lockToken } : fresh))
+        })
+      }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
       cancelled = true
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [eventId])
+  }, [eventId, qrToken])
 
   useEffect(() => {
     // Esperar a que useAuth() confirme la sesión antes de decidir si el visor
@@ -496,7 +519,8 @@ function GuestPassInner() {
   // de contadores (peopleCount/paidCount/checkedInCount/occupancyCount) sin
   // duplicarla.
   async function handleCancelAttendance() {
-    if (!eventId || !guest) return
+    if (!eventId || !guest || cancelSavingRef.current) return
+    cancelSavingRef.current = true
     setCancelSaving(true)
     setCancelError(null)
     try {
@@ -528,6 +552,7 @@ function GuestPassInner() {
       console.error('Error cancelando la asistencia:', err)
       setCancelError('No se pudo cancelar tu asistencia. Intenta de nuevo.')
     } finally {
+      cancelSavingRef.current = false
       setCancelSaving(false)
     }
   }
@@ -1044,7 +1069,8 @@ function GuestPassInner() {
         confirmLabel={cancelSaving ? 'Cancelando…' : 'Sí, cancelar mi asistencia'}
         cancelLabel="Volver"
         danger
-        onConfirm={() => { if (!cancelSaving) void handleCancelAttendance() }}
+        busy={cancelSaving}
+        onConfirm={() => void handleCancelAttendance()}
         onCancel={() => { setShowCancelDialog(false); setCancelError(null) }}
       />
     </InvitationThemeRoot>

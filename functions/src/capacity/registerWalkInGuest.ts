@@ -78,6 +78,13 @@ export interface RegisterWalkInGuestInput {
   // uid del request.auth verificado de la Callable, si lo hay — nunca un
   // valor que mande el cliente en el body (ver comentario de archivo).
   authUid?: string | null
+  // Clave opaca que el cliente genera una sola vez por intento de registro
+  // (ver src/pages/EventJoin.tsx) y reutiliza en cada reintento del MISMO
+  // intento (doble-tap, F5 con la petición en vuelo, "no vi respuesta" y
+  // reintentar manualmente). No es un identificador de usuario — dos
+  // personas distintas pueden mandar claves iguales sin colisionar entre
+  // sí porque solo importa dentro de esta transacción (ver más abajo).
+  idempotencyKey?: string
 }
 
 export type RegisterWalkInGuestResult =
@@ -88,6 +95,18 @@ export type RegisterWalkInGuestResult =
 
 function generateQrToken(): string {
   return randomUUID().replace(/-/g, '')
+}
+
+// Este endpoint es público (sin auth obligatoria), así que idempotencyKey es
+// input no confiable — se usa como id de documento de Firestore (doc ID no
+// puede contener '/', tiene un tope de 1500 bytes). Un valor fuera de este
+// patrón se descarta en silencio (mismo resultado que no haberlo mandado:
+// auto-id, sin idempotencia) en vez de rechazar el registro entero por un
+// dato que ni siquiera es visible para el invitado.
+const IDEMPOTENCY_KEY_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/
+
+function sanitizeIdempotencyKey(key: string | undefined): string | undefined {
+  return key && IDEMPOTENCY_KEY_PATTERN.test(key) ? key : undefined
 }
 
 export async function registerWalkInGuest(
@@ -106,6 +125,7 @@ export async function registerWalkInGuest(
     ? requireMaxLength(input.email.trim().toLowerCase(), GUEST_EMAIL_MAX, 'El email')
     : ''
   const trimmedPhone = input.phone?.trim() ? requireMaxLength(input.phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
+  const idempotencyKey = sanitizeIdempotencyKey(input.idempotencyKey)
 
   const eventRef = db.collection('events').doc(eventId)
   const guestsCol = eventRef.collection('guests')
@@ -124,6 +144,37 @@ export async function registerWalkInGuest(
     // 'open' en este flujo.
     const entryMode = event.entryMode as string | undefined
     if (entryMode !== 'open' && entryMode !== 'hybrid') return { status: 'not_open' }
+
+    // Idempotencia por reintento (auditoría de estabilidad, evento en vivo
+    // 2026-08-16): mala conexión pierde la respuesta del primer intento →
+    // el cliente reintenta con la MISMA clave (ver EventJoin.tsx doRegister)
+    // → sin esto, cada reintento crea un guest nuevo. El id del documento es
+    // determinístico cuando el cliente manda esta clave, así que un
+    // reintento cae sobre el mismo documento en vez de uno nuevo — y como
+    // dos transacciones concurrentes no pueden crear ambas el mismo id
+    // (Firestore serializa el conflicto y reintenta la perdedora), esto
+    // también cubre un verdadero doble-submit concurrente, no solo un
+    // reintento secuencial. Se revisa ANTES del chequeo de cupo a propósito:
+    // si el primer intento ya tuvo éxito y el evento se llenó después con
+    // otras personas, el reintento de ESTE MISMO registro no debe
+    // rechazarse como "lleno" — ese cupo ya es suyo. Distinto del dedupe
+    // por authUid más abajo (que fusiona acompañantes nuevos, porque ahí sí
+    // puede ser una visita distinta en otro momento): acá es la misma
+    // llamada repetida, mismos datos, alcanza con devolver el documento ya
+    // creado.
+    if (idempotencyKey) {
+      const idemSnap = await tx.get(guestsCol.doc(idempotencyKey))
+      if (idemSnap.exists) {
+        const existingData = idemSnap.data()!
+        return {
+          status: 'success',
+          guestId: idemSnap.id,
+          qrToken: existingData.qrToken as string,
+          eventName: (event.name as string) || 'tu evento',
+          email: '',
+        }
+      }
+    }
 
     // Contra la definición REAL de campos del evento, nunca contra lo que
     // el cliente diga que son sus campos — ver validatePublicCustomData.
@@ -220,7 +271,7 @@ export async function registerWalkInGuest(
     }
 
     const qrToken = generateQrToken()
-    const guestRef = guestsCol.doc()
+    const guestRef = idempotencyKey ? guestsCol.doc(idempotencyKey) : guestsCol.doc()
     tx.set(guestRef, {
       name: trimmedName,
       lastName: trimmedLastName,

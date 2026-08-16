@@ -98,6 +98,14 @@ export function GuestAddForm({
   const [error, setError] = useState('')
   const [errorAttempt, setErrorAttempt] = useState(0)
   const [pendingDuplicate, setPendingDuplicate] = useState<PendingDuplicate | null>(null)
+  // Guard síncrono compartido por single/group/bulk: `loading` (estado de
+  // React) ya deshabilita el botón, pero solo desde el próximo render — un
+  // doble-tap puede llamar a submit*Guest() dos veces antes de eso. addGuest/
+  // addGuestsBulk no tienen idempotencia de servidor (auditoría de
+  // estabilidad, evento en vivo), así que un segundo golpe crea un invitado
+  // duplicado de verdad. Un solo ref alcanza porque solo un modo/formulario
+  // está activo a la vez (ver `mode`).
+  const submittingRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   useFocusFirstInvalidField(containerRef, errorAttempt)
   const { announce } = useAnnouncer()
@@ -177,6 +185,8 @@ export function GuestAddForm({
   }
 
   async function submitSingleGuest() {
+    if (submittingRef.current) return
+    submittingRef.current = true
     setLoading(true)
     setError('')
     try {
@@ -192,6 +202,7 @@ export function GuestAddForm({
       setError(getFunctionsErrorMessage(err, 'No se pudo agregar el invitado. Intenta de nuevo.'))
       setErrorAttempt((n) => n + 1)
     } finally {
+      submittingRef.current = false
       setLoading(false)
     }
   }
@@ -213,7 +224,8 @@ export function GuestAddForm({
   // partySize() — no existe un modelo ni una colección paralela.
   async function submitGroupGuest() {
     const count = memberCount.value
-    if (count === null) return
+    if (count === null || submittingRef.current) return
+    submittingRef.current = true
     setLoading(true)
     setError('')
     try {
@@ -234,6 +246,7 @@ export function GuestAddForm({
       setError(getFunctionsErrorMessage(err, 'No se pudo agregar la familia o grupo. Intenta de nuevo.'))
       setErrorAttempt((n) => n + 1)
     } finally {
+      submittingRef.current = false
       setLoading(false)
     }
   }
@@ -249,6 +262,8 @@ export function GuestAddForm({
   }
 
   async function submitBulkGuests(names: string[]) {
+    if (submittingRef.current) return
+    submittingRef.current = true
     setLoading(true)
     setError('')
     try {
@@ -277,6 +292,7 @@ export function GuestAddForm({
       )
       setErrorAttempt((n) => n + 1)
     } finally {
+      submittingRef.current = false
       setLoading(false)
     }
   }

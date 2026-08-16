@@ -18,7 +18,7 @@ describe('cancelWaitlistOffer', () => {
     await clearFirestoreEmulator()
   })
 
-  it('lets the owner cancel an active offer and cascades to the next candidate', async () => {
+  it('lets the owner cancel an active offer without re-offering it to the next candidate', async () => {
     const eventId = uniqueId('event')
     await seedEvent(db, eventId, { ownerId: OWNER_UID, capacity: 10, peopleCount: 9 })
     await seedWaitlistEntry(db, eventId, 'offered-1', { status: 'offered', offerToken: 'token-1', partySize: 1, createdAt: 1000 })
@@ -29,8 +29,11 @@ describe('cancelWaitlistOffer', () => {
     expect(result).toEqual({ ok: true })
     const cancelled = await getWaitlistEntry(db, eventId, 'offered-1')
     expect(cancelled?.status).toBe('waiting')
+    // La cascada automática está desactivada (ver onCapacityFreed.ts) — el
+    // cupo liberado queda disponible para que el organizador lo asigne a
+    // mano, no se le ofrece solo a la siguiente entrada de la fila.
     const next = await getWaitlistEntry(db, eventId, 'next-in-line')
-    expect(next?.status).toBe('offered')
+    expect(next?.status).toBe('waiting')
   })
 
   it('rejects an unauthenticated caller', async () => {

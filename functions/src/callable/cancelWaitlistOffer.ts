@@ -3,19 +3,20 @@
 // de 24h del diseño original: sin presión de tiempo, el organizador decide
 // cuándo una oferta dejó de tener sentido. Vuelve la entrada a 'waiting'
 // (no 'declined' — no fue el invitado quien eligió, conserva su lugar en
-// la fila) y dispara la cascada para ofertarle a la siguiente entrada —
-// EXCLUYENDO a la que se acaba de cancelar en esta corrida puntual: como
-// conserva su posición, sin esto podría ser la primera de la fila otra vez
-// y la cascada se la volvería a ofertar de inmediato a sí misma, haciendo
-// que "cancelar" no cambie nada en el caso común. Sigue disponible para
-// una cascada futura (otro release, otra acción del organizador).
+// la fila).
+//
+// Ya NO dispara la cascada automática (runCascade) para ofertarle el lugar
+// a la siguiente entrada — desactivado a pedido del organizador (evento
+// debut, 2026-08-16): cancelar una oferta es, en la práctica, la forma de
+// recuperar ese cupo para otra cosa (ej. agregarle acompañantes a un
+// invitado ya confirmado); si el cupo se le volvía a ofertar de inmediato a
+// la siguiente entrada, "cancelar" nunca liberaba nada de verdad. La
+// promoción desde la waitlist es ahora 100% manual, vía "Pasar a la lista
+// normal" (assignWaitlistSpot.ts).
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { getFirestore } from 'firebase-admin/firestore'
 import { cancelOffer } from '../waitlist/promote.js'
-import { runCascade } from '../waitlist/cascade.js'
-import { sendOfferEmail } from '../waitlist/notify.js'
 import { hasPermission } from '../lib/permissions.js'
-import { brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId } from '../lib/secrets.js'
 import { withCallableObservability } from '../lib/observability/withObservability.js'
 
 interface CancelWaitlistOfferInput {
@@ -23,11 +24,8 @@ interface CancelWaitlistOfferInput {
   entryId: string
 }
 
-// timeoutSeconds por encima del default liviano: runCascade + sendOfferEmail
-// hacen una llamada HTTP real a Brevo por cada promoción, no solo una
-// transacción de Firestore.
 export const cancelWaitlistOffer = onCall<CancelWaitlistOfferInput>(
-  { secrets: [brevoApiKey, brevoSenderEmail, whatsappAccessToken, whatsappPhoneNumberId], timeoutSeconds: 30 },
+  { timeoutSeconds: 20 },
   (request) =>
   withCallableObservability(request, 'cancelWaitlistOffer', async (ctx) => {
     if (!request.auth) {
@@ -55,11 +53,6 @@ export const cancelWaitlistOffer = onCall<CancelWaitlistOfferInput>(
         not_offered: 'Esa oferta ya no está activa.',
       }
       throw new HttpsError('failed-precondition', messages[result.reason])
-    }
-
-    const outcome = await runCascade(db, eventId, new Set([entryId]))
-    for (const promotion of outcome.promoted) {
-      await sendOfferEmail(db, eventId, promotion.entryId, promotion.entry)
     }
 
     return { ok: true }
