@@ -127,16 +127,20 @@ export default defineConfig({
             urlPattern: /\/assets\/.*\.js$/i,
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'app-chunks-lazy',
+              // v2 (antes 'app-chunks-lazy'): antes de agregar
+              // cacheableResponse más abajo, un cache.put() con una respuesta
+              // inválida (206 Partial Content, o una respuesta corrupta)
+              // fallaba dentro del propio SW y dejaba esa entrada rota
+              // guardada bajo 'app-chunks-lazy' — el navegador reportaba
+              // "ServiceWorker intercepted the request and encountered an
+              // unexpected error" en cada visita siguiente, para siempre,
+              // porque StaleWhileRevalidate sirve la copia cacheada tal cual
+              // esté. cacheableResponse por sí solo no arregla los
+              // dispositivos que ya se habían quedado con la entrada mala
+              // guardada; cambiar el nombre del caché es lo que la abandona
+              // (mismo motivo que 'cloudinary-images-v2' más abajo).
+              cacheName: 'app-chunks-lazy-v2',
               expiration: { maxEntries: 20 },
-              // Sin esto, Workbox intenta cachear cualquier respuesta que le
-              // llegue (p. ej. un 206 Partial Content de un fetch con Range,
-              // o una respuesta corrupta) y el cache.put() falla dentro del
-              // propio SW — el navegador reporta "ServiceWorker intercepted
-              // the request and encountered an unexpected error" y el
-              // import() dinámico del chunk rechaza de forma no estándar
-              // (React.lazy explota con "e._result is undefined"). Ya lo
-              // usan las otras dos reglas de abajo (fonts, Cloudinary).
               cacheableResponse: { statuses: [0, 200] },
             },
           },
