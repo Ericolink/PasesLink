@@ -778,6 +778,7 @@ export function EventDetail() {
             canEditGuests={perms.editGuests}
             canConfirmPayments={perms.confirmPayments}
             canDeleteGuests={perms.deleteGuests}
+            canCheckIn={perms.scanQr}
             attendeeLimitEnabled={event.attendeeLimitEnabled}
           />
         </div>

@@ -1078,6 +1078,31 @@ export async function setGuestRsvp(eventId: string, qrToken: string, rsvpStatus:
   }
 }
 
+// Acción del ORGANIZADOR: confirmar la asistencia manualmente cuando el
+// invitado avisó por otro medio (WhatsApp, llamada) en vez de responder el
+// RSVP público — botón "Confirmar asistencia" en GuestDetailSheet. Mismo
+// motivo de transacción que setGuestRsvp: necesita el rsvpStatus VIEJO del
+// invitado para mover el contador correcto del evento. guestVersionBump()
+// porque, a diferencia de setGuestRsvp (autoservicio del invitado vía
+// qrToken), esta escritura es del organizador y cotiza contra la rama
+// editGuests de firestore.rules, que exige guestVersionOk() sin excepción
+// (mismo motivo que resetGuestRsvp más abajo).
+export async function confirmGuestRsvp(eventId: string, guestId: string) {
+  const guestRef = doc(db, 'events', eventId, 'guests', guestId)
+  const eventRef = doc(db, 'events', eventId)
+  await runTransaction(db, async (transaction) => {
+    const guestSnap = await transaction.get(guestRef)
+    if (!guestSnap.exists()) return
+    const oldRsvp = (guestSnap.data().rsvpStatus as RsvpStatus) || 'pending'
+    if (oldRsvp === 'yes') return
+    transaction.update(guestRef, { rsvpStatus: 'yes', ...guestVersionBump() })
+    applyCounterDeltas(transaction, eventRef, {
+      [rsvpCountField(oldRsvp)]: -1,
+      rsvpYesCount: 1,
+    })
+  })
+}
+
 // Mismo motivo de transacción que setGuestRsvp — necesita el rsvpStatus
 // VIEJO del invitado para saber qué contador del evento decrementar antes de
 // resetearlo a 'pending'.

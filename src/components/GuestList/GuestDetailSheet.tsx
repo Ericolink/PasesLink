@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AccessibleModal } from '../accessibility/AccessibleModal'
-import { guestPresence, partySize, presentIndicesOf } from '../../firebase/guests'
+import { guestPresence, partySize, presentIndicesOf, type CheckInResult } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, MenuSelection, PaymentMethod } from '../../types'
 import { TagMultiSelect } from '../TagMultiSelect'
 
@@ -36,6 +36,7 @@ import {
   IconShare,
   IconTicket,
   IconTrash,
+  IconUserPlus,
   IconWhatsApp,
   IconX,
 } from '../accessibility/AccessibleIcon'
@@ -62,6 +63,7 @@ export function GuestDetailSheet({
   canEditGuests = true,
   canConfirmPayments = true,
   canDeleteGuests = true,
+  canCheckIn = true,
   attendeeLimitEnabled = false,
   onClose,
   onShare,
@@ -72,6 +74,9 @@ export function GuestDetailSheet({
   onRequestDelete,
   onRequestReentry,
   onReactivate,
+  onConfirmRsvp,
+  onCheckIn,
+  onNeedsCheckInSelection,
   onRequestSendToWaitlist,
 }: {
   eventId: string
@@ -91,6 +96,10 @@ export function GuestDetailSheet({
   canEditGuests?: boolean
   canConfirmPayments?: boolean
   canDeleteGuests?: boolean
+  // Mismo permiso `scanQr` que exige la Cloud Function checkInGuest — sin
+  // esto, un coanfitrión sin acceso al escáner vería el botón "Registrar
+  // entrada" igual y recién se enteraría del permission-denied al tocarlo.
+  canCheckIn?: boolean
   // "Enviar a lista de espera" solo tiene sentido en eventos con cupo
   // límite (si no, no hay lista de espera que active una cascada al
   // liberar el lugar) — ver moveGuestToWaitlist en src/firebase/guests.ts.
@@ -104,6 +113,20 @@ export function GuestDetailSheet({
   onRequestDelete: (guest: GuestData) => void
   onRequestReentry: (guest: GuestData) => void
   onReactivate: (guest: GuestData) => void
+  // Confirmación manual del organizador cuando el invitado avisó por otro
+  // medio (WhatsApp, llamada) en vez de responder el RSVP público — ver
+  // confirmGuestRsvp en src/firebase/guests.ts.
+  onConfirmRsvp: (guest: GuestData) => void
+  // "Registrar entrada" — mismo checkInGuest que usa el Scanner, para cuando
+  // la cámara falla o el invitado no tiene el QR a mano. Devuelve el
+  // CheckInResult completo (no solo éxito/error) porque este sheet necesita
+  // distinguir 'already_checked_in'/'payment_required'/'blocked_final_exit'
+  // para mostrar el mensaje correcto sin duplicar esa lógica en GuestList.
+  onCheckIn: (guest: GuestData) => Promise<CheckInResult>
+  // 'needs_selection' (grupo/familia con integrantes pendientes) no se
+  // resuelve acá adentro — GuestList.tsx cierra este sheet y abre
+  // CheckInSelectionModal (mismo componente que usa el Scanner).
+  onNeedsCheckInSelection: (guest: GuestData, pendingIndices: number[]) => void
   onRequestSendToWaitlist: (guest: GuestData) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -128,11 +151,18 @@ export function GuestDetailSheet({
   // dispara el pago — pedido explícito del organizador para no confirmar por
   // error con el método equivocado ya preseleccionado.
   const [confirmingPaymentMethod, setConfirmingPaymentMethod] = useState(false)
+  // Mismo criterio que paymentActionPending/Error de arriba — "Registrar
+  // entrada" necesita su propio feedback inline (el resultado 'success' no
+  // muestra nada porque el pill de presencia de más arriba ya se actualiza
+  // solo al re-renderizar con el `guest` fresco).
+  const [checkInPending, setCheckInPending] = useState(false)
+  const [checkInError, setCheckInError] = useState('')
 
   /* eslint-disable react-hooks/set-state-in-effect -- reinicio de selección al cambiar de invitado (el sheet no se desmonta entre uno y otro) */
   useEffect(() => {
     setSelectedMethod(undefined)
     setConfirmingPaymentMethod(false)
+    setCheckInError('')
   }, [guest?.id])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -142,7 +172,31 @@ export function GuestDetailSheet({
     setPaymentActionPending(false)
     setPaymentActionError('')
     setConfirmingPaymentMethod(false)
+    setCheckInError('')
     onClose()
+  }
+
+  async function handleCheckInClick(g: GuestData) {
+    setCheckInPending(true)
+    setCheckInError('')
+    try {
+      const result = await onCheckIn(g)
+      if (result.status === 'needs_selection') {
+        onNeedsCheckInSelection(g, result.pendingIndices)
+      } else if (result.status === 'already_checked_in') {
+        setCheckInError(`${guestDisplayName(g)} ya había registrado su entrada.`)
+      } else if (result.status === 'payment_required') {
+        setCheckInError('Todavía no pagó — confirma el pago antes de registrar la entrada.')
+      } else if (result.status === 'blocked_final_exit') {
+        setCheckInError('Salió definitivamente del evento — usa "Permitir reingreso" primero.')
+      } else if (result.status === 'not_found') {
+        setCheckInError('No se encontró la invitación.')
+      }
+    } catch {
+      setCheckInError('No se pudo registrar la entrada. Intenta de nuevo.')
+    } finally {
+      setCheckInPending(false)
+    }
   }
 
   async function handleMarkPaidClick(g: GuestData, method?: PaymentMethod) {
@@ -307,6 +361,26 @@ export function GuestDetailSheet({
               )}
 
               <section className="space-y-1 pt-1 border-t border-gray-100 dark:border-gray-700">
+                {/* Mismo checkInGuest que usa el escáner — para cuando la
+                    cámara falla o el invitado no tiene el QR a mano. Oculto
+                    con salida definitiva (presence === 'final_out'): ahí el
+                    propio checkInGuest devuelve 'blocked_final_exit', así
+                    que no tiene sentido ofrecer el botón antes de "Permitir
+                    reingreso". */}
+                {canCheckIn && presence !== 'final_out' && (
+                  <ActionButton
+                    icon={<IconUserPlus className="w-4 h-4" />}
+                    onClick={() => void handleCheckInClick(guest)}
+                    disabled={checkInPending}
+                  >
+                    {checkInPending ? 'Registrando…' : 'Registrar entrada'}
+                  </ActionButton>
+                )}
+                {checkInError && (
+                  <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
+                    {checkInError}
+                  </p>
+                )}
                 <ActionButton icon={copiedId === guest.id ? <IconCheck className="w-4 h-4" /> : <IconShare className="w-4 h-4" />} onClick={() => onShare(guest)}>
                   {copiedId === guest.id ? 'Copiado!' : 'Compartir invitación'}
                 </ActionButton>
@@ -422,6 +496,11 @@ export function GuestDetailSheet({
                   )
                 )}
 
+                {canEditGuests && guest.rsvpStatus !== 'yes' && (
+                  <ActionButton icon={<IconCheckCircle className="w-4 h-4" />} onClick={() => onConfirmRsvp(guest)}>
+                    Confirmar asistencia
+                  </ActionButton>
+                )}
                 {canEditGuests && guest.rsvpStatus === 'no' && (
                   <ActionButton icon={<IconRotateCcw className="w-4 h-4" />} onClick={() => onReactivate(guest)}>
                     Reactivar invitación

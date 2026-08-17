@@ -4,20 +4,25 @@ import {
   bulkDeleteGuests,
   bulkSetGuestPaymentStatus,
   bulkSetGuestTags,
+  checkInGuest,
+  confirmGuestRsvp,
   deleteGuest,
   moveGuestToWaitlist,
   resetGuestRsvp,
   setGuestPaymentStatus,
+  type CheckInResult,
 } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, EntryMode, GuestData, GuestSegmentTag, MenuOption, PaymentMethod } from '../../types'
 import { IconCheck, IconInbox, IconX } from '../accessibility/AccessibleIcon'
 import { AccessibleButton } from '../accessibility/AccessibleButton'
+import { CheckInSelectionModal } from '../CheckInSelectionModal'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { EmptyState } from '../Empty/EmptyState'
 import { FormError } from '../FormError'
 import { buildPassUrl } from '../../utils/qrUrl'
+import { buildPendingSelection, type PendingCheckInSelection } from '../../utils/checkInSelection'
 import { buildResendMailtoUrl, buildResendMessage, buildResendWhatsAppUrl } from '../../utils/resendInvitation'
-import { trackGuestDelete } from '../../lib/analytics'
+import { trackCheckIn, trackGuestDelete } from '../../lib/analytics'
 import { PAYMENT_METHOD_LABELS } from '../../utils/paymentMethods'
 import { GuestDetailSheet } from './GuestDetailSheet'
 import { GuestRow } from './GuestRow'
@@ -67,6 +72,7 @@ export const GuestList = memo(function GuestList({
   canEditGuests = true,
   canConfirmPayments = true,
   canDeleteGuests = true,
+  canCheckIn = true,
   attendeeLimitEnabled = false,
   guestsTruncated = false,
   onLoadAllGuests,
@@ -100,6 +106,9 @@ export const GuestList = memo(function GuestList({
   canEditGuests?: boolean
   canConfirmPayments?: boolean
   canDeleteGuests?: boolean
+  // Mismo permiso `scanQr` que exige checkInGuest del lado del servidor —
+  // gatea el botón "Registrar entrada" del detalle.
+  canCheckIn?: boolean
   attendeeLimitEnabled?: boolean
   // `guests` puede venir acotado a los primeros GUEST_WINDOW_DEFAULT (ver
   // useEvent.ts) — "Seleccionar todos" necesita el conjunto completo del
@@ -122,6 +131,13 @@ export const GuestList = memo(function GuestList({
   // Derivar `detailGuest` de `guests` en cada render lo mantiene en vivo.
   const [detailGuestId, setDetailGuestId] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
+  // Igual que Scanner.tsx: cuando "Registrar entrada" (check-in manual)
+  // devuelve 'needs_selection' (familia/acompañantes con integrantes
+  // pendientes), se cierra GuestDetailSheet y se abre este mismo
+  // CheckInSelectionModal que usa el escáner, para no duplicar esa UI.
+  const [pendingCheckInSelection, setPendingCheckInSelection] = useState<PendingCheckInSelection | null>(null)
+  const [checkInSelectionSubmitting, setCheckInSelectionSubmitting] = useState(false)
+  const [checkInSelectionError, setCheckInSelectionError] = useState<string | null>(null)
   const [visibleCount, setVisibleCount] = useState(GUEST_LIST_PAGE_SIZE)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -308,6 +324,72 @@ export const GuestList = memo(function GuestList({
     } catch (err) {
       console.error('Error reactivating guest invitation:', err)
       setActionError('No se pudo reactivar la invitación. Intenta de nuevo.')
+    }
+  }
+
+  async function handleConfirmRsvp(guest: GuestData) {
+    setActionError('')
+    try {
+      await confirmGuestRsvp(eventId, guest.id)
+      announce(`Asistencia confirmada: ${guest.name}`)
+    } catch (err) {
+      console.error('Error confirming guest RSVP:', err)
+      setActionError('No se pudo confirmar la asistencia. Intenta de nuevo.')
+    }
+  }
+
+  // "Registrar entrada" manual desde el detalle — mismo checkInGuest que usa
+  // el Scanner, para cuando la cámara falla. GuestDetailSheet decide qué
+  // mensaje mostrar según el status (ya adentro, pago pendiente, etc.); acá
+  // solo se resuelve 'success' (analítica + anuncio) y se relanza cualquier
+  // error real, mismo patrón que handleMarkPaid/handleMarkUnpaid.
+  async function handleCheckIn(guest: GuestData): Promise<CheckInResult> {
+    setActionError('')
+    try {
+      const result = await checkInGuest(eventId, guest.qrToken)
+      if (result.status === 'success') {
+        trackCheckIn(eventId)
+        announce(`Entrada registrada: ${guest.name}`)
+      }
+      return result
+    } catch (err) {
+      console.error('Error checking in guest manually:', err)
+      const message = getFunctionsErrorMessage(err, 'No se pudo registrar la entrada. Intenta de nuevo.')
+      setActionError(message)
+      throw new Error(message)
+    }
+  }
+
+  function handleNeedsCheckInSelection(guest: GuestData, pendingIndices: number[]) {
+    setDetailGuestId(null)
+    setCheckInSelectionError(null)
+    setPendingCheckInSelection(buildPendingSelection(guest.qrToken, guest, pendingIndices))
+  }
+
+  async function handleConfirmCheckInSelection(indices: number[]) {
+    const pending = pendingCheckInSelection
+    if (checkInSelectionSubmitting || !pending) return
+    setCheckInSelectionSubmitting(true)
+    setCheckInSelectionError(null)
+    try {
+      const result = await checkInGuest(eventId, pending.qrToken, indices)
+      if (result.status === 'success') {
+        trackCheckIn(eventId)
+        announce(`Entrada registrada: ${result.guest.name}`)
+        setPendingCheckInSelection(null)
+      } else if (result.status === 'needs_selection') {
+        // Nadie de los tildados llegó a contar como nuevo (reintento, u otro
+        // dispositivo ya los había ingresado) — mismo criterio que Scanner.tsx:
+        // se refresca la lista de pendientes en vez de cerrar en silencio.
+        setPendingCheckInSelection(buildPendingSelection(pending.qrToken, result.guest, result.pendingIndices))
+      } else {
+        setCheckInSelectionError('No se pudo registrar la entrada. Intenta de nuevo.')
+      }
+    } catch (err) {
+      console.error('Error confirming manual check-in selection:', err)
+      setCheckInSelectionError('No se pudo registrar la entrada. Intenta de nuevo.')
+    } finally {
+      setCheckInSelectionSubmitting(false)
     }
   }
 
@@ -571,6 +653,7 @@ export const GuestList = memo(function GuestList({
         canEditGuests={canEditGuests}
         canConfirmPayments={canConfirmPayments}
         canDeleteGuests={canDeleteGuests}
+        canCheckIn={canCheckIn}
         attendeeLimitEnabled={attendeeLimitEnabled}
         onClose={() => setDetailGuestId(null)}
         onShare={handleShare}
@@ -581,8 +664,21 @@ export const GuestList = memo(function GuestList({
         onRequestDelete={(guest) => { setDetailGuestId(null); setDeletingGuest(guest) }}
         onRequestReentry={(guest) => { setDetailGuestId(null); setReentryGuest(guest) }}
         onReactivate={handleReactivate}
+        onConfirmRsvp={handleConfirmRsvp}
+        onCheckIn={handleCheckIn}
+        onNeedsCheckInSelection={handleNeedsCheckInSelection}
         onRequestSendToWaitlist={(guest) => { setDetailGuestId(null); setSendingToWaitlistGuest(guest) }}
       />
+
+      {pendingCheckInSelection && (
+        <CheckInSelectionModal
+          selection={pendingCheckInSelection}
+          submitting={checkInSelectionSubmitting}
+          error={checkInSelectionError}
+          onConfirm={handleConfirmCheckInSelection}
+          onCancel={() => setPendingCheckInSelection(null)}
+        />
+      )}
 
       <ConfirmDialog
         open={!!deletingGuest}
