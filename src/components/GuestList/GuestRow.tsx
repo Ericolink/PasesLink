@@ -65,7 +65,13 @@ export const GuestRow = memo(function GuestRow({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
             {name}
-            {guest.isGroup && <span className="text-gray-400 dark:text-gray-500 font-normal"> · x{partySize(guest)}</span>}
+            {/* Antes solo se mostraba para guest.isGroup — un invitado
+                individual con acompañantes (no grupo) tenía la misma
+                cantidad de pases escondida en el subtítulo, un texto chico
+                que compite con el estado (pagó/pendiente/etc.). Mismo
+                criterio que WaitlistEntryRow.tsx: partySize > 1, sin
+                distinguir grupo/individual. */}
+            {partySize(guest) > 1 && <span className="text-gray-400 dark:text-gray-500 font-normal"> · x{partySize(guest)}</span>}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{subtitle}</p>
         </div>

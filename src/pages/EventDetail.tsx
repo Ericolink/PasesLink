@@ -20,7 +20,7 @@ import { trackEventOpen } from '../lib/analytics'
 import { captureException } from '../lib/sentry'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { subscribeToWaitlist } from '../firebase/waitlist'
-import { filterAndSortGuests } from '../utils/guestSearch'
+import { filterAndSortGuests, matchesGuestSearch } from '../utils/guestSearch'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
 import { EventNextSteps } from '../components/EventNextSteps'
@@ -157,6 +157,15 @@ export function EventDetail() {
   const filteredGuests = useMemo(
     () => filterAndSortGuests(guests, { search: debouncedSearch, statusFilter, sortBy }),
     [guests, debouncedSearch, statusFilter, sortBy],
+  )
+
+  // Mismo buscador de arriba (GuestSearchBar) aplicado también a la
+  // waitlist: antes solo filtraba GuestList, así que buscar a alguien que
+  // todavía está en espera (sin lugar confirmado) no encontraba nada, sin
+  // ningún indicio de que la waitlist ni se había mirado.
+  const filteredWaitlistEntries = useMemo(
+    () => waitlistEntries.filter((entry) => matchesGuestSearch(entry, debouncedSearch)),
+    [waitlistEntries, debouncedSearch],
   )
 
   // event.peopleCount (contador desnormalizado, mantenido con increment() en
@@ -640,7 +649,9 @@ export function EventDetail() {
           <WaitlistPanel
             eventId={event.id}
             eventName={event.name}
-            entries={waitlistEntries}
+            entries={filteredWaitlistEntries}
+            searchTerm={debouncedSearch}
+            onClearSearch={() => setSearch('')}
             subscriptionError={waitlistSubscriptionError}
             canManage={perms.addGuests}
             requiresPayment={event.requiresPayment}

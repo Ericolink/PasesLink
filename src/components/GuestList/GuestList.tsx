@@ -6,11 +6,13 @@ import {
   bulkSetGuestTags,
   checkInGuest,
   confirmGuestRsvp,
+  confirmPaymentAndCheckIn,
   deleteGuest,
   moveGuestToWaitlist,
   resetGuestRsvp,
   setGuestPaymentStatus,
   type CheckInResult,
+  type ConfirmPaymentAndCheckInResult,
 } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, EntryMode, GuestData, GuestSegmentTag, MenuOption, PaymentMethod } from '../../types'
 import { IconCheck, IconInbox, IconX } from '../accessibility/AccessibleIcon'
@@ -366,6 +368,26 @@ export const GuestList = memo(function GuestList({
     setPendingCheckInSelection(buildPendingSelection(guest.qrToken, guest, pendingIndices))
   }
 
+  // Botón "Sí, ya pagó" del prompt de GuestDetailSheet cuando "Registrar
+  // entrada" devuelve 'payment_required' — mismo confirmPaymentAndCheckIn
+  // atómico que usa el escáner (pago + check-in en una sola transacción).
+  async function handleConfirmPaymentAndCheckIn(guest: GuestData, method?: PaymentMethod): Promise<ConfirmPaymentAndCheckInResult> {
+    setActionError('')
+    try {
+      const result = await confirmPaymentAndCheckIn(eventId, guest.id, method)
+      if (result.checkIn === 'success') {
+        trackCheckIn(eventId)
+        announce(`Pago confirmado y entrada registrada: ${guest.name}`)
+      }
+      return result
+    } catch (err) {
+      console.error('Error confirming payment and checking in guest:', err)
+      const message = getFunctionsErrorMessage(err, 'No se pudo confirmar el pago. Intenta de nuevo.')
+      setActionError(message)
+      throw new Error(message)
+    }
+  }
+
   async function handleConfirmCheckInSelection(indices: number[]) {
     const pending = pendingCheckInSelection
     if (checkInSelectionSubmitting || !pending) return
@@ -667,6 +689,7 @@ export const GuestList = memo(function GuestList({
         onConfirmRsvp={handleConfirmRsvp}
         onCheckIn={handleCheckIn}
         onNeedsCheckInSelection={handleNeedsCheckInSelection}
+        onConfirmPaymentAndCheckIn={handleConfirmPaymentAndCheckIn}
         onRequestSendToWaitlist={(guest) => { setDetailGuestId(null); setSendingToWaitlistGuest(guest) }}
       />
 

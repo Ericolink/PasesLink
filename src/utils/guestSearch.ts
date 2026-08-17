@@ -2,9 +2,12 @@ import type { GuestData } from '../types'
 
 // Nombre + apellido concatenados cubre los tres casos pedidos (nombre solo,
 // apellido solo, "Nombre Apellido" completo) sin necesitar lógica aparte
-// para cada uno. Compartido entre GuestSearchBar (EventDetail) y
-// AssignGuestModal (Seating) para no repetir el mismo criterio dos veces.
-export function matchesGuestSearch(guest: Pick<GuestData, 'name' | 'lastName'>, rawTerm: string): boolean {
+// para cada uno. Compartido entre GuestSearchBar (EventDetail), AssignGuestModal
+// (Seating) y el filtro de WaitlistPanel (EventDetail.tsx) para no repetir el
+// mismo criterio en cada lugar. Firma ensanchada a `{ name; lastName? }` (en
+// vez de Pick<GuestData, ...>) porque WaitlistEntryData no tiene `lastName`
+// — sigue aceptando GuestData tal cual.
+export function matchesGuestSearch(guest: { name: string; lastName?: string }, rawTerm: string): boolean {
   const term = rawTerm.trim().toLowerCase()
   if (!term) return true
   return `${guest.name} ${guest.lastName || ''}`.toLowerCase().includes(term)

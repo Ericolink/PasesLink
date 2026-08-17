@@ -6,8 +6,10 @@ import {
   removeFromWaitlist,
 } from '../firebase/waitlist'
 import type { CustomField, PaymentMethod, WaitlistEntryData } from '../types'
+import { IconInbox } from './accessibility/AccessibleIcon'
 import { MetricTile } from './MetricTile'
 import { ConfirmDialog } from './ConfirmDialog'
+import { EmptyState } from './Empty/EmptyState'
 import { ListSection } from './GuestList/ListSection'
 import { WaitlistEntryRow } from './GuestList/WaitlistEntryRow'
 import { WaitlistEntryDetailSheet } from './GuestList/WaitlistEntryDetailSheet'
@@ -18,8 +20,11 @@ import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
 interface WaitlistPanelProps {
   eventId: string
   eventName: string
-  /** Entradas en vivo (status waiting/offered) — suscripción única de EventDetail.tsx, no propia: evita duplicar la lectura de la waitlist en cada escritura durante el check-in (antes este panel abría su propia suscripción idéntica). */
+  /** Entradas en vivo (status waiting/offered) YA filtradas por `searchTerm` (mismo buscador de GuestList, ver EventDetail.tsx) — suscripción única de EventDetail.tsx, no propia: evita duplicar la lectura de la waitlist en cada escritura durante el check-in (antes este panel abría su propia suscripción idéntica). */
   entries: WaitlistEntryData[]
+  /** Término de búsqueda ya aplicado a `entries` — solo para distinguir "nadie en la waitlist" ($searchTerm vacío) de "nadie coincide con la búsqueda" (mostrar EmptyState en vez de ocultar todo el panel). */
+  searchTerm?: string
+  onClearSearch?: () => void
   /** Error de la suscripción de arriba (ej. permission-denied) — antes solo se mandaba a Sentry y el panel quedaba oculto igual que "no hay nadie esperando", sin ningún indicio de que había un error real. */
   subscriptionError: boolean
   /** Gatea las acciones (mover/editar/promover/eliminar) — igual criterio que addGuests para GuestAddForm. */
@@ -37,7 +42,7 @@ interface WaitlistPanelProps {
 // pase/QR, sin RSVP), pegado arriba de GuestList en EventDetail.tsx — pero
 // ya no dueño de su propia suscripción: `entries`/`subscriptionError` bajan
 // como prop desde el único listener de EventDetail.tsx.
-export function WaitlistPanel({ eventId, eventName, entries, subscriptionError, canManage, requiresPayment, paymentMethods, maxCompanions, customFields = [] }: WaitlistPanelProps) {
+export function WaitlistPanel({ eventId, eventName, entries, searchTerm = '', onClearSearch, subscriptionError, canManage, requiresPayment, paymentMethods, maxCompanions, customFields = [] }: WaitlistPanelProps) {
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null)
   const [error, setError] = useState('')
   // Informativo (no error): quién se corrió a la waitlist para hacerle
@@ -60,7 +65,13 @@ export function WaitlistPanel({ eventId, eventName, entries, subscriptionError, 
     )
   }
 
-  if (entries.length === 0) return null
+  const hasSearchText = Boolean(searchTerm.trim())
+  // Sin esto, buscar a alguien que solo está en la waitlist (nunca en
+  // GuestList) hacía que este panel se ocultara igual que "no hay nadie
+  // esperando" — sin ningún indicio de que la búsqueda sí corrió, solo que
+  // no encontró a nadie acá. Con texto de búsqueda, se sigue mostrando el
+  // panel (con el EmptyState de abajo) en vez de desaparecer en silencio.
+  if (entries.length === 0 && !hasSearchText) return null
 
   const waitingCount = entries.filter((e) => e.status === 'waiting').length
   const detailEntry = detailEntryId ? entries.find((e) => e.id === detailEntryId) ?? null : null
@@ -115,7 +126,7 @@ export function WaitlistPanel({ eventId, eventName, entries, subscriptionError, 
 
   return (
     <div className="rounded-xl bg-gray-50 dark:bg-gray-800 dark:border dark:border-gray-700 p-4 mb-5">
-      <div className="mb-4 max-w-[9rem]">
+      <div className="mb-4 w-fit">
         <MetricTile label="En espera" value={waitingCount} align="start" />
       </div>
 
@@ -130,18 +141,28 @@ export function WaitlistPanel({ eventId, eventName, entries, subscriptionError, 
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
       {info && <p className="text-sm text-violet-600 dark:text-violet-400 mb-3">{info}</p>}
 
-      <ListSection
-        title="Lista de espera"
-        titleTone="violet"
-        alwaysExpanded
-        collapsedByDefault={false}
-        items={entries}
-        loadMoreLabel="personas"
-        renderItem={(entry) => {
-          const position = entries.findIndex((e) => e.id === entry.id) + 1
-          return <WaitlistEntryRow key={entry.id} entry={entry} position={position} onOpenDetail={(e) => setDetailEntryId(e.id)} />
-        }}
-      />
+      {entries.length === 0 ? (
+        <EmptyState
+          icon={IconInbox}
+          title="Sin resultados"
+          description={`No encontramos a nadie en la lista de espera que coincida con "${searchTerm.trim()}".`}
+          ctaText="Limpiar búsqueda"
+          onAction={onClearSearch}
+        />
+      ) : (
+        <ListSection
+          title="Lista de espera"
+          titleTone="violet"
+          alwaysExpanded
+          collapsedByDefault={false}
+          items={entries}
+          loadMoreLabel="personas"
+          renderItem={(entry) => {
+            const position = entries.findIndex((e) => e.id === entry.id) + 1
+            return <WaitlistEntryRow key={entry.id} entry={entry} position={position} onOpenDetail={(e) => setDetailEntryId(e.id)} />
+          }}
+        />
+      )}
 
       <WaitlistEntryDetailSheet
         eventId={eventId}

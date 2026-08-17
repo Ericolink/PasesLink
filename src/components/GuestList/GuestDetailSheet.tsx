@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AccessibleModal } from '../accessibility/AccessibleModal'
-import { guestPresence, partySize, presentIndicesOf, type CheckInResult } from '../../firebase/guests'
+import { guestPresence, partySize, presentIndicesOf, type CheckInResult, type ConfirmPaymentAndCheckInResult } from '../../firebase/guests'
 import type { CustomField, DietaryRestriction, GuestData, GuestSegmentTag, MenuOption, MenuSelection, PaymentMethod } from '../../types'
 import { TagMultiSelect } from '../TagMultiSelect'
 
@@ -77,6 +77,7 @@ export function GuestDetailSheet({
   onConfirmRsvp,
   onCheckIn,
   onNeedsCheckInSelection,
+  onConfirmPaymentAndCheckIn,
   onRequestSendToWaitlist,
 }: {
   eventId: string
@@ -127,6 +128,11 @@ export function GuestDetailSheet({
   // resuelve acá adentro — GuestList.tsx cierra este sheet y abre
   // CheckInSelectionModal (mismo componente que usa el Scanner).
   onNeedsCheckInSelection: (guest: GuestData, pendingIndices: number[]) => void
+  // Botón "Sí, ya pagó" cuando onCheckIn devuelve 'payment_required' — mismo
+  // confirmPaymentAndCheckIn atómico que usa el escáner (ScanResultModal),
+  // en vez de obligar al organizador a ir a "Confirmar pago" aparte y volver
+  // a tocar "Registrar entrada".
+  onConfirmPaymentAndCheckIn: (guest: GuestData, method?: PaymentMethod) => Promise<ConfirmPaymentAndCheckInResult>
   onRequestSendToWaitlist: (guest: GuestData) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -157,12 +163,18 @@ export function GuestDetailSheet({
   // solo al re-renderizar con el `guest` fresco).
   const [checkInPending, setCheckInPending] = useState(false)
   const [checkInError, setCheckInError] = useState('')
+  // "Registrar entrada" sobre un invitado sin pagar no tira error y listo:
+  // pregunta "¿Pagó?" (mismo criterio que "Sí, ya pagó" del escáner) para
+  // resolver pago + check-in en un solo paso, sin mandar al organizador a
+  // buscar el botón "Confirmar pago" aparte y volver a tocar este.
+  const [checkInNeedsPayment, setCheckInNeedsPayment] = useState(false)
 
   /* eslint-disable react-hooks/set-state-in-effect -- reinicio de selección al cambiar de invitado (el sheet no se desmonta entre uno y otro) */
   useEffect(() => {
     setSelectedMethod(undefined)
     setConfirmingPaymentMethod(false)
     setCheckInError('')
+    setCheckInNeedsPayment(false)
   }, [guest?.id])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -173,6 +185,7 @@ export function GuestDetailSheet({
     setPaymentActionError('')
     setConfirmingPaymentMethod(false)
     setCheckInError('')
+    setCheckInNeedsPayment(false)
     onClose()
   }
 
@@ -186,7 +199,7 @@ export function GuestDetailSheet({
       } else if (result.status === 'already_checked_in') {
         setCheckInError(`${guestDisplayName(g)} ya había registrado su entrada.`)
       } else if (result.status === 'payment_required') {
-        setCheckInError('Todavía no pagó — confirma el pago antes de registrar la entrada.')
+        setCheckInNeedsPayment(true)
       } else if (result.status === 'blocked_final_exit') {
         setCheckInError('Salió definitivamente del evento — usa "Permitir reingreso" primero.')
       } else if (result.status === 'not_found') {
@@ -194,6 +207,26 @@ export function GuestDetailSheet({
       }
     } catch {
       setCheckInError('No se pudo registrar la entrada. Intenta de nuevo.')
+    } finally {
+      setCheckInPending(false)
+    }
+  }
+
+  async function handleConfirmPaymentAndCheckInClick(g: GuestData) {
+    setCheckInPending(true)
+    setCheckInError('')
+    try {
+      const result = await onConfirmPaymentAndCheckIn(g, selectedMethod ?? g.paymentMethod ?? paymentMethods[0])
+      setCheckInNeedsPayment(false)
+      if (result.checkIn === 'needs_selection') {
+        onNeedsCheckInSelection(g, result.pendingIndices)
+      } else if (result.checkIn === 'already_checked_in') {
+        setCheckInError(`${guestDisplayName(g)} ya había registrado su entrada.`)
+      } else if (result.checkIn === 'blocked_final_exit') {
+        setCheckInError('Salió definitivamente del evento — usa "Permitir reingreso" primero.')
+      }
+    } catch {
+      setCheckInError('No se pudo confirmar el pago. Intenta de nuevo.')
     } finally {
       setCheckInPending(false)
     }
@@ -367,7 +400,7 @@ export function GuestDetailSheet({
                     propio checkInGuest devuelve 'blocked_final_exit', así
                     que no tiene sentido ofrecer el botón antes de "Permitir
                     reingreso". */}
-                {canCheckIn && presence !== 'final_out' && (
+                {canCheckIn && presence !== 'final_out' && !checkInNeedsPayment && (
                   <ActionButton
                     icon={<IconUserPlus className="w-4 h-4" />}
                     onClick={() => void handleCheckInClick(guest)}
@@ -375,6 +408,60 @@ export function GuestDetailSheet({
                   >
                     {checkInPending ? 'Registrando…' : 'Registrar entrada'}
                   </ActionButton>
+                )}
+                {/* "Registrar entrada" sobre un invitado sin pagar pregunta
+                    acá mismo en vez de solo avisar — "Sí, ya pagó" dispara
+                    confirmPaymentAndCheckIn (pago + check-in atómicos), mismo
+                    botón que ya existe en el escáner. */}
+                {checkInNeedsPayment && (
+                  <div className="px-3 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 space-y-2.5">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                      {guest.paymentStatus === 'pending_confirmation'
+                        ? 'Envió comprobante y está esperando confirmación. ¿Confirmas el pago para registrar la entrada?'
+                        : `¿${guestDisplayName(guest)} ya pagó la entrada?`}
+                    </p>
+                    {paymentMethods.length > 1 && (
+                      <div className="flex gap-2">
+                        {paymentMethods.map((m) => {
+                          const isSelected = (selectedMethod ?? guest.paymentMethod ?? paymentMethods[0]) === m
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setSelectedMethod(m)}
+                              disabled={checkInPending}
+                              aria-pressed={isSelected}
+                              className={`flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+                                isSelected
+                                  ? 'border-primary bg-primary/10 text-primary'
+                                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+                              }`}
+                            >
+                              {PAYMENT_METHOD_LABELS[m]}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCheckInNeedsPayment(false)}
+                        disabled={checkInPending}
+                        className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 disabled:opacity-50"
+                      >
+                        No, todavía no
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleConfirmPaymentAndCheckInClick(guest)}
+                        disabled={checkInPending}
+                        className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                      >
+                        {checkInPending ? 'Confirmando…' : 'Sí, ya pagó'}
+                      </button>
+                    </div>
+                  </div>
                 )}
                 {checkInError && (
                   <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
