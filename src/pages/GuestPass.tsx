@@ -4,7 +4,7 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import confetti from 'canvas-confetti'
 import { getEvent } from '../firebase/events'
-import { checkInGuest, claimGuestOwnership, claimGuestPass, deleteGuest, findGuestByToken, partySize, presentIndicesOf, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
+import { checkInGuest, claimGuestOwnership, claimGuestPass, claimInvitationPerson, deleteGuest, findGuestByToken, partySize, presentIndicesOf, setGuestPaymentStatus, setGuestRsvp } from '../firebase/guests'
 import { GuestEditModal } from '../components/GuestEditModal'
 import { GuestSignupPrompt } from '../components/GuestSignupPrompt'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -62,6 +62,7 @@ import { getTemplate, isRedesignedInvitationTemplate } from '../templates/regist
 import { buildPassUrl, QR_QUIET_ZONE_MODULES } from '../utils/qrUrl'
 import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
 import { HousePartyPassLayout } from '../components/invitation/HousePartyPassLayout'
+import { CompanionClaimRoster } from '../components/CompanionClaimRoster'
 
 // El navegador reutiliza la misma instancia de GuestPass al navegar entre dos
 // URLs /pass/:eventId/:qrToken distintas (mismo patrón de ruta) — sin esta key,
@@ -108,6 +109,8 @@ function GuestPassInner() {
   const [selectionError, setSelectionError] = useState<string | null>(null)
   const [paymentSaving, setPaymentSaving] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [claimingIndex, setClaimingIndex] = useState<number | null>(null)
+  const [claimError, setClaimError] = useState<string | null>(null)
   const proof = usePaymentProof(eventId, guest?.id, setGuest)
   const perms = useEventPermissions(event, user)
   const qrWrapperRef = useRef<HTMLDivElement>(null)
@@ -227,12 +230,23 @@ function GuestPassInner() {
         // - claimGuestOwnership marca ESTE pase (guests/{guestId}.guestUid)
         //   como propiedad de la cuenta — la fuente de verdad real, la que
         //   permite encontrarlo después desde cualquier dispositivo (ver
-        //   reclaimInvitationsByEmail). No-op si ya era de esta cuenta.
+        //   reclaimInvitationsByEmail). No-op si ya era de esta cuenta. SOLO
+        //   para invitaciones de una sola persona (partySize === 1): con
+        //   varias personas (familia/acompañantes), reclamar automáticamente
+        //   y en silencio a quien sea que abra primero el link compartido ya
+        //   no tiene sentido (podría no ser el invitado principal) — cada
+        //   persona elige explícitamente quién es en CompanionClaimRoster
+        //   (ver handleClaimPerson más abajo), vía claimInvitationPerson.
         // - saveUserInvitation actualiza la caché de lectura rápida de "Mis
         //   invitaciones" (users/{uid}/invitations). Es un upsert (merge:true),
-        //   así que repetirlo en cada vista es inofensivo.
+        //   así que repetirlo en cada vista es inofensivo — corre siempre,
+        //   sin importar si ya se reclamó una persona puntual, para que el
+        //   invitado pueda volver a encontrar el link desde cualquier
+        //   dispositivo apenas inicia sesión.
         if (user) {
-          void claimGuestOwnership(eventId, guestData.id, user.uid, guestData.guestUid ?? null)
+          if (partySize(guestData) === 1) {
+            void claimGuestOwnership(eventId, guestData.id, user.uid, guestData.guestUid ?? null)
+          }
           void saveUserInvitation(user.uid, {
             eventId,
             eventName: eventData.name,
@@ -417,6 +431,30 @@ function GuestPassInner() {
       setPaymentError('No se pudo actualizar el estado de pago. Intenta de nuevo.')
     } finally {
       setPaymentSaving(false)
+    }
+  }
+
+  // Acción explícita del selector "¿Cuál de estas personas eres tú?" (ver
+  // CompanionClaimRoster) — a diferencia del reclamo automático y silencioso
+  // de arriba (solo para invitaciones de una sola persona), acá SÍ se
+  // muestra el error (ej. "ya fue reclamado por otra cuenta") porque es una
+  // elección deliberada del invitado, no un efecto de fondo.
+  async function handleClaimPerson(personIndex: number) {
+    if (!eventId || !guest || !user || claimingIndex !== null) return
+    setClaimingIndex(personIndex)
+    setClaimError(null)
+    try {
+      await claimInvitationPerson(eventId, guest.id, personIndex)
+      setGuest((g) => {
+        if (!g) return g
+        if (personIndex === 0) return { ...g, guestUid: user.uid }
+        return { ...g, companionClaims: { ...(g.companionClaims || {}), [String(personIndex)]: user.uid } }
+      })
+    } catch (err) {
+      console.error('Error vinculando esta persona a la cuenta:', err)
+      setClaimError(getFunctionsErrorMessage(err, 'No se pudo vincular esta persona a tu cuenta. Intenta de nuevo.'))
+    } finally {
+      setClaimingIndex(null)
     }
   }
 
@@ -611,6 +649,10 @@ function GuestPassInner() {
         cancelError={cancelError}
         onCancelAttendance={() => { void handleCancelAttendance() }}
         onGuestSaved={(patch) => setGuest((g) => (g ? { ...g, ...patch } : g))}
+        currentUid={user?.uid ?? null}
+        onClaimPerson={(index) => { void handleClaimPerson(index) }}
+        claimingIndex={claimingIndex}
+        claimError={claimError}
       />
     )
   }
@@ -703,6 +745,14 @@ function GuestPassInner() {
                   <p className="text-sm text-[var(--invite-text-muted)] mb-3">+ {guest.companions.length} acompañante(s)</p>
                 )
               )}
+
+              <CompanionClaimRoster
+                guest={guest}
+                currentUid={user?.uid ?? null}
+                onClaim={(index) => { void handleClaimPerson(index) }}
+                claimingIndex={claimingIndex}
+                claimError={claimError}
+              />
 
               {!guest.isGroup && (
                 <button

@@ -675,6 +675,17 @@ export interface GuestData {
   // el check-in/QR/estadísticas no distinguen este campo. Ausente/false en
   // invitados creados antes de este campo (siempre invitados individuales).
   isGroup?: boolean
+  // Etiqueta libre del grupo/familia para mostrar en el pase (ej. "Familia
+  // Muñoz") — SOLO presente en invitados isGroup creados con el formulario
+  // rediseñado que pide nombre y apellido reales de cada integrante (ver
+  // GuestAddForm.tsx, tab "Familia o grupo"). Cuando está presente, `name`/
+  // `lastName` de este documento son los del PRIMER integrante real (una
+  // persona reclamable como cualquier invitado individual, ver guestUid más
+  // abajo), no un rótulo de grupo. Ausente en grupos creados antes de este
+  // campo (formato legacy): ahí `name` sigue siendo el único rótulo del
+  // grupo y los `companions` se cargaron sin nombre — se conservan tal cual,
+  // sin migración, y simplemente no participan del reclamo por persona.
+  groupLabel?: string
   // Origen del alta: 'organizer' = lo cargó el organizador/coanfitrión a mano
   // (GuestAddForm, alta masiva, CSV) — sin tope de acompañantes propio,
   // gobierna únicamente EventData.capacity. 'self' = el propio invitado se
@@ -758,6 +769,19 @@ export interface GuestData {
   // registro, no sincronizada después) del photoURL del perfil en ese
   // instante — ver GuestAvatar.tsx para el porqué de no leerlo en vivo.
   guestUid?: string | null
+  // Vínculo de cuenta de cada ACOMPAÑANTE/integrante (índices 1..N, mismo
+  // esquema que presentIndices: 1..N = companions[i-1] — nunca "0", ese es
+  // guestUid arriba) a su propia cuenta PaseLink, sin duplicar la invitación
+  // ni el QR (ver claimInvitationPerson en functions/src/callable). Clave =
+  // índice como string ("1", "2"...), valor = uid de la cuenta. Igual que
+  // guestUid, "primero en reclamarlo, gana" — una vez que un índice tiene
+  // dueño, nadie más puede pisarlo (ver la Cloud Function, exclusiva de
+  // Admin SDK: accessControlFieldsUntouched en firestore.rules impide que
+  // cualquier rama de cliente la toque). Se permite que la MISMA cuenta
+  // reclame varios índices (ej. un padre reclamando el pase de sus hijos
+  // menores sin cuenta propia) — no es 1 cuenta = 1 persona estricto.
+  // Ausente/vacío = nadie reclamó ningún acompañante todavía.
+  companionClaims?: Record<string, string>
   guestPhotoURL?: string | null
   createdAt: number
   // Control de concurrencia optimista: se incrementa en +1 en cada escritura

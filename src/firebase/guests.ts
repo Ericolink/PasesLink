@@ -63,6 +63,9 @@ export interface NewGuestInput {
   phoneCountry?: string
   companions?: CompanionData[]
   isGroup?: boolean
+  // Etiqueta libre del grupo (ej. "Familia Muñoz") — solo tiene efecto con
+  // isGroup: true, ver GuestData.groupLabel.
+  groupLabel?: string
   customData?: Record<string, string>
 }
 
@@ -182,6 +185,7 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<{
       phoneCountry?: string
       companions?: CompanionData[]
       isGroup?: boolean
+      groupLabel?: string
       customData?: Record<string, string>
     },
     { status: 'success'; id: string } | { status: 'full' }
@@ -195,6 +199,7 @@ export async function addGuest(eventId: string, input: NewGuestInput): Promise<{
     phoneCountry: input.phoneCountry,
     companions: input.companions,
     isGroup: input.isGroup,
+    groupLabel: input.groupLabel,
     customData: input.customData,
   }))
   if (result.data.status === 'full') throw new CapacityFullError()
@@ -1284,6 +1289,25 @@ export async function claimGuestOwnership(
   }
 }
 
+// Vincula UNA persona puntual de esta invitación (0 = invitado principal,
+// 1..N = companions[i-1]) a la cuenta que llama — sin crear ninguna
+// invitación ni QR nuevo, todos siguen compartiendo el mismo `qrToken`. A
+// diferencia de claimGuestOwnership (arriba, silencioso, pensado para el
+// reclamo automático de una invitación de una sola persona),
+// esta es la acción EXPLÍCITA del selector "¿Cuál de estas personas eres
+// tú?" (ver CompanionClaimRoster.tsx) — usada tanto para el índice 0 como
+// para acompañantes cuando la invitación tiene más de una persona, y sí
+// propaga el error (ej. "ya fue reclamado por otra cuenta") para que la UI
+// lo muestre. Ver claimInvitationPerson (Cloud Function, Admin SDK) para el
+// porqué de no ser una escritura directa + regla de Firestore como
+// claimGuestOwnership.
+export async function claimInvitationPerson(eventId: string, guestId: string, personIndex: number): Promise<void> {
+  const callable = httpsCallable<{ eventId: string; guestId: string; personIndex: number }, { ok: boolean }>(
+    functions, 'claimInvitationPerson',
+  )
+  await callable({ eventId, guestId, personIndex })
+}
+
 async function findGuestRefByToken(eventId: string, qrToken: string) {
   const guests = collection(db, 'events', eventId, 'guests')
   const q = query(guests, where('qrToken', '==', qrToken), limit(1))
@@ -1462,6 +1486,7 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     status: data.status as GuestData['status'],
     companions: normalizeCompanions(data.companions),
     isGroup: (data.isGroup as boolean) || false,
+    groupLabel: (data.groupLabel as string) || undefined,
     registrationSource: (data.registrationSource as GuestData['registrationSource']) || undefined,
     rsvpStatus: (data.rsvpStatus as GuestData['rsvpStatus']) || 'pending',
     checkedInAt: toMillisOrNull(data.checkedInAt),
@@ -1484,6 +1509,9 @@ function mapGuest(id: string, data: Record<string, unknown>): GuestData {
     paidAt: typeof data.paidAt === 'number' ? data.paidAt : null,
     paidBy: (data.paidBy as string) || null,
     guestUid: (data.guestUid as string) || null,
+    companionClaims: (data.companionClaims && typeof data.companionClaims === 'object')
+      ? (data.companionClaims as Record<string, string>)
+      : undefined,
     guestPhotoURL: (data.guestPhotoURL as string) || null,
     createdAt: toMillisOrNull(data.createdAt) || 0,
     version: typeof data.version === 'number' ? data.version : 0,

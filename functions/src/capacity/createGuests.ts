@@ -49,6 +49,11 @@ export interface GuestWrite {
   name: string
   lastName?: string
   isGroup?: boolean
+  // Etiqueta libre del grupo (ej. "Familia Muñoz"), solo cuando isGroup —
+  // ver el comentario de GuestData.groupLabel (src/types/index.ts) para el
+  // porqué de mantenerla aparte de `name`/`lastName` (que en un grupo creado
+  // con este campo son los del primer integrante REAL, no un rótulo).
+  groupLabel?: string
   customData?: Record<string, string>
   companions: GuestCompanionInput[]
   contact?: GuestContactInput
@@ -81,6 +86,12 @@ function buildGuestPayload(guest: GuestWrite) {
     lastName: guest.lastName || '',
     companions: guest.companions,
     isGroup: guest.isGroup || false,
+    // Solo se escribe el campo cuando hay una etiqueta real (nunca string
+    // vacío) — su AUSENCIA es justamente lo que distingue un grupo creado
+    // con el formulario rediseñado (integrantes nombrados, reclamables) de
+    // uno legacy (rótulo en `name`, sin integrantes nombrados). Ver
+    // GuestData.groupLabel.
+    ...(guest.isGroup && guest.groupLabel ? { groupLabel: guest.groupLabel } : {}),
     // Las 3 altas manuales que comparten esta función (addGuest,
     // addGuestsBulk, addGuestsFromRows) son siempre del organizador — nunca
     // sujetas a EventData.maxCompanions (ese tope solo rige el autoregistro

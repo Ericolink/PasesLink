@@ -18,6 +18,8 @@ export function CompanionFieldsEditor({
   maxCompanions,
   limitReachedMessage,
   customFields,
+  requireName = false,
+  personNoun = 'acompañante',
 }: {
   companions: CompanionData[]
   onChange: (companions: CompanionData[]) => void
@@ -45,6 +47,15 @@ export function CompanionFieldsEditor({
   // validatePublicCompanions del lado del servidor). Sin esta prop, no se
   // renderiza ningún campo personalizado por acompañante.
   customFields?: CustomField[]
+  // true para "Familia o grupo" (GuestAddForm): cada integrante es una
+  // persona real que puede reclamar su propio pase (ver
+  // CompanionClaimRoster), así que nombre y apellido dejan de ser opcionales
+  // acá — solo cambia el `required`/la etiqueta visual, la validación real
+  // (rechazo server-side si falta alguno) vive en addGuest.ts.
+  requireName?: boolean
+  // Sustantivo usado en las etiquetas de cada fila ("Acompañante 1" vs.
+  // "Integrante 1") — puramente de presentación.
+  personNoun?: string
 }) {
   // Confirmación antes de quitar — antes el botón de la papelera borraba la
   // fila al instante, sin deshacer posible ni pregunta, fácil de tocar sin
@@ -86,7 +97,7 @@ export function CompanionFieldsEditor({
             className="w-full min-h-11 flex items-center justify-center gap-2 rounded-md border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-white hover:border-primary hover:text-primary active:bg-gray-50 dark:active:bg-gray-700 transition-colors"
           >
             <IconUserPlus className="w-4 h-4" />
-            Agregar acompañante
+            Agregar {personNoun}
           </button>
         )
       )}
@@ -97,42 +108,45 @@ export function CompanionFieldsEditor({
         // label real (oculto, el placeholder visible no cambia) ahora incluye
         // el número de orden.
         const humanIndex = index + 1
+        const namePersonLabel = `${personNoun} ${humanIndex}`
         return (
         <div key={index} className="space-y-2 bg-gray-50 dark:bg-gray-700/50 rounded-md p-2">
         {allowAddRemove && (
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Acompañante {humanIndex}
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 capitalize">
+              {namePersonLabel}
             </span>
             <button
               type="button"
               onClick={() => setPendingRemoveIndex(index)}
               className="min-w-11 min-h-11 -my-1 -mr-1 inline-flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
-              aria-label={`Eliminar acompañante ${humanIndex}`}
+              aria-label={`Eliminar ${namePersonLabel}`}
             >
               <IconTrash className="w-4 h-4" />
             </button>
           </div>
         )}
         <div className="grid grid-cols-1 gap-2">
-          <AccessibleField label={`Nombre del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
+          <AccessibleField label={`Nombre del ${namePersonLabel}${requireName ? '' : ' (opcional)'}`} labelClassName="sr-only">
             {(fieldProps) => (
               <input
                 {...fieldProps}
                 type="text"
-                placeholder="Nombre (opcional)"
+                required={requireName}
+                placeholder={requireName ? 'Nombre' : 'Nombre (opcional)'}
                 value={companion.name || ''}
                 onChange={(e) => updateCompanion(index, 'name', e.target.value)}
                 className={COMPANION_INPUT_CLASS}
               />
             )}
           </AccessibleField>
-          <AccessibleField label={`Apellido del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only">
+          <AccessibleField label={`Apellido del ${namePersonLabel}${requireName ? '' : ' (opcional)'}`} labelClassName="sr-only">
             {(fieldProps) => (
               <input
                 {...fieldProps}
                 type="text"
-                placeholder="Apellido (opcional)"
+                required={requireName}
+                placeholder={requireName ? 'Apellido' : 'Apellido (opcional)'}
                 value={companion.lastName || ''}
                 onChange={(e) => updateCompanion(index, 'lastName', e.target.value)}
                 className={COMPANION_INPUT_CLASS}
@@ -143,10 +157,10 @@ export function CompanionFieldsEditor({
             <CountryCodeSelect
               value={(companion.phoneCountry as CountryCode) || DEFAULT_PHONE_COUNTRY}
               onChange={(v) => updateCompanion(index, 'phoneCountry', v)}
-              aria-label={`País del teléfono del acompañante ${humanIndex}`}
+              aria-label={`País del teléfono del ${namePersonLabel}`}
               className="border border-gray-300 dark:border-gray-600 rounded-md px-1.5 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <AccessibleField label={`Teléfono del acompañante ${humanIndex} (opcional)`} labelClassName="sr-only" className="flex-1 min-w-0">
+            <AccessibleField label={`Teléfono del ${namePersonLabel} (opcional)`} labelClassName="sr-only" className="flex-1 min-w-0">
               {(fieldProps) => (
                 <input
                   {...fieldProps}
@@ -165,7 +179,7 @@ export function CompanionFieldsEditor({
             {customFields.map((field) => (
               <AccessibleField
                 key={field.id}
-                label={`${field.label} del acompañante ${humanIndex}${field.required ? '' : ' (opcional)'}`}
+                label={`${field.label} del ${namePersonLabel}${field.required ? '' : ' (opcional)'}`}
                 required={field.required}
                 labelClassName="sr-only"
               >
@@ -190,11 +204,11 @@ export function CompanionFieldsEditor({
 
       <ConfirmDialog
         open={pendingRemoveIndex !== null}
-        title="¿Quitar acompañante?"
+        title={`¿Quitar ${personNoun}?`}
         message={
           pendingCompanion?.name
             ? `Se quitará a "${pendingCompanion.name}${pendingCompanion.lastName ? ` ${pendingCompanion.lastName}` : ''}" de la lista.`
-            : 'Se quitará este acompañante de la lista.'
+            : `Se quitará este ${personNoun} de la lista.`
         }
         confirmLabel="Quitar"
         danger

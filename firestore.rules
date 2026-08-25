@@ -701,11 +701,25 @@ service cloud.firestore {
     // desde un cliente. NO se usa en la rama de submitPaymentProof (el
     // invitado marcando "ya pagué"): esa sigue siendo una escritura de
     // cliente legítima, ya acotada por su propio hasOnly.
+    // companionClaims (vínculo de cuenta de cada acompañante/integrante a su
+    // propia cuenta, ver GuestData.companionClaims) se suma a esta lista por
+    // el mismo motivo que guestUid tiene su propia rama acotada más abajo:
+    // a diferencia de guestUid (un campo simple, validable con un hasOnly
+    // directo), companionClaims es un mapa cuya clave a agregar no se conoce
+    // de antemano — validar "se agregó exactamente UNA clave nueva, con el
+    // uid del que llama, sin tocar las demás" no es expresable con las
+    // funciones de diff de mapas disponibles acá. Se resuelve en
+    // claimInvitationPerson (Cloud Function, Admin SDK) en su lugar, con una
+    // transacción que sí puede leer y validar el mapa completo en
+    // TypeScript — mismo criterio ya aplicado a check-in/pago. Se agrega acá
+    // para que NINGUNA rama de cliente (ni siquiera editGuests/isAdmin)
+    // pueda pisarla de rebote.
     function accessControlFieldsUntouched(oldData, newData) {
       return !newData.diff(oldData).affectedKeys().hasAny([
         'paymentStatus', 'paymentMethod', 'paidAt', 'paidBy',
         'status', 'checkedInAt', 'checkedInBy', 'checkedInByEmail',
-        'checkedOutAt', 'checkedOutByEmail', 'exitType', 'presentIndices'
+        'checkedOutAt', 'checkedOutByEmail', 'exitType', 'presentIndices',
+        'companionClaims'
       ]);
     }
 

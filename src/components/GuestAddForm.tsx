@@ -13,7 +13,6 @@ import { captureException } from '../lib/sentry'
 import { getFunctionsErrorMessage } from '../utils/firebaseErrorMessages'
 import { trackGuestAdd, trackGuestGroupRegister, trackGuestImport } from '../lib/analytics'
 import { useFocusFirstInvalidField } from '../hooks/useFocusFirstInvalidField'
-import { useIntegerFieldInput } from '../hooks/useIntegerFieldInput'
 import { useAnnouncer } from './accessibility/LiveRegion'
 import type { CompanionData, CustomField, GuestData } from '../types'
 
@@ -74,13 +73,21 @@ export function GuestAddForm({
   const [companions, setCompanions] = useState<CompanionData[]>([])
   const [customValues, setCustomValues] = useState<Record<string, string>>({})
   const [groupCustomValues, setGroupCustomValues] = useState<Record<string, string>>({})
-  const [groupName, setGroupName] = useState('')
-  // Sin valor inicial: si arrancara en un número (ej. 2), el organizador
-  // podía enviar el formulario sin haber elegido realmente cuántos
-  // integrantes tiene la familia. clampOnBlur:false porque acá el campo
-  // debe poder quedar vacío hasta que el organizador escriba un número —
-  // no autocompletarlo con el mínimo al salir del campo.
-  const memberCount = useIntegerFieldInput(null, 1, GUEST_GROUP_MAX_MEMBERS, { clampOnBlur: false })
+  // Etiqueta LIBRE del grupo (ej. "Familia Muñoz") — puramente de
+  // presentación (GuestData.groupLabel), opcional: sin ella, el pase
+  // simplemente muestra el nombre del primer integrante. Ya no determina
+  // quién pertenece al grupo (eso lo hace groupMembers de abajo) ni
+  // reemplaza la identidad de nadie.
+  const [groupLabel, setGroupLabel] = useState('')
+  // Primer integrante (va a GuestData.name/lastName, el mismo slot
+  // reclamable que un invitado individual — ver GuestData.guestUid) +
+  // resto del grupo (va a `companions`, cada uno con nombre y apellido
+  // propios — ver CompanionClaimRoster). Reemplaza el viejo "Número de
+  // pases" (headcount anónimo): cada integrante de una familia/grupo es una
+  // persona real que puede guardar su propio pase.
+  const [groupMemberName, setGroupMemberName] = useState('')
+  const [groupMemberLastName, setGroupMemberLastName] = useState('')
+  const [groupCompanions, setGroupCompanions] = useState<CompanionData[]>([])
   const [bulkNames, setBulkNames] = useState('')
   const [csvFileName, setCsvFileName] = useState('')
   const [csvRows, setCsvRows] = useState<ImportedGuestRow[]>([])
@@ -217,29 +224,35 @@ export function GuestAddForm({
     await submitSingleGuest()
   }
 
-  // Una familia/grupo es un GuestData común con `isGroup: true`: el nombre del
-  // grupo va en `name`, y la cantidad de integrantes se traduce a
-  // `companions` (integrantes - 1, sin nombre individual) para reusar
-  // exactamente el mismo pase/QR/check-in/estadísticas que ya usa
-  // partySize() — no existe un modelo ni una colección paralela.
+  // Una familia/grupo es un GuestData común con `isGroup: true`: el primer
+  // integrante va en `name`/`lastName` (el mismo slot reclamable que un
+  // invitado individual) y el resto va en `companions`, cada uno con nombre
+  // y apellido propios — mismo pase/QR/check-in/estadísticas que ya usa
+  // partySize(), no existe un modelo ni una colección paralela. `groupLabel`
+  // es solo una etiqueta de presentación opcional (ver GuestData.groupLabel).
   async function submitGroupGuest() {
-    const count = memberCount.value
-    if (count === null || submittingRef.current) return
+    if (submittingRef.current) return
     submittingRef.current = true
     setLoading(true)
     setError('')
     try {
-      const trimmedGroupName = groupName.trim()
+      const trimmedName = groupMemberName.trim()
+      const trimmedLastName = groupMemberLastName.trim()
+      const trimmedGroupLabel = groupLabel.trim()
       await addGuest(eventId, {
-        name: trimmedGroupName,
-        companions: Array.from({ length: Math.max(0, count - 1) }, () => ({})),
+        name: trimmedName,
+        lastName: trimmedLastName,
+        groupLabel: trimmedGroupLabel || undefined,
+        companions: groupCompanions,
         isGroup: true,
         customData: groupCustomValues,
       })
       trackGuestGroupRegister(eventId)
-      announce(`Familia o grupo agregado: ${trimmedGroupName}`)
-      setGroupName('')
-      memberCount.reset(null)
+      announce(`Familia o grupo agregado: ${trimmedGroupLabel || `${trimmedName} ${trimmedLastName}`}`)
+      setGroupLabel('')
+      setGroupMemberName('')
+      setGroupMemberLastName('')
+      setGroupCompanions([])
       setGroupCustomValues({})
     } catch (err) {
       captureException(err, { tags: { component: 'guest_add_form', action: 'add_group' } })
@@ -251,10 +264,13 @@ export function GuestAddForm({
     }
   }
 
+  const groupMembersIncomplete = !groupMemberName.trim() || !groupMemberLastName.trim()
+    || groupCompanions.some((c) => !c.name?.trim() || !c.lastName?.trim())
+
   async function handleGroupSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!groupName.trim() || memberCount.value === null) return
-    if (existingNames.has(normalizeName(groupName))) {
+    if (groupMembersIncomplete) return
+    if (existingNames.has(normalizeName(`${groupMemberName} ${groupMemberLastName}`))) {
       setPendingDuplicate({ type: 'group' })
       return
     }
@@ -449,39 +465,58 @@ export function GuestAddForm({
 
         <TabPanel value="group">
         <form onSubmit={handleGroupSubmit} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <InputField
+            label="Nombre de la familia o grupo (opcional)"
+            type="text"
+            maxLength={GUEST_FULL_NAME_MAX}
+            placeholder="Ej. Familia Muñoz"
+            value={groupLabel}
+            onChange={(e) => setGroupLabel(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p className="text-xs text-gray-500">
+            Es solo una etiqueta para mostrar en el pase — cada integrante que cargues abajo es una persona real que
+            puede guardar su propio pase en su cuenta más adelante, aunque tengan apellidos distintos.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <InputField
-              label="Nombre de la familia"
-              containerClassName="sm:col-span-2"
+              label="Nombre del primer integrante"
+              labelClassName="sr-only"
               type="text"
               required
-              maxLength={GUEST_FULL_NAME_MAX}
-              placeholder="Ej. Familia Muñoz"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
+              maxLength={GUEST_NAME_PART_MAX}
+              placeholder="Nombre"
+              value={groupMemberName}
+              onChange={(e) => setGroupMemberName(e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <InputField
-              label="Número de pases"
+              label="Apellido del primer integrante"
+              labelClassName="sr-only"
               type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
               required
-              placeholder="Ej. 4"
-              value={memberCount.text}
-              onChange={memberCount.onChange}
-              onBlur={memberCount.onBlur}
-              onFocus={memberCount.onFocus}
-              onClick={memberCount.onClick}
+              maxLength={GUEST_NAME_PART_MAX}
+              placeholder="Apellido"
+              value={groupMemberLastName}
+              onChange={(e) => setGroupMemberLastName(e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-          {memberCount.value !== null && (
-            <p className="text-xs text-gray-500">
-              Se genera un solo pase con un único código QR para todo el grupo — al escanearlo en la entrada, se suman
-              los {memberCount.value} integrantes de una vez.
-            </p>
-          )}
+
+          <CompanionFieldsEditor
+            companions={groupCompanions}
+            onChange={setGroupCompanions}
+            maxCompanions={GUEST_GROUP_MAX_MEMBERS - 1}
+            requireName
+            personNoun="integrante"
+            limitReachedMessage={`Alcanzaste el máximo de integrantes por familia o grupo (${GUEST_GROUP_MAX_MEMBERS}).`}
+          />
+
+          <p className="text-xs text-gray-500">
+            Se genera un solo pase con un único código QR para todo el grupo — al escanearlo en la entrada, se suman
+            los {1 + groupCompanions.length} integrantes de una vez.
+          </p>
 
           {customFields.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -503,7 +538,7 @@ export function GuestAddForm({
             </div>
           )}
 
-          <AccessibleButton type="submit" size="sm" disabled={loading || memberCount.value === null} className="w-full">
+          <AccessibleButton type="submit" size="sm" disabled={loading || groupMembersIncomplete} className="w-full">
             {loading ? 'Agregando…' : 'Agregar familia o grupo'}
           </AccessibleButton>
         </form>
@@ -601,7 +636,7 @@ export function GuestAddForm({
           pendingDuplicate?.type === 'single'
             ? `${name.trim()} ${lastName.trim()} ya está en la lista de invitados. ¿Agregar de todas formas?`
             : pendingDuplicate?.type === 'group'
-              ? `${groupName.trim()} ya está en la lista de invitados. ¿Agregar de todas formas?`
+              ? `${groupMemberName.trim()} ${groupMemberLastName.trim()} ya está en la lista de invitados. ¿Agregar de todas formas?`
               : pendingDuplicate?.type === 'bulk'
                 ? `${pendingDuplicate.duplicates.length} de los nombres pegados ya están en la lista o se repiten: ${pendingDuplicate.duplicates.join(', ')}. ¿Agregar todos de todas formas?`
                 : pendingDuplicate?.type === 'csv'

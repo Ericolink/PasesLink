@@ -3,7 +3,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import type { Firestore } from 'firebase-admin/firestore'
 import { clearFirestoreEmulator, getGuestContactsDoc, getGuestDoc, getTestFirestore, seedEvent, uniqueId } from '../__tests__/helpers.js'
 import { fakeCallableRequest } from '../__tests__/callable.js'
-import { GUEST_MAX_COMPANIONS } from '../lib/guestValidation.js'
+import { GUEST_GROUP_MAX_MEMBERS, GUEST_MAX_COMPANIONS } from '../lib/guestValidation.js'
 import { addGuest } from './addGuest.js'
 
 const OWNER_UID = 'owner-uid'
@@ -24,17 +24,109 @@ describe('addGuest', () => {
     await seedEvent(db, eventId, { ownerId: OWNER_UID, guestCount: 0, peopleCount: 0 })
 
     const result = await addGuest.run(fakeCallableRequest({
-      eventId, name: 'Familia Muñoz', companions: [{}, {}, {}], isGroup: true,
+      eventId,
+      name: 'Eric',
+      lastName: 'Muñoz',
+      groupLabel: 'Familia Muñoz',
+      companions: [
+        { name: 'Ana', lastName: 'Muñoz' },
+        { name: 'Carlos', lastName: 'Muñoz' },
+        { name: 'María', lastName: 'García' },
+      ],
+      isGroup: true,
     }, OWNER_UID))
 
     expect(result).toEqual({ status: 'success', id: expect.any(String) })
     if (result.status !== 'success') throw new Error('unreachable')
     const guestDoc = await getGuestDoc(db, eventId, result.id)
     expect(guestDoc?.companions).toHaveLength(3)
+    expect(guestDoc?.groupLabel).toBe('Familia Muñoz')
     const event = await db.collection('events').doc(eventId).get()
     expect(event.data()?.guestCount).toBe(1)
     expect(event.data()?.peopleCount).toBe(4)
     expect(event.data()?.rsvpPendingCount).toBe(1)
+  })
+
+  // No usa el apellido como criterio de pertenencia familiar (regla
+  // explícita del rediseño): distintos apellidos entre integrantes de la
+  // misma familia/grupo deben funcionar exactamente igual.
+  it('allows a group whose members have different last names', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, guestCount: 0, peopleCount: 0 })
+
+    const result = await addGuest.run(fakeCallableRequest({
+      eventId,
+      name: 'Eric',
+      lastName: 'Muñoz',
+      companions: [{ name: 'Ana', lastName: 'García' }, { name: 'Carlos', lastName: 'Hernández' }],
+      isGroup: true,
+    }, OWNER_UID))
+
+    expect(result.status).toBe('success')
+  })
+
+  it('omits groupLabel entirely when the organizer leaves it blank (legacy shape, no misleading empty string)', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID })
+
+    const result = await addGuest.run(fakeCallableRequest({
+      eventId, name: 'Eric', lastName: 'Muñoz', companions: [{ name: 'Ana', lastName: 'Muñoz' }], isGroup: true,
+    }, OWNER_UID))
+    if (result.status !== 'success') throw new Error('unreachable')
+
+    const guestDoc = await getGuestDoc(db, eventId, result.id)
+    expect(guestDoc?.groupLabel).toBeUndefined()
+  })
+
+  it('rejects a group without a last name for the first member', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID })
+
+    await expect(addGuest.run(fakeCallableRequest({
+      eventId, name: 'Eric', companions: [{ name: 'Ana', lastName: 'Muñoz' }], isGroup: true,
+    }, OWNER_UID))).rejects.toThrow(HttpsError)
+  })
+
+  it('rejects a group member (companion) without a name or last name', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID })
+
+    await expect(addGuest.run(fakeCallableRequest({
+      eventId, name: 'Eric', lastName: 'Muñoz', companions: [{}], isGroup: true,
+    }, OWNER_UID))).rejects.toThrow(HttpsError)
+  })
+
+  // Bug real corregido junto con este rediseño: el formulario de "Familia o
+  // grupo" siempre prometió hasta GUEST_GROUP_MAX_MEMBERS (50) integrantes,
+  // pero el servidor validaba contra GUEST_MAX_COMPANIONS (20) por error —
+  // un grupo de más de 21 integrantes se rechazaba en silencio pese a que el
+  // cliente lo dejaba enviar.
+  it('allows a group larger than GUEST_MAX_COMPANIONS (fixed cap mismatch), up to GUEST_GROUP_MAX_MEMBERS', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID, capacity: 100, guestCount: 0, peopleCount: 0 })
+
+    const result = await addGuest.run(fakeCallableRequest({
+      eventId,
+      name: 'Eric',
+      lastName: 'Muñoz',
+      isGroup: true,
+      companions: Array.from({ length: GUEST_MAX_COMPANIONS + 5 }, (_, i) => ({ name: `Integrante${i}`, lastName: 'Muñoz' })),
+    }, OWNER_UID))
+
+    expect(result.status).toBe('success')
+  })
+
+  it('still rejects a group beyond GUEST_GROUP_MAX_MEMBERS', async () => {
+    const eventId = uniqueId('event')
+    await seedEvent(db, eventId, { ownerId: OWNER_UID })
+
+    await expect(addGuest.run(fakeCallableRequest({
+      eventId,
+      name: 'Eric',
+      lastName: 'Muñoz',
+      isGroup: true,
+      companions: Array.from({ length: GUEST_GROUP_MAX_MEMBERS }, (_, i) => ({ name: `Integrante${i}`, lastName: 'Muñoz' })),
+    }, OWNER_UID))).rejects.toThrow(HttpsError)
   })
 
   it('writes the phone into guestContacts, never onto the public guest doc', async () => {
@@ -138,7 +230,16 @@ describe('addGuest', () => {
     await seedEvent(db, eventId, { ownerId: OWNER_UID, maxCompanions: 0, guestCount: 0, peopleCount: 0 })
 
     const result = await addGuest.run(fakeCallableRequest({
-      eventId, name: 'Familia Grande', companions: [{}, {}, {}, {}], isGroup: true,
+      eventId,
+      name: 'Eric',
+      lastName: 'Muñoz',
+      companions: [
+        { name: 'Ana', lastName: 'Muñoz' },
+        { name: 'Carlos', lastName: 'Muñoz' },
+        { name: 'María', lastName: 'García' },
+        { name: 'Luis', lastName: 'Muñoz' },
+      ],
+      isGroup: true,
     }, OWNER_UID))
 
     expect(result.status).toBe('success')

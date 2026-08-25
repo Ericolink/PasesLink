@@ -43,6 +43,13 @@ interface Props {
   cancelError: string | null
   onCancelAttendance: () => void
   onGuestSaved: (patch: Partial<GuestData>) => void
+  // Selector "¿Cuál de estas personas eres tú?" (ver CompanionClaimRoster,
+  // renderizado dentro de InvitationGuestInfo) — el estado de reclamo vive
+  // en GuestPassInner, igual que el resto de lo que se pasa acá.
+  currentUid: string | null
+  onClaimPerson: (personIndex: number) => void
+  claimingIndex: number | null
+  claimError: string | null
 }
 
 // Experiencia de invitación rediseñada — hoy solo Fiesta Improvisada (ver
@@ -75,6 +82,10 @@ export function HousePartyPassLayout({
   cancelError,
   onCancelAttendance,
   onGuestSaved,
+  currentUid,
+  onClaimPerson,
+  claimingIndex,
+  claimError,
 }: Props) {
   // La barra flotante de cuenta (ver InvitationAccountFab) tapa la franja
   // superior de la pantalla mientras está visible — se reserva ese espacio
@@ -157,7 +168,17 @@ export function HousePartyPassLayout({
       </Reveal>
 
       <Reveal>
-        <InvitationGuestInfo event={event} guest={guest} eventId={eventId} deviceToken={deviceToken} onGuestSaved={onGuestSaved} />
+        <InvitationGuestInfo
+          event={event}
+          guest={guest}
+          eventId={eventId}
+          deviceToken={deviceToken}
+          onGuestSaved={onGuestSaved}
+          currentUid={currentUid}
+          onClaimPerson={onClaimPerson}
+          claimingIndex={claimingIndex}
+          claimError={claimError}
+        />
       </Reveal>
 
       {guest.rsvpStatus === 'yes' ? (

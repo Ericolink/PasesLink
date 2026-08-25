@@ -10,6 +10,12 @@ export const GUEST_CUSTOM_FIELD_VALUE_MAX = 300
 export const GUEST_CUSTOM_FIELD_MAX_COUNT = 30
 export const GUEST_MAX_COMPANIONS = 20
 export const GUEST_LEGACY_MAX_COMPANIONS = 9
+// Techo de integrantes de una "familia o grupo" (isGroup: true) — distinto
+// de GUEST_MAX_COMPANIONS porque un grupo no está sujeto a
+// EventData.maxCompanions (ver el comentario de resolveMaxCompanions en
+// src/firebase/guests.ts). Debe coincidir con GUEST_GROUP_MAX_MEMBERS en
+// src/utils/validation.ts.
+export const GUEST_GROUP_MAX_MEMBERS = 50
 
 export class GuestValidationError extends Error {}
 

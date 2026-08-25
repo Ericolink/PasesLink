@@ -3,6 +3,7 @@ import { getGuestContact } from '../../firebase/guests'
 import { useRevealOnScroll } from '../../hooks/useRevealOnScroll'
 import { IconEdit, IconUser } from '../accessibility/AccessibleIcon'
 import { GuestEditModal } from '../GuestEditModal'
+import { CompanionClaimRoster } from '../CompanionClaimRoster'
 import type { EventData, GuestData } from '../../types'
 
 interface Props {
@@ -11,6 +12,10 @@ interface Props {
   eventId: string
   deviceToken: string | null
   onGuestSaved: (patch: Partial<GuestData>) => void
+  currentUid: string | null
+  onClaimPerson: (personIndex: number) => void
+  claimingIndex: number | null
+  claimError: string | null
 }
 
 // "Datos de tu registro" — antes solo el nombre era visible en el pase; acá
@@ -23,7 +28,7 @@ interface Props {
 // viewport" pero el IntersectionObserver no siempre llegaba a dispararse
 // antes de que el invitado mirara la sección, dejando teléfono/email sin
 // mostrar — ver bug reportado).
-export function InvitationGuestInfo({ event, guest, eventId, deviceToken, onGuestSaved }: Props) {
+export function InvitationGuestInfo({ event, guest, eventId, deviceToken, onGuestSaved, currentUid, onClaimPerson, claimingIndex, claimError }: Props) {
   const { ref, className } = useRevealOnScroll<HTMLElement>()
   const [contact, setContact] = useState<{ email: string; phone: string } | null>(null)
   const [editOpen, setEditOpen] = useState(false)
@@ -65,6 +70,14 @@ export function InvitationGuestInfo({ event, guest, eventId, deviceToken, onGues
           </button>
         )}
       </div>
+
+      <CompanionClaimRoster
+        guest={guest}
+        currentUid={currentUid}
+        onClaim={onClaimPerson}
+        claimingIndex={claimingIndex}
+        claimError={claimError}
+      />
 
       <dl className="space-y-2.5 text-sm">
         <InfoRow label="Nombre" value={[guest.name, guest.lastName].filter(Boolean).join(' ')} />

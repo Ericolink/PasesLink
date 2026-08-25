@@ -15,7 +15,8 @@ import { CapacityFullError, createGuestsWithCapacity, type GuestWrite } from '..
 import { hasPermission } from '../lib/permissions.js'
 import {
   type CustomFieldDef,
-  GUEST_MAX_COMPANIONS,
+  GUEST_FULL_NAME_MAX,
+  GUEST_GROUP_MAX_MEMBERS,
   GUEST_NAME_PART_MAX,
   GUEST_PHONE_MAX,
   GuestValidationError,
@@ -44,6 +45,9 @@ interface AddGuestInput {
   phoneCountry?: string
   companions?: CompanionInput[]
   isGroup?: boolean
+  // Etiqueta libre del grupo (ej. "Familia Muñoz") — solo tiene efecto con
+  // isGroup: true, ver GuestWrite.groupLabel.
+  groupLabel?: string
   customData?: Record<string, string>
 }
 
@@ -64,7 +68,7 @@ export type AddGuestResponse = { status: 'success'; id: string } | { status: 'fu
 export const addGuest = onCall<AddGuestInput>({ timeoutSeconds: 20 }, (request) =>
   withCallableObservability(request, 'addGuest', async (ctx): Promise<AddGuestResponse> => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Necesitas iniciar sesión.')
-    const { eventId, name, lastName, phone, phoneCountry, companions, isGroup, customData } = request.data || {}
+    const { eventId, name, lastName, phone, phoneCountry, companions, isGroup, groupLabel, customData } = request.data || {}
     ctx.addContext({ uid: request.auth.uid, eventId })
     if (!eventId || !name) {
       throw new HttpsError('invalid-argument', 'Faltan datos para agregar al invitado.')
@@ -80,9 +84,19 @@ export const addGuest = onCall<AddGuestInput>({ timeoutSeconds: 20 }, (request) 
 
     try {
       const trimmedName = requireMaxLength(requireNonEmpty(name, 'El nombre'), GUEST_NAME_PART_MAX, 'El nombre')
-      const trimmedLastName = lastName?.trim()
-        ? requireMaxLength(lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
-        : ''
+      // Una familia/grupo (isGroup) representa personas reales desde este
+      // formulario (ver GuestAddForm.tsx, tab "Familia o grupo") — a
+      // diferencia del invitado individual de arriba, acá el apellido del
+      // primer integrante SÍ es obligatorio (igual que el de cada
+      // acompañante nombrado, ver el chequeo de companionsList más abajo).
+      const trimmedLastName = isGroup
+        ? requireMaxLength(requireNonEmpty(lastName || '', 'El apellido'), GUEST_NAME_PART_MAX, 'El apellido')
+        : lastName?.trim()
+          ? requireMaxLength(lastName.trim(), GUEST_NAME_PART_MAX, 'El apellido')
+          : ''
+      const trimmedGroupLabel = isGroup && groupLabel?.trim()
+        ? requireMaxLength(groupLabel.trim(), GUEST_FULL_NAME_MAX, 'El nombre de la familia o grupo')
+        : undefined
       const trimmedPhone = phone?.trim() ? requireMaxLength(phone.trim(), GUEST_PHONE_MAX, 'El teléfono') : ''
 
       // Unificación Lista/Auto-registro (rediseño del Dashboard del Evento):
@@ -98,22 +112,35 @@ export const addGuest = onCall<AddGuestInput>({ timeoutSeconds: 20 }, (request) 
       // (techo técnico); ahora también respeta EventData.maxCompanions,
       // igual que auto-registro — pero SOLO para acompañantes individuales
       // (isGroup: false). Una "familia o grupo" (isGroup: true) es un
-      // concepto distinto: un solo pase para un headcount que el organizador
-      // conoce de memoria (ej. "Familia Pérez, somos 8"), no personas que se
-      // auto-registran una por una — seguiría sujeto solo al techo técnico,
-      // igual que antes de este cambio. Nombre/apellido del acompañante
-      // siguen siendo opcionales acá (a diferencia de auto-registro) para no
-      // romper el uso legítimo de "sumar acompañantes solo para el conteo"
-      // — ver validateOrganizerCompanions.
+      // concepto distinto: no está sujeta a EventData.maxCompanions, sino a
+      // su propio techo GUEST_GROUP_MAX_MEMBERS (- 1, porque el primer
+      // integrante va en `name`/`lastName`, no en `companions`) — antes acá
+      // se usaba por error GUEST_MAX_COMPANIONS (20), un techo pensado para
+      // acompañantes individuales, más bajo que el que el propio formulario
+      // ya le prometía al organizador (hasta 50 integrantes, ver
+      // GUEST_GROUP_MAX_MEMBERS en src/utils/validation.ts) — corregido acá.
+      // Nombre/apellido del acompañante son opcionales en
+      // validateOrganizerCompanions (uso legítimo: sumar acompañantes solo
+      // para el conteo, ej. "Juan +3") pero SE EXIGEN justo abajo cuando
+      // isGroup: cada integrante de una familia/grupo es una persona real
+      // con nombre propio (ver GuestAddForm.tsx).
       const maxCompanions = isGroup
-        ? GUEST_MAX_COMPANIONS
+        ? GUEST_GROUP_MAX_MEMBERS - 1
         : resolveMaxCompanions(event.maxCompanions as number | undefined)
       const companionsList = validateOrganizerCompanions(companions, maxCompanions, customFieldDefs)
+      if (isGroup) {
+        companionsList.forEach((c, index) => {
+          if (!c.name?.trim() || !c.lastName?.trim()) {
+            throw new GuestValidationError(`El integrante ${index + 2} debe tener nombre y apellido.`)
+          }
+        })
+      }
 
       const guestWrite: GuestWrite = {
         name: trimmedName,
         lastName: trimmedLastName,
         isGroup: isGroup || false,
+        groupLabel: trimmedGroupLabel,
         customData: validatedCustomData,
         companions: companionsList,
         contact: trimmedPhone ? { phone: trimmedPhone, phoneCountry } : undefined,
