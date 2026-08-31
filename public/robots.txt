@@ -29,4 +29,14 @@ Disallow: /waitlist/
 # en la URL (?oobCode=...), nunca debe quedar cacheado por un buscador.
 Disallow: /reset-password
 
+# El rastreador de anuncios de Google (AdSense) obedece las reglas de
+# "User-agent: *" de arriba si no tiene su propio grupo — eso bloqueaba su
+# acceso a /pass/ (donde vive el placement "invitation-bottom"), y AdSense
+# reporta eso como "anuncios en pantallas sin contenido de publicadores"
+# porque no puede verificar qué rodea al anuncio. Este grupo le da acceso
+# total sin afectar el bloqueo de indexación para buscadores normales (ver
+# Disallow de arriba + noindex en tiempo de ejecución vía useNoIndex.ts).
+User-agent: Mediapartners-Google
+Disallow:
+
 Sitemap: https://www.paselink.com/sitemap.xml
