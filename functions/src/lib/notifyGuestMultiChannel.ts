@@ -86,7 +86,16 @@ export async function sendGuestNotification({
       subject: email.subject,
       html: email.html,
     })
-    await logRef.update({ status: result.ok ? 'sent' : 'failed', channel: 'email', toEmail: contact.email })
+    // Antes se descartaba result.error acá (a diferencia de
+    // onUserCreated.ts, que ya lo guardaba) — el motivo real de un fallo de
+    // Brevo en waitlist/reconfirm/recordatorios quedaba invisible para el
+    // panel de admin. Mismo campo `errorMessage` que el resto de sendLog.
+    await logRef.update({
+      status: result.ok ? 'sent' : 'failed',
+      channel: 'email',
+      toEmail: contact.email,
+      errorMessage: result.ok ? null : result.error || null,
+    })
     return result.ok ? 'sent' : 'failed'
   }
 

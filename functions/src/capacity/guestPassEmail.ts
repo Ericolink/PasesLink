@@ -42,5 +42,5 @@ export async function sendGuestPassEmail(db: Firestore, input: SendGuestPassEmai
     html: `<p>Este es tu pase para <strong>${input.eventName}</strong>.</p><p><a href="${passUrl}">Ver mi pase</a></p>`,
   })
 
-  await logRef.update({ status: result.ok ? 'sent' : 'failed' })
+  await logRef.update({ status: result.ok ? 'sent' : 'failed', errorMessage: result.ok ? null : result.error || null })
 }

@@ -68,7 +68,7 @@ export async function sendReportNotificationEmail(
 <p><a href="${adminUrl}">Ver reporte</a></p>`,
   })
 
-  await logRef.update({ status: result.ok ? 'sent' : 'failed' })
+  await logRef.update({ status: result.ok ? 'sent' : 'failed', errorMessage: result.ok ? null : result.error || null })
 }
 
 // Sin memory propia (hereda 256MiB del default global) aunque el trabajo

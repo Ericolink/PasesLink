@@ -19,7 +19,8 @@
     "firestore:explain": "node scripts/explain-query.mjs",
     "backfill:checkins-by-hour": "node scripts/backfill-checkins-by-hour.mjs",
     "backfill:reactions-subcollection": "node scripts/backfill-reactions-subcollection.mjs",
-    "backfill:walkin-net-count": "node scripts/backfill-walkin-net-count.mjs"
+    "backfill:walkin-net-count": "node scripts/backfill-walkin-net-count.mjs",
+    "resend:failed-welcome-emails": "node scripts/resend-failed-welcome-emails.mjs"
   },
   "dependencies": {
     "@sentry/react": "^10.63.0",
