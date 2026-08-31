@@ -40,7 +40,6 @@ setGlobalOptions({
   maxInstances: 10,
 })
 
-export { onCapacityFreed } from './triggers/onCapacityFreed.js'
 export { onAdminWritten } from './triggers/onAdminWritten.js'
 export { onGuestWritten } from './triggers/onGuestWritten.js'
 export { onNotificationQueued } from './triggers/onNotificationQueued.js'

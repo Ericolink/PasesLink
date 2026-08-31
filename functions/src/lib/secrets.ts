@@ -16,13 +16,6 @@ export const brevoSenderEmail = defineSecret('BREVO_SENDER_EMAIL')
 // "todas las Cloud Functions consumen únicamente Secret Manager").
 export const reportAdminEmail = defineSecret('REPORT_ADMIN_EMAIL')
 
-// WhatsApp Business Platform (Meta Cloud API) — ver lib/waChannel.ts.
-// Trámite externo en Meta Business Manager (verificación de negocio, número
-// dedicado, plantillas aprobadas) antes de que estos secrets tengan un
-// valor real; hasta entonces quedan sin configurar y
-// isWhatsAppConfigured() devuelve false (ningún envío se intenta).
-export const whatsappAccessToken = defineSecret('WHATSAPP_ACCESS_TOKEN')
-export const whatsappPhoneNumberId = defineSecret('WHATSAPP_PHONE_NUMBER_ID')
 // Token propio (no lo da Meta) que se configura en el mismo formulario de
 // Meta Business Manager donde se registra la URL del webhook — Meta lo
 // reenvía tal cual en el GET de verificación (`hub.verify_token`).
