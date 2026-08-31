@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from 'react'
 import { EmptyState } from './Empty/EmptyState'
 import { SkeletonBlock } from './Skeleton'
+import { formatRelativeTime } from '../utils/time'
 
 export interface ActivityLogItem {
   id: string
@@ -15,18 +16,6 @@ interface ActivityLogProps {
   emptyIcon: ComponentType<{ className?: string }>
   emptyTitle: string
   emptyDescription: string
-}
-
-function formatRelativeTime(ms: number): string {
-  if (!ms) return '—'
-  const diffSec = Math.round((Date.now() - ms) / 1000)
-  if (diffSec < 60) return 'hace un momento'
-  const diffMin = Math.round(diffSec / 60)
-  if (diffMin < 60) return `hace ${diffMin} min`
-  const diffHour = Math.round(diffMin / 60)
-  if (diffHour < 24) return `hace ${diffHour} h`
-  const diffDay = Math.round(diffHour / 24)
-  return `hace ${diffDay} d`
 }
 
 // Generaliza el layout que antes vivía solo en Admin/AdminActivityLog.tsx

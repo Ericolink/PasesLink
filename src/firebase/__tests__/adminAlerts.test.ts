@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, setDoc } from 'firebase/firestore'
+import { doc, setDoc, Timestamp } from 'firebase/firestore'
 import { createTestEnv, seedEvent, type EmulatorFirestore } from './helpers'
 
 // Mismo mock que admin.test.ts: redirige el `db` singleton de adminAlerts.ts
@@ -53,7 +53,10 @@ describe('adminAlerts.ts — subscribeToRecentSendFailures', () => {
       await setDoc(doc(context.firestore(), 'events', EVENT_ID, 'sendLog', 'reminder-1'), {
         toEmail: 'invitado@test.com',
         status: 'failed',
-        sentAt: Date.now(),
+        // Timestamp, no Date.now(): así es como firebase-admin guarda `new
+        // Date()` en producción (ver onUserCreated.ts) — un número plano no
+        // matchea la desigualdad `sentAt > recentThreshold()` del query real.
+        sentAt: Timestamp.now(),
       })
     })
     dbHolder.db = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore()
@@ -70,7 +73,7 @@ describe('adminAlerts.ts — subscribeToRecentSendFailures', () => {
       await setDoc(doc(context.firestore(), 'users', USER_UID, 'sendLog', 'welcome'), {
         toEmail: 'nuevo@test.com',
         status: 'failed',
-        sentAt: Date.now(),
+        sentAt: Timestamp.now(),
       })
     })
     dbHolder.db = testEnv.authenticatedContext(ADMIN_UID, { admin: true }).firestore()

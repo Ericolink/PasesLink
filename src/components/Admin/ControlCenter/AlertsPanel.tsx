@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAdminAlerts, type AdminAlert } from '../../../hooks/useAdminAlerts'
 import { SkeletonBlock } from '../../Skeleton'
 import { IconAlertTriangle, IconCheckCircle, IconXCircle } from '../../accessibility/AccessibleIcon'
+import { formatRelativeTime } from '../../../utils/time'
 
 const SEVERITY_ICON: Record<AdminAlert['severity'], typeof IconAlertTriangle> = {
   warning: IconAlertTriangle,
@@ -46,6 +47,7 @@ export function AlertsPanel() {
             <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${SEVERITY_CLASS[alert.severity]}`} />
             <div className="min-w-0 flex-1">
               <p className="text-sm text-gray-700 dark:text-gray-300">{alert.text}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{formatRelativeTime(alert.timestamp)}</p>
               {alert.eventId && (
                 <Link to={`/events/${alert.eventId}`} className="text-xs text-primary hover:underline">
                   Ver evento

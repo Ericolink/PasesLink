@@ -50,6 +50,19 @@ export function formatTime12h(time?: string): string {
   return minutesStr === '00' ? `${displayHours} ${period}` : `${displayHours}:${minutesStr} ${period}`
 }
 
+/** Convierte un timestamp (ms) a tiempo relativo corto: "hace 3 min", "hace 2 h", "hace 5 d". */
+export function formatRelativeTime(ms: number): string {
+  if (!ms) return '—'
+  const diffSec = Math.round((Date.now() - ms) / 1000)
+  if (diffSec < 60) return 'hace un momento'
+  const diffMin = Math.round(diffSec / 60)
+  if (diffMin < 60) return `hace ${diffMin} min`
+  const diffHour = Math.round(diffMin / 60)
+  if (diffHour < 24) return `hace ${diffHour} h`
+  const diffDay = Math.round(diffHour / 24)
+  return `hace ${diffDay} d`
+}
+
 // true si la fecha (YYYY-MM-DD) ya quedó atrás respecto de "hoy" (comparando
 // solo el día, sin hora) — un evento de hoy nunca cuenta como pasado acá,
 // aunque su horario ya haya ocurrido. `now` es opcional (default `new Date()`)

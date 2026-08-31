@@ -1,4 +1,4 @@
-import { collectionGroup, doc, getDoc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore'
+import { collectionGroup, doc, getDoc, limit, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore'
 import type { DocumentReference, Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
@@ -27,6 +27,19 @@ function sendLogSource(ref: DocumentReference): 'event' | 'welcome_email' {
   return ref.parent.parent?.parent.id === 'events' ? 'event' : 'welcome_email'
 }
 
+// Las 3 queries de abajo traían los últimos 20 fallos de TODA la historia,
+// sin corte de fecha: una ráfaga vieja (ej. el bloqueo de IP de Brevo que ya
+// se desactivó) seguía ocupando el top-20 y el panel la mostraba como si
+// fuera actual, indefinidamente, hasta acumular 20 fallos más recientes que
+// la desplazaran (bug real encontrado en producción, 2026-08-31). El corte
+// de 7 días no necesita un índice nuevo: es una desigualdad sobre el mismo
+// campo que ya usa orderBy, compatible con el índice compuesto existente.
+const ALERT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000
+
+function recentThreshold(): Timestamp {
+  return Timestamp.fromMillis(Date.now() - ALERT_LOOKBACK_MS)
+}
+
 export interface SendFailureEntry {
   id: string
   source: 'event' | 'welcome_email'
@@ -45,6 +58,7 @@ export function subscribeToRecentSendFailures(
   const q = query(
     collectionGroup(db, 'sendLog'),
     where('status', 'in', ['failed', 'skipped_budget'] satisfies SendLogStatus[]),
+    where('sentAt', '>', recentThreshold()),
     orderBy('sentAt', 'desc'),
     limit(20),
   )
@@ -83,7 +97,13 @@ export function subscribeToRecentNotificationFailures(
   callback: (entries: NotificationFailureEntry[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(collectionGroup(db, 'notificationQueue'), where('status', '==', 'failed'), orderBy('createdAt', 'desc'), limit(20))
+  const q = query(
+    collectionGroup(db, 'notificationQueue'),
+    where('status', '==', 'failed'),
+    where('createdAt', '>', recentThreshold()),
+    orderBy('createdAt', 'desc'),
+    limit(20),
+  )
   return onSnapshot(
     q,
     (snapshot) => {
@@ -121,6 +141,7 @@ export function subscribeToRecentCsvImportFailures(
   const q = query(
     collectionGroup(db, 'csvImportJobs'),
     where('status', 'in', ['failed', 'completed_with_errors'] satisfies CsvImportJobStatus[]),
+    where('createdAt', '>', recentThreshold()),
     orderBy('createdAt', 'desc'),
     limit(20),
   )
