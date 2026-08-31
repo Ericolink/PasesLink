@@ -41,3 +41,13 @@ export const whatsappAppSecret = defineSecret('WHATSAPP_APP_SECRET')
 // docs/platform-health-roadmap.md). Org/proyecto de Sentry ("paselink") no
 // son secretos — van como constantes en refreshPlatformHealth.ts.
 export const sentryApiToken = defineSecret('SENTRY_API_TOKEN')
+
+// OpenRouteService (recordatorio de "hora de salida recomendada" del pase)
+// — a diferencia del resto de este archivo, esta key NO se resuelve en el
+// cliente: OpenRouteService no ofrece restricción por dominio/referrer
+// (limitación real del proveedor, sin resolver desde 2019 según su propio
+// foro), así que dejarla en un VITE_* del bundle significa que cualquiera
+// puede copiarla y agotar la cuota gratis de 2000 req/día. Vive acá y el
+// cliente la invoca vía Callable (../callable/estimateTravelTime.ts) en vez
+// de llamar a HeiGIT directo.
+export const openRouteServiceApiKey = defineSecret('OPENROUTESERVICE_API_KEY')

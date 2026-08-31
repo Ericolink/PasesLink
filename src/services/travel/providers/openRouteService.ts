@@ -1,42 +1,30 @@
-import { cleanEnv } from '../../../utils/env'
+import { httpsCallable } from 'firebase/functions'
+import { functions } from '../../../firebase/config'
+import { captureException } from '../../../lib/sentry'
 import type { Coordinates, RouteEstimate, RouteProvider } from '../types'
 
-const API_KEY = cleanEnv(import.meta.env.VITE_OPENROUTESERVICE_API_KEY)
-
-// La key es client-side y compartida por todos los usuarios de la PWA (Spark,
-// sin backend para ocultarla) — se restringe por dominio en el dashboard de
-// OpenRouteService. Free tier: 2000 req/día sin tráfico en vivo. Sin key
-// configurada, o ante cualquier error/cuota agotada, se devuelve null (nunca
-// un tiempo de viaje inventado) — mismo criterio que src/utils/weather.ts.
+// La llamada real a OpenRouteService/HeiGIT vive en la Cloud Function
+// estimateTravelTime (functions/src/callable/estimateTravelTime.ts), no
+// acá: OpenRouteService no ofrece restricción de key por dominio/referrer
+// (limitación real del proveedor, sin resolver desde 2019 según su propio
+// foro) — a diferencia de VITE_RECAPTCHA_SITE_KEY o VITE_FIREBASE_*, dejar
+// esta key en el bundle del cliente significaría que cualquiera puede
+// copiarla y agotar la cuota gratis de 2000 req/día. httpsCallable(functions,
+// ...) se construye acá adentro (no a nivel de módulo) por el mismo motivo
+// que fetchOfferedWaitlistCount en src/firebase/attendeeLimit.ts: importar
+// este archivo no debe disparar la inicialización del SDK de Functions.
 async function estimateTravelTime(origin: Coordinates, destination: Coordinates): Promise<RouteEstimate | null> {
-  if (!API_KEY) return null
-
+  const call = httpsCallable<{ origin: Coordinates; destination: Coordinates }, RouteEstimate | null>(functions, 'estimateTravelTime')
   try {
-    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${API_KEY}&start=${origin.lng},${origin.lat}&end=${destination.lng},${destination.lat}`
-    const response = await fetch(url)
-    if (!response.ok) return null
-    const data = await response.json()
-    const summary = data?.features?.[0]?.properties?.summary
-    const durationSec = summary?.duration
-    const distanceM = summary?.distance
-    if (typeof durationSec !== 'number' || typeof distanceM !== 'number') return null
-    return {
-      durationMinutes: Math.round(durationSec / 60),
-      distanceKm: Math.round((distanceM / 1000) * 10) / 10,
-      hasLiveTraffic: false,
-    }
-  } catch {
+    const result = await call({ origin, destination })
+    return result.data
+  } catch (err) {
+    captureException(err, { tags: { flow: 'openRouteService.estimateTravelTime' } })
     return null
   }
 }
 
-export const openRouteServiceProvider: RouteProvider & { isConfigured: boolean } = {
+export const openRouteServiceProvider: RouteProvider = {
   id: 'openrouteservice',
   estimateTravelTime,
-  // Expuesto para que useDepartureReminder.ts pueda ocultar por completo la
-  // tarjeta de "hora de salida recomendada" cuando no hay key (degradación
-  // elegante documentada en .env.example) en vez de mostrarla y recién
-  // fallar cuando el invitado toca "Calcular" — antes `available` no
-  // consideraba esto (bug reportado).
-  isConfigured: !!API_KEY,
 }
