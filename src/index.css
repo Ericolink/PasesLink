@@ -291,7 +291,17 @@ body {
   position: absolute;
   border-radius: 50%;
   will-change: transform;
-  filter: blur(70px);
+  /* Antes tenían filter: blur(70px) — un blur de radio grande sobre 4
+     elementos animados infinitamente, en TODAS las pantallas, es de los
+     efectos más caros que existen en Chromium (fuerza rasterizado/
+     compositing por capa, mucho peor si el navegador cae a software
+     rendering). El color de estos orbs ya es rgba con alfa muy bajo
+     (.035–.15, ver --app-orb-N arriba) y el propio radial-gradient ya
+     hace una transición continua de color a transparent en el 70% del
+     radio — no hay un borde duro que "difuminar". Quitar el filter deja
+     un resultado visualmente equivalente (mismo glow difuso y sutil) sin
+     el costo de compositing.
+  */
 }
 
 /* Orb 1 – magenta de letrero, esquina superior-izquierda */
@@ -492,11 +502,18 @@ body {
   border-color: rgba(74, 50, 92, 0.45) !important;
 }
 
-/* Cards, inputs, superficies */
+/* Cards, inputs, superficies.
+   Antes esta regla también ponía backdrop-filter: blur(10px) — pero
+   backdrop-filter no se sobreescribe cuando un componente además trae
+   dark:bg-gray-XXX (Tailwind solo pisa background-color), así que quedaba
+   aplicado sin ningún efecto visible en los ~116 componentes que usan ese
+   patrón (filas de GuestList, tablas de Admin, paneles, modales). Cientos
+   de capas con blur activo a la vez en una lista larga es un costo real de
+   compositing (mucho más caro en Chromium/Edge que en Firefox) por cero
+   beneficio. Las superficies que sí quieren el efecto "glass" translúcido
+   usan la clase .glass dedicada (ver más abajo), que no se toca acá. */
 .dark .bg-white {
   background-color: rgba(30, 20, 40, 0.88);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .dark .bg-gray-50 {

@@ -8,6 +8,7 @@ import { initAnalytics } from './lib/analytics'
 import { installChunkReloadRecovery } from './lib/chunkReload'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider } from './contexts/AuthContext'
+import { UserProfileProvider } from './contexts/UserProfileContext'
 import { AnnouncementProvider } from './components/accessibility/LiveRegion'
 
 // Activa la hoja de fuentes cargada con media="print" en index.html (truco
@@ -23,11 +24,13 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <AuthProvider>
-        <AnnouncementProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </AnnouncementProvider>
+        <UserProfileProvider>
+          <AnnouncementProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </AnnouncementProvider>
+        </UserProfileProvider>
       </AuthProvider>
     </ThemeProvider>
   </StrictMode>,

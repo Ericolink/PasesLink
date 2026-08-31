@@ -25,6 +25,8 @@ export function useQrScanner({ canAutoStart, onDecode }: Options) {
 
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const startingRef = useRef(false)
+  const startPromiseRef = useRef<Promise<null> | null>(null)
+  const stopRequestedRef = useRef(false)
   const cooldownRef = useRef(false)
   const hasAutoStartedRef = useRef(false)
 
@@ -45,11 +47,12 @@ export function useQrScanner({ canAutoStart, onDecode }: Options) {
     // la primera llamada a scanner.start() resuelva (sea éxito o error).
     if (startingRef.current) return
     startingRef.current = true
+    stopRequestedRef.current = false
     setCameraError(null)
     const scanner = new Html5Qrcode('qr-reader', { verbose: false })
     scannerRef.current = scanner
     try {
-      await scanner.start(
+      const startPromise = scanner.start(
         { facingMode: 'environment' },
         { fps: 10 },
         async (decodedText) => {
@@ -60,17 +63,45 @@ export function useQrScanner({ canAutoStart, onDecode }: Options) {
         },
         () => {},              // ignorar errores de frame (normales durante el escaneo)
       )
+      startPromiseRef.current = startPromise
+      await startPromise
+      // Si stopScanning() se pidió mientras start() todavía estaba en vuelo
+      // (usuario navegó fuera / canceló antes de que la cámara terminara de
+      // inicializar), llamar stop() en ese momento habría lanzado "Cannot
+      // stop, scanner is not running" (el estado interno del scanner aún no
+      // llega a SCANNING) — esa excepción quedaba tragada por el catch de
+      // abajo y la instancia se descartaba sin haber detenido el
+      // MediaStream real, que seguía corriendo huérfano. Ahora, como recién
+      // acá sabemos que el scanner ya terminó de arrancar de verdad, lo
+      // apagamos nosotros mismos si el pedido de stop llegó antes.
+      if (stopRequestedRef.current) {
+        try { await scanner.stop(); scanner.clear() } catch { /* ignore */ }
+        if (scannerRef.current === scanner) scannerRef.current = null
+        setScanning(false)
+        return
+      }
       setScanning(true)
     } catch {
       setCameraError('camera_unavailable')
       try { scanner.clear() } catch { /* ignore */ }
-      scannerRef.current = null
+      if (scannerRef.current === scanner) scannerRef.current = null
     } finally {
       startingRef.current = false
+      startPromiseRef.current = null
     }
   }
 
   async function stopScanning() {
+    stopRequestedRef.current = true
+    if (startingRef.current) {
+      // start() todavía en vuelo: no podemos detenerlo desde acá sin
+      // arriesgar la excepción "not running" — dejamos que la propia
+      // continuación de startScanning() lo apague apenas resuelva (ver
+      // arriba). stopRequestedRef ya quedó en true de forma síncrona antes
+      // de este await, así que esa continuación lo va a ver sí o sí.
+      await startPromiseRef.current?.catch(() => {})
+      return
+    }
     if (scannerRef.current) {
       try {
         await scannerRef.current.stop()

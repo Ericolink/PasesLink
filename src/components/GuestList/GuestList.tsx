@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   allowGuestReentry,
   bulkDeleteGuests,
@@ -213,7 +213,17 @@ export const GuestList = memo(function GuestList({
     })
   }, [guests])
 
-  const allSelected = guests.length > 0 && guests.every((g) => selected.has(g.id))
+  // guests cambia de referencia en cada snapshot de Firestore (cualquier
+  // check-in/pago en cualquier dispositivo conectado al evento), pero
+  // GuestList también re-renderiza por estado propio no relacionado
+  // (toasts, animaciones) sin que guests/selected cambien — useMemo evita
+  // recorrer la lista completa de nuevo en esos casos. En un evento de
+  // 500-2000 invitados con actividad simultánea de puerta, esto se repite
+  // seguido.
+  const allSelected = useMemo(
+    () => guests.length > 0 && guests.every((g) => selected.has(g.id)),
+    [guests, selected],
+  )
   const someSelected = !allSelected && selected.size > 0
   const selectAllLoading = guestsTruncated && selectMode
 
@@ -236,6 +246,20 @@ export const GuestList = memo(function GuestList({
   }
 
   const hasSearchText = Boolean(searchTerm.trim())
+
+  // Estos 2 hooks tienen que vivir antes del early return de "sin
+  // invitados" de abajo — React exige que los hooks se llamen en el mismo
+  // orden en cada render, así que no pueden quedar después de un return
+  // condicional. Mismo motivo que allSelected más arriba: son O(n) y no
+  // deben repetirse en renders donde sus dependencias no cambiaron.
+  const detailGuest = useMemo(
+    () => (detailGuestId ? guests.find((g) => g.id === detailGuestId) ?? null : null),
+    [guests, detailGuestId],
+  )
+  const groups = useMemo(
+    () => (hasSearchText ? null : groupGuestsByUrgency(guests, requiresPayment)),
+    [guests, requiresPayment, hasSearchText],
+  )
 
   if (guests.length === 0) {
     if (hasSearchText && hasStatusFilter) {
@@ -572,10 +596,8 @@ export const GuestList = memo(function GuestList({
     onOpenDetail: openDetail,
   }
 
-  const detailGuest = detailGuestId ? guests.find((g) => g.id === detailGuestId) ?? null : null
   const visibleGuests = guests.slice(0, visibleCount)
   const hasMoreToShow = guests.length > visibleCount
-  const groups = hasSearchText ? null : groupGuestsByUrgency(guests, requiresPayment)
 
   return (
     <div className="space-y-3 pb-16">

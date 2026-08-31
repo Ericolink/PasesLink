@@ -21,14 +21,13 @@ interface Props {
 // Dueño de su propio estado de modal para que embeberlo en cada lugar sea
 // una sola línea, sin que cada caller tenga que manejar open/close.
 //
-// Auditoría de escalabilidad (F15): ReportModal monta useUserProfile() (un
-// onSnapshot propio sobre users/{uid}, sin caché compartida) — este botón
-// vive UNO POR CARD dentro de un feed (EventWall.tsx/WallSection.tsx), así
-// que montar el modal sin condición significaba abrir un listener redundante
-// por cada mensaje/foto visible, además del que la propia pantalla ya tiene
-// para el mismo documento. Se monta recién cuando `open` es true — nadie
-// reporta más de un item a la vez, así que esto baja el fan-out de N
-// listeners siempre activos a 0 o 1, solo mientras el modal está abierto.
+// Auditoría de escalabilidad (F15): este botón vive UNO POR CARD dentro de
+// un feed (EventWall.tsx/WallSection.tsx) — ReportModal se monta recién
+// cuando `open` es true, así que nadie reporta más de un item a la vez y no
+// hay N instancias de ReportModal vivas al mismo tiempo. (useUserProfile()
+// ya no abre un onSnapshot propio por consumidor — ver
+// contexts/UserProfileContext.tsx — pero este montaje condicional se queda
+// igual: sigue siendo lo que evita montar N ReportModal innecesarios.)
 export function ReportButton({ className, showLabel, ...contentProps }: Props) {
   const [open, setOpen] = useState(false)
 
