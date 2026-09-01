@@ -9,3 +9,7 @@ output "firebase_hosting_uptime_check_id" {
 output "notification_channel_id" {
   value = google_monitoring_notification_channel.email.name
 }
+
+output "production_budget_id" {
+  value = google_billing_budget.production.id
+}

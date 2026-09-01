@@ -35,6 +35,31 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
 
+      # Suite de Cloud Functions (functions/src/**/*.test.ts, incluye
+      # checkInGuest/confirmPaymentAndCheckIn) — no la corre "npm run test"
+      # de arriba (vite.config.ts la excluye a propósito, ver ese archivo).
+      # Sin este paso, un deploy de una función rota podía llegar a
+      # producción sin que esta suite lo detectara (causa real de un
+      # incidente de crash-loop en staging).
+      - run: npm ci --prefix functions
+
+      # El emulador de Firestore que usa test:functions necesita un JDK.
+      # ubuntu-latest ya trae uno instalado, pero lo fijamos acá de forma
+      # explícita (Temurin 21) para no depender de que la imagen del runner
+      # lo siga incluyendo.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # firebase-tools no es una dependencia de package.json (los pasos de
+      # deploy de abajo lo resuelven vía `npx` en el momento) — acá se
+      # instala global porque "test:functions" (ver package.json) invoca el
+      # binario `firebase` directo, no vía npx.
+      - run: npm install -g firebase-tools
+
+      - run: npm run test:functions
+
   build_and_deploy:
     needs: validate
     runs-on: ubuntu-latest

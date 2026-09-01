@@ -61,3 +61,33 @@ variable "latency_threshold_ms" {
   type        = number
   default     = 3000
 }
+
+# ---- Presupuesto de gasto (billing_budget.tf) ----
+# Distinto de todo lo de arriba: esas variables alimentan alertas sobre
+# COMPORTAMIENTO del sitio (uptime/latencia); estas dos alimentan una
+# alerta sobre GASTO — el gap real que motivó agregar billing_budget.tf
+# (ver ese archivo para el porqué).
+
+# Sin default a propósito, mismo criterio que notification_email de arriba:
+# el ID de cuenta de facturación (formato "XXXXXX-XXXXXX-XXXXXX") no está
+# en ningún lado del repo ni se puede inferir del código — cada quien
+# aplique este Terraform lo completa en su terraform.tfvars. Se consigue
+# con `gcloud billing accounts list` o en Consola → Facturación →
+# Administración de la cuenta (ver README.md).
+variable "billing_account_id" {
+  description = "ID de la cuenta de facturación de GCP (formato XXXXXX-XXXXXX-XXXXXX) que paga var.project_id."
+  type        = string
+}
+
+# Sin ninguna referencia real de gasto en el repo (ni facturas, ni
+# comentarios con un monto concreto) — placeholder conservador acorde al
+# plan Blaze de una app en esta escala, mismo criterio ya documentado en
+# docs/backend-observability.md §9.1 ("empezar con un presupuesto mensual
+# conservador... ajustar tras el primer mes real de datos en vez de
+# adivinar un número"). AJUSTAR este valor en terraform.tfvars (no acá)
+# antes de aplicar, según lo que de verdad esperás gastar por mes.
+variable "monthly_budget_amount" {
+  description = "Presupuesto mensual de referencia (USD) para var.project_id. Placeholder conservador — ajustar según gasto real esperado/observado."
+  type        = number
+  default     = 50
+}

@@ -17,10 +17,15 @@ resource "google_monitoring_uptime_check_config" "site" {
     port         = 443
     use_ssl      = true
     validate_ssl = true
-    content_matchers {
-      content = "PaseLink"
-      matcher = "CONTAINS_STRING"
-    }
+  }
+
+  # Bloque hermano de http_check, no anidado adentro — el schema del
+  # provider de Google lo espera al mismo nivel que http_check/
+  # monitored_resource (bug real: estaba anidado, lo que rompía
+  # `terraform validate`/`plan`/`apply` para todo el módulo).
+  content_matchers {
+    content = "PaseLink"
+    matcher = "CONTAINS_STRING"
   }
 
   monitored_resource {
@@ -56,10 +61,13 @@ resource "google_monitoring_uptime_check_config" "firebase_hosting" {
     port         = 443
     use_ssl      = true
     validate_ssl = true
-    content_matchers {
-      content = "PaseLink"
-      matcher = "CONTAINS_STRING"
-    }
+  }
+
+  # Mismo fix que en "site" arriba — content_matchers va hermano de
+  # http_check, no anidado adentro.
+  content_matchers {
+    content = "PaseLink"
+    matcher = "CONTAINS_STRING"
   }
 
   monitored_resource {

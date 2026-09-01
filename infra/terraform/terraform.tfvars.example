@@ -3,6 +3,18 @@
 
 notification_email = "tu-correo@ejemplo.com"
 
+# ID de la cuenta de facturación que paga project_id (formato
+# "XXXXXX-XXXXXX-XXXXXX") — SIN default, hay que completarlo a mano. Se
+# consigue con `gcloud billing accounts list` o en Consola → Facturación →
+# Administración de la cuenta. Ver infra/terraform/README.md.
+billing_account_id = "XXXXXX-XXXXXX-XXXXXX"
+
+# monthly_budget_amount (USD) ya tiene un default conservador (50) en
+# variables.tf — es un placeholder sin ninguna referencia de gasto real
+# detrás. Descomentar y ajustar acá antes de aplicar si 50 no es realista
+# para tu escala de uso:
+# monthly_budget_amount = 50
+
 # El resto de las variables (project_id, site_url, firebase_hosting_url,
 # region, umbrales) ya tienen default en variables.tf y normalmente no hace
 # falta tocarlas — ver ahí si algo cambió (dominio, umbral de latencia, etc.).

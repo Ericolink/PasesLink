@@ -1,0 +1,134 @@
+name: Deploy Cloud Functions to Production
+
+# Dispara SOLO manual (workflow_dispatch) — a diferencia de
+# firebase-staging-deploy.yml (push a `staging`) y firebase-hosting-merge.yml
+# (push a `main`, pero solo Hosting, nunca Functions), acá el efecto es sobre
+# Cloud Functions + Firestore Rules/índices EN PRODUCCIÓN (app-pases-9e6e7),
+# con el mismo tipo de riesgo que el incidente de crash-loop en staging pero
+# en el proyecto real. Un push automático (a `main` o a una rama tipo
+# `production`) dispararía este deploy sin una decisión explícita en el
+# momento — el objetivo acá es que alguien entre a la pestaña Actions y lo
+# dispare a propósito, sabiendo que está desplegando a producción. El deploy
+# solo se ejecuta si `validate_functions` (test:functions, mismo gate que ya
+# existe en firebase-staging-deploy.yml) pasa antes.
+on:
+  workflow_dispatch:
+    inputs:
+      allow_function_deletion:
+        description: 'Permitir que este deploy borre Cloud Functions que ya no existan en el código (equivale a --force de firebase-tools). Dejalo destildado en el caso normal — sin esto, el deploy falla limpio (en vez de borrar sin confirmación) si detecta que borraría una función.'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate_functions:
+    runs-on: ubuntu-latest
+    steps:
+      # workflow_dispatch se puede disparar desde CUALQUIER rama elegida en
+      # el dropdown de "Run workflow" — sin este chequeo, alguien podría
+      # desplegar a producción código de una rama de feature sin mergear,
+      # por error de dedo en el dropdown. Falla temprano y explícito (no un
+      # job silenciosamente salteado) si no es `main`.
+      - name: Verificar que el deploy se dispara desde main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Este workflow solo puede desplegar a producción disparado desde la rama 'main' (elegiste '${{ github.ref_name }}' en 'Run workflow'). Cambiá la rama a 'main' en el dropdown y volvé a intentar."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      # npm run test:functions es un script de la raíz (package.json) —
+      # instalamos también node_modules de la raíz para que `npm run`
+      # resuelva sin sorpresas, mismo orden que el resto de los workflows.
+      - run: npm ci
+      - run: npm ci --prefix functions
+
+      # Mismo gate que firebase-staging-deploy.yml — el emulador de
+      # Firestore que usa test:functions necesita un JDK. ubuntu-latest ya
+      # trae uno instalado, pero lo fijamos acá de forma explícita
+      # (Temurin 21) para no depender de que la imagen del runner lo siga
+      # incluyendo.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # firebase-tools no es una dependencia de package.json — acá se
+      # instala global porque "test:functions" (ver package.json de la
+      # raíz) invoca el binario `firebase` directo, no vía npx.
+      - run: npm install -g firebase-tools
+
+      - run: npm run test:functions
+
+  deploy_functions:
+    needs: validate_functions
+    runs-on: ubuntu-latest
+    # GitHub Environment "production" — si se configuran reviewers
+    # obligatorios en Settings → Environments → production, este job pide
+    # aprobación manual ADEMÁS del workflow_dispatch, sin tocar este
+    # archivo. Mismo criterio que build_and_deploy en
+    # firebase-hosting-merge.yml.
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      # `firebase deploy --only functions` corre el predeploy de functions/
+      # ("npm run build" -> tsc, ver firebase.json) antes de subir nada —
+      # necesita functions/node_modules instalado. No hace falta `npm ci`
+      # en la raíz acá: este job no invoca ningún script de la raíz, solo
+      # `npx firebase-tools` (se resuelve solo) y el predeploy de
+      # functions/.
+      - run: npm ci --prefix functions
+
+      # Mismo patrón que firebase-staging-deploy.yml/firebase-hosting-merge.yml:
+      # GOOGLE_APPLICATION_CREDENTIALS vía Application Default Credentials
+      # (no un token de sesión de `firebase login`, que no aplica en CI).
+      - name: Autenticar credenciales de GCP
+        env:
+          GCP_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_APP_PASES_9E6E7 }}
+        run: |
+          echo "$GCP_SA_JSON" > /tmp/gcp-sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-sa.json" >> "$GITHUB_ENV"
+
+      # Sin --force por default a propósito (a diferencia de
+      # firebase-staging-deploy.yml, donde "romper staging es barato"): si
+      # el deploy detecta que borraría una Cloud Function que ya no está en
+      # el código, preferimos que el comando FALLE (--non-interactive sin
+      # --force aborta limpio, sin tocar nada) a que la borre sin que un
+      # humano lo haya confirmado a propósito. `allow_function_deletion`
+      # (input de este workflow) es la única forma de saltear esto, y hay
+      # que tildarlo a mano cada vez que de verdad se quiere borrar una
+      # función en producción.
+      - name: Desplegar Cloud Functions + Firestore Rules/índices a producción
+        env:
+          ALLOW_FUNCTION_DELETION: ${{ inputs.allow_function_deletion }}
+        run: |
+          FORCE_FLAG=""
+          if [ "$ALLOW_FUNCTION_DELETION" = "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+          npx firebase-tools deploy --only functions,firestore:rules,firestore:indexes --project app-pases-9e6e7 --non-interactive $FORCE_FLAG
+
+  # Mismo patrón que firebase-hosting-merge.yml/firebase-staging-deploy.yml —
+  # job aparte para que avise si lo que falló fue `validate_functions`
+  # (tests) y no solo el deploy en sí.
+  notify_failure:
+    needs: [validate_functions, deploy_functions]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Avisar a Discord
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"🔴 **Deploy de Cloud Functions a PRODUCCIÓN falló** — https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"

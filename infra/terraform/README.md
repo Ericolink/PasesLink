@@ -23,25 +23,81 @@ en vez de un cron corriendo en runners de GitHub.
   - Firebase Hosting no responde (mismo criterio).
   - Latencia alta y sostenida del sitio principal (>3s de promedio durante
     5 min seguidos).
+- **1 presupuesto de gasto con alertas al 50/90/100%** (`billing_budget.tf`)
+  — ver "Presupuesto y alerta de gasto" más abajo.
 
 ## Cómo aplicarlo
 
 Requiere la [CLI de Terraform](https://developer.hashicorp.com/terraform/install)
 y estar autenticado contra GCP (`gcloud auth application-default login`, o
-la CLI de `gcloud` instalada y logueada con una cuenta que tenga el rol
-`roles/monitoring.editor` sobre `app-pases-9e6e7`).
+la CLI de `gcloud` instalada y logueada). Dos permisos distintos, sobre dos
+recursos distintos de GCP:
+
+- `roles/monitoring.editor` sobre el proyecto `app-pases-9e6e7` — para los
+  Uptime Checks/políticas de alerta/canal de notificación.
+- `roles/billing.costsManager` (o `roles/billing.admin`) **sobre la cuenta
+  de facturación**, no sobre el proyecto — para `billing_budget.tf`. Es un
+  permiso distinto porque la cuenta de facturación es un recurso separado
+  del proyecto (puede administrarla otra persona). Lo otorga quien
+  administra la cuenta, en Consola → Facturación → Administración de la
+  cuenta → Permisos.
 
 ```bash
 cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars   # completar notification_email
+cp terraform.tfvars.example terraform.tfvars   # completar notification_email + billing_account_id
 terraform init
 terraform plan    # revisar qué se va a crear antes de aplicar
 terraform apply
 ```
 
 Nada de esto toca `firestore.rules`, Hosting ni las Cloud Functions — son
-recursos de Cloud Monitoring, un servicio separado que solo LEE la
-disponibilidad pública del sitio.
+recursos de Cloud Monitoring/Billing, servicios separados que solo LEEN la
+disponibilidad pública del sitio y el gasto reportado, respectivamente.
+
+## Presupuesto y alerta de gasto
+
+`billing_budget.tf` crea un `google_billing_budget` sobre `project_id`
+(`app-pases-9e6e7`), con notificaciones al mismo canal de email de
+`notification_channels.tf` — no un canal nuevo. Reemplaza el paso manual
+que ya estaba documentado (pero no hecho) en
+`docs/backend-observability.md` §9.1.
+
+**Antes de aplicar, hace falta completar dos cosas que este Terraform no
+puede inferir:**
+
+1. **`billing_account_id`** (`terraform.tfvars`, sin default) — el ID de la
+   cuenta de facturación que paga el proyecto, formato
+   `XXXXXX-XXXXXX-XXXXXX`. Conseguirlo con:
+   ```bash
+   gcloud billing accounts list
+   ```
+   o en Consola → Facturación → Administración de la cuenta. Distinto del
+   `project_id` — una cuenta de facturación puede pagar varios proyectos.
+2. **`monthly_budget_amount`** (`terraform.tfvars`, default `50` USD) — no
+   hay ninguna referencia de gasto real en el repo (ni facturas ni un
+   monto documentado en ningún lado), así que el default es un placeholder
+   conservador acorde al plan Blaze de una app en esta escala. Ajustarlo al
+   monto real esperado antes de aplicar, y de nuevo tras el primer mes de
+   datos reales (mismo criterio que ya proponía el doc de observabilidad).
+
+**API requerida**: `billingbudgets.googleapis.com` (Cloud Billing Budget
+API), habilitada sobre el proyecto que usan las credenciales para llamar a
+la API (normalmente `project_id`, `app-pases-9e6e7`). Verificar si ya está
+habilitada:
+```bash
+gcloud services list --enabled --project=app-pases-9e6e7 | grep billingbudgets
+```
+Si no aparece, habilitarla antes de `terraform apply`:
+```bash
+gcloud services enable billingbudgets.googleapis.com --project=app-pases-9e6e7
+```
+
+**Qué NO hace este recurso a propósito**: no vincula ninguna acción
+automática (como desactivar servicios al 100% del presupuesto) — solo
+alerta. Cortar servicios automáticamente arriesga tirar abajo PaseLink para
+usuarios reales en medio de un evento, que es peor que el gasto que se
+quiere evitar (mismo criterio que ya descartaba
+`docs/backend-observability.md` §9.1 punto 4).
 
 ## Plan de transición (ambos sistemas en paralelo)
 
