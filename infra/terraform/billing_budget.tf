@@ -59,5 +59,25 @@ resource "google_billing_budget" "production" {
     # facturación — redundancia útil para una alerta de este tipo, no la
     # desactivamos.
     disable_default_iam_recipients = false
+
+    # Workaround de un bug conocido del provider (hashicorp/terraform-provider-google
+    # #24637, abierto, reenviado por HashiCorp al equipo de la API de Google
+    # sin fix a la fecha): el schema de este bloque le pone
+    # Default: "1.0" a schema_version de forma incondicional, así que el
+    # SDK lo manda como "schemaVersion": "1.0" en el JSON de la request
+    # aunque acá nunca se haya escrito — incluso sin pubsub_topic. La
+    # documentación oficial de la API dice que schemaVersion es "Required
+    # when NotificationsRule.pubsub_topic is set", o sea que no debería
+    # enviarse en absoluto sin pubsub_topic — mandarlo igual es lo que
+    # dispara el 400 "Request contains an invalid argument" al crear el
+    # budget. Fijarlo acá en "" explícito pisa el Default del schema (a
+    # diferencia de dejarlo ausente): expandBillingBudgetsBudgetAllUpdatesRuleSchemaVersion
+    # recibe "" en vez de "1.0", IsEmptyValue() lo marca vacío, y el campo
+    # queda afuera del JSON. Sin pubsub_topic en este proyecto (solo
+    # notificamos por monitoring_notification_channels), así que no hace
+    # falta ningún schemaVersion real. Si en algún momento se agrega
+    # pubsub_topic acá, este "" hay que sacarlo (o poner "1.0" a mano) —
+    # ver la doc de la API.
+    schema_version = ""
   }
 }
