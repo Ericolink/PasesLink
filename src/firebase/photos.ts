@@ -17,13 +17,16 @@ import type { Unsubscribe } from 'firebase/firestore'
 import { db } from './config'
 import { withListenerReporting } from '../lib/sentry'
 import { mapReply, reactToContent, replyToContent } from './interactions'
+import { hashGuestQrToken } from '../utils/photoAuthor'
 import type { ReactionType, WallReply } from '../types'
 
 export interface PhotoData {
   id: string
   url: string
   authorName: string
-  authorToken: string // qrToken del invitado que subió la foto
+  // uid, 'owner', nombre del invitado o SHA-256 de su qrToken — nunca el
+  // qrToken en sí (ver PhotoAuthor y addPhoto más abajo).
+  authorToken: string
   caption?: string
   createdAt: number
   // Dimensiones del archivo subido (ver resizeImageForUpload) — permiten
@@ -71,14 +74,25 @@ function mapPhoto(id: string, data: Record<string, unknown>): PhotoData {
   }
 }
 
+// Quién sube la foto. `guestPass`: un invitado publicando desde su pase —
+// addPhoto guarda el SHA-256 de su qrToken (hashGuestQrToken), nunca el
+// token. `public`: identificadores que ya eran públicos de por sí (uid de la
+// sesión, 'owner' o el nombre del invitado), se guardan tal cual — moderation.ts
+// (resolveContentAuthorUid) necesita el uid sin transformar.
+export type PhotoAuthor =
+  | { kind: 'guestPass'; qrToken: string }
+  | { kind: 'public'; token: string }
+
 export async function addPhoto(
   eventId: string,
-  photo: Omit<PhotoData, 'id' | 'createdAt' | 'pinned' | 'reactionCount' | 'reactionCountsByType' | 'replies'>,
+  photo: Omit<PhotoData, 'id' | 'createdAt' | 'pinned' | 'reactionCount' | 'reactionCountsByType' | 'replies' | 'authorToken'>,
+  author: PhotoAuthor,
 ): Promise<string> {
+  const authorToken = author.kind === 'guestPass' ? await hashGuestQrToken(author.qrToken) : author.token
   const ref = await addDoc(collection(db, 'events', eventId, 'photos'), {
     url: photo.url,
     authorName: photo.authorName,
-    authorToken: photo.authorToken,
+    authorToken,
     caption: photo.caption || '',
     width: photo.width ?? null,
     height: photo.height ?? null,

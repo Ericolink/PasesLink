@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore'
 import { createTestEnv, seedEvent, type EmulatorFirestore } from './helpers'
+import { hashGuestQrToken } from '../../utils/photoAuthor'
 
 // Mismo mock que guests.test.ts/capacity.test.ts: redirige el `db` singleton
 // de photos.ts al Firestore del emulador activo en cada test.
@@ -12,7 +13,7 @@ vi.mock('../config', () => ({
   },
 }))
 
-import { pinPhoto, reactToPhoto, replyToPhoto } from '../photos'
+import { addPhoto, pinPhoto, reactToPhoto, replyToPhoto } from '../photos'
 
 const OWNER_UID = 'owner-uid'
 const OTHER_UID = 'someone-else-uid'
@@ -257,5 +258,76 @@ describe('photos.ts — replyToPhoto', () => {
     await expect(
       setDoc(doc(dbHolder.db, 'events', EVENT_ID, 'photos', PHOTO_ID), { replies: [{ ...existingReply, text: 'tampered' }] }, { merge: true }),
     ).rejects.toThrow()
+  })
+})
+
+// T4 de P0-4 (hallazgo N2): photos es de lectura pública, así que una foto
+// subida desde el pase nunca puede guardar el qrToken del invitado — se
+// guarda SHA-256(qrToken). Escritura real con el SDK y las reglas.
+describe('photos.ts — addPhoto nunca guarda el qrToken original', () => {
+  let testEnv: RulesTestEnvironment
+  const QR_TOKEN_ANA = '0f1e2d3c4b5a69788796a5b4c3d2e1f0'
+  const QR_TOKEN_BETO = 'aaaabbbbccccddddeeeeffff00001111'
+  const PHOTO = { url: 'https://res.cloudinary.com/demo/image/upload/nueva.jpg', authorName: 'Ana Prueba', caption: 'Hola' }
+
+  beforeAll(async () => {
+    testEnv = await createTestEnv()
+  })
+
+  afterEach(async () => {
+    await testEnv.clearFirestore()
+  })
+
+  afterAll(async () => {
+    await testEnv.cleanup()
+  })
+
+  async function allPhotoDocs() {
+    let result: Record<string, unknown>[] = []
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const snap = await getDocs(collection(context.firestore(), 'events', EVENT_ID, 'photos'))
+      result = snap.docs.map((d) => d.data())
+    })
+    return result
+  }
+
+  it('stores SHA-256(qrToken) — not the token — for a guest uploading from their pass', async () => {
+    await seedEvent(testEnv, EVENT_ID)
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    const photoId = await addPhoto(EVENT_ID, PHOTO, { kind: 'guestPass', qrToken: QR_TOKEN_ANA })
+
+    const [stored] = await allPhotoDocs()
+    expect(photoId).toBeTruthy()
+    expect(stored.authorToken).toBe(await hashGuestQrToken(QR_TOKEN_ANA))
+    // Ningún campo del documento contiene el token original.
+    expect(JSON.stringify(stored)).not.toContain(QR_TOKEN_ANA)
+  })
+
+  it('gives two photos from the same guest the same authorToken, and different guests different ones', async () => {
+    await seedEvent(testEnv, EVENT_ID)
+    dbHolder.db = testEnv.unauthenticatedContext().firestore()
+
+    await addPhoto(EVENT_ID, PHOTO, { kind: 'guestPass', qrToken: QR_TOKEN_ANA })
+    await addPhoto(EVENT_ID, PHOTO, { kind: 'guestPass', qrToken: QR_TOKEN_ANA })
+    await addPhoto(EVENT_ID, { ...PHOTO, authorName: 'Beto Prueba' }, { kind: 'guestPass', qrToken: QR_TOKEN_BETO })
+
+    const tokens = (await allPhotoDocs()).map((p) => p.authorToken as string)
+    const hashAna = await hashGuestQrToken(QR_TOKEN_ANA)
+    const hashBeto = await hashGuestQrToken(QR_TOKEN_BETO)
+    expect(tokens.filter((t) => t === hashAna)).toHaveLength(2)
+    expect(tokens.filter((t) => t === hashBeto)).toHaveLength(1)
+    expect(tokens).not.toContain(QR_TOKEN_ANA)
+    expect(tokens).not.toContain(QR_TOKEN_BETO)
+  })
+
+  it('keeps a signed-in author\'s uid as-is (moderation resolves the author by uid)', async () => {
+    await seedEvent(testEnv, EVENT_ID)
+    dbHolder.db = testEnv.authenticatedContext(OTHER_UID).firestore()
+
+    await addPhoto(EVENT_ID, PHOTO, { kind: 'public', token: OTHER_UID })
+
+    const [stored] = await allPhotoDocs()
+    expect(stored.authorToken).toBe(OTHER_UID)
   })
 })

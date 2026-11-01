@@ -1167,9 +1167,14 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      // El admin puede listar todos los usuarios (AdminDashboard). Cualquier otro usuario
-      // logueado solo puede hacer búsquedas puntuales (getUserByEmail usa limit(1)).
-      allow list: if isAdmin() || (request.auth != null && request.query.limit <= 1);
+      // Solo el admin lista usuarios (AdminDashboard, ControlCenter y los
+      // conteos con getCountFromServer). Antes se permitía además `limit <= 1`
+      // a cualquier sesión para getUserByEmail, pero eso dejaba paginar la
+      // colección entera con startAfter (hallazgo C2 de la auditoría, ver
+      // securityAudit.rules.test.ts) y getUserByEmail ya no tiene llamadas
+      // desde que coorganizadores y staff de concesiones pasaron a enlaces
+      // de invitación por Cloud Function.
+      allow list: if isAdmin();
       allow write: if request.auth != null && request.auth.uid == userId;
 
       match /invitations/{invId} {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reactToWallMessage, fetchWallMessages } from '../firebase/wall'
 import { fetchPhotos, reactToPhoto, replyToPhoto } from '../firebase/photos'
-import type { PhotoData } from '../firebase/photos'
+import type { PhotoAuthor, PhotoData } from '../firebase/photos'
 import { useAuth } from '../hooks/useAuth'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useSanctionStatus } from '../hooks/useSanctionStatus'
@@ -98,9 +98,12 @@ export function WallSection({
   const authorName  = user ? (profile?.displayName || user.displayName || 'Anfitrión') : resolvedGuestName
   const authorPhoto = user ? (profile?.photoURL || user.photoURL || undefined) : undefined
   // Mismo criterio de identidad que handlePost — el qrToken real (guestToken,
-  // pasado por GuestPass/EventJoin) si está disponible, si no el mismo
-  // fallback que se usa para publicar mensajes.
-  const photoAuthorToken = guestToken || (user ? user.uid : resolvedGuestName)
+  // pasado por GuestPass/HousePartyPassLayout) si está disponible, que
+  // addPhoto guarda como SHA-256 (nunca el token: photos es de lectura
+  // pública), si no el mismo fallback que se usa para publicar mensajes.
+  const photoAuthor: PhotoAuthor = guestToken
+    ? { kind: 'guestPass', qrToken: guestToken }
+    : { kind: 'public', token: user ? user.uid : resolvedGuestName }
   // Distinto criterio de identidad para mensajes de texto (no prioriza
   // guestToken) — el formulario solo se muestra cuando `canPost` es true, así
   // que `resolvedGuestName` ya está garantizado si no hay `user`.
@@ -156,7 +159,7 @@ export function WallSection({
     authorToken: messageAuthorToken,
     authorRole: 'guest',
     authorPhotoURL: authorPhoto,
-    photoAuthorToken,
+    photoAuthor,
     isMinor,
     photoBlocked,
     sentryComponent: 'wall_section',

@@ -1,16 +1,20 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { assertFails, assertSucceeds, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import {
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
   documentId,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
   orderBy,
   query,
+  setDoc,
   startAfter,
+  updateDoc,
   where,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore'
@@ -390,6 +394,46 @@ describe('auditoría — enumeración de usuarios (users list)', () => {
     await assertFails(getDocs(query(collection(anonDb, 'users'), limit(1))))
   })
 
+  it('rejects an anonymous list of users without limit()', async () => {
+    await seedThreeUsers()
+    const anonDb = testEnv.unauthenticatedContext().firestore()
+
+    await assertFails(getDocs(collection(anonDb, 'users')))
+  })
+
+  // Hallazgo C2, corregido en P0-3 (`allow list: if isAdmin()`). Antes
+  // `request.auth != null && limit <= 1` dejaba a cualquier sesión traer un
+  // perfil completo con limit(1) y paginar la colección entera.
+  it('rejects an authenticated non-admin limit(1) query on users (C2)', async () => {
+    await seedThreeUsers()
+    const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore()
+
+    await assertFails(getDocs(query(collection(strangerDb, 'users'), limit(1))))
+  })
+
+  it('rejects an authenticated non-admin paginating users with orderBy(documentId()) + startAfter + limit(1) (C2)', async () => {
+    await seedThreeUsers()
+    const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore()
+
+    await assertFails(crawlWithLimitOne(strangerDb, 'users'))
+  })
+
+  // La consulta exacta de getUserByEmail (src/firebase/userProfile.ts, hoy
+  // sin llamadas) — el motivo histórico de la rama `limit <= 1`.
+  it('rejects an authenticated non-admin looking up a user by email with limit(1) (C2)', async () => {
+    await seedThreeUsers()
+    const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore()
+
+    await assertFails(getDocs(query(collection(strangerDb, 'users'), where('email', '==', 'user-a@test.com'), limit(1))))
+  })
+
+  it('rejects an authenticated non-admin counting users with getCountFromServer', async () => {
+    await seedThreeUsers()
+    const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore()
+
+    await assertFails(getCountFromServer(collection(strangerDb, 'users')))
+  })
+
   it('rejects an authenticated non-admin listing users without limit()', async () => {
     await seedThreeUsers()
     const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore()
@@ -434,25 +478,32 @@ describe('auditoría — enumeración de usuarios (users list)', () => {
     await assertSucceeds(getDocs(collection(adminDb, 'users')))
   })
 
-  // KNOWN VULNERABILITY C2 (P0-3): `request.auth != null && limit <= 1`
-  // deja paginar la colección entera. Al corregir (`allow list: if
-  // isAdmin()`): assertSucceeds → assertFails, y la caminata no recupera nada.
-  describe('KNOWN VULNERABILITY C2 — documents current behavior; flip to assertFails when P0-3 lands', () => {
-    it('an authenticated non-admin limit(1) query currently returns a full user profile', async () => {
-      await seedThreeUsers()
-      const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore()
+  // Las otras dos lecturas reales del panel de admin: subscribeToRecentUsers
+  // (adminActivity.ts) y los conteos de getUserStats/getFunnelStats.
+  it('lets an admin run the recent-users query and the user counts (ControlCenter)', async () => {
+    await seedThreeUsers()
+    const adminDb = testEnv.authenticatedContext('admin-1', { admin: true }).firestore()
 
-      const snap = await assertSucceeds(getDocs(query(collection(strangerDb, 'users'), limit(1))))
-      expect(snap.docs[0].data()).toHaveProperty('birthDate')
-    })
+    await assertSucceeds(getDocs(query(collection(adminDb, 'users'), orderBy('createdAt', 'desc'), limit(15))))
+    const count = await assertSucceeds(getCountFromServer(collection(adminDb, 'users')))
+    expect(count.data().count).toBe(USER_UIDS.length)
+  })
 
-    it('an authenticated non-admin currently recovers EVERY user\'s birthDate by paginating', async () => {
-      await seedThreeUsers()
-      const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore()
+  // Operaciones de perfil propio — `allow write` no cambió en P0-3; estos
+  // tests confirman que restringir `list` no las afectó.
+  it('lets a user update their own profile (photoURL, fcmTokens)', async () => {
+    await seedThreeUsers()
+    const ownDb = testEnv.authenticatedContext('user-a').firestore()
 
-      const birthDates = fieldOf(await crawlWithLimitOne(strangerDb, 'users'), 'birthDate')
-      expect(birthDates).toEqual(['1990-01-01', '1991-01-01', '1992-01-01'])
-    })
+    await assertSucceeds(setDoc(doc(ownDb, 'users', 'user-a'), { photoURL: 'https://example.com/a.jpg' }, { merge: true }))
+    await assertSucceeds(updateDoc(doc(ownDb, 'users', 'user-a'), { fcmTokens: arrayUnion('fcm-new') }))
+  })
+
+  it('rejects a user writing another user\'s profile', async () => {
+    await seedThreeUsers()
+    const strangerDb = testEnv.authenticatedContext(STRANGER_UID).firestore()
+
+    await assertFails(setDoc(doc(strangerDb, 'users', 'user-a'), { photoURL: 'https://example.com/x.jpg' }, { merge: true }))
   })
 })
 

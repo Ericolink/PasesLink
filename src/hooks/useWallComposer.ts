@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { postWallMessage } from '../firebase/wall'
 import { addPhoto } from '../firebase/photos'
-import type { PhotoData } from '../firebase/photos'
+import type { PhotoAuthor } from '../firebase/photos'
 import { MAX_UPLOAD_MB, resizeImageForUpload, uploadImage } from '../utils/cloudinary'
 import { PHOTO_CAPTION_MAX, WALL_TEXT_MAX } from '../utils/validation'
 import { captureException } from '../lib/sentry'
@@ -14,10 +14,10 @@ interface Params {
   authorRole: 'owner' | 'guest'
   authorPhotoURL?: string
   // Solo WallSection tiene una resolución de identidad distinta entre
-  // mensaje y foto (prioriza el guestToken real si está disponible) — si no
-  // se pasa, se reusa `authorToken` (caso de EventWall, que ya usaba el
-  // mismo token para ambos flujos).
-  photoAuthorToken?: string
+  // mensaje y foto (prioriza el qrToken del pase si está disponible, que
+  // addPhoto guarda hasheado) — si no se pasa, se reusa `authorToken` (caso
+  // de EventWall, que ya usaba el mismo token para ambos flujos).
+  photoAuthor?: PhotoAuthor
   isMinor: boolean
   photoBlocked: boolean
   sentryComponent: string
@@ -34,7 +34,7 @@ interface Params {
 // cuál de las dos escribir se toma acá, en el submit, según si hay una
 // imagen adjunta. Ninguna de las dos colecciones ni sus reglas cambian.
 export function useWallComposer({
-  eventId, authorName, authorToken, authorRole, authorPhotoURL, photoAuthorToken,
+  eventId, authorName, authorToken, authorRole, authorPhotoURL, photoAuthor,
   isMinor, photoBlocked, sentryComponent, onPosted, onPhotoUploaded,
 }: Params) {
   const [text, setText] = useState('')
@@ -83,14 +83,11 @@ export function useWallComposer({
       if (attachedFile) {
         const { blob, width, height } = await resizeImageForUpload(attachedFile)
         const url = await uploadImage(blob)
-        await addPhoto(eventId, {
-          url,
-          authorName,
-          authorToken: photoAuthorToken || authorToken,
-          caption: text.trim() || undefined,
-          width,
-          height,
-        } as Omit<PhotoData, 'id' | 'createdAt' | 'pinned'>)
+        await addPhoto(
+          eventId,
+          { url, authorName, caption: text.trim() || undefined, width, height },
+          photoAuthor ?? { kind: 'public', token: authorToken },
+        )
         setAttachedFile(null)
         setText('')
         onPhotoUploaded?.()
