@@ -10,7 +10,7 @@
 // pasos de infraestructura en docs/rate-limiting.md.
 //
 // - Sin datos personales en claro: el sujeto de cada contador (IP, eventId)
-//   se seudonimiza con HMAC-SHA256 y RATE_LIMIT_HMAC_KEY (secrets.ts).
+//   se seudonimiza con HMAC-SHA256 y RATE_LIMIT_HMAC_KEY (Secret Manager).
 // - Limpieza: cada documento lleva `expiresAt` (fin de su ventana + 1 h)
 //   para la política TTL de Firestore sobre `rateLimits`.
 // - firestore.rules no tiene ningún match para `rateLimits`: el cliente no

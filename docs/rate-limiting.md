@@ -252,6 +252,14 @@ openssl rand -hex 32 | firebase functions:secrets:set RATE_LIMIT_HMAC_KEY --data
 La service account de CI ya tiene `secretAccessor`. Rotar el secreto solo
 reinicia los contadores en curso.
 
+**Orden obligatorio:** primero crear el secreto en **ambos** proyectos y
+recién después agregar `defineSecret('RATE_LIMIT_HMAC_KEY')` en
+`functions/src/lib/secrets.ts` (junto con G1). `firebase-tools` resuelve
+todos los `defineSecret` del código durante el descubrimiento del backend,
+incluso en `deploy --only hosting` (por el rewrite `/e/**` a `eventJoinMeta`).
+Declararlo antes de que exista rompe cualquier deploy, aunque ninguna función
+lo use: pasó en T1 y se corrigió quitando la declaración.
+
 ### 9.2 Política TTL de `rateLimits.expiresAt`
 
 ```

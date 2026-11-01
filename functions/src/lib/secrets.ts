@@ -45,11 +45,10 @@ export const sentryApiToken = defineSecret('SENTRY_API_TOKEN')
 // de llamar a HeiGIT directo.
 export const openRouteServiceApiKey = defineSecret('OPENROUTESERVICE_API_KEY')
 
-// Clave HMAC para seudonimizar IPs y eventIds en los contadores de rate
-// limiting (lib/rateLimit.ts) — nunca se guarda una IP en texto plano. Un
-// valor aleatorio de al menos 32 caracteres, generado aparte y subido con
-// `firebase functions:secrets:set RATE_LIMIT_HMAC_KEY` (p. ej. la salida de
-// `openssl rand -hex 32`). Rotarla solo reinicia los contadores en curso.
-// Todavía no la declara ninguna Callable: tiene que existir en Secret
-// Manager ANTES de desplegar la primera que la use (G1/G2 de P0-4).
-export const rateLimitHmacKey = defineSecret('RATE_LIMIT_HMAC_KEY')
+// RATE_LIMIT_HMAC_KEY (clave HMAC de lib/rateLimit.ts) se declara acá recién
+// junto con la primera Callable que la use (G1/G2 de P0-4), y DESPUÉS de
+// crearla en Secret Manager en cada proyecto (docs/rate-limiting.md §9.1).
+// Ojo: firebase-tools resuelve TODOS los defineSecret del código durante el
+// descubrimiento del backend — incluso para `deploy --only hosting`, por el
+// rewrite /e/** a eventJoinMeta —, así que declararla sin que exista rompe
+// cualquier deploy aunque ninguna función la use (pasó en T1).

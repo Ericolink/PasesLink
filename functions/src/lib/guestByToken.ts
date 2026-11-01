@@ -137,7 +137,7 @@ export async function lookupGuestByToken(db: Firestore, eventId: string, qrToken
 }
 
 export interface FindGuestOptions {
-  /** rateLimitHmacKey.value() — la Callable tiene que declarar el secret en `secrets: [...]`. */
+  /** Valor de RATE_LIMIT_HMAC_KEY — la Callable tiene que declarar el secret en `secrets: [...]` (ver secrets.ts). */
   hmacKey: string
   ctx?: ObservabilityContext
   now?: number
