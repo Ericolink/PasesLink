@@ -9,8 +9,8 @@ name: Deploy Cloud Functions to Production
 # `production`) dispararía este deploy sin una decisión explícita en el
 # momento — el objetivo acá es que alguien entre a la pestaña Actions y lo
 # dispare a propósito, sabiendo que está desplegando a producción. El deploy
-# solo se ejecuta si `validate_functions` (test:functions, mismo gate que ya
-# existe en firebase-staging-deploy.yml) pasa antes.
+# solo se ejecuta si `validate_functions` (test:functions + test:firebase,
+# mismo gate que ya existe en firebase-staging-deploy.yml) pasa antes.
 on:
   workflow_dispatch:
     inputs:
@@ -66,6 +66,14 @@ jobs:
       - run: npm install -g firebase-tools
 
       - run: npm run test:functions
+
+      # Tests de firestore.rules (src/firebase/__tests__, emulador de
+      # Firestore). Este workflow es el ÚNICO que despliega firestore:rules a
+      # producción, así que es el gate real: si un test de reglas falla,
+      # deploy_functions no corre y las reglas de producción quedan como
+      # estaban. No necesita los secrets VITE_FIREBASE_* — cada test mockea
+      # src/firebase/config.ts. Reusa el JDK y firebase-tools de arriba.
+      - run: npm run test:firebase
 
   deploy_functions:
     needs: validate_functions

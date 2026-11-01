@@ -67,6 +67,11 @@ jobs:
 
       - run: npm run test:functions
 
+      # Tests de firestore.rules (src/firebase/__tests__) — mismo gate que
+      # firebase-functions-production-deploy.yml: build_and_deploy despliega
+      # firestore:rules a staging, así que no corre si estos tests fallan.
+      - run: npm run test:firebase
+
   build_and_deploy:
     needs: validate
     runs-on: ubuntu-latest

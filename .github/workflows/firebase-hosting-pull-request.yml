@@ -59,6 +59,14 @@ jobs:
 
       - run: npm run test:functions
 
+      # Tests de firestore.rules (src/firebase/__tests__) — este workflow no
+      # despliega reglas, pero correrlos acá avisa en el PR, antes del merge,
+      # si un cambio rompe la seguridad (el gate que bloquea el deploy real
+      # vive en firebase-functions-production-deploy.yml y
+      # firebase-staging-deploy.yml). Sin secrets: funciona igual en PRs de
+      # forks.
+      - run: npm run test:firebase
+
   build_and_preview:
     needs: validate
     if: '${{ github.event.pull_request.head.repo.full_name == github.repository }}'
