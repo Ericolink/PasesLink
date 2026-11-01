@@ -7,6 +7,7 @@
 // ver payments/confirmPayment.ts) y planCheckIn (shared.ts, misma decisión de
 // check-in parcial que usa checkIn.ts), sin duplicar ninguna de las dos.
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
+import { remainingPaidCapacity } from '../lib/attendeeLimit.js'
 import { applyCounterDeltas, buildHourlyCheckinPatch } from '../lib/counters/index.js'
 import type { CounterName } from '../lib/counters/index.js'
 import { guestVersionFields } from '../lib/guestVersion.js'
@@ -18,7 +19,7 @@ export type ConfirmPaymentAndCheckInResult =
   | { ok: true; checkIn: 'already_checked_in'; guest: Record<string, unknown> }
   | { ok: true; checkIn: 'needs_selection'; guest: Record<string, unknown>; pendingIndices: number[] }
   | { ok: true; checkIn: 'blocked_final_exit'; guest: Record<string, unknown> }
-  | { ok: false; reason: 'event_not_found' | 'guest_not_found' }
+  | { ok: false; reason: 'event_not_found' | 'guest_not_found' | 'capacity_full' }
 
 export interface ConfirmPaymentAndCheckInOptions {
   method?: PaymentMethod
@@ -44,6 +45,10 @@ export async function confirmPaymentAndCheckIn(
 
     const guest = guestSnap.data()!
     const change = computePaymentChange(guest, 'paid', opts.method, opts.source)
+    // Mismo gate que confirmGuestPayment: con el cupo de pagados lleno, el
+    // escáner tampoco puede confirmar el pago de alguien en lista de espera.
+    const paidRemaining = remainingPaidCapacity(eventSnap.data()!)
+    if (paidRemaining !== null && change.paidCountDelta > paidRemaining) return { ok: false, reason: 'capacity_full' }
     const guestAfterPayment = { ...guest, ...change.guestUpdates }
 
     const guestUpdates: Record<string, unknown> = { ...change.guestUpdates }

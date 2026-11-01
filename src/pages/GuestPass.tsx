@@ -31,6 +31,8 @@ import {
 } from '../components/EventInfoPanel'
 import { InvitationThemeRoot } from '../components/InvitationThemeRoot'
 import { ThemeOrnament } from '../components/ThemeOrnament'
+import { InvitationCard } from '../components/InvitationCard'
+import { isOnPaidWaitlist } from '../firebase/attendeeLimit'
 import { ThemeSeal } from '../components/ThemeSeal'
 import { organizerWhatsappUrl } from '../utils/phone'
 import { getAccentContrastText } from '../utils/contrastColor'
@@ -133,9 +135,10 @@ function GuestPassInner() {
   // cada listener activo en cada escritura (factura como una lectura por
   // listener por escritura). Es el escenario de mayor costo de toda la
   // auditoría de escalabilidad (hallazgo F1).
-  // GuestPass no muestra ningún contador en vivo del evento (verificado: no
-  // referencia checkedInCount/occupancyCount/paidCount/peopleCount en este
-  // archivo) — el listener solo servía para reflejar ediciones del
+  // GuestPass no muestra ningún contador en vivo del evento (no referencia
+  // checkedInCount/occupancyCount/peopleCount; paidCount solo para decidir
+  // la pantalla de lista de espera, que tolera el desfase hasta el próximo
+  // refresco) — el listener solo servía para reflejar ediciones del
   // organizador (horario, portada, instrucciones de pago, plantilla) hechas
   // mientras el pase está abierto, algo infrecuente y no urgente. Se
   // reemplaza por una lectura puntual al montar + refresco cuando la pestaña
@@ -621,6 +624,46 @@ function GuestPassInner() {
   const timeLabel = event.startTime
     ? `${formatTime12h(event.startTime)}${event.endTime ? ` – ${formatTime12h(event.endTime)}` : ''}`
     : null
+
+  // Cupo de pagados lleno (ver limitCountsPaid) y este invitado sin pago
+  // confirmado: está en lista de espera — reemplaza el pase entero (QR,
+  // instrucciones de pago) para cualquier plantilla, porque ya no puede
+  // pagar ni entrar hasta que se libere un lugar. Sin cifras del cupo (el
+  // invitado nunca ve cuántos hay ni el límite). Se reevalúa sola al volver
+  // a la pestaña (ver el refresco de evento + invitado en onVisible).
+  if (guest.rsvpStatus !== 'no' && isOnPaidWaitlist(event, guest)) {
+    return (
+      <InvitationThemeRoot
+        templateId={event.templateId}
+        accentOverride={event.accentColor}
+        themeOverrides={event.themeOverrides}
+        communityTemplateVars={event.communityTemplateSnapshot?.vars}
+        className="min-h-dvh flex items-center justify-center text-center p-4"
+      >
+        <div className="w-full max-w-sm">
+          <InvitationCard coverImage={event.coverImage} coverAlt={event.name} priority>
+            <h1 className="text-xl font-bold mb-1">{event.name}</h1>
+            <ThemeOrnament templateId={event.templateId} className="w-16 h-6 mx-auto mt-1 mb-4 text-[var(--invite-accent)]" />
+            {/* Mismo cuadro (y mismo motivo del text-black fijo) que la
+                pantalla de "evento lleno" de EventJoin.tsx. */}
+            <div role="status" className="rounded-2xl border-2 border-[var(--invite-accent)] bg-[var(--invite-accent-soft)] p-4 mb-4">
+              <IconClock className="w-8 h-8 mx-auto mb-2 text-[var(--invite-accent)]" />
+              <p className="text-base font-bold text-black mb-1">Se llenó el cupo</p>
+              <p className="text-sm text-black">
+                {guest.name}, estás en la <strong>lista de espera</strong>. Si se libera un lugar, el anfitrión podrá
+                confirmar tu pago y aquí verás tu pase de entrada.
+              </p>
+            </div>
+            <p className="text-sm text-[var(--invite-text-muted)]">
+              {formatDate(event.date)}
+              {timeLabel && <> · {timeLabel}</>}
+            </p>
+            {event.location && <p className="text-sm text-[var(--invite-text-muted)] mt-0.5">{event.location}</p>}
+          </InvitationCard>
+        </div>
+      </InvitationThemeRoot>
+    )
+  }
 
   // Invitación rediseñada (ver INVITATION_REDESIGN_PLAN) — hoy solo Fiesta
   // Improvisada. Único punto de bifurcación: HousePartyPassLayout es 100%

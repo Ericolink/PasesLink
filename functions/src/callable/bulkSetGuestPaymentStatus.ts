@@ -67,6 +67,7 @@ export const bulkSetGuestPaymentStatus = onCall<BulkSetGuestPaymentStatusInput>(
     }).catch((err) => ctx.logger.warn('No se pudo encolar la notificación de pago confirmado', { error: err }))))
 
     logBusinessEvent(ctx.logger, paymentStatus === 'paid' ? BUSINESS_EVENTS.PAYMENT_CONFIRMED : BUSINESS_EVENTS.PAYMENT_REGISTERED, { eventId, guestCount: guestIds.length, failedCount: result.failed })
-    return { ok: result.ok, failed: result.failed }
+    const capacityFull = result.failures.filter((f) => f.reason === 'capacity_full').length
+    return { ok: result.ok, failed: result.failed, capacityFull }
   }),
 )

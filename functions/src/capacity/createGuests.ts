@@ -16,7 +16,7 @@
 // éxito.
 import { AggregateField, FieldValue, type Firestore } from 'firebase-admin/firestore'
 import { randomUUID } from 'node:crypto'
-import { remainingCapacity } from '../lib/attendeeLimit.js'
+import { limitCountsPaid, remainingCapacity } from '../lib/attendeeLimit.js'
 import { applyCounterDeltas } from '../lib/counters/index.js'
 
 export class CapacityFullError extends Error {
@@ -149,7 +149,7 @@ async function createChunk(
     // lectura de agregación de más en el caso, con mucho el más común, de un
     // evento sin límite de asistentes.
     let offeredCount = 0
-    if (attendeeLimitEnabled === true) {
+    if (attendeeLimitEnabled === true && !limitCountsPaid(event)) {
       const offeredAgg = await tx.get(
         eventRef.collection('waitlist').where('status', '==', 'offered').aggregate({ total: AggregateField.sum('partySize') }),
       )
@@ -159,7 +159,12 @@ async function createChunk(
     const currentGuestCount = typeof event.guestCount === 'number' ? event.guestCount : 0
     const currentPeopleCount = typeof event.peopleCount === 'number' ? event.peopleCount : currentGuestCount
     const remaining = remainingCapacity(
-      { attendeeLimitEnabled, peopleCount: currentPeopleCount, capacity: event.capacity as number | undefined },
+      {
+        attendeeLimitEnabled,
+        requiresPayment: event.requiresPayment as boolean | undefined,
+        peopleCount: currentPeopleCount,
+        capacity: event.capacity as number | undefined,
+      },
       offeredCount,
     )
 

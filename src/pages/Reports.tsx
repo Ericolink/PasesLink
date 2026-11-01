@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useEventOnly } from '../hooks/useEventOnly'
 import { getPaymentMethodBreakdown } from '../firebase/paymentBreakdown'
+import { capacityUsed, limitCountsPaid } from '../firebase/attendeeLimit'
 import { PAYMENT_METHOD_LABELS } from '../utils/paymentMethods'
 import type { PaymentMethod } from '../types'
 import { useAuth } from '../hooks/useAuth'
@@ -96,6 +97,13 @@ export function Reports() {
   }
 
   const totalPeople = event.peopleCount
+  // Lo que ocupa el cupo: personas pagadas en modo cupo de pagados (ver
+  // limitCountsPaid), personas registradas en el resto.
+  const paidLimit = limitCountsPaid(event)
+  const usedCapacity = capacityUsed(event)
+  // En modo cupo de pagados la lista de espera son los invitados sin pago
+  // confirmado (personas), no la colección waitlist.
+  const waitingCount = paidLimit ? Math.max(0, totalPeople - event.paidCount) : waitlist.length
   const rsvpYes = event.rsvpYesCount ?? 0
   const rsvpNo = event.rsvpNoCount ?? 0
   const rsvpPending = event.rsvpPendingCount ?? 0
@@ -145,16 +153,16 @@ export function Reports() {
             <DashboardHero
               tone="primary"
               title={event.attendeeLimitEnabled
-                ? `${Math.round(attendancePercent(totalPeople, event.capacity))}% de capacidad`
+                ? `${Math.round(attendancePercent(usedCapacity, event.capacity))}% de capacidad${paidLimit ? ' pagada' : ''}`
                 : `${event.guestCount} invitados registrados`}
               subtitle={event.attendeeLimitEnabled
-                ? `Quedan ${Math.max(0, event.capacity - totalPeople)} lugares disponibles.`
+                ? `Quedan ${Math.max(0, event.capacity - usedCapacity)} lugares disponibles.`
                 : `${totalPeople} personas en total.`}
             />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
               <MetricTile label="Registrados" value={event.guestCount} sub={`${totalPeople} personas en total`} />
               {event.attendeeLimitEnabled && (
-                <MetricTile label="Cupo" value={`${totalPeople} / ${event.capacity}`} accent="primary" />
+                <MetricTile label={paidLimit ? 'Cupo pagado' : 'Cupo'} value={`${usedCapacity} / ${event.capacity}`} accent="primary" />
               )}
               <MetricTile label="Asistirán" value={rsvpYes} accent="primary" />
               <MetricTile label="No asistirán" value={rsvpNo} />
@@ -182,11 +190,11 @@ export function Reports() {
         canSeeReports ? (
           <>
             <DashboardHero tone="warning" title="🔴 Tu evento está lleno" subtitle={`Capacidad utilizada: ${event.capacity} / ${event.capacity}.`}>
-              {waitlist.length > 0 && <p className="text-sm font-semibold">{waitlist.length} personas esperando un lugar.</p>}
+              {waitingCount > 0 && <p className="text-sm font-semibold">{waitingCount} personas esperando un lugar.</p>}
             </DashboardHero>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
               <MetricTile label="Registrados" value={event.guestCount} sub={`${totalPeople} personas`} />
-              <MetricTile label="En espera" value={waitlist.length} accent="warning" />
+              <MetricTile label="En espera" value={waitingCount} accent="warning" />
               <MetricTile label="Capacidad utilizada" value="100%" accent="warning" />
             </div>
           </>
@@ -264,7 +272,7 @@ export function Reports() {
               <MetricTile label="No asistieron" value={pendingCount} />
               <MetricTile label="Acompañantes" value={Math.max(0, totalPeople - event.guestCount)} />
               {event.attendeeLimitEnabled && (
-                <MetricTile label="Capacidad utilizada" value={`${Math.round(attendancePercent(totalPeople, event.capacity))}%`} />
+                <MetricTile label="Capacidad utilizada" value={`${Math.round(attendancePercent(usedCapacity, event.capacity))}%`} />
               )}
               {payment && (
                 <>

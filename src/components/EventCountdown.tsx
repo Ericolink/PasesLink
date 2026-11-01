@@ -100,10 +100,10 @@ export function EventCountdown({ date, startTime, endTime, className }: Props) {
         {tiles.map((tile) => (
           <div
             key={tile.label}
-            className="relative overflow-hidden text-center py-2 sm:py-2.5 border [border-radius:var(--invite-radius,0.5rem)]"
+            className="relative overflow-hidden text-center py-2 sm:py-2.5 border-2 [border-radius:var(--invite-radius,0.5rem)]"
             style={{
               backgroundColor: 'var(--invite-surface, #1a1130)',
-              borderColor: 'var(--invite-border, rgba(144,102,200,.35))',
+              borderColor: 'var(--invite-accent, #FF1464)',
               boxShadow: 'var(--invite-shadow, 0 2px 8px rgba(0,0,0,.25))',
               fontFamily: 'var(--invite-font, inherit)',
             }}
@@ -114,14 +114,6 @@ export function EventCountdown({ date, startTime, endTime, className }: Props) {
             >
               {tile.value}
             </span>
-            {/* Filete del acento — el mismo "objeto de validación mínimo" que ya
-                usa el resto del sistema de temas (border-top-color), acá como
-                pestaña inferior del tile en vez de la tarjeta completa. */}
-            <span
-              aria-hidden="true"
-              className="absolute bottom-0 left-0 right-0 h-[3px]"
-              style={{ backgroundColor: 'var(--invite-accent, #FF1464)' }}
-            />
             <p className="mt-1 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-[var(--invite-text-muted,#a89fb3)]">
               {tile.label}
             </p>

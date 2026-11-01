@@ -1,5 +1,6 @@
 import type { EventData } from '../types'
 import { isEventPast, isEventToday } from './time'
+import { capacityUsed } from '../firebase/attendeeLimit'
 
 // Etapa del dashboard fusionado (Reportes + Anfitrión en Vivo, ver
 // project_dashboard_reports_split_v1 → esta reversión unifica de nuevo,
@@ -10,7 +11,7 @@ export type DashboardStage = 'empty' | 'open' | 'full' | 'waiting_first_checkin'
 type StageInput = Pick<
   EventData,
   'status' | 'date' | 'guestCount' | 'peopleCount' | 'capacity' | 'attendeeLimitEnabled' | 'checkedInCount'
->
+> & Partial<Pick<EventData, 'requiresPayment' | 'paidCount'>>
 
 // No existe un campo "publicado/borrador" en EventData — `guestCount === 0`
 // cumple el mismo rol narrativo de "recién creado" con una señal real, sin
@@ -20,7 +21,7 @@ export function getDashboardStage(event: StageInput, now: Date = new Date()): Da
   if (isEventToday(event.date, now)) {
     return event.checkedInCount > 0 ? 'live' : 'waiting_first_checkin'
   }
-  if (event.attendeeLimitEnabled && event.capacity > 0 && event.peopleCount >= event.capacity) return 'full'
+  if (event.attendeeLimitEnabled && event.capacity > 0 && capacityUsed(event) >= event.capacity) return 'full'
   if (event.guestCount === 0) return 'empty'
   return 'open'
 }

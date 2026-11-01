@@ -73,6 +73,9 @@ export const confirmPaymentAndCheckIn = onCall<ConfirmPaymentAndCheckInInput>(
       source: { kind: 'manual', uid: request.auth.uid },
       selection,
     })
+    if (!result.ok && result.reason === 'capacity_full') {
+      throw new HttpsError('failed-precondition', 'El cupo del evento ya está lleno: esta persona está en la lista de espera. Para confirmar su pago, primero aumenta el cupo.', { reason: 'capacity_full' })
+    }
     if (!result.ok) {
       throw new HttpsError('not-found', result.reason === 'event_not_found' ? 'El evento no existe.' : 'El invitado no existe en este evento.')
     }

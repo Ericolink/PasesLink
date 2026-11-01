@@ -6,6 +6,7 @@
 // llamar exactamente esta misma función con `source: { kind: 'webhook', ... }`
 // sin reimplementar nada de esto.
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
+import { remainingPaidCapacity } from '../lib/attendeeLimit.js'
 import { applyCounterDeltas } from '../lib/counters/index.js'
 import { guestVersionFields } from '../lib/guestVersion.js'
 
@@ -82,7 +83,7 @@ export type ConfirmPaymentNotify = { ownerId: string; eventName: string; guestNa
 
 export type ConfirmPaymentResult =
   | { ok: true; changed: boolean; notify: ConfirmPaymentNotify | null }
-  | { ok: false; reason: 'event_not_found' | 'guest_not_found' }
+  | { ok: false; reason: 'event_not_found' | 'guest_not_found' | 'capacity_full' }
 
 export interface ConfirmPaymentOptions {
   method?: PaymentMethod
@@ -112,6 +113,11 @@ export async function confirmGuestPayment(
     const guest = guestSnap.data()!
     const change = computePaymentChange(guest, target, opts.method, opts.source)
     if (!change.changed) return { ok: true, changed: false, notify: null }
+    // Cupo de pagados (ver limitCountsPaid): con el cupo lleno ya no se
+    // confirman más pagos — para dejar pasar a alguien de la lista de
+    // espera, el anfitrión sube el cupo. Revertir un pago siempre se puede.
+    const paidRemaining = remainingPaidCapacity(event)
+    if (paidRemaining !== null && change.paidCountDelta > paidRemaining) return { ok: false, reason: 'capacity_full' }
 
     tx.update(guestRef, { ...change.guestUpdates, ...guestVersionFields() })
     applyCounterDeltas(db, tx, eventRef, eventId, { paidCount: change.paidCountDelta })
@@ -135,7 +141,7 @@ export interface BulkConfirmOptions {
 
 export interface BulkConfirmFailure {
   guestId: string
-  reason: 'not_found'
+  reason: 'not_found' | 'capacity_full'
 }
 
 export interface BulkConfirmResult {
@@ -175,6 +181,9 @@ export async function bulkConfirmGuestPayments(
       }
       const event = eventSnap.data()!
       let paidCountDelta = 0
+      // Cupo de pagados: se van confirmando en el orden recibido hasta donde
+      // alcance; los que no entran cuentan como `failed` (capacity_full).
+      const paidRemaining = remainingPaidCapacity(event)
 
       guestSnaps.forEach((guestSnap, idx) => {
         const guestId = chunk[idx]
@@ -186,6 +195,11 @@ export async function bulkConfirmGuestPayments(
         const guest = guestSnap.data()!
         const resolvedMethod = ((guest.paymentMethod as PaymentMethod | null) ?? opts.defaultMethod) || undefined
         const change = computePaymentChange(guest, target, resolvedMethod, opts.source)
+        if (change.changed && paidRemaining !== null && change.paidCountDelta > 0 && paidCountDelta + change.paidCountDelta > paidRemaining) {
+          result.failures.push({ guestId, reason: 'capacity_full' })
+          result.failed += 1
+          return
+        }
         if (change.changed) {
           tx.update(guestsCol.doc(guestId), { ...change.guestUpdates, ...guestVersionFields() })
           paidCountDelta += change.paidCountDelta

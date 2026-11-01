@@ -1,4 +1,5 @@
 import type { EventData, GuestData } from '../types'
+import { limitCountsPaid } from '../firebase/attendeeLimit'
 
 interface Step {
   id: string
@@ -62,7 +63,19 @@ export function EventNextSteps({
     }
   }
 
-  if (event.attendeeLimitEnabled && event.capacity > 0 && totalPeople >= event.capacity) {
+  if (limitCountsPaid(event)) {
+    // Cupo de pagados: "lleno" se mide con paidCount y la lista de espera
+    // son los propios invitados sin pago confirmado (no la colección
+    // waitlist), así que el CTA lleva a la lista de invitados.
+    if (event.capacity > 0 && event.paidCount >= event.capacity) {
+      steps.push({
+        id: 'full',
+        text: 'El cupo de pagados está lleno. Quienes no han pagado quedan en lista de espera.',
+        ctaLabel: 'Ver invitados',
+        onClick: () => scrollToId('add-guests'),
+      })
+    }
+  } else if (event.attendeeLimitEnabled && event.capacity > 0 && totalPeople >= event.capacity) {
     steps.push({
       id: 'full',
       text: 'Tu evento está lleno.',

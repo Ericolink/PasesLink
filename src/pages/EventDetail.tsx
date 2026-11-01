@@ -20,6 +20,7 @@ import { trackEventOpen } from '../lib/analytics'
 import { captureException } from '../lib/sentry'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { subscribeToWaitlist } from '../firebase/waitlist'
+import { limitCountsPaid } from '../firebase/attendeeLimit'
 import { filterAndSortGuests, matchesGuestSearch } from '../utils/guestSearch'
 import { optimizedImageUrl } from '../utils/cloudinary'
 import { GuestAddForm } from '../components/GuestAddForm'
@@ -566,7 +567,31 @@ export function EventDetail() {
             real del cupo — barra de progreso + alerta roja cuando se llena.
             Con el límite desactivado (todo evento antes de esta feature),
             sigue el aviso de "cupo recomendado" de siempre, sin cambios. */}
-        {event.attendeeLimitEnabled ? (
+        {/* Cupo de pagados (ver limitCountsPaid): la barra mide personas
+            con pago confirmado; el registro nunca se cierra y quienes no han
+            pagado quedan en lista de espera al llenarse. */}
+        {event.attendeeLimitEnabled && limitCountsPaid(event) ? (
+          <div className={`pt-4 border-t ${
+            event.paidCount >= event.capacity
+              ? 'border-red-200 dark:border-red-900/50'
+              : 'border-gray-100 dark:border-gray-700'
+          }`}>
+            {event.paidCount >= event.capacity && (
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">🔴 Cupo lleno</p>
+            )}
+            <AttendanceProgressBar
+              present={event.paidCount}
+              expected={event.capacity}
+              unitLabel="lugares pagados"
+              showPercentage
+              subtitle={
+                event.paidCount >= event.capacity
+                  ? `El registro sigue abierto, pero ya no se pueden confirmar más pagos. ${Math.max(0, totalPeople - event.paidCount)} persona${totalPeople - event.paidCount === 1 ? '' : 's'} sin pago confirmado ${totalPeople - event.paidCount === 1 ? 'está' : 'están'} en lista de espera.`
+                  : `Lugares disponibles: ${Math.max(0, event.capacity - event.paidCount)}. El cupo cuenta solo a quienes ya pagaron.`
+              }
+            />
+          </div>
+        ) : event.attendeeLimitEnabled ? (
           <div className={`pt-4 border-t ${
             totalPeople >= event.capacity
               ? 'border-red-200 dark:border-red-900/50'
@@ -790,7 +815,9 @@ export function EventDetail() {
             canConfirmPayments={perms.confirmPayments}
             canDeleteGuests={perms.deleteGuests}
             canCheckIn={perms.scanQr}
-            attendeeLimitEnabled={event.attendeeLimitEnabled}
+            // "Enviar a lista de espera" no aplica al cupo de pagados: quien
+            // no pagó no ocupa lugar, ya está en espera por sí solo.
+            attendeeLimitEnabled={event.attendeeLimitEnabled && !limitCountsPaid(event)}
           />
         </div>
       </div>

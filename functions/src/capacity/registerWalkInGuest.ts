@@ -14,7 +14,7 @@
 //    cliente, así que no hace falta que ninguna regla los revalide.
 import { AggregateField, FieldValue, type Firestore } from 'firebase-admin/firestore'
 import { randomUUID } from 'node:crypto'
-import { hasCapacityFor } from '../lib/attendeeLimit.js'
+import { hasCapacityFor, limitCountsPaid } from '../lib/attendeeLimit.js'
 import { applyCounterDeltas } from '../lib/counters/index.js'
 import {
   type CustomFieldDef,
@@ -181,7 +181,9 @@ export async function registerWalkInGuest(
     const customData = validatePublicCustomData(input.customData, event.customFields as CustomFieldDef[] | undefined)
 
     let offeredCount = 0
-    if (event.attendeeLimitEnabled === true) {
+    // En modo "cupo de pagados" el registro nunca se bloquea (ver
+    // limitCountsPaid), así que no hace falta el conteo de ofertas.
+    if (event.attendeeLimitEnabled === true && !limitCountsPaid(event)) {
       const offeredAgg = await tx.get(
         waitlistCol.where('status', '==', 'offered').aggregate({ total: AggregateField.sum('partySize') }),
       )
@@ -203,6 +205,7 @@ export async function registerWalkInGuest(
     const currentPeopleCount = typeof event.peopleCount === 'number' ? event.peopleCount : currentGuestCount
     const capacitySnapshot = {
       attendeeLimitEnabled: event.attendeeLimitEnabled as boolean | undefined,
+      requiresPayment: event.requiresPayment as boolean | undefined,
       peopleCount: currentPeopleCount,
       capacity: event.capacity as number | undefined,
     }

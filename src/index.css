@@ -945,14 +945,14 @@ textarea:focus {
   background: radial-gradient(circle, color-mix(in srgb, var(--invite-accent-soft) 18%, transparent) 0%, transparent 70%);
 }
 
-/* Tarjetas: borde superior con el acento del tema. Una sola regla genérica
+/* Tarjetas: contorno completo con el acento del tema. Una sola regla genérica
    (a diferencia de templates.css, que tematiza por tema individual) — el
    dashboard usa un tratamiento sistemático, no una materialidad propia por
    tema. .invite-stat-card ya la lleva StatCard.tsx; .invite-card-accent es
    de uso general (cabecera de evento, contenedor de lista de invitados). */
 [data-dash-template] .invite-stat-card,
 [data-dash-template] .invite-card-accent {
-  border-top: 3px solid var(--invite-accent) !important;
+  border: 2px solid var(--invite-accent) !important;
 }
 
 /* ── Encabezado de pantalla (ScreenHeader) con identidad de plantilla ──

@@ -430,8 +430,12 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       return
     }
     const effectivePeopleCount = reconciledPeopleCountRef.current ?? event.peopleCount
-    if (!capacityReductionAllowed({ ...event, peopleCount: effectivePeopleCount }, parsedCapacity, form.attendeeLimitEnabled)) {
-      setCapacityError(`No puedes reducir la capacidad por debajo de las ${effectivePeopleCount} personas ya confirmadas.`)
+    if (!capacityReductionAllowed({ ...event, peopleCount: effectivePeopleCount }, parsedCapacity, form.attendeeLimitEnabled, form.requiresPayment)) {
+      setCapacityError(
+        form.requiresPayment
+          ? `No puedes reducir el cupo por debajo de las ${event.paidCount} personas que ya pagaron.`
+          : `No puedes reducir la capacidad por debajo de las ${effectivePeopleCount} personas ya confirmadas.`,
+      )
       return
     }
     setCapacityError('')
@@ -559,7 +563,16 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
       return
     }
 
-    if (!capacityReductionAllowed(event, parsedCapacity, form.attendeeLimitEnabled)) {
+    // Cupo de pagados (ver limitCountsPaid): no hay a quién pasar a la lista
+    // de espera para hacer lugar (un pago confirmado no se deshace solo), así
+    // que bajar el cupo por debajo de los que ya pagaron simplemente se
+    // bloquea, sin el plan de degradación de abajo.
+    if (form.requiresPayment && !capacityReductionAllowed(event, parsedCapacity, form.attendeeLimitEnabled, true)) {
+      setCapacityError(`No puedes reducir el cupo por debajo de las ${event.paidCount} personas que ya pagaron.`)
+      setErrorAttempt((n) => n + 1)
+      return
+    }
+    if (!capacityReductionAllowed(event, parsedCapacity, form.attendeeLimitEnabled, form.requiresPayment)) {
       setSubmitError('')
       setSaving(true)
       try {
@@ -996,7 +1009,9 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
           id="edit-event-capacity"
           required
           error={capacityError || null}
-          helperText={form.attendeeLimitEnabled
+          helperText={form.attendeeLimitEnabled && form.requiresPayment
+            ? 'Total de personas con pago confirmado (invitados + acompañantes). El registro sigue abierto: al llegar a este número ya no se pueden confirmar más pagos y quienes no han pagado quedan en lista de espera.'
+            : form.attendeeLimitEnabled
             ? 'Total de personas (invitados + acompañantes) — al llegar a este número, el autorregistro y las altas manuales se cierran automáticamente.'
             : 'Total de personas recomendado (invitados + acompañantes) — informativo, no bloquea nuevos registros si se supera.'}
         >
@@ -1023,7 +1038,13 @@ export function EditEventForm({ event, onDone }: { event: EventData; onDone: () 
             se elimina automáticamente); este aviso solo cubre ese caso heredado,
             el intento de reducirlo de verdad ya muestra el error de capacityError
             arriba en vez de este aviso informativo. */}
-        {form.attendeeLimitEnabled && event.peopleCount > (parseInt(form.capacity) || 0) && !capacityError && (
+        {form.attendeeLimitEnabled && form.requiresPayment && event.paidCount > (parseInt(form.capacity) || 0) && !capacityError && (
+          <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+            Ya hay {event.paidCount} personas con pago confirmado, por encima de este cupo. No se quita a nadie
+            automáticamente — no se podrán confirmar más pagos hasta que baje de {form.capacity}.
+          </p>
+        )}
+        {form.attendeeLimitEnabled && !form.requiresPayment && event.peopleCount > (parseInt(form.capacity) || 0) && !capacityError && (
           <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
             Ya hay {event.peopleCount} asistentes, por encima de este límite. No se elimina a nadie automáticamente —
             el autorregistro y las altas manuales quedan cerrados hasta que baje de {form.capacity} por cancelaciones

@@ -143,7 +143,9 @@ export function StepInvitationMethod({
           </p>
         )}
         <p className="text-xs text-gray-400 mt-1">
-          {attendeeLimitEnabled
+          {attendeeLimitEnabled && requiresPayment
+            ? 'Cuenta solo a quienes ya pagaron. El registro sigue abierto: al llegar a este número ya no se pueden confirmar más pagos y quienes no han pagado quedan en lista de espera.'
+            : attendeeLimitEnabled
             ? 'Al llegar a este número, el autorregistro y las altas manuales se cierran automáticamente.'
             : 'Es una capacidad recomendada, no un límite estricto: si se supera, los nuevos invitados igual pueden registrarse.'}
         </p>

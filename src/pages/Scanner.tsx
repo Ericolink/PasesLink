@@ -364,6 +364,16 @@ export function Scanner() {
         })
       }
     } catch (err) {
+      // Cupo de pagados lleno (ver limitCountsPaid): no es una falla — la
+      // persona está en lista de espera. Se cierra el modal de pago con el
+      // mismo aviso de "lleno" que ya usa el walk-in.
+      if ((err as { details?: { reason?: string } } | null)?.details?.reason === 'capacity_full') {
+        showFeedback({
+          type: 'full',
+          detail: 'El cupo del evento ya está lleno: esta persona está en la lista de espera. Para confirmar su pago, primero aumenta el cupo.',
+        })
+        return
+      }
       console.error('Error confirmando pago:', err)
       if (!isNetworkError(err) || attempt >= 2) {
         captureException(err, { tags: { component: 'scanner', action: 'confirm_payment' } })

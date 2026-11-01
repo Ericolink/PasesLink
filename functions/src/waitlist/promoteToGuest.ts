@@ -10,6 +10,7 @@
 //     resolver).
 import { randomUUID } from 'node:crypto'
 import { FieldValue, type DocumentData, type DocumentReference, type Firestore } from 'firebase-admin/firestore'
+import { limitCountsPaid, remainingPaidCapacity } from '../lib/attendeeLimit.js'
 import type { PaymentMethod } from '../payments/confirmPayment.js'
 
 export interface PromoteToGuestOptions {
@@ -96,7 +97,15 @@ export async function promoteEntryToGuest(
     // real"). Cubre tanto el caso de la oferta (pudo quedar vieja) como el
     // de la asignación directa (nunca pasó por attemptPromote antes).
     const bumped: { ref: DocumentReference; data: DocumentData; size: number }[] = []
-    if (peopleCount + partySize > capacity) {
+    if (limitCountsPaid(event)) {
+      // Cupo de pagados: entrar como registrado nunca está limitado; solo
+      // "Marcar como pagado" tiene que caber en el cupo de pagos. Correr a
+      // otros no aplica (los no pagados no ocupan cupo).
+      const paidRemaining = remainingPaidCapacity(event) ?? 0
+      if (opts.markPaid === true && partySize > paidRemaining) {
+        return { ok: false, reason: 'no_capacity' }
+      }
+    } else if (peopleCount + partySize > capacity) {
       if (!opts.allowBumpToFit) {
         return { ok: false, reason: 'no_capacity' }
       }
@@ -223,6 +232,11 @@ export async function promoteEntryToGuest(
     tx.update(eventRef, {
       guestCount: ((event.guestCount as number) ?? 0) + guestCountDelta,
       peopleCount: peopleCount + peopleCountDelta,
+      // Antes paidCount no se tocaba acá y quedaba atrasado hasta la
+      // reconciliación (≤10 min) — ahora el cupo de pagados (ver
+      // limitCountsPaid) lo lee como límite, así que se suma en la misma
+      // transacción. Los corridos por allowBumpToFit nunca habían pagado.
+      ...(markPaid ? { paidCount: ((event.paidCount as number) ?? 0) + partySize } : {}),
       rsvpYesCount: ((event.rsvpYesCount as number) ?? 0) + rsvpYesCountDelta,
       ...(rsvpNoCountDelta !== 0 ? { rsvpNoCount: ((event.rsvpNoCount as number) ?? 0) + rsvpNoCountDelta } : {}),
       ...(rsvpPendingCountDelta !== 0 ? { rsvpPendingCount: ((event.rsvpPendingCount as number) ?? 0) + rsvpPendingCountDelta } : {}),

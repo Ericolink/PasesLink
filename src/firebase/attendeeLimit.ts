@@ -25,8 +25,38 @@ export class CapacityFullError extends Error {
 
 interface CapacitySnapshot {
   attendeeLimitEnabled?: boolean
+  requiresPayment?: boolean
   peopleCount?: number
+  paidCount?: number
   capacity?: number
+}
+
+// Evento con pago + límite activado: el cupo cuenta solo a las personas con
+// pago confirmado (paidCount), no a las registradas — el registro queda
+// abierto sin tope y quien no ha pagado cuando el cupo se llena queda en
+// lista de espera (estado derivado, sin documento propio: ver
+// isOnPaidWaitlist). Sin pago, el límite sigue contando registrados
+// (peopleCount). Espejo de functions/src/lib/attendeeLimit.ts y de
+// limitCountsPaid en firestore.rules.
+export function limitCountsPaid(event: Pick<CapacitySnapshot, 'attendeeLimitEnabled' | 'requiresPayment'>): boolean {
+  return event.attendeeLimitEnabled === true && event.requiresPayment === true
+}
+
+// Personas que ocupan el cupo según el modo del evento — lo que las
+// pantallas del anfitrión comparan contra `capacity`.
+export function capacityUsed(event: CapacitySnapshot): number {
+  return limitCountsPaid(event) ? (event.paidCount ?? 0) : (event.peopleCount ?? 0)
+}
+
+// ¿El cupo de pagados ya se llenó? false si el evento no está en ese modo.
+export function isPaidCapacityFull(event: CapacitySnapshot): boolean {
+  return limitCountsPaid(event) && (event.paidCount ?? 0) >= (event.capacity ?? 0)
+}
+
+// Un invitado sin pago confirmado (incluye comprobante en revisión) de un
+// evento con el cupo de pagados lleno: está en lista de espera.
+export function isOnPaidWaitlist(event: CapacitySnapshot, guest: { paymentStatus?: string }): boolean {
+  return isPaidCapacityFull(event) && guest.paymentStatus !== 'paid'
 }
 
 // null = cupo ilimitado (attendeeLimitEnabled ausente/false) — distinto de 0
@@ -37,7 +67,7 @@ interface CapacitySnapshot {
 // organizador podía pisar el lugar que una oferta activa ya le había
 // prometido a alguien de la fila.
 export function remainingCapacity(event: CapacitySnapshot, offeredCount = 0): number | null {
-  if (!event.attendeeLimitEnabled) return null
+  if (!event.attendeeLimitEnabled || limitCountsPaid(event)) return null
   return Math.max(0, (event.capacity ?? 0) - (event.peopleCount ?? 0) - offeredCount)
 }
 
@@ -58,14 +88,18 @@ export function assertCapacityAvailable(event: CapacitySnapshot, additionalPeopl
 // límite nunca estuvo activado y el evento simplemente creció) puede seguir
 // guardándose sin tocar — solo se bloquea una reducción o una activación
 // NUEVAS que empeoren o creen esa situación en este mismo guardado.
+// `nextRequiresPayment` (default: el valor actual del evento) decide contra
+// qué se compara: en modo cupo de pagados (ver limitCountsPaid) lo "ya
+// confirmado" son las personas que pagaron (`paidCount`).
 export function capacityReductionAllowed(
   current: CapacitySnapshot,
   nextCapacity: number,
   nextAttendeeLimitEnabled: boolean,
+  nextRequiresPayment: boolean = current.requiresPayment === true,
 ): boolean {
   if (!nextAttendeeLimitEnabled) return true
-  const peopleCount = current.peopleCount ?? 0
-  if (nextCapacity >= peopleCount) return true
+  const used = nextRequiresPayment ? (current.paidCount ?? 0) : (current.peopleCount ?? 0)
+  if (nextCapacity >= used) return true
   const isDecrease = nextCapacity < (current.capacity ?? 0)
   const turningOn = !current.attendeeLimitEnabled
   return !isDecrease && !turningOn

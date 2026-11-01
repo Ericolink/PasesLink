@@ -19,7 +19,7 @@ import {
 import type { Unsubscribe } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { auth, db, functions } from './config'
-import { assertCapacityAvailable, CapacityFullError, fetchOfferedWaitlistCount } from './attendeeLimit'
+import { assertCapacityAvailable, CapacityFullError, fetchOfferedWaitlistCount, limitCountsPaid } from './attendeeLimit'
 import { applyCounterDeltas } from './counters'
 import { mapEvent } from './events'
 import { enqueueNotification } from './notifications'
@@ -357,15 +357,21 @@ export async function updateGuest(
       if (after > before) {
         const eventSnap = await transaction.get(eventRef)
         const eventData = (eventSnap.data() || {}) as Record<string, unknown>
-        assertCapacityAvailable(
-          {
-            attendeeLimitEnabled: eventData.attendeeLimitEnabled as boolean | undefined,
-            peopleCount: typeof eventData.peopleCount === 'number' ? eventData.peopleCount : (typeof eventData.guestCount === 'number' ? eventData.guestCount : 0),
-            capacity: eventData.capacity as number | undefined,
-          },
-          after - before,
-          offeredCount,
-        )
+        const snapshot = {
+          attendeeLimitEnabled: eventData.attendeeLimitEnabled as boolean | undefined,
+          requiresPayment: eventData.requiresPayment as boolean | undefined,
+          peopleCount: typeof eventData.peopleCount === 'number' ? eventData.peopleCount : (typeof eventData.guestCount === 'number' ? eventData.guestCount : 0),
+          paidCount: typeof eventData.paidCount === 'number' ? eventData.paidCount : 0,
+          capacity: eventData.capacity as number | undefined,
+        }
+        assertCapacityAvailable(snapshot, after - before, offeredCount)
+        // Cupo de pagados: sumar acompañantes a alguien que ya pagó también
+        // suma paidCount (ver applyCounterDeltas abajo), así que tiene que
+        // caber en ese cupo.
+        if (limitCountsPaid(snapshot) && existing.paymentStatus === 'paid'
+          && (snapshot.paidCount + after - before) > (snapshot.capacity ?? 0)) {
+          throw new CapacityFullError()
+        }
       }
     }
 
@@ -640,6 +646,9 @@ function chunkByPartySize<T>(items: T[], sizeOf: (item: T) => number): T[][] {
 export interface BulkResult {
   ok: number
   failed: number
+  // Solo bulkSetGuestPaymentStatus: cuántos de `failed` no entraron porque el
+  // cupo de pagados se llenó (ver limitCountsPaid).
+  capacityFull?: number
 }
 
 // Versión masiva de deleteGuest: en vez de que cada invitado seleccionado

@@ -3,7 +3,7 @@ import type { CountryCode } from 'libphonenumber-js/min'
 import { useNavigate, useParams } from 'react-router-dom'
 import { subscribeToEventWithInitial } from '../firebase/events'
 import { registerWalkInGuest } from '../firebase/capacity'
-import { CapacityFullError } from '../firebase/attendeeLimit'
+import { CapacityFullError, isPaidCapacityFull, limitCountsPaid } from '../firebase/attendeeLimit'
 import { resolveMaxCompanions } from '../firebase/guests'
 import { joinWaitlist } from '../firebase/waitlist'
 import { CountryCodeSelect, DEFAULT_PHONE_COUNTRY } from '../components/CountryCodeSelect'
@@ -53,9 +53,11 @@ type State = 'loading' | 'form' | 'submitting' | 'not_found' | 'error' | 'full'
 // Único lugar que decide si el evento ya alcanzó su cupo (ver
 // CAPACITY_LIMIT_ARCHITECTURE.md) — con el límite desactivado (ausente/false,
 // todo evento antes de esta feature) siempre da `false`, cero cambio de
-// comportamiento.
-function isEventFull(ev: Pick<EventData, 'attendeeLimitEnabled' | 'peopleCount' | 'capacity'>): boolean {
-  return !!ev.attendeeLimitEnabled && (ev.peopleCount ?? 0) >= (ev.capacity ?? 0)
+// comportamiento. En modo cupo de pagados (ver limitCountsPaid) el registro
+// nunca se cierra: también da `false`, y quien se registre con el cupo ya
+// lleno queda en lista de espera (aviso en el formulario y en su pase).
+function isEventFull(ev: Pick<EventData, 'attendeeLimitEnabled' | 'requiresPayment' | 'peopleCount' | 'capacity'>): boolean {
+  return !!ev.attendeeLimitEnabled && !limitCountsPaid(ev) && (ev.peopleCount ?? 0) >= (ev.capacity ?? 0)
 }
 
 interface SavedReg {
@@ -1030,22 +1032,28 @@ export function EventJoin() {
               </fieldset>
             )}
 
-            {/* Con el límite activado, la pantalla de "evento lleno" (arriba)
-                ya se hace cargo del caso sin lugar — este aviso solo llega a
-                mostrarse mientras todavía queda cupo, así que alcanza con el
-                contador simple. Sin el límite activado, sigue el aviso
-                informativo de siempre (capacity nunca bloquea nada). */}
-            {!!event?.capacity && (
-              event.attendeeLimitEnabled || event.peopleCount < event.capacity ? (
-                <p className="text-xs text-center text-[var(--invite-text-muted)]">
-                  {event.peopleCount} / {event.capacity} registros
+            {/* El invitado nunca ve cuántos hay registrados ni el cupo (ni
+                siquiera como "X / Y") — esas cifras son solo del anfitrión.
+                Con el límite activado, la pantalla de "evento lleno" (arriba)
+                ya se hace cargo del caso sin lugar. Sin el límite activado,
+                sigue el aviso informativo de sobrecupo, sin números
+                (capacity nunca bloquea nada). */}
+            {/* Cupo de pagados lleno: puede registrarse igual, pero tiene que
+                saber ANTES de enviar que entra a la lista de espera. */}
+            {event && isPaidCapacityFull(event) && (
+              <div role="status" className="rounded-2xl border-2 border-[var(--invite-accent)] bg-[var(--invite-accent-soft)] p-3 text-center">
+                <p className="text-sm font-bold text-black">El cupo de este evento ya se llenó</p>
+                <p className="text-xs text-black mt-0.5">
+                  Puedes registrarte, pero quedarás en la <strong>lista de espera</strong>. Si se libera un lugar, el
+                  anfitrión podrá confirmar tu pago.
                 </p>
-              ) : (
-                <p className="text-xs text-center text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
-                  Este evento ya superó el número recomendado de asistentes. Aún puedes obtener tu boleto y asistir, pero
-                  el ingreso dependerá del orden de llegada el día del evento.
-                </p>
-              )
+              </div>
+            )}
+            {!!event?.capacity && !event.attendeeLimitEnabled && event.peopleCount >= event.capacity && (
+              <p className="text-xs text-center text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                Este evento ya superó el número recomendado de asistentes. Aún puedes obtener tu boleto y asistir, pero
+                el ingreso dependerá del orden de llegada el día del evento.
+              </p>
             )}
             <FieldError message={regError} />
             <button

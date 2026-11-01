@@ -61,6 +61,9 @@ export const setGuestPaymentStatus = onCall<SetGuestPaymentStatusInput>({ timeou
       method,
       source: { kind: 'manual', uid: request.auth.uid },
     })
+    if (!result.ok && result.reason === 'capacity_full') {
+      throw new HttpsError('failed-precondition', 'El cupo del evento ya está lleno. Para confirmar este pago, primero aumenta el cupo.', { reason: 'capacity_full' })
+    }
     if (!result.ok) {
       throw new HttpsError('not-found', result.reason === 'event_not_found' ? 'El evento no existe.' : 'El invitado no existe en este evento.')
     }

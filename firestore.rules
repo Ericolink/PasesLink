@@ -237,10 +237,21 @@ service cloud.firestore {
     // (todo evento antes de esta feature) siempre da true, sin excepción.
     // Las bajas de peopleCount SIEMPRE están permitidas, sin importar el
     // límite — solo se bloquean los aumentos que superarían capacity.
+    // Evento con pago + límite: el cupo cuenta solo a quienes pagaron
+    // (paidCount) y el registro queda abierto. Espejo de limitCountsPaid en
+    // src/firebase/attendeeLimit.ts y functions/src/lib/attendeeLimit.ts.
+    function limitCountsPaid(ev) {
+      return ev.get('attendeeLimitEnabled', false) == true
+        && ev.get('requiresPayment', false) == true;
+    }
+
     function attendeeLimitOk(oldEv, newEv) {
       return !(oldEv.get('attendeeLimitEnabled', false) == true)
-        || newEv.peopleCount <= oldEv.peopleCount
-        || newEv.peopleCount <= oldEv.get('capacity', 0);
+        || (limitCountsPaid(oldEv)
+          ? (newEv.get('paidCount', 0) <= oldEv.get('paidCount', 0)
+            || newEv.get('paidCount', 0) <= oldEv.get('capacity', 0))
+          : (newEv.peopleCount <= oldEv.peopleCount
+            || newEv.peopleCount <= oldEv.get('capacity', 0)));
     }
 
     // Complementa attendeeLimitOk (que protege que peopleCount no supere
@@ -252,7 +263,9 @@ service cloud.firestore {
     // seguir guardándose sin tocar, solo se bloquea una reducción o una
     // activación NUEVAS que la empeoren o la creen en este guardado.
     function capacityReductionOk(oldEv, newEv) {
-      let peopleCount = oldEv.get('peopleCount', 0);
+      // En modo cupo de pagados (según cómo QUEDA el evento) lo "ya
+      // confirmado" son las personas que pagaron.
+      let peopleCount = limitCountsPaid(newEv) ? oldEv.get('paidCount', 0) : oldEv.get('peopleCount', 0);
       let oldCapacity = oldEv.get('capacity', 0);
       let oldEnabled = oldEv.get('attendeeLimitEnabled', false) == true;
       let newCapacity = newEv.get('capacity', 0);

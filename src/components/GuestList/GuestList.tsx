@@ -538,8 +538,12 @@ export const GuestList = memo(function GuestList({
     setActionError('')
     try {
       const targets = guests.filter((g) => selected.has(g.id))
-      const { failed } = await bulkSetGuestPaymentStatus(eventId, targets.map((g) => g.id), 'paid', bulkPaymentMethod ?? paymentMethods[0])
-      if (failed > 0) setActionError(`No se pudo marcar como pagado a ${failed} de ${targets.length} invitados.`)
+      const { failed, capacityFull = 0 } = await bulkSetGuestPaymentStatus(eventId, targets.map((g) => g.id), 'paid', bulkPaymentMethod ?? paymentMethods[0])
+      if (capacityFull > 0) {
+        setActionError(`El cupo del evento se llenó: ${capacityFull} de ${targets.length} invitados quedaron sin confirmar. Para confirmarlos, primero aumenta el cupo.`)
+      } else if (failed > 0) {
+        setActionError(`No se pudo marcar como pagado a ${failed} de ${targets.length} invitados.`)
+      }
     } catch (err) {
       console.error('Error marking guests as paid:', err)
       setActionError('No se pudo marcar el pago. Intenta de nuevo.')
